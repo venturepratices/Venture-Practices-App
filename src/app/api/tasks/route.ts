@@ -1,0 +1,28 @@
+import { NextResponse } from "next/server";
+
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { createTaskSchema } from "@/lib/validations/task";
+
+export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = createTaskSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  const task = await prisma.task.create({
+    data: {
+      title: parsed.data.title,
+      clientId: parsed.data.clientId ?? null,
+      assigneeId: parsed.data.assigneeId ?? null,
+    },
+  });
+
+  return NextResponse.json(task, { status: 201 });
+}
