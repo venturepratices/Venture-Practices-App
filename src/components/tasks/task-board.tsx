@@ -13,10 +13,12 @@ function Column({
   status,
   tasks,
   onOpenTask,
+  showClient,
 }: {
   status: string;
   tasks: TaskWithRelations[];
   onOpenTask: (taskId: string) => void;
+  showClient?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -31,14 +33,14 @@ function Column({
       </div>
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+          <TaskCard key={task.id} task={task} onOpen={onOpenTask} showClient={showClient} />
         ))}
       </div>
     </div>
   );
 }
 
-export function TaskBoard({ tasks }: { tasks: TaskWithRelations[] }) {
+export function TaskBoard({ tasks, showClientOnCards }: { tasks: TaskWithRelations[]; showClientOnCards?: boolean }) {
   const [localTasks, setLocalTasks] = useState(tasks);
   const router = useRouter();
   const pathname = usePathname();
@@ -87,6 +89,7 @@ export function TaskBoard({ tasks }: { tasks: TaskWithRelations[] }) {
             status={status}
             tasks={localTasks.filter((task) => task.status === status)}
             onOpenTask={openTask}
+            showClient={showClientOnCards}
           />
         ))}
       </div>

@@ -36,26 +36,32 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Open tasks</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{openTasks}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active clients</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">
-            {activeClients} <span className="text-base font-normal text-muted-foreground">/ {totalClients} total</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Due in next 7 days</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{dueSoon.length}</CardContent>
-        </Card>
+        <Link href="/tasks">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Open tasks</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">{openTasks}</CardContent>
+          </Card>
+        </Link>
+        <Link href="/clients">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active clients</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">
+              {activeClients} <span className="text-base font-normal text-muted-foreground">/ {totalClients} total</span>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/tasks?deadline=SOON">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Due in next 7 days</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">{dueSoon.length}</CardContent>
+          </Card>
+        </Link>
       </div>
 
       <Card>
@@ -64,10 +70,14 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           {TASK_STATUS_VALUES.map((status) => (
-            <div key={status} className="flex items-center gap-2">
+            <Link
+              key={status}
+              href={`/tasks?status=${status}`}
+              className="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-muted"
+            >
               <StatusPill status={status} />
               <span className="text-sm text-muted-foreground">{countByStatus[status] ?? 0}</span>
-            </div>
+            </Link>
           ))}
         </CardContent>
       </Card>
@@ -90,6 +100,9 @@ export default async function DashboardPage() {
       </Card>
 
       <div className="flex gap-3 text-sm">
+        <Link href="/tasks" className="text-primary underline-offset-4 hover:underline">
+          View all tasks
+        </Link>
         <Link href="/clients" className="text-primary underline-offset-4 hover:underline">
           View all clients
         </Link>

@@ -6,7 +6,15 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
-export function TaskCard({ task, onOpen }: { task: TaskWithRelations; onOpen: (taskId: string) => void }) {
+export function TaskCard({
+  task,
+  onOpen,
+  showClient,
+}: {
+  task: TaskWithRelations;
+  onOpen: (taskId: string) => void;
+  showClient?: boolean;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
 
   return (
@@ -24,6 +32,9 @@ export function TaskCard({ task, onOpen }: { task: TaskWithRelations; onOpen: (t
       )}
     >
       <p className="font-medium">{task.title}</p>
+      {showClient ? (
+        <p className="mt-1 truncate text-xs text-muted-foreground">{task.client?.name ?? "Internal / Agency"}</p>
+      ) : null}
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span className="truncate">{task.assignee?.name ?? "Unassigned"}</span>
         {task.deadline ? (

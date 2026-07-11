@@ -25,15 +25,17 @@ export function TaskRow({ task, showClient }: { task: TaskWithRelations; showCli
     >
       <span className="min-w-0 flex-1 truncate">{task.title}</span>
       {showClient && task.client ? (
-        <span className="hidden shrink-0 truncate text-muted-foreground sm:inline">{task.client.name}</span>
+        <span className="hidden max-w-[110px] shrink-0 truncate text-muted-foreground md:inline">{task.client.name}</span>
       ) : null}
       {task.deadline ? (
-        <span className="hidden shrink-0 items-center gap-1 text-muted-foreground sm:flex">
+        <span className="hidden shrink-0 items-center gap-1 whitespace-nowrap text-muted-foreground md:flex">
           <CalendarIcon className="size-3.5" />
           {new Date(task.deadline).toLocaleDateString()}
         </span>
       ) : null}
-      <span className="hidden shrink-0 truncate text-muted-foreground sm:inline">{task.assignee?.name ?? "Unassigned"}</span>
+      <span className="hidden max-w-[110px] shrink-0 truncate text-muted-foreground md:inline">
+        {task.assignee?.name ?? "Unassigned"}
+      </span>
       <StatusPill status={task.status} className="shrink-0" />
     </button>
   );
