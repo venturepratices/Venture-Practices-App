@@ -3,11 +3,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { prisma } from "@/lib/prisma";
+import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { updateTaskSchema } from "@/lib/validations/task";
 
 const TASK_INCLUDE = {
   assignee: { select: { id: true, name: true } },
   client: { select: { id: true, name: true } },
+  comments: {
+    include: { author: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "asc" as const },
+  },
+  links: { orderBy: { createdAt: "asc" as const } },
 } as const;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
@@ -38,6 +44,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
+  const before = await prisma.task.findUnique({ where: { id: taskId } });
+
   const { deadline, ...rest } = parsed.data;
   const task = await prisma.task.update({
     where: { id: taskId },
@@ -47,6 +55,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     },
     include: TASK_INCLUDE,
   });
+
+  if (before && before.status !== "COMPLETE" && task.status === "COMPLETE") {
+    await maybeCreateNextOccurrence(task);
+  }
 
   return NextResponse.json(task);
 }

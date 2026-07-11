@@ -53,6 +53,7 @@ model TeamMember {
   accounts      Account[]
   assignedTasks Task[]         @relation("TaskAssignee")
   archivedTasks ArchivedTask[] @relation("ArchivedBy")
+  comments      Comment[]
 }
 
 // Auth.js required models for the Prisma adapter (database session strategy)
@@ -115,9 +116,35 @@ model Task {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
+  comments Comment[]
+  links    TaskLink[]
+
   @@index([clientId])
   @@index([assigneeId])
   @@index([status])
+}
+
+model Comment {
+  id        String     @id @default(cuid())
+  taskId    String
+  task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    TeamMember? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([taskId])
+}
+
+model TaskLink {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  url       String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
 }
 
 // Full snapshot of a Task at delete time. Denormalized on purpose (assigneeName/

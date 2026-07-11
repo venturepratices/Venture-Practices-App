@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { AlertTriangle, Pencil } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ type ClientCardData = {
   name: string;
   status: string;
   openTaskCount: number;
+  overdueTaskCount: number;
 };
 
 export function ClientCard({ client }: { client: ClientCardData }) {
@@ -39,6 +40,14 @@ export function ClientCard({ client }: { client: ClientCardData }) {
             {client.openTaskCount} open task{client.openTaskCount === 1 ? "" : "s"}
           </span>
         </CardContent>
+        {client.overdueTaskCount > 0 ? (
+          <CardContent className="pt-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-800 dark:bg-red-900/40 dark:text-red-300">
+              <AlertTriangle className="size-3.5" />
+              {client.overdueTaskCount} overdue
+            </span>
+          </CardContent>
+        ) : null}
       </Link>
     </Card>
   );

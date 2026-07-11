@@ -2,16 +2,18 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
-import type { TaskWithRelations } from "@/types/task";
+import type { TaskDetail } from "@/types/task";
 
 const OCCURRENCE_LABELS: Record<string, string> = {
   RECURRING_WEEKLY: "Recurring Weekly",
@@ -35,11 +37,25 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
 
-  const [task, setTask] = useState<TaskWithRelations | null>(null);
+  const [task, setTask] = useState<TaskDetail | null>(null);
   const [title, setTitle] = useState("");
+  const [commentBody, setCommentBody] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [linkLabel, setLinkLabel] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const teamMemberNames = Object.fromEntries(teamMembers.map((m) => [m.id, m.name]));
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+
+  function refetchTask() {
+    if (!taskId) return;
+    fetch(`/api/tasks/${taskId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: TaskDetail | null) => {
+        if (data) setTask(data);
+      });
+  }
 
   useEffect(() => {
     if (!taskId) {
@@ -49,7 +65,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     let cancelled = false;
     fetch(`/api/tasks/${taskId}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: TaskWithRelations | null) => {
+      .then((data: TaskDetail | null) => {
         if (!cancelled) {
           setTask(data);
           setTitle(data?.title ?? "");
@@ -75,7 +91,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
       body: JSON.stringify(fields),
     });
     if (response.ok) {
-      const updated = (await response.json()) as TaskWithRelations;
+      const updated = (await response.json()) as TaskDetail;
       setTask(updated);
       router.refresh();
     }
@@ -89,6 +105,44 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
       close();
       router.refresh();
     }
+  }
+
+  async function submitComment() {
+    if (!taskId || !commentBody.trim()) return;
+    setIsPostingComment(true);
+    const response = await fetch(`/api/tasks/${taskId}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: commentBody.trim() }),
+    });
+    setIsPostingComment(false);
+    if (response.ok) {
+      setCommentBody("");
+      refetchTask();
+    }
+  }
+
+  async function submitLink() {
+    if (!taskId || !linkLabel.trim() || !linkUrl.trim()) return;
+    setLinkError(null);
+    const response = await fetch(`/api/tasks/${taskId}/links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: linkLabel.trim(), url: linkUrl.trim() }),
+    });
+    if (response.ok) {
+      setLinkLabel("");
+      setLinkUrl("");
+      refetchTask();
+    } else {
+      const data = await response.json().catch(() => null);
+      setLinkError(data?.error ?? "Couldn't add that link.");
+    }
+  }
+
+  async function deleteLink(linkId: string) {
+    const response = await fetch(`/api/task-links/${linkId}`, { method: "DELETE" });
+    if (response.ok) refetchTask();
   }
 
   return (
@@ -177,6 +231,11 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
+                {task.occurrence !== "NON_RECURRING" && task.occurrence !== "PROJECT" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Marking this Complete will automatically create the next occurrence.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-1.5">
@@ -189,6 +248,89 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                     patch({ deadline: event.target.value ? new Date(event.target.value).toISOString() : null })
                   }
                 />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label>Links</Label>
+              {task.links.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {task.links.map((link) => (
+                    <li key={link.id} className="flex items-center gap-2 text-sm">
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center gap-1.5 truncate text-primary underline-offset-4 hover:underline"
+                      >
+                        <ExternalLink className="size-3.5 shrink-0" />
+                        <span className="truncate">{link.label}</span>
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove ${link.label}`}
+                        onClick={() => deleteLink(link.id)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={linkLabel}
+                  onChange={(event) => setLinkLabel(event.target.value)}
+                  placeholder="Label (e.g. Brief doc)"
+                  className="h-8 text-sm"
+                />
+                <Input
+                  value={linkUrl}
+                  onChange={(event) => setLinkUrl(event.target.value)}
+                  placeholder="https://..."
+                  className="h-8 text-sm"
+                />
+                <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={submitLink}>
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+              {linkError ? <p className="text-sm text-destructive">{linkError}</p> : null}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <Label>Comments</Label>
+              {task.comments.length > 0 ? (
+                <ul className="space-y-3">
+                  {task.comments.map((comment) => (
+                    <li key={comment.id} className="text-sm">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium">{comment.author?.name ?? "Former team member"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(comment.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{comment.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No comments yet.</p>
+              )}
+              <div className="space-y-2">
+                <Textarea
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  placeholder="Leave a note for the team..."
+                  className="min-h-16 text-sm"
+                />
+                <Button size="sm" disabled={isPostingComment || !commentBody.trim()} onClick={submitComment}>
+                  {isPostingComment ? "Posting..." : "Add comment"}
+                </Button>
               </div>
             </div>
 

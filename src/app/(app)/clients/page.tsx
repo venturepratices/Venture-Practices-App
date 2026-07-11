@@ -6,14 +6,23 @@ import { ClientCard } from "@/components/clients/client-card";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 
 export default async function ClientsPage() {
-  const clients = await prisma.client.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      _count: {
-        select: { tasks: { where: { status: { not: "COMPLETE" } } } },
+  const [clients, overdueByClient] = await Promise.all([
+    prisma.client.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        _count: {
+          select: { tasks: { where: { status: { not: "COMPLETE" } } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.task.groupBy({
+      by: ["clientId"],
+      where: { status: { not: "COMPLETE" }, deadline: { lt: new Date() }, clientId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const overdueCounts = Object.fromEntries(overdueByClient.map((row) => [row.clientId, row._count._all]));
 
   return (
     <div>
@@ -45,6 +54,7 @@ export default async function ClientsPage() {
                 name: client.name,
                 status: client.status,
                 openTaskCount: client._count.tasks,
+                overdueTaskCount: overdueCounts[client.id] ?? 0,
               }}
             />
           ))}
