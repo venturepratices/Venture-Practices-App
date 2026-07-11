@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2 } from "lucide-react";
+import { Activity, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ const AGENCY_LINKS = [
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
   { href: "/team", label: "Team", icon: Users },
+  { href: "/activity", label: "Activity", icon: Activity },
 ];
 
 export function Sidebar({ clients }: { clients: SidebarClient[] }) {

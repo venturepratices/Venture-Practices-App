@@ -54,6 +54,7 @@ model TeamMember {
   assignedTasks Task[]         @relation("TaskAssignee")
   archivedTasks ArchivedTask[] @relation("ArchivedBy")
   comments      Comment[]
+  activityLogs  ActivityLog[]
 }
 
 // Auth.js required models for the Prisma adapter (database session strategy)
@@ -145,6 +146,26 @@ model TaskLink {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+}
+
+// Polymorphic activity feed entry — entityType/entityId point at whichever
+// record the action happened to (Task, Client, TeamMember, ...). No FK to
+// those tables since one log spans several unrelated models; entityLabel is
+// denormalized so an entry still reads sensibly after the entity is deleted.
+model ActivityLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       TeamMember? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorName   String?
+  entityType  String
+  entityId    String
+  entityLabel String
+  action      String
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 // Full snapshot of a Task at delete time. Denormalized on purpose (assigneeName/

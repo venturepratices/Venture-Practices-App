@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 
 const createLinkSchema = z.object({
@@ -24,6 +25,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
 
   const link = await prisma.taskLink.create({
     data: { taskId, label: parsed.data.label, url: parsed.data.url },
+  });
+
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
+  await logActivity({
+    actorId: session.user.id,
+    actorName: session.user.name ?? null,
+    entityType: "Task",
+    entityId: taskId,
+    entityLabel: task?.title ?? taskId,
+    action: "link_added",
+    description: `${session.user.name ?? "Someone"} added the link "${parsed.data.label}" to "${task?.title ?? "a task"}"`,
   });
 
   return NextResponse.json(link, { status: 201 });

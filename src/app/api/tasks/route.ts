@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 import { createTaskSchema } from "@/lib/validations/task";
 
@@ -22,6 +23,16 @@ export async function POST(request: Request) {
       clientId: parsed.data.clientId ?? null,
       assigneeId: parsed.data.assigneeId ?? null,
     },
+  });
+
+  await logActivity({
+    actorId: session.user.id,
+    actorName: session.user.name ?? null,
+    entityType: "Task",
+    entityId: task.id,
+    entityLabel: task.title,
+    action: "created",
+    description: `${session.user.name ?? "Someone"} created task "${task.title}"`,
   });
 
   return NextResponse.json(task, { status: 201 });
