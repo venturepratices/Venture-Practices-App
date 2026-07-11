@@ -22,12 +22,12 @@ export default async function ArchivePage() {
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing has been deleted yet.</p>
         ) : (
           archivedTasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-3 px-4 py-3 text-sm">
-              <span className="flex-1 truncate line-through decoration-muted-foreground/50">{task.title}</span>
-              <span className="hidden shrink-0 text-muted-foreground sm:inline">{task.clientName ?? "Internal"}</span>
-              <span className="hidden shrink-0 text-muted-foreground sm:inline">{task.assigneeName ?? "Unassigned"}</span>
+            <div key={task.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+              <span className="min-w-0 flex-1 truncate line-through decoration-muted-foreground/50">{task.title}</span>
+              <span className="hidden shrink-0 text-muted-foreground md:inline">{task.clientName ?? "Internal"}</span>
+              <span className="hidden shrink-0 text-muted-foreground md:inline">{task.assigneeName ?? "Unassigned"}</span>
               <StatusPill status={task.status} className="shrink-0" />
-              <span className="w-40 shrink-0 text-right text-xs text-muted-foreground">
+              <span className="shrink-0 whitespace-nowrap text-right text-xs text-muted-foreground">
                 Deleted {new Date(task.deletedAt).toLocaleDateString()}
                 {task.deletedBy ? ` by ${task.deletedBy.name}` : ""}
               </span>

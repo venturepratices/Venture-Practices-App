@@ -38,6 +38,9 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const [task, setTask] = useState<TaskWithRelations | null>(null);
   const [title, setTitle] = useState("");
 
+  const teamMemberNames = Object.fromEntries(teamMembers.map((m) => [m.id, m.name]));
+  const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+
   useEffect(() => {
     if (!taskId) {
       setTask(null);
@@ -108,7 +111,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                 <Label>Status</Label>
                 <Select value={task.status} onValueChange={(value) => patch({ status: value })}>
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>{(status: string) => <StatusPill status={status} />}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {TASK_STATUS_VALUES.map((status) => (
@@ -127,7 +130,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                   onValueChange={(value) => patch({ assigneeId: value === UNASSIGNED ? null : value })}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>{(value: string) => (value === UNASSIGNED ? "Unassigned" : teamMemberNames[value])}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
@@ -147,7 +150,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                   onValueChange={(value) => patch({ clientId: value === NO_CLIENT ? null : value })}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>{(value: string) => (value === NO_CLIENT ? "Internal / Agency" : clientNames[value])}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_CLIENT}>Internal / Agency</SelectItem>
@@ -164,7 +167,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                 <Label>Occurrence</Label>
                 <Select value={task.occurrence} onValueChange={(value) => patch({ occurrence: value })}>
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>{(occurrence: string) => OCCURRENCE_LABELS[occurrence]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {TASK_OCCURRENCE_VALUES.map((occurrence) => (

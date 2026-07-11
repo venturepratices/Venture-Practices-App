@@ -23,7 +23,7 @@ export function TaskRow({ task, showClient }: { task: TaskWithRelations; showCli
       onClick={openTask}
       className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
     >
-      <span className="flex-1 truncate">{task.title}</span>
+      <span className="min-w-0 flex-1 truncate">{task.title}</span>
       {showClient && task.client ? (
         <span className="hidden shrink-0 truncate text-muted-foreground sm:inline">{task.client.name}</span>
       ) : null}

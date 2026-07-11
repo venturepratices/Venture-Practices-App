@@ -67,7 +67,7 @@ export function ClientFormDialog(props: Props) {
               <Label htmlFor="status">Status</Label>
               <Select name="status" defaultValue={props.mode === "edit" ? props.defaultStatus : "ONBOARDING"}>
                 <SelectTrigger id="status" className="w-full">
-                  <SelectValue />
+                  <SelectValue>{(status: string) => <ClientStatusPill status={status} />}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {CLIENT_STATUS_VALUES.map((status) => (

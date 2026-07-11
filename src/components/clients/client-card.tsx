@@ -16,7 +16,7 @@ type ClientCardData = {
 export function ClientCard({ client }: { client: ClientCardData }) {
   return (
     <Card className="relative transition-shadow hover:shadow-md">
-      <div className="absolute right-3 top-3" onClick={(event) => event.stopPropagation()}>
+      <div className="absolute right-3 top-3">
         <ClientFormDialog
           mode="edit"
           clientId={client.id}
