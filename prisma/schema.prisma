@@ -190,5 +190,11 @@ model ArchivedTask {
   deletedById    String?
   deletedBy      TeamMember? @relation("ArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
+  // Comments/TaskLink rows are hard-deleted (onDelete: Cascade) when the live
+  // Task is deleted, so they're snapshotted here as plain JSON at archive time
+  // — otherwise this backtracking history would be lost the moment a task is archived.
+  comments Json?
+  links    Json?
+
   @@index([originalTaskId])
 }

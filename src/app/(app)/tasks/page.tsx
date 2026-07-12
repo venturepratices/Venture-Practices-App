@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { InfoTip } from "@/components/info-tip";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
@@ -50,7 +51,13 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">All Tasks</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            All Tasks
+            <InfoTip>
+              Every task from every client in one list. Narrow it down with the filters below, switch between List and
+              Board view (top right), change a status right from its pill, or click a row for full details.
+            </InfoTip>
+          </h1>
           <p className="mt-1 text-muted-foreground">Every task across every client, filterable.</p>
         </div>
         <TaskViewToggle view={isBoard ? "board" : "list"} />
@@ -68,7 +75,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
         ) : isBoard ? (
           <TaskBoard tasks={tasks} showClientOnCards />
         ) : (
-          <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} />
+          <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
         )}
       </div>
     </div>

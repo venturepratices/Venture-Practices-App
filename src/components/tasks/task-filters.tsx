@@ -6,19 +6,11 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusPill } from "@/components/tasks/status-pill";
-import { TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 const ALL = "ALL";
 const NO_CLIENT = "NONE";
 const UNASSIGNED = "UNASSIGNED";
-
-const OCCURRENCE_LABELS: Record<string, string> = {
-  RECURRING_WEEKLY: "Recurring Weekly",
-  RECURRING_MONTHLY: "Recurring Monthly",
-  RECURRING_QUARTERLY: "Recurring Quarterly",
-  PROJECT: "Project",
-  NON_RECURRING: "Non Recurring",
-};
 
 const DEADLINE_LABELS: Record<string, string> = {
   OVERDUE: "Overdue",
@@ -124,13 +116,13 @@ export function TaskFilters({ clients, teamMembers }: Props) {
 
       <Select value={occurrence} onValueChange={(value) => setParam("occurrence", value)}>
         <SelectTrigger className="w-[170px]">
-          <SelectValue>{(value: string) => (value === ALL ? "All occurrences" : OCCURRENCE_LABELS[value])}</SelectValue>
+          <SelectValue>{(value: string) => (value === ALL ? "All occurrences" : TASK_OCCURRENCE_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All occurrences</SelectItem>
           {TASK_OCCURRENCE_VALUES.map((o) => (
             <SelectItem key={o} value={o}>
-              {OCCURRENCE_LABELS[o]}
+              {TASK_OCCURRENCE_LABELS[o]}
             </SelectItem>
           ))}
         </SelectContent>

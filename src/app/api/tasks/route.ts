@@ -22,6 +22,9 @@ export async function POST(request: Request) {
       title: parsed.data.title,
       clientId: parsed.data.clientId ?? null,
       assigneeId: parsed.data.assigneeId ?? null,
+      ...(parsed.data.status ? { status: parsed.data.status } : {}),
+      ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
+      ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
     },
   });
 

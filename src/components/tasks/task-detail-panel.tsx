@@ -12,16 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
-import { TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
-
-const OCCURRENCE_LABELS: Record<string, string> = {
-  RECURRING_WEEKLY: "Recurring Weekly",
-  RECURRING_MONTHLY: "Recurring Monthly",
-  RECURRING_QUARTERLY: "Recurring Quarterly",
-  PROJECT: "Project",
-  NON_RECURRING: "Non Recurring",
-};
 
 const UNASSIGNED = "__unassigned__";
 const NO_CLIENT = "__none__";
@@ -221,12 +214,12 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                 <Label>Occurrence</Label>
                 <Select value={task.occurrence} onValueChange={(value) => patch({ occurrence: value })}>
                   <SelectTrigger className="w-full">
-                    <SelectValue>{(occurrence: string) => OCCURRENCE_LABELS[occurrence]}</SelectValue>
+                    <SelectValue>{(occurrence: string) => TASK_OCCURRENCE_LABELS[occurrence]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {TASK_OCCURRENCE_VALUES.map((occurrence) => (
                       <SelectItem key={occurrence} value={occurrence}>
-                        {OCCURRENCE_LABELS[occurrence]}
+                        {TASK_OCCURRENCE_LABELS[occurrence]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -311,7 +304,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                       <div className="flex items-baseline gap-2">
                         <span className="font-medium">{comment.author?.name ?? "Former team member"}</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(comment.createdAt).toLocaleString()}
+                          {formatDateTime(comment.createdAt)}
                         </span>
                       </div>
                       <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{comment.body}</p>

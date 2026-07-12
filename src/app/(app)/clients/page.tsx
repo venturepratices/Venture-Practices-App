@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientCard } from "@/components/clients/client-card";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { InfoTip } from "@/components/info-tip";
 
 export default async function ClientsPage() {
   const [clients, overdueByClient] = await Promise.all([
@@ -28,7 +29,13 @@ export default async function ClientsPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">All Clients</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            All Clients
+            <InfoTip>
+              Every client is its own sub-account with its own task list. A red badge on a card means that client has
+              overdue tasks — click any card to open its tasks.
+            </InfoTip>
+          </h1>
           <p className="mt-1 text-muted-foreground">Every sub-account, at a glance.</p>
         </div>
         <ClientFormDialog

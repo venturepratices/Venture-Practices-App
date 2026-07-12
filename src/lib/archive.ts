@@ -14,7 +14,12 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
   const archived = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUniqueOrThrow({
       where: { id: taskId },
-      include: { assignee: true, client: true },
+      include: {
+        assignee: true,
+        client: true,
+        comments: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
+        links: { orderBy: { createdAt: "asc" } },
+      },
     });
 
     const archivedTask = await tx.archivedTask.create({
@@ -30,7 +35,17 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
         deadline: task.deadline,
         taskCreatedAt: task.createdAt,
         taskUpdatedAt: task.updatedAt,
-        deletedById,
+        ...(deletedById ? { deletedBy: { connect: { id: deletedById } } } : {}),
+        comments: task.comments.map((comment) => ({
+          authorName: comment.author?.name ?? "Former team member",
+          body: comment.body,
+          createdAt: comment.createdAt.toISOString(),
+        })),
+        links: task.links.map((link) => ({
+          label: link.label,
+          url: link.url,
+          createdAt: link.createdAt.toISOString(),
+        })),
       },
     });
 

@@ -6,16 +6,19 @@ import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
-import { TaskRow } from "@/components/tasks/task-row";
+import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import type { TaskWithRelations } from "@/types/task";
 
 type Props = {
   tasks: TaskWithRelations[];
   showClientColumn?: boolean;
   newTaskDefaults: { clientId?: string | null; assigneeId?: string | null };
+  lockClient?: boolean;
+  clients?: { id: string; name: string }[];
+  teamMembers?: { id: string; name: string }[];
 };
 
-export function TaskList({ tasks, showClientColumn, newTaskDefaults }: Props) {
+export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient, clients, teamMembers }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isArchiving, setIsArchiving] = useState(false);
@@ -43,8 +46,14 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults }: Props) {
 
   return (
     <div className="rounded-lg border">
-      <div className="border-b px-3 py-1">
-        <NewTaskInput clientId={newTaskDefaults.clientId} assigneeId={newTaskDefaults.assigneeId} />
+      <div className="border-b px-3 py-2.5">
+        <NewTaskInput
+          clientId={newTaskDefaults.clientId}
+          assigneeId={newTaskDefaults.assigneeId}
+          lockClient={lockClient}
+          clients={clients}
+          teamMembers={teamMembers}
+        />
       </div>
 
       {selected.size > 0 ? (
@@ -66,6 +75,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults }: Props) {
         <p className="px-3 py-6 text-center text-sm text-muted-foreground">No tasks yet.</p>
       ) : (
         <div className="divide-y">
+          <TaskListHeader showClient={showClientColumn} />
           {tasks.map((task) => (
             <TaskRow
               key={task.id}

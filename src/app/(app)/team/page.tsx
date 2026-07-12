@@ -3,6 +3,7 @@ import { Pencil, Plus } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/info-tip";
 import { TeamMemberFormDialog } from "@/components/team/team-member-form-dialog";
 import { DeleteTeamMemberButton } from "@/components/team/delete-team-member-button";
 
@@ -16,7 +17,13 @@ export default async function TeamPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Team</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            Team
+            <InfoTip>
+              Everyone who can log in. New members sign in with the email and password you set here, and immediately
+              become selectable as task assignees.
+            </InfoTip>
+          </h1>
           <p className="mt-1 text-muted-foreground">Add, edit, and manage team member accounts.</p>
         </div>
         <TeamMemberFormDialog

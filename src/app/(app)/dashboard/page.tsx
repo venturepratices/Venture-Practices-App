@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTip } from "@/components/info-tip";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TASK_STATUS_VALUES } from "@/lib/validations/task";
@@ -31,7 +32,13 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Agency Dashboard</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+          Agency Dashboard
+          <InfoTip>
+            Your agency-wide overview. The numbers update live — click any tile or status pill to jump straight to those
+            tasks.
+          </InfoTip>
+        </h1>
         <p className="mt-1 text-muted-foreground">A rollup across every client.</p>
       </div>
 

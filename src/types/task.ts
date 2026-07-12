@@ -14,3 +14,10 @@ export type TaskDetail = Prisma.TaskGetPayload<{
     links: true;
   };
 }>;
+
+export type ArchivedCommentSnapshot = { authorName: string; body: string; createdAt: string };
+export type ArchivedLinkSnapshot = { label: string; url: string; createdAt: string };
+
+export type ArchivedTaskDetail = Prisma.ArchivedTaskGetPayload<{
+  include: { deletedBy: { select: { name: true } } };
+}>;

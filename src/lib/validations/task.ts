@@ -18,10 +18,21 @@ export const TASK_STATUS_VALUES = [
   "COMPLETE",
 ] as const;
 
+export const TASK_OCCURRENCE_LABELS: Record<string, string> = {
+  RECURRING_WEEKLY: "Recurring Weekly",
+  RECURRING_MONTHLY: "Recurring Monthly",
+  RECURRING_QUARTERLY: "Recurring Quarterly",
+  PROJECT: "Project",
+  NON_RECURRING: "Non Recurring",
+};
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   clientId: z.string().nullable().optional(),
   assigneeId: z.string().nullable().optional(),
+  status: z.enum(TASK_STATUS_VALUES).optional(),
+  occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
+  deadline: z.string().datetime().nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { InfoTip } from "@/components/info-tip";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
@@ -14,20 +15,33 @@ export default async function ClientTasksPage({
   const { view } = await searchParams;
   const isBoard = view === "board";
 
-  const tasks = await prisma.task.findMany({
-    where: { clientId },
-    include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [tasks, teamMembers] = await Promise.all([
+    prisma.task.findMany({
+      where: { clientId },
+      include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tasks</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          Tasks
+          <InfoTip>
+            This client&apos;s tasks only. Anything you add here is automatically tied to this client — no need to pick
+            one.
+          </InfoTip>
+        </h2>
         <TaskViewToggle view={isBoard ? "board" : "list"} />
       </div>
       <div className="mt-4">
-        {isBoard ? <TaskBoard tasks={tasks} /> : <TaskList tasks={tasks} newTaskDefaults={{ clientId }} />}
+        {isBoard ? (
+          <TaskBoard tasks={tasks} />
+        ) : (
+          <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
+        )}
       </div>
     </div>
   );
