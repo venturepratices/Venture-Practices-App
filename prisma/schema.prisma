@@ -54,6 +54,7 @@ model TeamMember {
   assignedTasks Task[]         @relation("TaskAssignee")
   archivedTasks ArchivedTask[] @relation("ArchivedBy")
   comments      Comment[]
+  clientNotes   ClientNote[]
   activityLogs  ActivityLog[]
 }
 
@@ -102,6 +103,23 @@ model Client {
   updatedAt DateTime     @updatedAt
 
   tasks Task[]
+  notes ClientNote[]
+}
+
+// A shared, running log of "what's the latest on this client" — e.g. summarizing
+// an email that only landed in one person's inbox — so it's visible to the whole
+// team instead of trapped in one person's mailbox. Mirrors the Comment model above.
+model ClientNote {
+  id        String      @id @default(cuid())
+  clientId  String
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    TeamMember? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([clientId])
 }
 
 model Task {

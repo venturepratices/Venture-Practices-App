@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { SearchInput } from "@/components/search-input";
 import { TASK_STATUS_VALUES } from "@/lib/validations/task";
@@ -26,7 +27,8 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
   const clientName = searchParams.get("clientName") ?? ALL;
   const deletedById = searchParams.get("deletedById") ?? ALL;
   const hasFilters =
-    [status, clientName, deletedById].some((v) => v !== ALL) || Boolean(searchParams.get("q"));
+    [status, clientName, deletedById].some((v) => v !== ALL) ||
+    Boolean(searchParams.get("q") || searchParams.get("deletedFrom") || searchParams.get("deletedTo"));
 
   function setParam(key: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -96,6 +98,8 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
           ))}
         </SelectContent>
       </Select>
+
+      <DateRangeFilter label="Deleted between" fromKey="deletedFrom" toKey="deletedTo" />
 
       {hasFilters ? (
         <Button variant="ghost" size="sm" onClick={clearAll}>

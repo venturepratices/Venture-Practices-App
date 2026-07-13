@@ -3,15 +3,26 @@ import { LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 export function TopBar({ userName, userEmail }: { userName?: string | null; userEmail?: string | null }) {
   return (
-    <header className="flex h-14 items-center justify-between border-b px-6">
+    <header className="flex h-14 items-center justify-between border-b bg-card px-6">
       <div />
       <div className="flex items-center gap-3">
         <div className="text-right text-sm leading-tight">
           <p className="font-medium">{userName ?? "Team member"}</p>
           <p className="text-muted-foreground">{userEmail}</p>
         </div>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+          {userName ? initialsOf(userName) : "?"}
+        </span>
         <form
           action={async () => {
             "use server";

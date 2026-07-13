@@ -15,9 +15,12 @@ export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0f1a20] via-[#10151a] to-[#12313f] px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary font-heading text-sm font-bold text-primary-foreground">
+            VP
+          </div>
           <CardTitle className="text-xl">Venture Practices</CardTitle>
           <CardDescription>Sign in to your agency workspace.</CardDescription>
         </CardHeader>

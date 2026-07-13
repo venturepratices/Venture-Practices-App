@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { formatDateTime } from "@/lib/utils";
+import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
 import { InfoTip } from "@/components/info-tip";
 
@@ -9,6 +9,8 @@ type SearchParams = {
   actorId?: string;
   entityType?: string;
   range?: string;
+  from?: string;
+  to?: string;
 };
 
 function rangeStart(range?: string): Date | null {
@@ -36,8 +38,15 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   if (params.q) where.description = { contains: params.q, mode: "insensitive" };
   if (params.actorId) where.actorId = params.actorId;
   if (params.entityType) where.entityType = params.entityType;
-  const start = rangeStart(params.range);
-  if (start) where.createdAt = { gte: start };
+  if (params.from || params.to) {
+    where.createdAt = {
+      ...(params.from ? { gte: new Date(params.from) } : {}),
+      ...(params.to ? { lte: endOfDay(params.to) } : {}),
+    };
+  } else {
+    const start = rangeStart(params.range);
+    if (start) where.createdAt = { gte: start };
+  }
 
   const [entries, teamMembers] = await Promise.all([
     prisma.activityLog.findMany({
@@ -48,7 +57,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
-  const hasFilters = Boolean(params.q || params.actorId || params.entityType || params.range);
+  const hasFilters = Boolean(params.q || params.actorId || params.entityType || params.range || params.from || params.to);
 
   return (
     <div>

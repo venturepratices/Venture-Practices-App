@@ -19,6 +19,26 @@ import type { TaskDetail } from "@/types/task";
 const UNASSIGNED = "__unassigned__";
 const NO_CLIENT = "__none__";
 
+type Draft = {
+  title: string;
+  status: string;
+  assigneeId: string;
+  clientId: string;
+  occurrence: string;
+  deadline: string; // "YYYY-MM-DD" or ""
+};
+
+function draftFromTask(task: TaskDetail): Draft {
+  return {
+    title: task.title,
+    status: task.status,
+    assigneeId: task.assigneeId ?? UNASSIGNED,
+    clientId: task.clientId ?? NO_CLIENT,
+    occurrence: task.occurrence,
+    deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
+  };
+}
+
 type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
@@ -31,7 +51,8 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const taskId = searchParams.get("taskId");
 
   const [task, setTask] = useState<TaskDetail | null>(null);
-  const [title, setTitle] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [linkLabel, setLinkLabel] = useState("");
@@ -41,11 +62,14 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const teamMemberNames = Object.fromEntries(teamMembers.map((m) => [m.id, m.name]));
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
+  const isDirty = Boolean(task && draft && JSON.stringify(draft) !== JSON.stringify(draftFromTask(task)));
+
   function refetchTask() {
     if (!taskId) return;
     fetch(`/api/tasks/${taskId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: TaskDetail | null) => {
+        // Refresh comments/links without clobbering in-progress field edits.
         if (data) setTask(data);
       });
   }
@@ -53,6 +77,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   useEffect(() => {
     if (!taskId) {
       setTask(null);
+      setDraft(null);
       return;
     }
     let cancelled = false;
@@ -61,7 +86,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
       .then((data: TaskDetail | null) => {
         if (!cancelled) {
           setTask(data);
-          setTitle(data?.title ?? "");
+          setDraft(data ? draftFromTask(data) : null);
         }
       });
     return () => {
@@ -70,22 +95,50 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   }, [taskId]);
 
   function close() {
+    if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("taskId");
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  async function patch(fields: Record<string, unknown>) {
-    if (!taskId) return;
+  function setField<K extends keyof Draft>(key: K, value: Draft[K]) {
+    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  function discard() {
+    if (task) setDraft(draftFromTask(task));
+  }
+
+  async function save() {
+    if (!taskId || !task || !draft) return;
+    const base = draftFromTask(task);
+    const fields: Record<string, unknown> = {};
+    if (draft.title.trim() && draft.title.trim() !== base.title) fields.title = draft.title.trim();
+    if (draft.status !== base.status) fields.status = draft.status;
+    if (draft.assigneeId !== base.assigneeId) {
+      fields.assigneeId = draft.assigneeId === UNASSIGNED ? null : draft.assigneeId;
+    }
+    if (draft.clientId !== base.clientId) {
+      fields.clientId = draft.clientId === NO_CLIENT ? null : draft.clientId;
+    }
+    if (draft.occurrence !== base.occurrence) fields.occurrence = draft.occurrence;
+    if (draft.deadline !== base.deadline) {
+      fields.deadline = draft.deadline ? new Date(draft.deadline).toISOString() : null;
+    }
+    if (Object.keys(fields).length === 0) return;
+
+    setIsSaving(true);
     const response = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(fields),
     });
+    setIsSaving(false);
     if (response.ok) {
       const updated = (await response.json()) as TaskDetail;
       setTask(updated);
+      setDraft(draftFromTask(updated));
       router.refresh();
     }
   }
@@ -95,7 +148,11 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     if (!window.confirm("Delete this task? It will be moved to the archive.")) return;
     const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
     if (response.ok) {
-      close();
+      setDraft(null);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("taskId");
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
       router.refresh();
     }
   }
@@ -141,22 +198,35 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   return (
     <Sheet open={Boolean(taskId)} onOpenChange={(open) => !open && close()}>
       <SheetContent className="flex flex-col gap-6 overflow-y-auto p-6">
-        {task ? (
+        {task && draft ? (
           <>
             <SheetHeader className="p-0">
               <SheetTitle className="sr-only">Task details</SheetTitle>
               <Input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                onBlur={() => title.trim() && title !== task.title && patch({ title: title.trim() })}
+                value={draft.title}
+                onChange={(event) => setField("title", event.target.value)}
                 className="border-none px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
               />
             </SheetHeader>
 
+            {isDirty ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+                <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Unsaved changes</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={discard} disabled={isSaving}>
+                    Discard
+                  </Button>
+                  <Button size="sm" onClick={save} disabled={isSaving}>
+                    {isSaving ? "Saving..." : "Save changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={task.status} onValueChange={(value) => patch({ status: value })}>
+                <Select value={draft.status} onValueChange={(value) => value && setField("status", value)}>
                   <SelectTrigger className="w-full">
                     <SelectValue>{(status: string) => <StatusPill status={status} />}</SelectValue>
                   </SelectTrigger>
@@ -172,10 +242,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
 
               <div className="space-y-1.5">
                 <Label>Assignee</Label>
-                <Select
-                  value={task.assigneeId ?? UNASSIGNED}
-                  onValueChange={(value) => patch({ assigneeId: value === UNASSIGNED ? null : value })}
-                >
+                <Select value={draft.assigneeId} onValueChange={(value) => value && setField("assigneeId", value)}>
                   <SelectTrigger className="w-full">
                     <SelectValue>{(value: string) => (value === UNASSIGNED ? "Unassigned" : teamMemberNames[value])}</SelectValue>
                   </SelectTrigger>
@@ -192,10 +259,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
 
               <div className="space-y-1.5">
                 <Label>Client</Label>
-                <Select
-                  value={task.clientId ?? NO_CLIENT}
-                  onValueChange={(value) => patch({ clientId: value === NO_CLIENT ? null : value })}
-                >
+                <Select value={draft.clientId} onValueChange={(value) => value && setField("clientId", value)}>
                   <SelectTrigger className="w-full">
                     <SelectValue>{(value: string) => (value === NO_CLIENT ? "Internal / Agency" : clientNames[value])}</SelectValue>
                   </SelectTrigger>
@@ -212,7 +276,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
 
               <div className="space-y-1.5">
                 <Label>Occurrence</Label>
-                <Select value={task.occurrence} onValueChange={(value) => patch({ occurrence: value })}>
+                <Select value={draft.occurrence} onValueChange={(value) => value && setField("occurrence", value)}>
                   <SelectTrigger className="w-full">
                     <SelectValue>{(occurrence: string) => TASK_OCCURRENCE_LABELS[occurrence]}</SelectValue>
                   </SelectTrigger>
@@ -224,7 +288,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
-                {task.occurrence !== "NON_RECURRING" && task.occurrence !== "PROJECT" ? (
+                {draft.occurrence !== "NON_RECURRING" && draft.occurrence !== "PROJECT" ? (
                   <p className="text-xs text-muted-foreground">
                     Marking this Complete will automatically create the next occurrence.
                   </p>
@@ -236,10 +300,8 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                 <Input
                   id="deadline"
                   type="date"
-                  value={task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ""}
-                  onChange={(event) =>
-                    patch({ deadline: event.target.value ? new Date(event.target.value).toISOString() : null })
-                  }
+                  value={draft.deadline}
+                  onChange={(event) => setField("deadline", event.target.value)}
                 />
               </div>
             </div>

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { endOfDay } from "@/lib/utils";
 import { ArchiveFilters } from "@/components/archive/archive-filters";
 import { ArchivedTaskDetailPanel } from "@/components/archive/archived-task-detail-panel";
 import { ArchivedTaskRow } from "@/components/archive/archived-task-row";
@@ -12,6 +13,8 @@ type SearchParams = {
   status?: string;
   clientName?: string;
   deletedById?: string;
+  deletedFrom?: string;
+  deletedTo?: string;
 };
 
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -23,6 +26,12 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
   if (params.clientName === "INTERNAL") where.clientName = null;
   else if (params.clientName) where.clientName = params.clientName;
   if (params.deletedById) where.deletedById = params.deletedById;
+  if (params.deletedFrom || params.deletedTo) {
+    where.deletedAt = {
+      ...(params.deletedFrom ? { gte: new Date(params.deletedFrom) } : {}),
+      ...(params.deletedTo ? { lte: endOfDay(params.deletedTo) } : {}),
+    };
+  }
 
   const [archivedTasks, clientNameRows, teamMembers] = await Promise.all([
     prisma.archivedTask.findMany({
@@ -41,7 +50,9 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
   ]);
 
   const clientNames = clientNameRows.map((row) => row.clientName).filter((name): name is string => Boolean(name));
-  const hasFilters = Boolean(params.q || params.status || params.clientName || params.deletedById);
+  const hasFilters = Boolean(
+    params.q || params.status || params.clientName || params.deletedById || params.deletedFrom || params.deletedTo
+  );
 
   return (
     <div>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const LOCAL_LINKS = [
   { segment: "tasks", label: "Tasks" },
+  { segment: "notes", label: "Notes" },
   { segment: "assets", label: "Assets", comingSoon: true },
   { segment: "credentials", label: "Credentials", comingSoon: true },
   { segment: "finance", label: "Finance", comingSoon: true },

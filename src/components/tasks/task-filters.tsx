@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 
@@ -18,7 +19,15 @@ const DEADLINE_LABELS: Record<string, string> = {
   NONE: "No deadline",
 };
 
-export const TASK_FILTER_KEYS = ["status", "clientId", "assigneeId", "occurrence", "deadline"] as const;
+export const TASK_FILTER_KEYS = [
+  "status",
+  "clientId",
+  "assigneeId",
+  "occurrence",
+  "deadline",
+  "deadlineFrom",
+  "deadlineTo",
+] as const;
 
 type Props = {
   clients: { id: string; name: string }[];
@@ -36,15 +45,18 @@ export function TaskFilters({ clients, teamMembers }: Props) {
   const occurrence = searchParams.get("occurrence") ?? ALL;
   const deadline = searchParams.get("deadline") ?? ALL;
 
-  const activeFilterCount = [status, clientId, assigneeId, occurrence, deadline].filter((v) => v !== ALL).length;
+  const activeFilterCount =
+    [status, clientId, assigneeId, occurrence, deadline].filter((v) => v !== ALL).length +
+    (searchParams.get("deadlineFrom") || searchParams.get("deadlineTo") ? 1 : 0);
 
-  function setParam(key: string, value: string | null) {
+  function setParam(key: string, value: string | null, clearKeys: string[] = []) {
     const params = new URLSearchParams(searchParams.toString());
     if (!value || value === ALL) {
       params.delete(key);
     } else {
       params.set(key, value);
     }
+    for (const clearKey of clearKeys) params.delete(clearKey);
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
@@ -128,7 +140,7 @@ export function TaskFilters({ clients, teamMembers }: Props) {
         </SelectContent>
       </Select>
 
-      <Select value={deadline} onValueChange={(value) => setParam("deadline", value)}>
+      <Select value={deadline} onValueChange={(value) => setParam("deadline", value, ["deadlineFrom", "deadlineTo"])}>
         <SelectTrigger className="w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "Any deadline" : DEADLINE_LABELS[value])}</SelectValue>
         </SelectTrigger>
@@ -139,6 +151,8 @@ export function TaskFilters({ clients, teamMembers }: Props) {
           <SelectItem value="NONE">No deadline</SelectItem>
         </SelectContent>
       </Select>
+
+      <DateRangeFilter label="Due between" fromKey="deadlineFrom" toKey="deadlineTo" clearKeys={["deadline"]} />
 
       {activeFilterCount > 0 ? (
         <Button variant="ghost" size="sm" onClick={clearAll}>

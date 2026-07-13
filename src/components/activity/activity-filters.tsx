@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { SearchInput } from "@/components/search-input";
 
 const ALL = "ALL";
@@ -33,12 +34,15 @@ export function ActivityFilters({ teamMembers }: Props) {
   const actorId = searchParams.get("actorId") ?? ALL;
   const entityType = searchParams.get("entityType") ?? ALL;
   const range = searchParams.get("range") ?? ALL;
-  const hasFilters = [actorId, entityType, range].some((v) => v !== ALL) || Boolean(searchParams.get("q"));
+  const hasFilters =
+    [actorId, entityType, range].some((v) => v !== ALL) ||
+    Boolean(searchParams.get("q") || searchParams.get("from") || searchParams.get("to"));
 
-  function setParam(key: string, value: string | null) {
+  function setParam(key: string, value: string | null, clearKeys: string[] = []) {
     const params = new URLSearchParams(searchParams.toString());
     if (!value || value === ALL) params.delete(key);
     else params.set(key, value);
+    for (const clearKey of clearKeys) params.delete(clearKey);
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
@@ -81,7 +85,7 @@ export function ActivityFilters({ teamMembers }: Props) {
         </SelectContent>
       </Select>
 
-      <Select value={range} onValueChange={(value) => setParam("range", value)}>
+      <Select value={range} onValueChange={(value) => setParam("range", value, ["from", "to"])}>
         <SelectTrigger className="w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "Any time" : RANGE_LABELS[value])}</SelectValue>
         </SelectTrigger>
@@ -94,6 +98,8 @@ export function ActivityFilters({ teamMembers }: Props) {
           ))}
         </SelectContent>
       </Select>
+
+      <DateRangeFilter label="Between" fromKey="from" toKey="to" clearKeys={["range"]} />
 
       {hasFilters ? (
         <Button variant="ghost" size="sm" onClick={clearAll}>

@@ -5,7 +5,7 @@ import { CalendarIcon } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StatusPill } from "@/components/tasks/status-pill";
+import { StatusPill, TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { cn } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
@@ -57,7 +57,10 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
   }
 
   async function updateStatus(status: string | null) {
-    if (!status) return;
+    if (!status || status === task.status) return;
+    const fromLabel = TASK_STATUS_LABELS[task.status] ?? task.status;
+    const toLabel = TASK_STATUS_LABELS[status] ?? status;
+    if (!window.confirm(`Change status of "${task.title}" from ${fromLabel} to ${toLabel}?`)) return;
     await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

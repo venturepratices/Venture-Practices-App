@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
@@ -13,6 +14,8 @@ type SearchParams = {
   assigneeId?: string;
   occurrence?: string;
   deadline?: string;
+  deadlineFrom?: string;
+  deadlineTo?: string;
 };
 
 export default async function AllTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -27,7 +30,12 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
   else if (params.assigneeId) where.assigneeId = params.assigneeId;
   if (params.occurrence) where.occurrence = params.occurrence as Prisma.TaskWhereInput["occurrence"];
 
-  if (params.deadline === "OVERDUE") {
+  if (params.deadlineFrom || params.deadlineTo) {
+    where.deadline = {
+      ...(params.deadlineFrom ? { gte: new Date(params.deadlineFrom) } : {}),
+      ...(params.deadlineTo ? { lte: endOfDay(params.deadlineTo) } : {}),
+    };
+  } else if (params.deadline === "OVERDUE") {
     where.deadline = { lt: new Date() };
   } else if (params.deadline === "SOON") {
     const sevenDaysFromNow = new Date();
