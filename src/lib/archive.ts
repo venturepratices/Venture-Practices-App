@@ -54,14 +54,17 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
     return archivedTask;
   });
 
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  // Blob credentials are either a classic BLOB_READ_WRITE_TOKEN or, for stores
+  // connected via Vercel's OIDC integration, a BLOB_STORE_ID (the SDK resolves
+  // the short-lived OIDC token itself from the Vercel runtime at call time).
+  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID) {
     await put(`archive/${archived.id}.json`, JSON.stringify(archived, null, 2), {
       access: "private",
       addRandomSuffix: false,
       contentType: "application/json",
     });
   } else {
-    console.warn("BLOB_READ_WRITE_TOKEN not set — archive durability mirror skipped for", archived.id);
+    console.warn("No Blob credentials configured — archive durability mirror skipped for", archived.id);
   }
 
   return archived;

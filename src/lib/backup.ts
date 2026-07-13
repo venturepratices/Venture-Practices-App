@@ -108,8 +108,11 @@ export async function writeBackupToBlob(
 ): Promise<{ written: boolean; pathname: string }> {
   const pathname = `${BACKUP_PREFIX}${dateKey}.json`;
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    console.warn("BLOB_READ_WRITE_TOKEN not set — database backup skipped for", pathname);
+  // Blob credentials are either a classic BLOB_READ_WRITE_TOKEN or, for stores
+  // connected via Vercel's OIDC integration, a BLOB_STORE_ID (the SDK resolves
+  // the short-lived OIDC token itself from the Vercel runtime at call time).
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
+    console.warn("No Blob credentials configured — database backup skipped for", pathname);
     return { written: false, pathname };
   }
 
@@ -131,7 +134,7 @@ export async function pruneOldBackups(
   retentionDays = 30,
   now: Date = new Date(),
 ): Promise<number> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
     return 0;
   }
 
