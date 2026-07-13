@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Activity, Archive, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, Archive, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
 
 type SidebarClient = {
   id: string;
@@ -25,16 +26,48 @@ const AGENCY_LINKS = [
 export function Sidebar({ clients }: { clients: SidebarClient[] }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
+  const { isOpen, close } = useMobileSidebar();
+
+  // Auto-close the mobile drawer whenever the route changes, instead of closing
+  // on the Link's own click — closing synchronously inside a Link's onClick can
+  // hide the anchor (display:none) before the browser follows its href, which
+  // cancels the navigation.
+  useEffect(() => {
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-heading text-xs font-bold text-sidebar-primary-foreground">
-          VP
-        </span>
-        <span className="truncate font-heading text-sm font-semibold">Venture Practices</span>
-      </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+    <>
+      {isOpen ? (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={close}
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+        />
+      ) : null}
+      <aside
+        className={cn(
+          "z-50 h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:static md:z-auto md:flex",
+          isOpen ? "fixed inset-y-0 left-0 flex" : "hidden"
+        )}
+      >
+        <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-heading text-xs font-bold text-sidebar-primary-foreground">
+            VP
+          </span>
+          <span className="truncate font-heading text-sm font-semibold">Venture Practices</span>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={close}
+            className="ml-auto rounded-md p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {AGENCY_LINKS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
@@ -90,7 +123,8 @@ export function Sidebar({ clients }: { clients: SidebarClient[] }) {
             </div>
           ) : null}
         </div>
-      </nav>
-    </aside>
+        </nav>
+      </aside>
+    </>
   );
 }

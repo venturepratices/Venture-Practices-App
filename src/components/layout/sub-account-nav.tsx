@@ -17,7 +17,7 @@ export function SubAccountNav({ clientId }: { clientId: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1 border-b px-6">
+    <nav className="flex gap-1 overflow-x-auto border-b px-4 md:px-6">
       {LOCAL_LINKS.map(({ segment, label, comingSoon }) => {
         const href = `/clients/${clientId}/${segment}`;
         const active = pathname === href;
@@ -27,7 +27,7 @@ export function SubAccountNav({ clientId }: { clientId: string }) {
             <span
               key={segment}
               title="Coming in Phase 2"
-              className="cursor-not-allowed border-b-2 border-transparent px-3 py-2.5 text-sm text-muted-foreground/50"
+              className="shrink-0 cursor-not-allowed border-b-2 border-transparent px-3 py-2.5 text-sm text-muted-foreground/50"
             >
               {label}
             </span>
@@ -39,7 +39,7 @@ export function SubAccountNav({ clientId }: { clientId: string }) {
             key={segment}
             href={href}
             className={cn(
-              "border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+              "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
               active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
