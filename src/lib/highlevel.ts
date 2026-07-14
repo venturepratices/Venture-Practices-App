@@ -111,32 +111,62 @@ export type NormalizedMessage = {
  * Conversations timeline like HighLevel does; everything else that isn't SMS/
  * Email/Call/Voicemail (chat channels like WhatsApp/FB/IG) → SMS so it still
  * shows rather than vanishing.
+ *
+ * Voicemail may not always show up as its own top-level messageType — some
+ * APIs nest it under a call's status instead (e.g. a TYPE_CALL whose meta
+ * indicates a voicemail was left). We check a few plausible nested fields
+ * defensively since the exact real shape hasn't been confirmed against live
+ * data yet.
  */
-function bucketChannel(messageType: string): "SMS" | "Email" | "Call" | "Voicemail" {
+function bucketChannel(messageType: string, m: Record<string, unknown>): "SMS" | "Email" | "Call" | "Voicemail" {
   const t = messageType.toUpperCase();
+  const meta = (m.meta as Record<string, unknown> | undefined) ?? undefined;
+  const callMeta = (meta?.call as Record<string, unknown> | undefined) ?? undefined;
+  const callSignals = [m.callStatus, m.status, callMeta?.status, callMeta?.type]
+    .filter(Boolean)
+    .map((v) => String(v).toUpperCase());
+
   // Check voicemail/call BEFORE email — "VOICEMAIL" contains the substring
   // "EMAIL", so an email-first check would misclassify voicemails.
-  if (t.includes("VOICEMAIL")) return "Voicemail";
+  if (t.includes("VOICEMAIL") || callSignals.some((s) => s.includes("VOICEMAIL"))) return "Voicemail";
   if (t.includes("CALL")) return "Call";
   if (t.includes("EMAIL")) return "Email";
   return "SMS";
 }
 
-/** Strip HTML and collapse whitespace so email bodies are stored as lean plain text. */
+/**
+ * Strip HTML down to lean plain text for email bodies — but preserve the
+ * original line structure (paragraphs/breaks/list items) by converting
+ * block-level tags to newlines FIRST. Collapsing all whitespace (including
+ * newlines) to single spaces, as an earlier version did, flattened every
+ * structured email into one unreadable run-on paragraph.
+ */
 function toPlainText(input: string): string {
-  const stripped = input
+  const withBreaks = input
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&#39;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/\s+/g, " ")
+    .replace(/&quot;/gi, '"');
+
+  // Collapse runs of spaces/tabs (not newlines), trim each line, and cap
+  // consecutive blank lines at one so the result stays compact but readable.
+  const collapsed = withBreaks
+    .replace(/[ \t]+/g, " ")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return stripped.length > MAX_BODY_CHARS ? `${stripped.slice(0, MAX_BODY_CHARS)}…` : stripped;
+
+  return collapsed.length > MAX_BODY_CHARS ? `${collapsed.slice(0, MAX_BODY_CHARS)}…` : collapsed;
 }
 
 export function normalizeMessage(raw: unknown, convo?: HlConversation): NormalizedMessage | null {
@@ -164,7 +194,7 @@ export function normalizeMessage(raw: unknown, convo?: HlConversation): Normaliz
     ghlConversationId: convo?.id ?? null,
     ghlContactId,
     contactName: contactName ? String(contactName) : null,
-    channel: bucketChannel(messageType),
+    channel: bucketChannel(messageType, m),
     direction: m.direction === "outbound" ? "outbound" : "inbound",
     subject: subjectRaw ? String(subjectRaw) : null,
     body: toPlainText(String(rawBody)),
@@ -246,10 +276,27 @@ export async function syncClientConversations(
   const token = decryptSecret(conn.encryptedToken);
   const conversations = await searchConversations(conn.locationId, token);
 
+  // TEMPORARY diagnostic: log the distinct raw type-ish fields HighLevel
+  // actually sends, so we can confirm exactly how voicemail is represented
+  // instead of guessing. Safe to remove once that's confirmed — logs only
+  // field values, never message content.
+  const seenTypeSignals = new Set<string>();
+
   let upserted = 0;
   for (const convo of conversations) {
     const rawMessages = await getMessages(convo.id, token);
     for (const raw of rawMessages) {
+      if (raw && typeof raw === "object") {
+        const r = raw as Record<string, unknown>;
+        seenTypeSignals.add(
+          JSON.stringify({
+            messageType: r.messageType,
+            type: r.type,
+            callStatus: r.callStatus,
+            status: r.status,
+          })
+        );
+      }
       const norm = normalizeMessage(raw, convo);
       if (!norm) continue;
       await prisma.conversationMessage.upsert({
@@ -268,6 +315,8 @@ export async function syncClientConversations(
       upserted++;
     }
   }
+
+  console.log(`[HL-DEBUG] distinct message type signals for client ${clientId}:`, [...seenTypeSignals]);
 
   const pruned = await pruneClientConversations(clientId);
   await prisma.clientHighLevelConnection.update({
