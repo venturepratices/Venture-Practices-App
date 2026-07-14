@@ -40,6 +40,14 @@ enum TaskStatus {
   COMPLETE
 }
 
+enum NotificationType {
+  ASSIGNED
+  MENTIONED
+  STATUS_CHANGED
+  DEADLINE_CHANGED
+  COMMENTED
+}
+
 model TeamMember {
   id           String   @id @default(cuid())
   name         String
@@ -56,6 +64,7 @@ model TeamMember {
   comments      Comment[]
   clientNotes   ClientNote[]
   activityLogs  ActivityLog[]
+  notifications Notification[]
 }
 
 // Auth.js required models for the Prisma adapter (database session strategy)
@@ -183,6 +192,26 @@ model ActivityLog {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// Per-recipient notification, fanned out from the same mutations ActivityLog
+// records (task assignment/status/deadline changes, comments, @-mentions) —
+// see src/lib/notify.ts. Unlike ActivityLog this is scoped to one person and
+// tracks read state; readAt null = unread.
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  recipient   TeamMember       @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  entityType  String
+  entityId    String
+  entityLabel String
+  message     String
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, readAt])
   @@index([createdAt])
 }
 

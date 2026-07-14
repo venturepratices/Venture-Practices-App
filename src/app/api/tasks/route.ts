@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { createTaskSchema } from "@/lib/validations/task";
 
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
     },
+    include: { assignee: { select: { id: true, name: true } } },
   });
 
   await logActivity({
@@ -37,6 +39,17 @@ export async function POST(request: Request) {
     action: "created",
     description: `${session.user.name ?? "Someone"} created task "${task.title}"`,
   });
+
+  if (task.assigneeId && task.assigneeId !== session.user.id) {
+    await notify({
+      recipientId: task.assigneeId,
+      type: "ASSIGNED",
+      entityType: "Task",
+      entityId: task.id,
+      entityLabel: task.title,
+      message: `${task.assignee?.name ?? "Someone"} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+    });
+  }
 
   return NextResponse.json(task, { status: 201 });
 }

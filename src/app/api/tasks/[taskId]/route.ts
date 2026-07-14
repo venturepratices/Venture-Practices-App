@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
+import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
@@ -76,9 +77,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     }
     if (parsed.data.status !== undefined && parsed.data.status !== before.status) {
       changes.push(`status changed to ${TASK_STATUS_LABELS[parsed.data.status]}`);
+      if (task.assigneeId && task.assigneeId !== session.user.id) {
+        await notify({
+          recipientId: task.assigneeId,
+          type: "STATUS_CHANGED",
+          entityType: "Task",
+          entityId: task.id,
+          entityLabel: task.title,
+          message: `${task.assignee?.name ?? "Someone"} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
+        });
+      }
     }
     if (parsed.data.assigneeId !== undefined && parsed.data.assigneeId !== before.assigneeId) {
       changes.push(`assignee changed to ${task.assignee?.name ?? "Unassigned"}`);
+      if (task.assigneeId && task.assigneeId !== session.user.id) {
+        await notify({
+          recipientId: task.assigneeId,
+          type: "ASSIGNED",
+          entityType: "Task",
+          entityId: task.id,
+          entityLabel: task.title,
+          message: `${task.assignee?.name ?? "Someone"} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+        });
+      }
     }
     if (parsed.data.clientId !== undefined && parsed.data.clientId !== before.clientId) {
       changes.push(`client changed to ${task.client?.name ?? "Internal / Agency"}`);
@@ -90,7 +111,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       const newTime = deadline ? new Date(deadline).getTime() : null;
       const oldTime = before.deadline ? before.deadline.getTime() : null;
       if (newTime !== oldTime) {
-        changes.push(`deadline changed to ${deadline ? new Date(deadline).toLocaleDateString() : "none"}`);
+        const deadlineLabel = deadline ? new Date(deadline).toLocaleDateString() : "none";
+        changes.push(`deadline changed to ${deadlineLabel}`);
+        if (task.assigneeId && task.assigneeId !== session.user.id) {
+          await notify({
+            recipientId: task.assigneeId,
+            type: "DEADLINE_CHANGED",
+            entityType: "Task",
+            entityId: task.id,
+            entityLabel: task.title,
+            message: `${task.assignee?.name ?? "Someone"} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
+          });
+        }
       }
     }
 
@@ -118,6 +150,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           action: "created",
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
+        if (next.assigneeId) {
+          await notify({
+            recipientId: next.assigneeId,
+            type: "ASSIGNED",
+            entityType: "Task",
+            entityId: next.id,
+            entityLabel: next.title,
+            message: `${next.assignee?.name ?? "Someone"} — you have a new recurring task: "${next.title}"`,
+          });
+        }
       }
     }
   }

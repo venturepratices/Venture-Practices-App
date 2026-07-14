@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { MobileMenuButton } from "@/components/layout/mobile-menu-button";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -12,11 +13,20 @@ function initialsOf(name: string) {
     .join("");
 }
 
-export function TopBar({ userName, userEmail }: { userName?: string | null; userEmail?: string | null }) {
+export function TopBar({
+  userName,
+  userEmail,
+  unreadCount = 0,
+}: {
+  userName?: string | null;
+  userEmail?: string | null;
+  unreadCount?: number;
+}) {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-card px-4 md:px-6">
       <MobileMenuButton />
       <div className="flex items-center gap-3">
+        <NotificationBell unreadCount={unreadCount} />
         <div className="text-right text-sm leading-tight">
           <p className="font-medium">{userName ?? "Team member"}</p>
           <p className="text-muted-foreground">{userEmail}</p>

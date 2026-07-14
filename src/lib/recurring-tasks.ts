@@ -31,5 +31,6 @@ export async function maybeCreateNextOccurrence(task: Task) {
       status: "NEXT_UP",
       deadline: computeNextDeadline(task.deadline, task.occurrence),
     },
+    include: { assignee: { select: { id: true, name: true } } },
   });
 }
