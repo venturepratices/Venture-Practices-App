@@ -76,13 +76,17 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-4">
-        {tasks.length === 0 ? (
-          <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
-            No tasks match these filters.
-          </p>
-        ) : isBoard ? (
-          <TaskBoard tasks={tasks} showClientOnCards />
+        {isBoard ? (
+          tasks.length === 0 ? (
+            <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
+              No tasks match these filters.
+            </p>
+          ) : (
+            <TaskBoard tasks={tasks} showClientOnCards />
+          )
         ) : (
+          // TaskList always renders (even with zero tasks) so its own "Add task" box
+          // stays visible — it already handles its own empty state internally.
           <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
         )}
       </div>

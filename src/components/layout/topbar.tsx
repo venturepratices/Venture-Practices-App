@@ -23,9 +23,9 @@ export function TopBar({
   unreadCount?: number;
 }) {
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-4 md:px-6">
+    <header className="flex h-14 items-center border-b bg-card px-4 md:px-6">
       <MobileMenuButton />
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-3">
         <NotificationBell unreadCount={unreadCount} />
         <div className="text-right text-sm leading-tight">
           <p className="font-medium">{userName ?? "Team member"}</p>
