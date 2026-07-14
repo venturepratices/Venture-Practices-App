@@ -125,10 +125,12 @@ model Client {
   address      String?
   about        String? @db.Text
 
-  tasks       Task[]
-  notes       ClientNote[]
-  links       ClientLink[]
-  credentials ClientCredential[]
+  tasks                Task[]
+  notes                ClientNote[]
+  links                ClientLink[]
+  credentials          ClientCredential[]
+  highLevelConnection  ClientHighLevelConnection?
+  conversationMessages ConversationMessage[]
 }
 
 // Quick-access links to client-related sites (their website, ad accounts, GBP
@@ -161,6 +163,50 @@ model ClientCredential {
   updatedAt         DateTime @updatedAt
 
   @@index([clientId])
+}
+
+// Links one of our Clients to its HighLevel (LeadConnector) sub-account so we can
+// pull that client's conversations. One connection per client (@unique). The
+// Private Integration Token is stored encrypted via src/lib/credential-crypto.ts
+// (same AES-256-GCM helper as ClientCredential) and used server-side to call the
+// HighLevel API — it is never revealed to a human, so it lives here rather than in
+// the human-reveal-gated ClientCredential vault. webhookSecret is minted now but
+// unused in v1 (polling via sync-on-view); it's the ready seam for a future
+// instant-webhook path. See "HighLevel Conversations integration" in the plan.
+model ClientHighLevelConnection {
+  id             String    @id @default(cuid())
+  clientId       String    @unique
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  locationId     String // HighLevel sub-account (Location) ID
+  encryptedToken String // Private Integration Token, ciphertext only — never plaintext
+  webhookSecret  String? // reserved for the future instant-webhook path; unused in v1
+  connectedAt    DateTime  @default(now())
+  lastSyncAt     DateTime? // throttles sync-on-view and records the last successful pull
+  updatedAt      DateTime  @updatedAt
+}
+
+// A lean local CACHE of HighLevel conversation messages (SMS/Email/Call) for a
+// client. HighLevel remains the system of record — this table is pruned on every
+// sync (RETENTION_DAYS / MAX_MESSAGES_PER_CLIENT in src/lib/highlevel.ts) so it
+// can never grow unbounded. Email bodies are stored as plain text only (no heavy
+// HTML) to keep storage small. Deduped on ghlMessageId so repeated syncs/backfills
+// never create duplicate rows.
+model ConversationMessage {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ghlMessageId String   @unique // HighLevel's own message id — dedupe key
+  ghlContactId String
+  contactName  String?
+  channel      String // "SMS" | "Email" | "Call"
+  direction    String // "inbound" | "outbound"
+  subject      String? // email subject only
+  body         String   @db.Text // lean text body (no heavy HTML)
+  ghlTimestamp DateTime // when the message happened in HighLevel
+  createdAt    DateTime @default(now())
+
+  @@index([clientId, channel, ghlTimestamp])
+  @@index([ghlContactId])
 }
 
 // A shared, running log of "what's the latest on this client" — e.g. summarizing

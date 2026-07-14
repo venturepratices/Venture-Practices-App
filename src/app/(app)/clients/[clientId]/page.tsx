@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
+import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
 
 function InfoRow({ icon: Icon, value, href }: { icon: React.ComponentType<{ className?: string }>; value: string | null; href?: string }) {
   if (!value) return null;
@@ -26,7 +27,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const { clientId } = await params;
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { links: { orderBy: { createdAt: "asc" } } },
+    include: { links: { orderBy: { createdAt: "asc" } }, highLevelConnection: true },
   });
   if (!client) notFound();
 
@@ -82,6 +83,19 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       </div>
 
       <ClientLinksSection clientId={client.id} links={client.links} />
+
+      <HighLevelConnectionSection
+        clientId={client.id}
+        connection={
+          client.highLevelConnection
+            ? {
+                locationId: client.highLevelConnection.locationId,
+                connectedAt: client.highLevelConnection.connectedAt.toISOString(),
+                lastSyncAt: client.highLevelConnection.lastSyncAt?.toISOString() ?? null,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
