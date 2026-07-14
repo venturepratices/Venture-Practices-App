@@ -11,7 +11,9 @@ import { InfoTip } from "@/components/info-tip";
 export default async function ClientCredentialsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
   // Client-access is enforced by the layout; this adds the credentials capability.
-  if (!(await canUseCapability("credentials"))) notFound();
+  if (!(await canUseCapability("canViewCredentials"))) notFound();
+  const canManage = await canUseCapability("canManageCredentials");
+  const canReveal = await canUseCapability("canRevealCredentials");
 
   const credentials = await prisma.clientCredential.findMany({
     where: { clientId },
@@ -29,23 +31,27 @@ export default async function ClientCredentialsPage({ params }: { params: Promis
             you re-enter your own account password to reveal one — every reveal is recorded on the Activity log.
           </InfoTip>
         </h2>
-        <CredentialFormDialog
-          mode="create"
-          clientId={clientId}
-          trigger={
-            <Button size="sm">
-              <Plus className="size-4" />
-              Add credential
-            </Button>
-          }
-        />
+        {canManage ? (
+          <CredentialFormDialog
+            mode="create"
+            clientId={clientId}
+            trigger={
+              <Button size="sm">
+                <Plus className="size-4" />
+                Add credential
+              </Button>
+            }
+          />
+        ) : null}
       </div>
 
       <div className="mt-4 space-y-2">
         {credentials.length === 0 ? (
           <p className="rounded-lg border px-4 py-6 text-center text-sm text-muted-foreground">No credentials stored yet.</p>
         ) : (
-          credentials.map((credential) => <CredentialRow key={credential.id} credential={credential} />)
+          credentials.map((credential) => (
+            <CredentialRow key={credential.id} credential={credential} canManage={canManage} canReveal={canReveal} />
+          ))
         )}
       </div>
     </div>

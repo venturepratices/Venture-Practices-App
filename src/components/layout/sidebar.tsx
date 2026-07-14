@@ -19,29 +19,32 @@ const AGENCY_LINKS = [
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
   { href: "/team", label: "Team", icon: Users, adminOnly: true },
-  { href: "/activity", label: "Activity", icon: Activity, activityArchive: true },
-  { href: "/archive", label: "Archive", icon: Archive, activityArchive: true },
+  { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
+  { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
 ];
 
 export function Sidebar({
   clients,
   isAdmin = false,
-  canViewActivityArchive = false,
+  canViewActivity = false,
+  canViewArchive = false,
 }: {
   clients: SidebarClient[];
   isAdmin?: boolean;
-  canViewActivityArchive?: boolean;
+  canViewActivity?: boolean;
+  canViewArchive?: boolean;
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
   const { isOpen, close } = useMobileSidebar();
 
   // Hide nav items the viewer can't use — Team is admin-only; Activity/Archive
-  // need the activity-archive capability. (These are also enforced server-side;
-  // hiding is just so people don't see dead links.)
+  // each need their own specific capability. (These are also enforced
+  // server-side; hiding is just so people don't see dead links.)
   const links = AGENCY_LINKS.filter((link) => {
     if ("adminOnly" in link && link.adminOnly) return isAdmin;
-    if ("activityArchive" in link && link.activityArchive) return canViewActivityArchive;
+    if ("needs" in link && link.needs === "canViewActivity") return isAdmin || canViewActivity;
+    if ("needs" in link && link.needs === "canViewArchive") return isAdmin || canViewArchive;
     return true;
   });
 

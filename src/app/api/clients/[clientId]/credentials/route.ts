@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   const { clientId } = await params;
   try {
     await requireClientAccess(clientId);
-    await requireCapability("credentials");
+    await requireCapability("canManageCredentials");
   } catch (error) {
     return toErrorResponse(error);
   }

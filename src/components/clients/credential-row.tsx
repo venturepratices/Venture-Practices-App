@@ -26,7 +26,15 @@ type Credential = {
   username: string | null;
 };
 
-export function CredentialRow({ credential }: { credential: Credential }) {
+export function CredentialRow({
+  credential,
+  canManage = false,
+  canReveal = false,
+}: {
+  credential: Credential;
+  canManage?: boolean;
+  canReveal?: boolean;
+}) {
   const router = useRouter();
   const [revealOpen, setRevealOpen] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
@@ -95,7 +103,7 @@ export function CredentialRow({ credential }: { credential: Credential }) {
                 <EyeOff className="size-3.5" />
               </Button>
             </>
-          ) : (
+          ) : canReveal ? (
             <Dialog
               open={revealOpen}
               onOpenChange={(next) => {
@@ -139,27 +147,29 @@ export function CredentialRow({ credential }: { credential: Credential }) {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          )}
+          ) : null}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <CredentialFormDialog
-          mode="edit"
-          clientId={credential.clientId}
-          credentialId={credential.id}
-          defaultLabel={credential.label}
-          defaultUrl={credential.url}
-          defaultUsername={credential.username}
-          trigger={
-            <Button variant="ghost" size="icon-sm" aria-label={`Edit ${credential.label}`}>
-              <Pencil className="size-3.5" />
-            </Button>
-          }
-        />
-        <Button variant="ghost" size="icon-sm" aria-label={`Delete ${credential.label}`} onClick={handleDelete}>
-          <Trash2 className="size-3.5" />
-        </Button>
-      </div>
+      {canManage ? (
+        <div className="flex shrink-0 items-center gap-1">
+          <CredentialFormDialog
+            mode="edit"
+            clientId={credential.clientId}
+            credentialId={credential.id}
+            defaultLabel={credential.label}
+            defaultUrl={credential.url}
+            defaultUsername={credential.username}
+            trigger={
+              <Button variant="ghost" size="icon-sm" aria-label={`Edit ${credential.label}`}>
+                <Pencil className="size-3.5" />
+              </Button>
+            }
+          />
+          <Button variant="ghost" size="icon-sm" aria-label={`Delete ${credential.label}`} onClick={handleDelete}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

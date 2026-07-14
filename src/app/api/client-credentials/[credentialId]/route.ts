@@ -39,7 +39,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cr
 
   try {
     await requireClientAccess(existing.clientId);
-    await requireCapability("credentials");
+    await requireCapability("canManageCredentials");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -85,7 +85,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   try {
     await requireClientAccess(existing.clientId);
-    await requireCapability("credentials");
+    await requireCapability("canManageCredentials");
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -10,7 +10,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ cl
   const { clientId } = await params;
   try {
     await requireClientAccess(clientId);
-    await requireCapability("conversations");
+    await requireCapability("canManageHighLevel");
   } catch (error) {
     return toErrorResponse(error);
   }

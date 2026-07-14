@@ -4,18 +4,17 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { PermissionError, requireAdmin } from "@/lib/permissions";
+import { PermissionError, requireCapability, requireClientAccess, type Capability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { clientSchema } from "@/lib/validations/client";
 
 export type ClientFormState = { error: string | null };
 
-// Creating/renaming/deleting a client is a structural change — admins only.
-// Members work *within* the clients they're granted; they don't manage the
-// client roster. Returns the error to the form rather than throwing.
-async function assertAdminOrError(): Promise<ClientFormState | null> {
+// Returns the error to the form rather than throwing.
+async function assertCapabilityOrError(cap: Capability, clientId?: string): Promise<ClientFormState | null> {
   try {
-    await requireAdmin();
+    await requireCapability(cap);
+    if (clientId) await requireClientAccess(clientId);
     return null;
   } catch (error) {
     if (error instanceof PermissionError) return { error: error.message };
@@ -37,7 +36,7 @@ function readClientFormData(formData: FormData) {
 }
 
 export async function createClientAction(_prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
-  const denied = await assertAdminOrError();
+  const denied = await assertCapabilityOrError("canCreateClients");
   if (denied) return denied;
 
   const parsed = clientSchema.safeParse(readClientFormData(formData));
@@ -64,7 +63,7 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
 }
 
 export async function updateClientAction(clientId: string, _prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
-  const denied = await assertAdminOrError();
+  const denied = await assertCapabilityOrError("canEditClients", clientId);
   if (denied) return denied;
 
   const parsed = clientSchema.safeParse(readClientFormData(formData));

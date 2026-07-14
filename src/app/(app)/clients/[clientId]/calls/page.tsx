@@ -10,7 +10,7 @@ import { SyncNowButton } from "@/components/clients/sync-now-button";
 export default async function CallsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
 
-  if (!(await canUseCapability("conversations"))) notFound();
+  if (!(await canUseCapability("canViewConversations"))) notFound();
 
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {

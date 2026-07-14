@@ -9,7 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ClientLink } from "@/generated/prisma/client";
 
-export function ClientLinksSection({ clientId, links }: { clientId: string; links: ClientLink[] }) {
+export function ClientLinksSection({
+  clientId,
+  links,
+  canManage = false,
+}: {
+  clientId: string;
+  links: ClientLink[];
+  canManage?: boolean;
+}) {
   const router = useRouter();
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
@@ -54,20 +62,24 @@ export function ClientLinksSection({ clientId, links }: { clientId: string; link
                 <ExternalLink className="size-3.5 shrink-0" />
                 <span className="truncate">{link.label}</span>
               </a>
-              <Button variant="ghost" size="icon-sm" aria-label={`Remove ${link.label}`} onClick={() => deleteLink(link.id)}>
-                <X className="size-3.5" />
-              </Button>
+              {canManage ? (
+                <Button variant="ghost" size="icon-sm" aria-label={`Remove ${link.label}`} onClick={() => deleteLink(link.id)}>
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>
       ) : null}
-      <div className="flex items-center gap-1.5">
-        <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label (e.g. Ad account)" className="h-8 text-sm" />
-        <Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." className="h-8 text-sm" />
-        <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={submitLink}>
-          <Plus className="size-4" />
-        </Button>
-      </div>
+      {canManage ? (
+        <div className="flex items-center gap-1.5">
+          <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label (e.g. Ad account)" className="h-8 text-sm" />
+          <Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." className="h-8 text-sm" />
+          <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={submitLink}>
+            <Plus className="size-4" />
+          </Button>
+        </div>
+      ) : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   );

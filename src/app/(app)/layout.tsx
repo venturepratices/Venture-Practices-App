@@ -27,7 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Sidebar
           clients={clients}
           isAdmin={!!perms?.isAdmin}
-          canViewActivityArchive={!!(perms?.isAdmin || perms?.canViewActivityArchive)}
+          canViewActivity={!!perms?.caps.canViewActivity}
+          canViewArchive={!!perms?.caps.canViewArchive}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar userName={session?.user?.name} userEmail={session?.user?.email} unreadCount={unreadCount} />

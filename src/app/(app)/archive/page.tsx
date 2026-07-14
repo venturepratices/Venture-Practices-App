@@ -20,7 +20,7 @@ type SearchParams = {
 };
 
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  if (!(await canUseCapability("activityArchive"))) notFound();
+  if (!(await canUseCapability("canViewArchive"))) notFound();
 
   const params = await searchParams;
 

@@ -35,7 +35,7 @@ export default async function ConversationsPage({
   const { clientId } = await params;
   const { contactId: requestedContactId } = await searchParams;
 
-  if (!(await canUseCapability("conversations"))) notFound();
+  if (!(await canUseCapability("canViewConversations"))) notFound();
 
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {

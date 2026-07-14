@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   const { clientId } = await params;
   try {
     await requireClientAccess(clientId);
-    await requireCapability("conversations");
+    await requireCapability("canManageHighLevel");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -111,7 +111,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { clientId } = await params;
   try {
     await requireClientAccess(clientId);
-    await requireCapability("conversations");
+    await requireCapability("canManageHighLevel");
   } catch (error) {
     return toErrorResponse(error);
   }

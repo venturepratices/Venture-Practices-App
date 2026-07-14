@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { CAPABILITIES } from "@/lib/permission-catalog";
 import { PermissionError, requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createTeamMemberSchema, updateTeamMemberSchema } from "@/lib/validations/team-member";
@@ -24,7 +25,10 @@ async function assertAdminOrError(): Promise<TeamMemberFormState | null> {
 }
 
 // The permission checklist fields, read straight off the form (checkboxes +
-// the multi-valued client list) rather than through zod.
+// the multi-valued client list) rather than through zod. Every capability in
+// CAPABILITIES (the same catalog the admin UI renders from) is read the same
+// way, so a new capability added to the catalog is automatically persisted
+// here with no extra wiring.
 function readPermissionFields(formData: FormData) {
   const bool = (name: string) => {
     const v = formData.get(name);
@@ -33,10 +37,11 @@ function readPermissionFields(formData: FormData) {
   return {
     isAdmin: bool("isAdmin"),
     allClientsAccess: bool("allClientsAccess"),
-    canViewCredentials: bool("canViewCredentials"),
-    canViewConversations: bool("canViewConversations"),
-    canViewActivityArchive: bool("canViewActivityArchive"),
     clientIds: formData.getAll("clientIds").map(String).filter(Boolean),
+    caps: Object.fromEntries(CAPABILITIES.map((cap) => [cap, bool(cap)])) as Record<
+      (typeof CAPABILITIES)[number],
+      boolean
+    >,
   };
 }
 
@@ -70,9 +75,7 @@ export async function createTeamMemberAction(
       passwordHash,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
-      canViewCredentials: perms.canViewCredentials,
-      canViewConversations: perms.canViewConversations,
-      canViewActivityArchive: perms.canViewActivityArchive,
+      ...perms.caps,
       clientAccess: perms.clientIds.length
         ? { create: perms.clientIds.map((clientId) => ({ clientId })) }
         : undefined,
@@ -142,9 +145,7 @@ export async function updateTeamMemberAction(
       email: parsed.data.email,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
-      canViewCredentials: perms.canViewCredentials,
-      canViewConversations: perms.canViewConversations,
-      canViewActivityArchive: perms.canViewActivityArchive,
+      ...perms.caps,
       // An admin setting someone else's password here is a recovery/temporary
       // password by definition — force them to set their own on next login.
       ...(parsed.data.password
@@ -167,9 +168,7 @@ export async function updateTeamMemberAction(
   // trail shows *that* access changed without spelling out every flag.
   const accessChanged =
     before.allClientsAccess !== member.allClientsAccess ||
-    before.canViewCredentials !== member.canViewCredentials ||
-    before.canViewConversations !== member.canViewConversations ||
-    before.canViewActivityArchive !== member.canViewActivityArchive;
+    CAPABILITIES.some((cap) => before[cap] !== member[cap]);
   if (accessChanged) changes.push("access updated");
   if (changes.length > 0) {
     const session = await auth();

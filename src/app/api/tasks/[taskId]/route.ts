@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
-import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
@@ -64,8 +64,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
+    await requireCapability("canEditTasks");
     if (before.clientId) await requireClientAccess(before.clientId);
-    else await requireUser();
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -189,8 +189,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
+    await requireCapability("canDeleteTasks");
     if (task.clientId) await requireClientAccess(task.clientId);
-    else await requireUser();
   } catch (error) {
     return toErrorResponse(error);
   }

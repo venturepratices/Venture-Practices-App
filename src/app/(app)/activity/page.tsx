@@ -35,7 +35,7 @@ function rangeStart(range?: string): Date | null {
 }
 
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  if (!(await canUseCapability("activityArchive"))) notFound();
+  if (!(await canUseCapability("canViewActivity"))) notFound();
 
   const params = await searchParams;
 

@@ -14,7 +14,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
 
   // The archive is a sensitive surface (deleted-data history) — same gate as viewing it.
   try {
-    await requireCapability("activityArchive");
+    await requireCapability("canRestoreArchive");
   } catch (error) {
     return toErrorResponse(error);
   }

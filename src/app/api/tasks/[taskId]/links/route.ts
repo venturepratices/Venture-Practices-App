@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createLinkSchema = z.object({
@@ -29,8 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
+    await requireCapability("canManageTaskLinks");
     if (task.clientId) await requireClientAccess(task.clientId);
-    else await requireUser();
   } catch (error) {
     return toErrorResponse(error);
   }

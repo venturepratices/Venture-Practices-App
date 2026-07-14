@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
@@ -20,8 +20,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
+    await requireCapability("canManageTaskLinks");
     if (link.task.clientId) await requireClientAccess(link.task.clientId);
-    else await requireUser();
   } catch (error) {
     return toErrorResponse(error);
   }

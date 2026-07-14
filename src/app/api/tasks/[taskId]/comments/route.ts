@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
-import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createCommentSchema = z.object({
@@ -31,11 +31,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
   if (!task) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  // Commenting on a client task requires access to that client; internal tasks
-  // are open to any signed-in member.
+  // Commenting on a client task requires access to that client, in addition
+  // to the comment-on-tasks capability.
   try {
+    await requireCapability("canCommentOnTasks");
     if (task.clientId) await requireClientAccess(task.clientId);
-    else await requireUser();
   } catch (error) {
     return toErrorResponse(error);
   }

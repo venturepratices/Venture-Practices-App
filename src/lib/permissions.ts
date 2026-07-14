@@ -2,12 +2,21 @@ import { cache } from "react";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { CAPABILITIES, type Capability } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 
+export { CAPABILITIES, type Capability };
+
 /**
- * Central access-control helper. Two roles: Admin (bypasses everything) and
- * Member (gated by capability flags + the ClientAccess join). See the
- * "Access management / permissions" plan.
+ * Central access-control helper. Two roles: Admin (bypasses everything,
+ * including granting other people admin/permissions) and Member, gated by
+ * ~22 granular per-feature capabilities + the ClientAccess join (WHICH
+ * clients — a separate axis from WHAT actions). See the "Access management /
+ * permissions" plan.
+ *
+ * Deliberately NOT auto-granted: every capability defaults false and stays
+ * false until an admin explicitly checks it for that person, every time —
+ * there's no "grandfathering" when a new capability is introduced.
  *
  * Authoritative permission data is read FRESH from the DB on every request
  * (wrapped in React cache() so it's a single query per request), deliberately
@@ -16,15 +25,11 @@ import { prisma } from "@/lib/prisma";
  * (a client grant or a capability) takes effect on the user's very next action.
  */
 
-export type Capability = "credentials" | "conversations" | "activityArchive";
-
 export type Permissions = {
   userId: string;
   isAdmin: boolean;
   allClientsAccess: boolean;
-  canViewCredentials: boolean;
-  canViewConversations: boolean;
-  canViewActivityArchive: boolean;
+  caps: Record<Capability, boolean>;
   clientIds: Set<string>;
 };
 
@@ -50,37 +55,46 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       id: true,
       isAdmin: true,
       allClientsAccess: true,
-      canViewCredentials: true,
-      canViewConversations: true,
-      canViewActivityArchive: true,
       clientAccess: { select: { clientId: true } },
+      canCreateClients: true,
+      canEditClients: true,
+      canDeleteClients: true,
+      canCreateTasks: true,
+      canEditTasks: true,
+      canDeleteTasks: true,
+      canCommentOnTasks: true,
+      canManageTaskLinks: true,
+      canCreateClientNotes: true,
+      canEditClientNotes: true,
+      canDeleteClientNotes: true,
+      canCreateMeetingNotes: true,
+      canDeleteMeetingNotes: true,
+      canManageClientLinks: true,
+      canViewCredentials: true,
+      canManageCredentials: true,
+      canRevealCredentials: true,
+      canViewConversations: true,
+      canManageHighLevel: true,
+      canViewActivity: true,
+      canViewArchive: true,
+      canRestoreArchive: true,
     },
   });
   if (!member) return null;
+
+  const caps = Object.fromEntries(CAPABILITIES.map((cap) => [cap, member[cap]])) as Record<Capability, boolean>;
 
   return {
     userId: member.id,
     isAdmin: member.isAdmin,
     allClientsAccess: member.allClientsAccess,
-    canViewCredentials: member.canViewCredentials,
-    canViewConversations: member.canViewConversations,
-    canViewActivityArchive: member.canViewActivityArchive,
+    caps,
     clientIds: new Set(member.clientAccess.map((c) => c.clientId)),
   };
 });
 
 function hasCapability(p: Permissions, cap: Capability): boolean {
-  if (p.isAdmin) return true;
-  switch (cap) {
-    case "credentials":
-      return p.canViewCredentials;
-    case "conversations":
-      return p.canViewConversations;
-    case "activityArchive":
-      return p.canViewActivityArchive;
-    default:
-      return false;
-  }
+  return p.isAdmin || p.caps[cap];
 }
 
 function hasClientAccess(p: Permissions, clientId: string): boolean {

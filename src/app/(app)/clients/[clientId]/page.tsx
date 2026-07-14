@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Mail, MapPin, Phone, Pencil, Globe } from "lucide-react";
 
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
@@ -30,6 +31,10 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
     include: { links: { orderBy: { createdAt: "asc" } }, highLevelConnection: true },
   });
   if (!client) notFound();
+
+  const canEditClient = await canUseCapability("canEditClients");
+  const canManageLinks = await canUseCapability("canManageClientLinks");
+  const canManageHighLevel = await canUseCapability("canManageHighLevel");
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasBusinessInfo = client.website || client.address;
@@ -63,39 +68,43 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
             <p className="text-sm text-muted-foreground">No client info added yet.</p>
           ) : null}
         </div>
-        <ClientFormDialog
-          mode="edit"
-          clientId={client.id}
-          defaultName={client.name}
-          defaultStatus={client.status}
-          contactName={client.contactName}
-          contactEmail={client.contactEmail}
-          contactPhone={client.contactPhone}
-          website={client.website}
-          address={client.address}
-          about={client.about}
-          trigger={
-            <Button variant="ghost" size="icon" aria-label="Edit client info">
-              <Pencil className="size-4" />
-            </Button>
-          }
-        />
+        {canEditClient ? (
+          <ClientFormDialog
+            mode="edit"
+            clientId={client.id}
+            defaultName={client.name}
+            defaultStatus={client.status}
+            contactName={client.contactName}
+            contactEmail={client.contactEmail}
+            contactPhone={client.contactPhone}
+            website={client.website}
+            address={client.address}
+            about={client.about}
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="Edit client info">
+                <Pencil className="size-4" />
+              </Button>
+            }
+          />
+        ) : null}
       </div>
 
-      <ClientLinksSection clientId={client.id} links={client.links} />
+      <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
 
-      <HighLevelConnectionSection
-        clientId={client.id}
-        connection={
-          client.highLevelConnection
-            ? {
-                locationId: client.highLevelConnection.locationId,
-                connectedAt: client.highLevelConnection.connectedAt.toISOString(),
-                lastSyncAt: client.highLevelConnection.lastSyncAt?.toISOString() ?? null,
-              }
-            : null
-        }
-      />
+      {canManageHighLevel ? (
+        <HighLevelConnectionSection
+          clientId={client.id}
+          connection={
+            client.highLevelConnection
+              ? {
+                  locationId: client.highLevelConnection.locationId,
+                  connectedAt: client.highLevelConnection.connectedAt.toISOString(),
+                  lastSyncAt: client.highLevelConnection.lastSyncAt?.toISOString() ?? null,
+                }
+              : null
+          }
+        />
+      ) : null}
     </div>
   );
 }

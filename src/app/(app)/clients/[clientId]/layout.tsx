@@ -31,8 +31,8 @@ export default async function ClientLayout({
       </div>
       <SubAccountNav
         clientId={clientId}
-        canViewCredentials={!!(perms?.isAdmin || perms?.canViewCredentials)}
-        canViewConversations={!!(perms?.isAdmin || perms?.canViewConversations)}
+        canViewCredentials={!!(perms?.isAdmin || perms?.caps.canViewCredentials)}
+        canViewConversations={!!(perms?.isAdmin || perms?.caps.canViewConversations)}
       />
       <div className="flex-1 overflow-y-auto p-6">{children}</div>
     </div>

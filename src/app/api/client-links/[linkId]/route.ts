@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
@@ -18,6 +18,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
   try {
     await requireClientAccess(link.clientId);
+    await requireCapability("canManageClientLinks");
   } catch (error) {
     return toErrorResponse(error);
   }

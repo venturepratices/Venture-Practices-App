@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const updateClientNoteSchema = z.object({
@@ -19,6 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cl
   const { clientId, noteId } = await params;
   try {
     await requireClientAccess(clientId);
+    await requireCapability("canEditClientNotes");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -64,6 +65,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { clientId, noteId } = await params;
   try {
     await requireClientAccess(clientId);
+    await requireCapability("canDeleteClientNotes");
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cre
 
   try {
     await requireClientAccess(credential.clientId);
-    await requireCapability("credentials");
+    await requireCapability("canRevealCredentials");
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -60,16 +60,58 @@ model TeamMember {
   mustChangePassword Boolean  @default(false)
   role               Role     @default(AGENCY)
   // Access control. Admins bypass every check below (full access + team/
-  // permission management). Members are gated by these flags + the ClientAccess
-  // join. Enforced fresh-from-DB per request via src/lib/permissions.ts, NOT
-  // baked into the JWT — so revoking access takes effect immediately.
-  isAdmin                Boolean  @default(false)
-  allClientsAccess       Boolean  @default(false) // Member sees every client without a per-client ClientAccess row
-  canViewCredentials     Boolean  @default(false) // the encrypted Credentials vault
-  canViewConversations   Boolean  @default(false) // HighLevel Conversations AND Calls (same data source)
-  canViewActivityArchive Boolean  @default(false) // the Activity log and Archive
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  // permission management + granting others admin/permissions). Members are
+  // gated by these granular per-feature flags + the ClientAccess join (WHICH
+  // clients, a separate axis from WHAT actions). Enforced fresh-from-DB per
+  // request via src/lib/permissions.ts, NOT baked into the JWT — so revoking
+  // access takes effect immediately. Deliberately NOT auto-granted on create —
+  // an admin checks exactly the boxes they want each person to have, every time.
+  isAdmin          Boolean @default(false)
+  allClientsAccess Boolean @default(false) // Member sees every client without a per-client ClientAccess row
+
+  // Clients
+  canCreateClients Boolean @default(false)
+  canEditClients   Boolean @default(false)
+  canDeleteClients Boolean @default(false) // no delete-client feature exists yet; reserved for when it does
+
+  // Tasks
+  canCreateTasks     Boolean @default(false)
+  canEditTasks       Boolean @default(false)
+  canDeleteTasks     Boolean @default(false) // archives a task
+  canCommentOnTasks  Boolean @default(false)
+  canManageTaskLinks Boolean @default(false)
+
+  // Client Notes
+  canCreateClientNotes Boolean @default(false)
+  canEditClientNotes   Boolean @default(false)
+  canDeleteClientNotes Boolean @default(false)
+
+  // Meeting Notes
+  canCreateMeetingNotes Boolean @default(false)
+  canDeleteMeetingNotes Boolean @default(false)
+
+  // Client Links (quick-access links on a client's Info tab)
+  canManageClientLinks Boolean @default(false)
+
+  // Credentials vault — viewing the list, managing entries, and revealing a
+  // password are three separate, increasingly sensitive permissions. Reveal
+  // also always requires re-entering the viewer's own account password.
+  canViewCredentials   Boolean @default(false)
+  canManageCredentials Boolean @default(false)
+  canRevealCredentials Boolean @default(false)
+
+  // HighLevel Conversations & Calls — viewing vs. connecting/managing the
+  // integration (which can incur real cost/changes on HighLevel's side).
+  canViewConversations Boolean @default(false)
+  canManageHighLevel   Boolean @default(false)
+
+  // Activity log & Archive
+  canViewActivity   Boolean @default(false)
+  canViewArchive    Boolean @default(false)
+  canRestoreArchive Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   sessions      Session[]
   accounts      Account[]
