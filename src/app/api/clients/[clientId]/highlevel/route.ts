@@ -32,9 +32,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   // Validate the token BEFORE persisting so we never store a broken connection.
   try {
     await verifyHighLevelConnection(parsed.data.locationId, parsed.data.token);
-  } catch {
+  } catch (error) {
+    console.error("HighLevel connect verification failed:", error);
     return NextResponse.json(
-      { error: "Couldn't reach HighLevel with that Location ID and token. Double-check both and that the token has Conversations access." },
+      {
+        error: "Couldn't reach HighLevel with that Location ID and token. Double-check both and that the token has Conversations access.",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 400 }
     );
   }

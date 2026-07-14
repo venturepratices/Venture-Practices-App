@@ -55,7 +55,8 @@ export function HighLevelConnectionSection({
       router.refresh();
     } else {
       const data = await response.json().catch(() => null);
-      setError(data?.error ?? "Couldn't connect to HighLevel.");
+      const base = data?.error ?? "Couldn't connect to HighLevel.";
+      setError(data?.detail ? `${base} (${data.detail})` : base);
     }
   }
 
