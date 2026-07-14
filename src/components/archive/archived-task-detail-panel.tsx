@@ -2,8 +2,9 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, RotateCcw } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StatusPill } from "@/components/tasks/status-pill";
@@ -18,6 +19,7 @@ export function ArchivedTaskDetailPanel() {
   const archivedTaskId = searchParams.get("archivedTaskId");
 
   const [task, setTask] = useState<ArchivedTaskDetail | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     if (!archivedTaskId) {
@@ -42,6 +44,18 @@ export function ArchivedTaskDetailPanel() {
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  async function handleRestore() {
+    if (!archivedTaskId || !task) return;
+    if (!window.confirm(`Restore "${task.title}" back to your active tasks?`)) return;
+    setIsRestoring(true);
+    const response = await fetch(`/api/archived-tasks/${archivedTaskId}/restore`, { method: "POST" });
+    setIsRestoring(false);
+    if (response.ok) {
+      close();
+      router.refresh();
+    }
+  }
+
   const comments = (task?.comments as ArchivedCommentSnapshot[] | null) ?? [];
   const links = (task?.links as ArchivedLinkSnapshot[] | null) ?? [];
 
@@ -58,6 +72,10 @@ export function ArchivedTaskDetailPanel() {
                 Deleted {formatDateTime(task.deletedAt)}
                 {task.deletedBy ? ` by ${task.deletedBy.name}` : ""} — read-only, kept for backtracking.
               </p>
+              <Button size="sm" className="mt-2 w-fit" onClick={handleRestore} disabled={isRestoring}>
+                <RotateCcw className="size-4" />
+                {isRestoring ? "Restoring..." : "Restore to active"}
+              </Button>
             </SheetHeader>
 
             <div className="space-y-4">

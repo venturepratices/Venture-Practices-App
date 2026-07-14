@@ -1,6 +1,7 @@
 import { put } from "@vercel/blob";
 
 import { prisma } from "@/lib/prisma";
+import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot } from "@/types/task";
 
 /**
  * Deletes a live Task and writes a full denormalized snapshot to ArchivedTask
@@ -68,4 +69,67 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
   }
 
   return archived;
+}
+
+/**
+ * Reverses archiveTask: recreates a live Task from an ArchivedTask snapshot,
+ * along with its comments/links, then removes the archive record so the task
+ * isn't shown as both active and archived. Comments are restored with
+ * authorId left null (only the plain authorName string survived the original
+ * archive, not a linkable id) — the task detail panel already renders that
+ * as "Former team member", the same fallback used when a real author account
+ * is later deleted, so this isn't a new UI case.
+ *
+ * If the original assignee or client no longer exists, the restored task
+ * falls back to unassigned/internal rather than reusing a dangling id.
+ */
+export async function restoreArchivedTask(archivedTaskId: string) {
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedTask.findUniqueOrThrow({ where: { id: archivedTaskId } });
+
+    const [assignee, client] = await Promise.all([
+      archived.assigneeId ? tx.teamMember.findUnique({ where: { id: archived.assigneeId }, select: { id: true } }) : null,
+      archived.clientId ? tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } }) : null,
+    ]);
+
+    const task = await tx.task.create({
+      data: {
+        title: archived.title,
+        assigneeId: assignee ? archived.assigneeId : null,
+        clientId: client ? archived.clientId : null,
+        occurrence: archived.occurrence,
+        status: archived.status,
+        deadline: archived.deadline,
+      },
+    });
+
+    const comments = (archived.comments as ArchivedCommentSnapshot[] | null) ?? [];
+    const links = (archived.links as ArchivedLinkSnapshot[] | null) ?? [];
+
+    if (comments.length > 0) {
+      await tx.comment.createMany({
+        data: comments.map((comment) => ({
+          taskId: task.id,
+          authorId: null,
+          body: comment.body,
+          createdAt: new Date(comment.createdAt),
+        })),
+      });
+    }
+
+    if (links.length > 0) {
+      await tx.taskLink.createMany({
+        data: links.map((link) => ({
+          taskId: task.id,
+          label: link.label,
+          url: link.url,
+          createdAt: new Date(link.createdAt),
+        })),
+      });
+    }
+
+    await tx.archivedTask.delete({ where: { id: archivedTaskId } });
+
+    return task;
+  });
 }
