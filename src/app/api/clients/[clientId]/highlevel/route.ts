@@ -43,17 +43,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     );
   }
 
+  let encryptedToken: string;
+  try {
+    encryptedToken = encryptSecret(parsed.data.token);
+  } catch (error) {
+    console.error("HighLevel token encryption failed:", error);
+    return NextResponse.json(
+      {
+        error: "The server isn't configured to store credentials yet (missing encryption key). Ask an admin to set CREDENTIALS_ENCRYPTION_KEY.",
+        detail: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+
   await prisma.clientHighLevelConnection.upsert({
     where: { clientId },
     create: {
       clientId,
       locationId: parsed.data.locationId,
-      encryptedToken: encryptSecret(parsed.data.token),
+      encryptedToken,
       webhookSecret: randomBytes(24).toString("hex"),
     },
     update: {
       locationId: parsed.data.locationId,
-      encryptedToken: encryptSecret(parsed.data.token),
+      encryptedToken,
     },
   });
 
