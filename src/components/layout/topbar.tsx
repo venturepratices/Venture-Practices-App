@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LogOut } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
@@ -31,9 +32,14 @@ export function TopBar({
           <p className="font-medium">{userName ?? "Team member"}</p>
           <p className="text-muted-foreground">{userEmail}</p>
         </div>
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+        <Link
+          href="/change-password"
+          aria-label="Change password"
+          title="Change password"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground transition-opacity hover:opacity-80"
+        >
           {userName ? initialsOf(userName) : "?"}
-        </span>
+        </Link>
         <form
           action={async () => {
             "use server";

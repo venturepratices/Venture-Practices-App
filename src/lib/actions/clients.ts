@@ -9,11 +9,21 @@ import { clientSchema } from "@/lib/validations/client";
 
 export type ClientFormState = { error: string | null };
 
-export async function createClientAction(_prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
-  const parsed = clientSchema.safeParse({
+function readClientFormData(formData: FormData) {
+  return {
     name: formData.get("name"),
     status: formData.get("status"),
-  });
+    contactName: formData.get("contactName"),
+    contactEmail: formData.get("contactEmail"),
+    contactPhone: formData.get("contactPhone"),
+    website: formData.get("website"),
+    address: formData.get("address"),
+    about: formData.get("about"),
+  };
+}
+
+export async function createClientAction(_prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
+  const parsed = clientSchema.safeParse(readClientFormData(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
@@ -37,10 +47,7 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
 }
 
 export async function updateClientAction(clientId: string, _prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
-  const parsed = clientSchema.safeParse({
-    name: formData.get("name"),
-    status: formData.get("status"),
-  });
+  const parsed = clientSchema.safeParse(readClientFormData(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
@@ -52,6 +59,12 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
     const changes: string[] = [];
     if (before.name !== client.name) changes.push(`renamed to "${client.name}"`);
     if (before.status !== client.status) changes.push(`status changed to ${client.status}`);
+    if (before.contactName !== client.contactName) changes.push("contact name updated");
+    if (before.contactEmail !== client.contactEmail) changes.push("contact email updated");
+    if (before.contactPhone !== client.contactPhone) changes.push("contact phone updated");
+    if (before.website !== client.website) changes.push("website updated");
+    if (before.address !== client.address) changes.push("address updated");
+    if (before.about !== client.about) changes.push("about updated");
     if (changes.length > 0) {
       const session = await auth();
       await logActivity({

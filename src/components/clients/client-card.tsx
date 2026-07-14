@@ -12,6 +12,12 @@ type ClientCardData = {
   status: string;
   openTaskCount: number;
   overdueTaskCount: number;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  address: string | null;
+  about: string | null;
 };
 
 export function ClientCard({ client }: { client: ClientCardData }) {
@@ -23,6 +29,12 @@ export function ClientCard({ client }: { client: ClientCardData }) {
           clientId={client.id}
           defaultName={client.name}
           defaultStatus={client.status}
+          contactName={client.contactName}
+          contactEmail={client.contactEmail}
+          contactPhone={client.contactPhone}
+          website={client.website}
+          address={client.address}
+          about={client.about}
           trigger={
             <Button variant="ghost" size="icon" aria-label={`Edit ${client.name}`}>
               <Pencil className="size-4" />
@@ -30,7 +42,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
           }
         />
       </div>
-      <Link href={`/clients/${client.id}/tasks`} className="block">
+      <Link href={`/clients/${client.id}`} className="block">
         <CardHeader>
           <CardTitle className="pr-8 text-base">{client.name}</CardTitle>
         </CardHeader>

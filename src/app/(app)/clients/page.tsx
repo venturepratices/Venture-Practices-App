@@ -62,6 +62,12 @@ export default async function ClientsPage() {
                 status: client.status,
                 openTaskCount: client._count.tasks,
                 overdueTaskCount: overdueCounts[client.id] ?? 0,
+                contactName: client.contactName,
+                contactEmail: client.contactEmail,
+                contactPhone: client.contactPhone,
+                website: client.website,
+                address: client.address,
+                about: client.about,
               }}
             />
           ))}

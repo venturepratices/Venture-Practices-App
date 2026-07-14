@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const LOCAL_LINKS = [
+  { segment: "", label: "Info" },
   { segment: "tasks", label: "Tasks" },
   { segment: "notes", label: "Notes" },
+  { segment: "meetings", label: "Meeting Notes" },
   { segment: "assets", label: "Assets", comingSoon: true },
-  { segment: "credentials", label: "Credentials", comingSoon: true },
+  { segment: "credentials", label: "Credentials" },
   { segment: "finance", label: "Finance", comingSoon: true },
 ];
 
@@ -19,7 +21,7 @@ export function SubAccountNav({ clientId }: { clientId: string }) {
   return (
     <nav className="flex gap-1 overflow-x-auto border-b px-4 md:px-6">
       {LOCAL_LINKS.map(({ segment, label, comingSoon }) => {
-        const href = `/clients/${clientId}/${segment}`;
+        const href = segment ? `/clients/${clientId}/${segment}` : `/clients/${clientId}`;
         const active = pathname === href;
 
         if (comingSoon) {

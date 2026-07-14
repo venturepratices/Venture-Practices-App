@@ -75,7 +75,11 @@ export async function updateTeamMemberAction(
     data: {
       name: parsed.data.name,
       email: parsed.data.email,
-      ...(parsed.data.password ? { passwordHash: await bcrypt.hash(parsed.data.password, 12) } : {}),
+      // An admin setting someone else's password here is a recovery/temporary
+      // password by definition — force them to set their own on next login.
+      ...(parsed.data.password
+        ? { passwordHash: await bcrypt.hash(parsed.data.password, 12), mustChangePassword: true }
+        : {}),
     },
   });
 

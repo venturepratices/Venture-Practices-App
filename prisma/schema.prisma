@@ -49,13 +49,18 @@ enum NotificationType {
 }
 
 model TeamMember {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(AGENCY)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  passwordHash       String
+  // True when an admin has just set this person's password for them (a
+  // temporary/recovery password) — forces them to /change-password on their
+  // next login before they can do anything else. Cleared once they set their
+  // own new password.
+  mustChangePassword Boolean  @default(false)
+  role               Role     @default(AGENCY)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   sessions      Session[]
   accounts      Account[]
@@ -111,8 +116,51 @@ model Client {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  tasks Task[]
-  notes ClientNote[]
+  // Contact + business basics. All optional — existing clients have none of
+  // this yet, and it's filled in over time, not required up front.
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  website      String?
+  address      String?
+  about        String? @db.Text
+
+  tasks       Task[]
+  notes       ClientNote[]
+  links       ClientLink[]
+  credentials ClientCredential[]
+}
+
+// Quick-access links to client-related sites (their website, ad accounts, GBP
+// listing, etc.) — mirrors TaskLink exactly, just attached to a Client.
+model ClientLink {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url       String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+// Third-party access credentials for a client (e.g. WordPress admin login).
+// encryptedPassword is ciphertext produced by src/lib/credential-crypto.ts —
+// never store or log the plaintext. Revealing it requires re-entering your
+// own account password (see /api/client-credentials/[credentialId]/reveal),
+// which is what makes each reveal traceable to a specific person.
+model ClientCredential {
+  id                String   @id @default(cuid())
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label             String
+  url               String?
+  username          String?
+  encryptedPassword String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 // A shared, running log of "what's the latest on this client" — e.g. summarizing

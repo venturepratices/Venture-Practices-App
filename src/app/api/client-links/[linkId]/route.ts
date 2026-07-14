@@ -1,0 +1,30 @@
+import { NextResponse } from "next/server";
+
+import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
+import { prisma } from "@/lib/prisma";
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { linkId } = await params;
+  const link = await prisma.clientLink.findUnique({ where: { id: linkId }, include: { client: { select: { name: true } } } });
+  await prisma.clientLink.delete({ where: { id: linkId } });
+
+  if (link) {
+    await logActivity({
+      actorId: session.user.id,
+      actorName: session.user.name ?? null,
+      entityType: "Client",
+      entityId: link.clientId,
+      entityLabel: link.client.name,
+      action: "link_removed",
+      description: `${session.user.name ?? "Someone"} removed the link "${link.label}" from "${link.client.name}"`,
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}

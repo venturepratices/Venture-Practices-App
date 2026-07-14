@@ -102,7 +102,7 @@ export function Sidebar({ clients }: { clients: SidebarClient[] }) {
                 <p className="px-3 py-1.5 text-sm text-sidebar-foreground/50">No clients yet</p>
               ) : (
                 clients.map((client) => {
-                  const href = `/clients/${client.id}/tasks`;
+                  const href = `/clients/${client.id}`;
                   const active = pathname.startsWith(`/clients/${client.id}`);
                   return (
                     <Link
