@@ -95,9 +95,10 @@ async function getMessages(conversationId: string, token: string): Promise<unkno
 
 export type NormalizedMessage = {
   ghlMessageId: string;
+  ghlConversationId: string | null;
   ghlContactId: string;
   contactName: string | null;
-  channel: "SMS" | "Email" | "Call";
+  channel: "SMS" | "Email" | "Call" | "Voicemail";
   direction: "inbound" | "outbound";
   subject: string | null;
   body: string;
@@ -105,15 +106,18 @@ export type NormalizedMessage = {
 };
 
 /**
- * Bucket HighLevel's many message types into our three tabs. Email → Email,
- * calls/voicemail → Call, everything else (SMS + chat channels like WhatsApp/
- * FB/IG) → SMS so it still shows in the Conversations tab rather than vanishing.
+ * Bucket HighLevel's many message types into our tabs. Voicemail is its own
+ * bucket (distinct from a plain Call) so it can be labeled and shown in the
+ * Conversations timeline like HighLevel does; everything else that isn't SMS/
+ * Email/Call/Voicemail (chat channels like WhatsApp/FB/IG) → SMS so it still
+ * shows rather than vanishing.
  */
-function bucketChannel(messageType: string): "SMS" | "Email" | "Call" {
+function bucketChannel(messageType: string): "SMS" | "Email" | "Call" | "Voicemail" {
   const t = messageType.toUpperCase();
-  // Check call/voicemail BEFORE email — "VOICEMAIL" contains the substring
+  // Check voicemail/call BEFORE email — "VOICEMAIL" contains the substring
   // "EMAIL", so an email-first check would misclassify voicemails.
-  if (t.includes("CALL") || t.includes("VOICEMAIL")) return "Call";
+  if (t.includes("VOICEMAIL")) return "Voicemail";
+  if (t.includes("CALL")) return "Call";
   if (t.includes("EMAIL")) return "Email";
   return "SMS";
 }
@@ -157,6 +161,7 @@ export function normalizeMessage(raw: unknown, convo?: HlConversation): Normaliz
 
   return {
     ghlMessageId: String(id),
+    ghlConversationId: convo?.id ?? null,
     ghlContactId,
     contactName: contactName ? String(contactName) : null,
     channel: bucketChannel(messageType),
@@ -257,6 +262,7 @@ export async function syncClientConversations(
           contactName: norm.contactName,
           channel: norm.channel,
           ghlTimestamp: norm.ghlTimestamp,
+          ghlConversationId: norm.ghlConversationId,
         },
       });
       upserted++;

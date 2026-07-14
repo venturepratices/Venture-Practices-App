@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare, Phone, Voicemail } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
@@ -54,17 +54,26 @@ export default async function ConversationsPage({
     syncFailed = true;
   }
 
-  // Already sorted newest-first, so each contact's FIRST-encountered message
-  // below is automatically their most recent one — the map's insertion order
-  // is therefore already "most recently active contact first," no extra sort.
+  // Everything — SMS, Email, Call, Voicemail — in one unified timeline, like
+  // HighLevel's own Conversations tab. Already sorted newest-first, so each
+  // contact's FIRST-encountered message below is automatically their most
+  // recent one — the map's insertion order is therefore already "most
+  // recently active contact first," no extra sort.
   const messages = await prisma.conversationMessage.findMany({
-    where: { clientId, channel: { in: ["SMS", "Email"] } },
+    where: { clientId },
     orderBy: { ghlTimestamp: "desc" },
   });
 
   const byContact = new Map<string, ContactSummary>();
   for (const m of messages) {
-    const key = m.ghlContactId || m.id;
+    // Prefer the real contact id; fall back to the conversation id (shared by
+    // every message pulled from the same HighLevel conversation) rather than
+    // the message's own id — falling back to a per-message id would split a
+    // single real conversation into one row per message whenever HighLevel
+    // omits contactId (seen on some automated/system conversations), which is
+    // exactly what made outbound replies look "missing": each one landed in
+    // its own single-message row instead of merging with the rest.
+    const key = m.ghlContactId || m.ghlConversationId || m.id;
     const existing = byContact.get(key);
     const threadMsg: ThreadMessage = {
       id: m.id,
@@ -96,7 +105,7 @@ export default async function ConversationsPage({
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex shrink-0 items-center justify-between">
-        <p className="text-sm text-muted-foreground">Email &amp; SMS from HighLevel</p>
+        <p className="text-sm text-muted-foreground">All conversations from HighLevel</p>
         <SyncNowButton clientId={clientId} />
       </div>
 
@@ -115,7 +124,10 @@ export default async function ConversationsPage({
           <aside className="w-72 shrink-0 overflow-y-auto border-r">
             {contacts.map((c) => {
               const active = c.contactId === selected?.contactId;
-              const preview = c.lastChannel === "Email" ? c.lastSubject || c.lastBody : c.lastBody;
+              const preview =
+                c.lastChannel === "Email"
+                  ? c.lastSubject || c.lastBody
+                  : c.lastBody || (c.lastChannel === "Voicemail" ? "Voicemail" : c.lastChannel === "Call" ? "Call" : "");
               return (
                 <Link
                   key={c.contactId}
@@ -138,6 +150,10 @@ export default async function ConversationsPage({
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       {c.lastChannel === "Email" ? (
                         <Mail className="size-3 shrink-0" />
+                      ) : c.lastChannel === "Call" ? (
+                        <Phone className="size-3 shrink-0" />
+                      ) : c.lastChannel === "Voicemail" ? (
+                        <Voicemail className="size-3 shrink-0" />
                       ) : (
                         <MessageSquare className="size-3 shrink-0" />
                       )}

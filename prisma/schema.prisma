@@ -192,18 +192,22 @@ model ClientHighLevelConnection {
 // HTML) to keep storage small. Deduped on ghlMessageId so repeated syncs/backfills
 // never create duplicate rows.
 model ConversationMessage {
-  id           String   @id @default(cuid())
-  clientId     String
-  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  ghlMessageId String   @unique // HighLevel's own message id — dedupe key
-  ghlContactId String
-  contactName  String?
-  channel      String // "SMS" | "Email" | "Call"
-  direction    String // "inbound" | "outbound"
-  subject      String? // email subject only
-  body         String   @db.Text // lean text body (no heavy HTML)
-  ghlTimestamp DateTime // when the message happened in HighLevel
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ghlMessageId      String   @unique // HighLevel's own message id — dedupe key
+  ghlConversationId String? // HighLevel's own conversation id — the reliable thread-grouping
+  // fallback for messages missing a per-message contactId (e.g. system/automated
+  // conversations); all messages fetched via one getMessages(convo.id) call share
+  // this, so it's a safe grouping key even when contact identity is unknown.
+  ghlContactId      String
+  contactName       String?
+  channel           String // "SMS" | "Email" | "Call" | "Voicemail"
+  direction         String // "inbound" | "outbound"
+  subject           String? // email subject only
+  body              String   @db.Text // lean text body (no heavy HTML)
+  ghlTimestamp      DateTime // when the message happened in HighLevel
+  createdAt         DateTime @default(now())
 
   @@index([clientId, channel, ghlTimestamp])
   @@index([ghlContactId])

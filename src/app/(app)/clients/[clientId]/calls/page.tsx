@@ -29,13 +29,14 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
   }
 
   const calls = await prisma.conversationMessage.findMany({
-    where: { clientId, channel: "Call" },
+    where: { clientId, channel: { in: ["Call", "Voicemail"] } },
     orderBy: { ghlTimestamp: "desc" },
   });
 
   const rows: CallRow[] = calls.map((c) => ({
     id: c.id,
     contactName: c.contactName,
+    channel: c.channel,
     direction: c.direction,
     subject: c.subject,
     body: c.body,
