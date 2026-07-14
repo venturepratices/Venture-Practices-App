@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { auth } from "@/lib/auth";
+import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -9,8 +10,11 @@ import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+  const perms = await loadPermissions();
+  const clientWhere = await accessibleClientFilter("id");
   const [clients, teamMembers, unreadCount] = await Promise.all([
-    prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // Sidebar client list scoped to what this user may access.
+    prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     session?.user?.id
       ? prisma.notification.count({ where: { recipientId: session.user.id, readAt: null } })
@@ -20,7 +24,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <MobileSidebarProvider>
       <div className="flex h-screen">
-        <Sidebar clients={clients} />
+        <Sidebar
+          clients={clients}
+          isAdmin={!!perms?.isAdmin}
+          canViewActivityArchive={!!(perms?.isAdmin || perms?.canViewActivityArchive)}
+        />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar userName={session?.user?.name} userEmail={session?.user?.email} unreadCount={unreadCount} />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>

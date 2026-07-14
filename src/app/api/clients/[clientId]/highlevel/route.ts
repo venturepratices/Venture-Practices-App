@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { encryptSecret } from "@/lib/credential-crypto";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations, verifyHighLevelConnection } from "@/lib/highlevel";
 
@@ -23,6 +24,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   }
 
   const { clientId } = await params;
+  try {
+    await requireClientAccess(clientId);
+    await requireCapability("conversations");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = connectSchema.safeParse(body);
   if (!parsed.success) {
@@ -101,6 +109,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   const { clientId } = await params;
+  try {
+    await requireClientAccess(clientId);
+    await requireCapability("conversations");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const existing = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!existing) {
     return NextResponse.json({ ok: true });

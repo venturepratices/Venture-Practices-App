@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
@@ -12,9 +13,17 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   const { linkId } = await params;
   const link = await prisma.clientLink.findUnique({ where: { id: linkId }, include: { client: { select: { name: true } } } });
+  if (!link) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    await requireClientAccess(link.clientId);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
   await prisma.clientLink.delete({ where: { id: linkId } });
 
-  if (link) {
+  {
     await logActivity({
       actorId: session.user.id,
       actorName: session.user.name ?? null,

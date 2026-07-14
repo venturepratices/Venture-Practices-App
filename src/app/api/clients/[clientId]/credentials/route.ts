@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { encryptSecret } from "@/lib/credential-crypto";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createCredentialSchema = z.object({
@@ -20,6 +21,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   }
 
   const { clientId } = await params;
+  try {
+    await requireClientAccess(clientId);
+    await requireCapability("credentials");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = createCredentialSchema.safeParse(body);
   if (!parsed.success) {

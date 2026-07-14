@@ -4,10 +4,24 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { PermissionError, requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { clientSchema } from "@/lib/validations/client";
 
 export type ClientFormState = { error: string | null };
+
+// Creating/renaming/deleting a client is a structural change — admins only.
+// Members work *within* the clients they're granted; they don't manage the
+// client roster. Returns the error to the form rather than throwing.
+async function assertAdminOrError(): Promise<ClientFormState | null> {
+  try {
+    await requireAdmin();
+    return null;
+  } catch (error) {
+    if (error instanceof PermissionError) return { error: error.message };
+    throw error;
+  }
+}
 
 function readClientFormData(formData: FormData) {
   return {
@@ -23,6 +37,9 @@ function readClientFormData(formData: FormData) {
 }
 
 export async function createClientAction(_prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
+  const denied = await assertAdminOrError();
+  if (denied) return denied;
+
   const parsed = clientSchema.safeParse(readClientFormData(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -47,6 +64,9 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
 }
 
 export async function updateClientAction(clientId: string, _prevState: ClientFormState, formData: FormData): Promise<ClientFormState> {
+  const denied = await assertAdminOrError();
+  if (denied) return denied;
+
   const parsed = clientSchema.safeParse(readClientFormData(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };

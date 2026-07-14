@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { encryptSecret } from "@/lib/credential-crypto";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const updateCredentialSchema = z.object({
@@ -34,6 +35,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cr
   });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  try {
+    await requireClientAccess(existing.clientId);
+    await requireCapability("credentials");
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const credential = await prisma.clientCredential.update({
@@ -71,6 +79,17 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     where: { id: credentialId },
     include: { client: { select: { name: true } } },
   });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  try {
+    await requireClientAccess(existing.clientId);
+    await requireCapability("credentials");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   await prisma.clientCredential.delete({ where: { id: credentialId } });
 
   if (existing) {

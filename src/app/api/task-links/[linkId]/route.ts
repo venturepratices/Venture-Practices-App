@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
@@ -11,10 +12,22 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   const { linkId } = await params;
-  const link = await prisma.taskLink.findUnique({ where: { id: linkId }, include: { task: { select: { title: true } } } });
+  const link = await prisma.taskLink.findUnique({
+    where: { id: linkId },
+    include: { task: { select: { title: true, clientId: true } } },
+  });
+  if (!link) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    if (link.task.clientId) await requireClientAccess(link.task.clientId);
+    else await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
   await prisma.taskLink.delete({ where: { id: linkId } });
 
-  if (link) {
+  {
     await logActivity({
       actorId: session.user.id,
       actorName: session.user.name ?? null,

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createLinkSchema = z.object({
@@ -23,11 +24,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true, clientId: true } });
+  if (!task) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    if (task.clientId) await requireClientAccess(task.clientId);
+    else await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const link = await prisma.taskLink.create({
     data: { taskId, label: parsed.data.label, url: parsed.data.url },
   });
-
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
   await logActivity({
     actorId: session.user.id,
     actorName: session.user.name ?? null,

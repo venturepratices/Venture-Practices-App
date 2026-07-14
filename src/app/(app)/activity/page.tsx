@@ -1,4 +1,7 @@
+import { notFound } from "next/navigation";
+
 import type { Prisma } from "@/generated/prisma/client";
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
@@ -32,6 +35,8 @@ function rangeStart(range?: string): Date | null {
 }
 
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  if (!(await canUseCapability("activityArchive"))) notFound();
+
   const params = await searchParams;
 
   const where: Prisma.ActivityLogWhereInput = {};

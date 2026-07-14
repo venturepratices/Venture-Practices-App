@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Mail, MessageSquare, Phone, Voicemail } from "lucide-react";
 
+import { notFound } from "next/navigation";
+
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,8 @@ export default async function ConversationsPage({
 }) {
   const { clientId } = await params;
   const { contactId: requestedContactId } = await searchParams;
+
+  if (!(await canUseCapability("conversations"))) notFound();
 
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {

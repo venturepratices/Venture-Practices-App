@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
+import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createTaskSchema } from "@/lib/validations/task";
 
@@ -16,6 +17,16 @@ export async function POST(request: Request) {
   const parsed = createTaskSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  // A task tied to a client requires access to that client; a client-less
+  // (internal) task is open to any signed-in member.
+  if (parsed.data.clientId) {
+    try {
+      await requireClientAccess(parsed.data.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
   }
 
   const task = await prisma.task.create({

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
+import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createCommentSchema = z.object({
@@ -23,14 +24,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { title: true, clientId: true, assigneeId: true, assignee: { select: { name: true } } },
+  });
+  if (!task) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  // Commenting on a client task requires access to that client; internal tasks
+  // are open to any signed-in member.
+  try {
+    if (task.clientId) await requireClientAccess(task.clientId);
+    else await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const comment = await prisma.comment.create({
     data: { taskId, authorId: session.user.id, body: parsed.data.body },
     include: { author: { select: { id: true, name: true } } },
-  });
-
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { title: true, assigneeId: true, assignee: { select: { name: true } } },
   });
   await logActivity({
     actorId: session.user.id,

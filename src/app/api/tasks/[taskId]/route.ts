@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
+import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
@@ -59,6 +60,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     where: { id: taskId },
     include: { assignee: { select: { name: true } }, client: { select: { name: true } } },
   });
+  if (!before) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    if (before.clientId) await requireClientAccess(before.clientId);
+    else await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 
   const { deadline, ...rest } = parsed.data;
   const task = await prisma.task.update({
@@ -175,9 +185,18 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   const { taskId } = await params;
   const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    if (task.clientId) await requireClientAccess(task.clientId);
+    else await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
   await archiveTask(taskId, session.user.id);
 
-  if (task) {
+  {
     await logActivity({
       actorId: session.user.id,
       actorName: session.user.name ?? null,

@@ -10,19 +10,33 @@ const LOCAL_LINKS = [
   { segment: "tasks", label: "Tasks" },
   { segment: "notes", label: "Notes" },
   { segment: "meetings", label: "Meeting Notes" },
-  { segment: "conversations", label: "Conversations" },
-  { segment: "calls", label: "Calls" },
+  { segment: "conversations", label: "Conversations", cap: "conversations" as const },
+  { segment: "calls", label: "Calls", cap: "conversations" as const },
   { segment: "assets", label: "Assets", comingSoon: true },
-  { segment: "credentials", label: "Credentials" },
+  { segment: "credentials", label: "Credentials", cap: "credentials" as const },
   { segment: "finance", label: "Finance", comingSoon: true },
 ];
 
-export function SubAccountNav({ clientId }: { clientId: string }) {
+export function SubAccountNav({
+  clientId,
+  canViewCredentials = false,
+  canViewConversations = false,
+}: {
+  clientId: string;
+  canViewCredentials?: boolean;
+  canViewConversations?: boolean;
+}) {
   const pathname = usePathname();
+
+  const links = LOCAL_LINKS.filter((link) => {
+    if (link.cap === "credentials") return canViewCredentials;
+    if (link.cap === "conversations") return canViewConversations;
+    return true;
+  });
 
   return (
     <nav className="flex gap-1 overflow-x-auto border-b px-4 md:px-6">
-      {LOCAL_LINKS.map(({ segment, label, comingSoon }) => {
+      {links.map(({ segment, label, comingSoon }) => {
         const href = segment ? `/clients/${clientId}/${segment}` : `/clients/${clientId}`;
         const active = pathname === href;
 

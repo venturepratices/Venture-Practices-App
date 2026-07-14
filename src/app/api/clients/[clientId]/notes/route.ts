@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createClientNoteSchema = z.object({
@@ -16,6 +17,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   }
 
   const { clientId } = await params;
+  try {
+    await requireClientAccess(clientId);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = createClientNoteSchema.safeParse(body);
   if (!parsed.success) {

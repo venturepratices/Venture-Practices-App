@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
@@ -45,13 +46,22 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     where.deadline = null;
   }
 
+  // Scope to the viewer's accessible clients (+ internal client-less tasks).
+  // ANDed with any client filter above, so a scoped member can never widen
+  // their view by passing a clientId they don't have access to.
+  const perms = await loadPermissions();
+  if (perms && !perms.isAdmin && !perms.allClientsAccess) {
+    where.OR = [{ clientId: { in: [...perms.clientIds] } }, { clientId: null }];
+  }
+  const clientWhere = await accessibleClientFilter("id");
+
   const [tasks, clients, teamMembers] = await Promise.all([
     prisma.task.findMany({
       where,
       include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 

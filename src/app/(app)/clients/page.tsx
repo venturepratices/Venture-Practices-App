@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 
+import { accessibleClientFilter, isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientCard } from "@/components/clients/client-card";
@@ -7,8 +8,11 @@ import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { InfoTip } from "@/components/info-tip";
 
 export default async function ClientsPage() {
+  const clientWhere = await accessibleClientFilter("id");
+  const admin = await isAdmin();
   const [clients, overdueByClient] = await Promise.all([
     prisma.client.findMany({
+      where: clientWhere,
       orderBy: { name: "asc" },
       include: {
         _count: {
@@ -38,15 +42,17 @@ export default async function ClientsPage() {
           </h1>
           <p className="mt-1 text-muted-foreground">Every sub-account, at a glance.</p>
         </div>
-        <ClientFormDialog
-          mode="create"
-          trigger={
-            <Button>
-              <Plus className="size-4" />
-              New client
-            </Button>
-          }
-        />
+        {admin ? (
+          <ClientFormDialog
+            mode="create"
+            trigger={
+              <Button>
+                <Plus className="size-4" />
+                New client
+              </Button>
+            }
+          />
+        ) : null}
       </div>
 
       {clients.length === 0 ? (

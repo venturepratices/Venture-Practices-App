@@ -18,15 +18,32 @@ const AGENCY_LINKS = [
   { href: "/clients", label: "All Clients", icon: Building2 },
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
-  { href: "/team", label: "Team", icon: Users },
-  { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/archive", label: "Archive", icon: Archive },
+  { href: "/team", label: "Team", icon: Users, adminOnly: true },
+  { href: "/activity", label: "Activity", icon: Activity, activityArchive: true },
+  { href: "/archive", label: "Archive", icon: Archive, activityArchive: true },
 ];
 
-export function Sidebar({ clients }: { clients: SidebarClient[] }) {
+export function Sidebar({
+  clients,
+  isAdmin = false,
+  canViewActivityArchive = false,
+}: {
+  clients: SidebarClient[];
+  isAdmin?: boolean;
+  canViewActivityArchive?: boolean;
+}) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
   const { isOpen, close } = useMobileSidebar();
+
+  // Hide nav items the viewer can't use — Team is admin-only; Activity/Archive
+  // need the activity-archive capability. (These are also enforced server-side;
+  // hiding is just so people don't see dead links.)
+  const links = AGENCY_LINKS.filter((link) => {
+    if ("adminOnly" in link && link.adminOnly) return isAdmin;
+    if ("activityArchive" in link && link.activityArchive) return canViewActivityArchive;
+    return true;
+  });
 
   // Auto-close the mobile drawer whenever the route changes, instead of closing
   // on the Link's own click — closing synchronously inside a Link's onClick can
@@ -68,7 +85,7 @@ export function Sidebar({ clients }: { clients: SidebarClient[] }) {
           </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {AGENCY_LINKS.map(({ href, label, icon: Icon }) => {
+        {links.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link

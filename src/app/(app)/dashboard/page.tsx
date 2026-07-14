@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import type { Prisma } from "@/generated/prisma/client";
+import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
@@ -11,12 +13,20 @@ export default async function DashboardPage() {
   const sevenDaysFromNow = new Date();
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
+  // Scope the rollup to the viewer's accessible clients (+ internal tasks).
+  const perms = await loadPermissions();
+  const scoped = !!perms && !perms.isAdmin && !perms.allClientsAccess;
+  const taskScope: Prisma.TaskWhereInput = scoped
+    ? { OR: [{ clientId: { in: [...perms!.clientIds] } }, { clientId: null }] }
+    : {};
+  const clientScope = await accessibleClientFilter("id");
+
   const [statusCounts, totalClients, activeClients, dueSoon] = await Promise.all([
-    prisma.task.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.client.count(),
-    prisma.client.count({ where: { status: "ACTIVE" } }),
+    prisma.task.groupBy({ by: ["status"], where: taskScope, _count: { _all: true } }),
+    prisma.client.count({ where: clientScope }),
+    prisma.client.count({ where: { ...clientScope, status: "ACTIVE" } }),
     prisma.task.findMany({
-      where: { status: { not: "COMPLETE" }, deadline: { lte: sevenDaysFromNow } },
+      where: { ...taskScope, status: { not: "COMPLETE" }, deadline: { lte: sevenDaysFromNow } },
       include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
       orderBy: { deadline: "asc" },
       take: 8,

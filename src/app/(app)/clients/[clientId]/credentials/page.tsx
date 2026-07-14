@@ -1,5 +1,7 @@
+import { notFound } from "next/navigation";
 import { Plus } from "lucide-react";
 
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { CredentialFormDialog } from "@/components/clients/credential-form-dialog";
@@ -8,6 +10,9 @@ import { InfoTip } from "@/components/info-tip";
 
 export default async function ClientCredentialsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
+  // Client-access is enforced by the layout; this adds the credentials capability.
+  if (!(await canUseCapability("credentials"))) notFound();
+
   const credentials = await prisma.clientCredential.findMany({
     where: { clientId },
     orderBy: { createdAt: "asc" },

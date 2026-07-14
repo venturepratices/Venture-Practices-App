@@ -1,6 +1,8 @@
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { ArchiveFilters } from "@/components/archive/archive-filters";
@@ -18,6 +20,8 @@ type SearchParams = {
 };
 
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  if (!(await canUseCapability("activityArchive"))) notFound();
+
   const params = await searchParams;
 
   const where: Prisma.ArchivedTaskWhereInput = {};

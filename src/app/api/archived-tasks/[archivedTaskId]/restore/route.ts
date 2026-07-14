@@ -3,12 +3,20 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { restoreArchivedTask } from "@/lib/archive";
+import { requireCapability, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ archivedTaskId: string }> }) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // The archive is a sensitive surface (deleted-data history) — same gate as viewing it.
+  try {
+    await requireCapability("activityArchive");
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const { archivedTaskId } = await params;

@@ -41,6 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: member.name,
           email: member.email,
           role: member.role,
+          isAdmin: member.isAdmin,
           mustChangePassword: member.mustChangePassword,
           remember: credentials?.remember === "true",
         };
@@ -53,6 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Fresh sign-in: stamp the effective session lifetime based on "remember me".
         const remember = Boolean((user as { remember?: boolean }).remember);
         token.role = (user as { role?: string }).role;
+        token.isAdmin = (user as { isAdmin?: boolean }).isAdmin;
         token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword;
         token.absoluteExpires = Date.now() + (remember ? THIRTY_DAYS_MS : EIGHT_HOURS_MS);
         return token;
@@ -72,6 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.sub as string;
         (session.user as { role?: string }).role = token.role as string | undefined;
+        (session.user as { isAdmin?: boolean }).isAdmin = token.isAdmin as boolean | undefined;
         session.user.mustChangePassword = token.mustChangePassword as boolean | undefined;
       }
       return session;

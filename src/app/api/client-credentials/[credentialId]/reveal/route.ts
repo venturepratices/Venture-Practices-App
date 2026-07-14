@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { decryptSecret } from "@/lib/credential-crypto";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const revealSchema = z.object({
@@ -36,6 +37,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cre
   });
   if (!credential) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  try {
+    await requireClientAccess(credential.clientId);
+    await requireCapability("credentials");
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const me = await prisma.teamMember.findUnique({ where: { id: session.user.id } });

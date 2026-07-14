@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const updateClientNoteSchema = z.object({
@@ -16,10 +17,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cl
   }
 
   const { clientId, noteId } = await params;
+  try {
+    await requireClientAccess(clientId);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = updateClientNoteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  // Ownership: the note must actually belong to the client in the URL.
+  const target = await prisma.clientNote.findUnique({ where: { id: noteId }, select: { clientId: true } });
+  if (!target || target.clientId !== clientId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const note = await prisma.clientNote.update({
@@ -49,6 +62,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   const { clientId, noteId } = await params;
+  try {
+    await requireClientAccess(clientId);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  const target = await prisma.clientNote.findUnique({ where: { id: noteId }, select: { clientId: true } });
+  if (!target || target.clientId !== clientId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   await prisma.clientNote.delete({ where: { id: noteId } });
 
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } });

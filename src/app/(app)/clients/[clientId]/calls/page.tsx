@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
+import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
 import { CallLogRow, type CallRow } from "@/components/clients/call-log-row";
@@ -7,6 +9,8 @@ import { SyncNowButton } from "@/components/clients/sync-now-button";
 
 export default async function CallsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
+
+  if (!(await canUseCapability("conversations"))) notFound();
 
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {

@@ -59,6 +59,15 @@ model TeamMember {
   // own new password.
   mustChangePassword Boolean  @default(false)
   role               Role     @default(AGENCY)
+  // Access control. Admins bypass every check below (full access + team/
+  // permission management). Members are gated by these flags + the ClientAccess
+  // join. Enforced fresh-from-DB per request via src/lib/permissions.ts, NOT
+  // baked into the JWT — so revoking access takes effect immediately.
+  isAdmin                Boolean  @default(false)
+  allClientsAccess       Boolean  @default(false) // Member sees every client without a per-client ClientAccess row
+  canViewCredentials     Boolean  @default(false) // the encrypted Credentials vault
+  canViewConversations   Boolean  @default(false) // HighLevel Conversations AND Calls (same data source)
+  canViewActivityArchive Boolean  @default(false) // the Activity log and Archive
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -70,6 +79,22 @@ model TeamMember {
   clientNotes   ClientNote[]
   activityLogs  ActivityLog[]
   notifications Notification[]
+  clientAccess  ClientAccess[]
+}
+
+// Per-Member grant of access to a specific Client (the "checklist of access").
+// Admins and Members with allClientsAccess ignore this table entirely. Cascade
+// on both sides so removing a member or client cleans up its grants.
+model ClientAccess {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([teamMemberId, clientId])
+  @@index([teamMemberId])
+  @@index([clientId])
 }
 
 // Auth.js required models for the Prisma adapter (database session strategy)
@@ -131,6 +156,7 @@ model Client {
   credentials          ClientCredential[]
   highLevelConnection  ClientHighLevelConnection?
   conversationMessages ConversationMessage[]
+  clientAccess         ClientAccess[]
 }
 
 // Quick-access links to client-related sites (their website, ad accounts, GBP

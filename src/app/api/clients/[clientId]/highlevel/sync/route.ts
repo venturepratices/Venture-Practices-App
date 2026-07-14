@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { syncClientConversations } from "@/lib/highlevel";
 
 export const runtime = "nodejs";
 
 // Manual "Sync now" — forces a fresh pull (bypasses the sync-on-view throttle).
 export async function POST(_request: Request, { params }: { params: Promise<{ clientId: string }> }) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { clientId } = await params;
+  try {
+    await requireClientAccess(clientId);
+    await requireCapability("conversations");
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
-  const { clientId } = await params;
   try {
     const result = await syncClientConversations(clientId, { force: true });
     if (result.status === "skipped" && result.reason === "not_connected") {
