@@ -85,6 +85,7 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canManageAssetReviewers: true,
       canShareAssetsExternally: true,
       canDeleteAssets: true,
+      canManageClientUsers: true,
     },
   });
   if (!member) return null;
@@ -178,4 +179,63 @@ export function toErrorResponse(error: unknown): NextResponse {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   throw error;
+}
+
+// --- Client-portal sessions (Slice 4b) ---
+//
+// A ClientUser is a real, authenticated Auth.js session — but a structurally
+// different kind of user from TeamMember, deliberately kept out of the
+// capability catalog above. Its entire access model is one rule: their own
+// clientId, nothing else. Callers that need to accept EITHER a TeamMember or
+// a ClientUser (the asset comment/decision routes) check both explicitly
+// rather than through a shared helper, so each branch's authorization logic
+// stays easy to audit in place.
+
+export type ClientUserSession = { id: string; clientId: string; name: string | null };
+
+export async function getClientUserSession(): Promise<ClientUserSession | null> {
+  const session = await auth();
+  if (!session?.user?.isClientUser || !session.user.clientId) return null;
+  return { id: session.user.id, clientId: session.user.clientId, name: session.user.name ?? null };
+}
+
+export async function requireClientUserSession(): Promise<ClientUserSession> {
+  const s = await getClientUserSession();
+  if (!s) throw new PermissionError(401, "You need to be signed in as a client to view this.");
+  return s;
+}
+
+export type AssetActor = {
+  /** Prisma `where` fragment identifying this actor's own AssetReviewer row — lazily created if it doesn't exist yet. */
+  reviewerWhere: { teamMemberId: string } | { clientUserId: string };
+  /** For ActivityLog.actorId, which has an FK to TeamMember — null for a ClientUser actor, never their id. */
+  actorId: string | null;
+  actorName: string | null;
+};
+
+/**
+ * The single choke point the asset comment/decision routes use to accept
+ * EITHER a TeamMember session (gated by the usual capability catalog) OR a
+ * ClientUser session (gated by exactly one rule: their own clientId, and the
+ * asset must not be DRAFT). Kept as one small function rather than woven
+ * into requireCapability/requireClientAccess themselves, so each call site
+ * stays easy to audit — a reviewer of this code sees both branches at once.
+ */
+export async function resolveAssetActor(
+  asset: { clientId: string; status: string },
+  capability: Capability
+): Promise<AssetActor> {
+  const session = await auth();
+  if (!session?.user) throw new PermissionError(401, "Unauthorized");
+
+  if (session.user.isClientUser) {
+    if (session.user.clientId !== asset.clientId || asset.status === "DRAFT") {
+      throw new PermissionError(403, "You don't have access to this asset.");
+    }
+    return { reviewerWhere: { clientUserId: session.user.id }, actorId: null, actorName: session.user.name ?? null };
+  }
+
+  await requireClientAccess(asset.clientId);
+  await requireCapability(capability);
+  return { reviewerWhere: { teamMemberId: session.user.id }, actorId: session.user.id, actorName: session.user.name ?? null };
 }

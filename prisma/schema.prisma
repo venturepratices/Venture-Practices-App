@@ -155,6 +155,7 @@ model TeamMember {
   canManageAssetReviewers  Boolean @default(false)
   canShareAssetsExternally Boolean @default(false)
   canDeleteAssets          Boolean @default(false)
+  canManageClientUsers     Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -253,6 +254,32 @@ model Client {
   conversationMessages ConversationMessage[]
   clientAccess         ClientAccess[]
   assets               Asset[]
+  clientUsers          ClientUser[]
+}
+
+// A real login account for a client contact — distinct from TeamMember (a
+// different kind of user with a different, much narrower scope: only their
+// own client's non-draft assets, enforced in src/lib/permissions.ts via
+// requireClientUserSession(), never through the agency capability catalog).
+// Kept in its own table rather than folded into TeamMember so client-portal
+// auth stays structurally separate from agency auth — mirrors the same
+// "keep the boundary explicit" choice made for guest share-link sessions.
+model ClientUser {
+  id                 String   @id @default(cuid())
+  clientId           String
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name               String
+  email              String   @unique
+  passwordHash       String
+  // Same meaning as TeamMember.mustChangePassword — set when an admin issues
+  // a temporary password; forces a self-service change on next login.
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  assetReviewerRoles AssetReviewer[] @relation("AssetReviewerClientUser")
+
+  @@index([clientId])
 }
 
 // Quick-access links to client-related sites (their website, ad accounts, GBP
@@ -562,17 +589,17 @@ model AssetVersion {
   @@index([assetId])
 }
 
-// A reviewer assigned to an asset. Exactly one of teamMemberId (agency staff)
-// OR guestEmail (external guest, tokenized share link) is populated per row.
-// clientUserId is reserved for Slice 4b (real client-login accounts) — column
-// added now so the Slice 1 migration doesn't need to touch this table again.
+// A reviewer assigned to an asset. Exactly one of teamMemberId (agency staff),
+// clientUserId (a real client-login account, Slice 4b), or guestEmail
+// (external guest via a tokenized share link, Slice 4a) is populated per row.
 model AssetReviewer {
   id           String      @id @default(cuid())
   assetId      String
   asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
   teamMemberId String?
   teamMember   TeamMember? @relation("AssetReviewer", fields: [teamMemberId], references: [id], onDelete: SetNull)
-  clientUserId String? // reserved for Slice 4b
+  clientUserId String?
+  clientUser   ClientUser? @relation("AssetReviewerClientUser", fields: [clientUserId], references: [id], onDelete: SetNull)
   guestEmail   String?
   guestName    String?
   createdAt    DateTime    @default(now())

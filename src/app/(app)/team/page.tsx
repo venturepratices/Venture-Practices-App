@@ -68,6 +68,7 @@ export default async function TeamPage() {
         canManageAssetReviewers: true,
         canShareAssetsExternally: true,
         canDeleteAssets: true,
+        canManageClientUsers: true,
       },
       orderBy: { name: "asc" },
     }),

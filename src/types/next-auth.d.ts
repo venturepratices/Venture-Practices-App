@@ -7,6 +7,10 @@ declare module "next-auth" {
       role?: string;
       isAdmin?: boolean;
       mustChangePassword?: boolean;
+      /** True for a real client-login account (Slice 4b) rather than agency TeamMember staff. */
+      isClientUser?: boolean;
+      /** Only set when isClientUser is true — the one client this account may ever access. */
+      clientId?: string;
     } & DefaultSession["user"];
   }
 }
@@ -16,6 +20,8 @@ declare module "next-auth/jwt" {
     role?: string;
     isAdmin?: boolean;
     mustChangePassword?: boolean;
+    isClientUser?: boolean;
+    clientId?: string;
     absoluteExpires?: number;
   }
 }

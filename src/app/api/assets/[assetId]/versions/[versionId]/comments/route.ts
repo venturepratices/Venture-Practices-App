@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { ANNOTATION_COLORS, PATH_TYPES, TWO_POINT_TYPES } from "@/lib/asset-annotation";
-import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { resolveAssetActor, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -18,10 +17,12 @@ import { prisma } from "@/lib/prisma";
  *  - a threaded reply (parentId)
  * All of those are optional — a bare body is a general comment.
  *
- * Every comment must be attributed to an AssetReviewer row. An agency team
- * member who comments is lazily made a reviewer of the asset (findFirst-or-
- * create) so commenting works without first going through the Slice 3 reviewer-
- * assignment UI.
+ * Accepts either a TeamMember session (gated by canCommentOnAssets) or a
+ * ClientUser session (gated by "their own client, non-draft asset") — see
+ * resolveAssetActor. Every comment must be attributed to an AssetReviewer
+ * row; whichever kind of actor this is, they're lazily made a reviewer of
+ * the asset on first comment (findFirst-or-create) so commenting works
+ * without first going through the Slice 3 reviewer-assignment UI.
  */
 const annotationPointSchema = z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) });
 
@@ -48,25 +49,20 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ assetId: string; versionId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { assetId, versionId } = await params;
 
-  // Resolve the asset (for its clientId) and confirm the version belongs to it.
+  // Resolve the asset (for its clientId/status) and confirm the version belongs to it.
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
-    select: { id: true, title: true, clientId: true, versions: { select: { id: true } } },
+    select: { id: true, title: true, clientId: true, status: true, versions: { select: { id: true } } },
   });
   if (!asset || !asset.versions.some((v) => v.id === versionId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  let actor;
   try {
-    await requireClientAccess(asset.clientId);
-    await requireCapability("canCommentOnAssets");
+    actor = await resolveAssetActor(asset, "canCommentOnAssets");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -88,14 +84,14 @@ export async function POST(
     }
   }
 
-  // Lazily ensure this team member has a reviewer row on the asset.
+  // Lazily ensure this actor (team member or client user) has a reviewer row on the asset.
   let reviewer = await prisma.assetReviewer.findFirst({
-    where: { assetId, teamMemberId: session.user.id },
+    where: { assetId, ...actor.reviewerWhere },
     select: { id: true },
   });
   if (!reviewer) {
     reviewer = await prisma.assetReviewer.create({
-      data: { assetId, teamMemberId: session.user.id },
+      data: { assetId, ...actor.reviewerWhere },
       select: { id: true },
     });
   }
@@ -111,18 +107,18 @@ export async function POST(
       parentId: parsed.data.parentId ?? null,
     },
     include: {
-      reviewer: { select: { teamMember: { select: { name: true } }, guestName: true } },
+      reviewer: { select: { teamMember: { select: { name: true } }, clientUser: { select: { name: true } }, guestName: true } },
     },
   });
 
   await logActivity({
-    actorId: session.user.id,
-    actorName: session.user.name ?? null,
+    actorId: actor.actorId,
+    actorName: actor.actorName,
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
     action: "asset_commented",
-    description: `${session.user.name ?? "Someone"} commented on asset "${asset.title}"`,
+    description: `${actor.actorName ?? "Someone"} commented on asset "${asset.title}"`,
   });
 
   return NextResponse.json(comment, { status: 201 });

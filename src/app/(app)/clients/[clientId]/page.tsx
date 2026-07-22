@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
+import { ClientUsersSection } from "@/components/clients/client-users-section";
 import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
 
 function InfoRow({ icon: Icon, value, href }: { icon: React.ComponentType<{ className?: string }>; value: string | null; href?: string }) {
@@ -28,13 +29,18 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const { clientId } = await params;
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { links: { orderBy: { createdAt: "asc" } }, highLevelConnection: true },
+    include: {
+      links: { orderBy: { createdAt: "asc" } },
+      highLevelConnection: true,
+      clientUsers: { orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } },
+    },
   });
   if (!client) notFound();
 
   const canEditClient = await canUseCapability("canEditClients");
   const canManageLinks = await canUseCapability("canManageClientLinks");
   const canManageHighLevel = await canUseCapability("canManageHighLevel");
+  const canManageClientUsers = await canUseCapability("canManageClientUsers");
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasBusinessInfo = client.website || client.address;
@@ -90,6 +96,8 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       </div>
 
       <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
+
+      <ClientUsersSection clientId={client.id} clientUsers={client.clientUsers} canManage={canManageClientUsers} />
 
       {canManageHighLevel ? (
         <HighLevelConnectionSection

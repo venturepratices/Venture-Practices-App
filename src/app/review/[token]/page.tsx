@@ -64,7 +64,9 @@ export default async function ReviewPage({
   const rawComments = await prisma.assetComment.findMany({
     where: { versionId: selectedVersion.id },
     orderBy: { createdAt: "asc" },
-    include: { reviewer: { select: { teamMember: { select: { name: true } }, guestName: true } } },
+    include: {
+      reviewer: { select: { teamMember: { select: { name: true } }, clientUser: { select: { name: true } }, guestName: true } },
+    },
   });
 
   const reviewersRaw = await prisma.assetReviewer.findMany({
@@ -72,6 +74,7 @@ export default async function ReviewPage({
     orderBy: { createdAt: "asc" },
     include: {
       teamMember: { select: { id: true, name: true } },
+      clientUser: { select: { id: true, name: true } },
       decisions: { where: { versionId: selectedVersion.id }, select: { decision: true, note: true } },
     },
   });
@@ -81,15 +84,15 @@ export default async function ReviewPage({
 
   const reviewers: ReviewerRow[] = reviewersRaw.map((r) => ({
     id: r.id,
-    name: r.teamMember?.name ?? r.guestName ?? "Guest reviewer",
-    isGuest: r.teamMemberId == null,
+    name: r.teamMember?.name ?? r.clientUser?.name ?? r.guestName ?? "Guest reviewer",
+    isGuest: r.teamMemberId == null && r.clientUserId == null,
     isMe: r.id === myReviewerId,
     decision: r.decisions[0]?.decision ?? null,
     note: r.decisions[0]?.note ?? null,
   }));
 
   const reviewerName = (c: (typeof rawComments)[number]) =>
-    c.reviewer.teamMember?.name ?? c.reviewer.guestName ?? "Someone";
+    c.reviewer.teamMember?.name ?? c.reviewer.clientUser?.name ?? c.reviewer.guestName ?? "Someone";
 
   function resolveAnnotation(c: (typeof rawComments)[number]): Annotation | null {
     if (c.annotation) return c.annotation as unknown as Annotation;

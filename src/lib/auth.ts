@@ -23,28 +23,50 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
         remember: { label: "Remember me", type: "text" },
       },
+      // Checks TeamMember (agency staff) first, then ClientUser (a real
+      // client-login account, Slice 4b) — one login page serves both, since
+      // email uniqueness is enforced across both tables independently and a
+      // real account only ever exists in one of them.
       authorize: async (credentials) => {
         const email = credentials?.email;
         const password = credentials?.password;
         if (typeof email !== "string" || typeof password !== "string") {
           return null;
         }
+        const remember = credentials?.remember === "true";
 
         const member = await prisma.teamMember.findUnique({ where: { email } });
-        if (!member) return null;
+        if (member) {
+          const passwordMatches = await bcrypt.compare(password, member.passwordHash);
+          if (!passwordMatches) return null;
+          return {
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            role: member.role,
+            isAdmin: member.isAdmin,
+            mustChangePassword: member.mustChangePassword,
+            isClientUser: false,
+            remember,
+          };
+        }
 
-        const passwordMatches = await bcrypt.compare(password, member.passwordHash);
-        if (!passwordMatches) return null;
+        const clientUser = await prisma.clientUser.findUnique({ where: { email } });
+        if (clientUser) {
+          const passwordMatches = await bcrypt.compare(password, clientUser.passwordHash);
+          if (!passwordMatches) return null;
+          return {
+            id: clientUser.id,
+            name: clientUser.name,
+            email: clientUser.email,
+            mustChangePassword: clientUser.mustChangePassword,
+            isClientUser: true,
+            clientId: clientUser.clientId,
+            remember,
+          };
+        }
 
-        return {
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          role: member.role,
-          isAdmin: member.isAdmin,
-          mustChangePassword: member.mustChangePassword,
-          remember: credentials?.remember === "true",
-        };
+        return null;
       },
     }),
   ],
@@ -56,6 +78,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = (user as { role?: string }).role;
         token.isAdmin = (user as { isAdmin?: boolean }).isAdmin;
         token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword;
+        token.isClientUser = Boolean((user as { isClientUser?: boolean }).isClientUser);
+        token.clientId = (user as { clientId?: string }).clientId;
         token.absoluteExpires = Date.now() + (remember ? THIRTY_DAYS_MS : EIGHT_HOURS_MS);
         return token;
       }
@@ -76,6 +100,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as { role?: string }).role = token.role as string | undefined;
         (session.user as { isAdmin?: boolean }).isAdmin = token.isAdmin as boolean | undefined;
         session.user.mustChangePassword = token.mustChangePassword as boolean | undefined;
+        session.user.isClientUser = token.isClientUser as boolean | undefined;
+        session.user.clientId = token.clientId as string | undefined;
       }
       return session;
     },

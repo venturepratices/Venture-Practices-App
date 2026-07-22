@@ -32,6 +32,31 @@ export async function changePasswordAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+
+  if (session.user.isClientUser) {
+    const clientUser = await prisma.clientUser.findUnique({ where: { id: session.user.id } });
+    if (!clientUser) return { error: "Account not found." };
+
+    const currentMatches = await bcrypt.compare(parsed.data.currentPassword, clientUser.passwordHash);
+    if (!currentMatches) return { error: "Your current password isn't right." };
+
+    await prisma.clientUser.update({
+      where: { id: clientUser.id },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    await logActivity({
+      actorId: null,
+      actorName: clientUser.name,
+      entityType: "ClientUser",
+      entityId: clientUser.id,
+      entityLabel: clientUser.name,
+      action: "password_changed",
+      description: `${clientUser.name} changed their password`,
+    });
+    redirect("/portal");
+  }
+
   const member = await prisma.teamMember.findUnique({ where: { id: session.user.id } });
   if (!member) {
     return { error: "Account not found." };
@@ -42,7 +67,6 @@ export async function changePasswordAction(
     return { error: "Your current password isn't right." };
   }
 
-  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
   await prisma.teamMember.update({
     where: { id: member.id },
     data: { passwordHash, mustChangePassword: false },

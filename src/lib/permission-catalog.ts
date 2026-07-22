@@ -75,6 +75,7 @@ export const PERMISSION_GROUPS = [
       { key: "canManageAssetReviewers", label: "Manage reviewers" },
       { key: "canShareAssetsExternally", label: "Share externally (public link)" },
       { key: "canDeleteAssets", label: "Delete assets" },
+      { key: "canManageClientUsers", label: "Manage client login accounts" },
     ],
   },
 ] as const;

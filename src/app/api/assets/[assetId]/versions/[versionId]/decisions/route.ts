@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@/lib/auth";
 import { AssetDecisionValue } from "@/generated/prisma/enums";
 import { logActivity } from "@/lib/activity-log";
 import { recomputeAssetStatus } from "@/lib/asset-status";
-import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { resolveAssetActor, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const decisionSchema = z.object({
@@ -24,15 +23,17 @@ function decisionLabel(v: AssetDecisionValue): string {
   }
 }
 
+/**
+ * Accepts either a TeamMember session (canDecideOnAssets, must already be an
+ * assigned reviewer — unchanged Slice 3 behavior) or a ClientUser session
+ * (their own client, non-draft asset — lazily made a reviewer on first
+ * decision, since it makes no sense to require staff to "assign" a client as
+ * reviewer before they can approve their own asset).
+ */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ assetId: string; versionId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { assetId, versionId } = await params;
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
@@ -40,9 +41,9 @@ export async function POST(
   });
   if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
 
+  let actor;
   try {
-    await requireClientAccess(asset.clientId);
-    await requireCapability("canDecideOnAssets");
+    actor = await resolveAssetActor(asset, "canDecideOnAssets");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -51,9 +52,13 @@ export async function POST(
     return NextResponse.json({ error: "Decisions can only be made on the latest version." }, { status: 400 });
   }
 
-  const reviewer = await prisma.assetReviewer.findFirst({ where: { assetId, teamMemberId: session.user.id } });
+  let reviewer = await prisma.assetReviewer.findFirst({ where: { assetId, ...actor.reviewerWhere } });
   if (!reviewer) {
-    return NextResponse.json({ error: "You're not an assigned reviewer on this asset." }, { status: 403 });
+    if ("clientUserId" in actor.reviewerWhere) {
+      reviewer = await prisma.assetReviewer.create({ data: { assetId, ...actor.reviewerWhere } });
+    } else {
+      return NextResponse.json({ error: "You're not an assigned reviewer on this asset." }, { status: 403 });
+    }
   }
 
   const body = await request.json().catch(() => null);
@@ -70,13 +75,13 @@ export async function POST(
 
   const status = await recomputeAssetStatus(assetId);
   await logActivity({
-    actorId: session.user.id,
-    actorName: session.user.name ?? null,
+    actorId: actor.actorId,
+    actorName: actor.actorName,
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
     action: "decision_made",
-    description: `${session.user.name ?? "Someone"} ${decisionLabel(parsed.data.decision).toLowerCase()} "${asset.title}"`,
+    description: `${actor.actorName ?? "Someone"} ${decisionLabel(parsed.data.decision).toLowerCase()} "${asset.title}"`,
   });
 
   return NextResponse.json({ decision, status }, { status: 200 });

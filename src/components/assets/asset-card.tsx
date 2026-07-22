@@ -13,6 +13,7 @@ import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 export function AssetCard({
   clientId,
   asset,
+  href,
 }: {
   clientId: string;
   asset: {
@@ -23,6 +24,8 @@ export function AssetCard({
     dueDate: Date | null;
     versions: { id: string; versionNumber: number; kind: string; blobUrl: string | null; externalUrl: string | null }[];
   };
+  /** Overrides the default internal link — used by the client portal (Slice 4b), which links to /portal/assets/[id] instead. */
+  href?: string;
 }) {
   const currentVersion = [...asset.versions].sort((a, b) => b.versionNumber - a.versionNumber)[0];
   const kind = currentVersion?.kind ?? "OTHER";
@@ -30,7 +33,7 @@ export function AssetCard({
 
   return (
     <Link
-      href={`/clients/${clientId}/assets/${asset.id}`}
+      href={href ?? `/clients/${clientId}/assets/${asset.id}`}
       className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md"
     >
       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted">

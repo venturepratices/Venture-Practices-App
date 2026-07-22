@@ -1,47 +1,49 @@
-import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+
 import { DEFAULT_ANNOTATION_COLOR, type Annotation } from "@/lib/asset-annotation";
-import { canUseCapability, requireClientAccess } from "@/lib/permissions";
+import { getClientUserSession } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { AssetViewer, type ViewerComment } from "@/components/assets/asset-viewer";
 import type { ReviewerRow } from "@/components/assets/reviewer-panel";
 
 /**
- * Asset detail — the multi-format review viewer with markup tools. Server
- * component: loads the asset, its versions, and the comments for the
- * currently-selected version (?v=<versionNumber>, defaults to the latest),
- * then hands off to the client-side <AssetViewer> for the interactive media +
- * annotation UI.
+ * Client-portal asset viewer (Slice 4b) — same <AssetViewer> component the
+ * agency side and the guest share-link surface both use, just pointed at the
+ * internal API routes (which now accept a ClientUser session as an
+ * alternative to a TeamMember one — see resolveAssetActor in
+ * src/lib/permissions.ts) with upload/reviewer-management/share hidden.
+ * Visibility rule: only this client's own assets, and never a DRAFT one.
  */
-export default async function AssetDetailPage({
+export default async function PortalAssetPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ clientId: string; assetId: string }>;
+  params: Promise<{ assetId: string }>;
   searchParams: Promise<{ v?: string }>;
 }) {
-  const { clientId, assetId } = await params;
+  const clientUser = await getClientUserSession();
+  if (!clientUser) redirect("/login");
+
+  const { assetId } = await params;
   const { v } = await searchParams;
 
-  try {
-    await requireClientAccess(clientId);
-  } catch {
+  const asset = await prisma.asset.findUnique({
+    where: { id: assetId },
+    include: { versions: { orderBy: { versionNumber: "desc" } } },
+  });
+  if (!asset || asset.clientId !== clientUser.clientId || asset.status === "DRAFT" || asset.versions.length === 0) {
     notFound();
   }
-  if (!(await canUseCapability("canViewAssets"))) notFound();
 
-  const session = await auth();
+  // Ensure this client user has a reviewer row on their very first visit —
+  // otherwise "Make your decision" wouldn't appear until after their first
+  // comment (which lazily creates one too), same fix the guest share-link
+  // flow gets via its explicit identify step.
+  const existingReviewer = await prisma.assetReviewer.findFirst({ where: { assetId, clientUserId: clientUser.id } });
+  if (!existingReviewer) {
+    await prisma.assetReviewer.create({ data: { assetId, clientUserId: clientUser.id } });
+  }
 
-  const asset = await prisma.asset.findFirst({
-    where: { id: assetId, clientId },
-    include: {
-      versions: { orderBy: { versionNumber: "desc" } },
-      createdBy: { select: { name: true } },
-    },
-  });
-  if (!asset || asset.versions.length === 0) notFound();
-
-  // Selected version: ?v=<versionNumber> if valid, else the latest.
   const requestedNumber = v ? Number(v) : null;
   const selectedVersion =
     (requestedNumber != null && asset.versions.find((ver) => ver.versionNumber === requestedNumber)) ||
@@ -57,14 +59,6 @@ export default async function AssetDetailPage({
     },
   });
 
-  const [canComment, canUpload, canManageReviewers, canDecide, canShare] = await Promise.all([
-    canUseCapability("canCommentOnAssets"),
-    canUseCapability("canUploadAssets"),
-    canUseCapability("canManageAssetReviewers"),
-    canUseCapability("canDecideOnAssets"),
-    canUseCapability("canShareAssetsExternally"),
-  ]);
-
   const reviewersRaw = await prisma.assetReviewer.findMany({
     where: { assetId: asset.id },
     orderBy: { createdAt: "asc" },
@@ -78,31 +72,14 @@ export default async function AssetDetailPage({
     id: r.id,
     name: r.teamMember?.name ?? r.clientUser?.name ?? r.guestName ?? "Guest reviewer",
     isGuest: r.teamMemberId == null && r.clientUserId == null,
-    isMe:
-      (r.teamMemberId != null && r.teamMemberId === session?.user?.id) ||
-      (r.clientUserId != null && r.clientUserId === session?.user?.id),
+    isMe: r.clientUserId != null && r.clientUserId === clientUser.id,
     decision: r.decisions[0]?.decision ?? null,
     note: r.decisions[0]?.note ?? null,
   }));
 
-  const teamMemberOptions = await prisma.teamMember.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const imageVersions = asset.versions
-    .filter((ver) => ver.kind === "IMAGE" && ver.blobUrl)
-    .map((ver) => ({ versionNumber: ver.versionNumber, blobUrl: ver.blobUrl! }));
-
-  // Flatten into top-level comments each carrying their replies, and number the
-  // anchored (annotated/timecoded/paged) top-level ones — that number is what
-  // shows on both the marker/shape and the matching sidebar card.
   const reviewerName = (c: (typeof rawComments)[number]) =>
     c.reviewer.teamMember?.name ?? c.reviewer.clientUser?.name ?? c.reviewer.guestName ?? "Someone";
 
-  // Rows created before the annotation toolbar only have pinX/pinY — synthesize
-  // an equivalent single-point "pin" annotation so the viewer has one shape to
-  // render regardless of which Slice created the row.
   function resolveAnnotation(c: (typeof rawComments)[number]): Annotation | null {
     if (c.annotation) return c.annotation as unknown as Annotation;
     if (c.pinX != null && c.pinY != null) {
@@ -129,24 +106,23 @@ export default async function AssetDetailPage({
       marker,
       replies: rawComments
         .filter((r) => r.parentId === c.id)
-        .map((r) => ({
-          id: r.id,
-          body: r.body,
-          author: reviewerName(r),
-          createdAt: r.createdAt.toISOString(),
-        })),
+        .map((r) => ({ id: r.id, body: r.body, author: reviewerName(r), createdAt: r.createdAt.toISOString() })),
     };
   });
 
+  const imageVersions = asset.versions
+    .filter((ver) => ver.kind === "IMAGE" && ver.blobUrl)
+    .map((ver) => ({ versionNumber: ver.versionNumber, blobUrl: ver.blobUrl! }));
+
   return (
-    <div className="-m-6 h-full">
+    <div className="h-[calc(100vh-57px)]">
       <AssetViewer
-        clientId={clientId}
+        clientId={clientUser.clientId}
         assetId={asset.id}
         title={asset.title}
         description={asset.description}
         status={asset.status}
-        createdByName={asset.createdBy?.name ?? null}
+        createdByName={null}
         version={{
           id: selectedVersion.id,
           versionNumber: selectedVersion.versionNumber,
@@ -155,24 +131,21 @@ export default async function AssetDetailPage({
           externalUrl: selectedVersion.externalUrl,
           mimeType: selectedVersion.mimeType,
         }}
-        allVersions={asset.versions.map((ver) => ({
-          versionNumber: ver.versionNumber,
-          kind: ver.kind,
-        }))}
+        allVersions={asset.versions.map((ver) => ({ versionNumber: ver.versionNumber, kind: ver.kind }))}
         comments={comments}
-        canComment={canComment}
-        canUpload={canUpload}
-        canManageReviewers={canManageReviewers}
-        canDecide={canDecide}
-        canShare={canShare}
+        canComment
+        canUpload={false}
+        canManageReviewers={false}
+        canDecide
+        canShare={false}
         isLatestVersion={isLatestVersion}
         reviewers={reviewers}
-        teamMemberOptions={teamMemberOptions}
+        teamMemberOptions={[]}
         imageVersions={imageVersions}
         apiBase={`/api/assets/${asset.id}`}
         resolveCommentBase="/api/asset-comments"
-        versionSwitchBase={`/clients/${clientId}/assets/${asset.id}`}
-        backHref={`/clients/${clientId}/assets`}
+        versionSwitchBase={`/portal/assets/${asset.id}`}
+        backHref="/portal"
       />
     </div>
   );
