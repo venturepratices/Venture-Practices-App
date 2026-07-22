@@ -20,12 +20,13 @@ const LABELS: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
-export function AssetStatusPill({ status }: { status: string }) {
+export function AssetStatusPill({ status, className }: { status: string; className?: string }) {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        STYLES[status] ?? "bg-muted text-muted-foreground"
+        STYLES[status] ?? "bg-muted text-muted-foreground",
+        className
       )}
     >
       {LABELS[status] ?? status}

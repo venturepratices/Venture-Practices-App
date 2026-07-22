@@ -57,12 +57,13 @@ export default async function AssetDetailPage({
     },
   });
 
-  const [canComment, canUpload, canManageReviewers, canDecide, canShare] = await Promise.all([
+  const [canComment, canUpload, canManageReviewers, canDecide, canShare, folders] = await Promise.all([
     canUseCapability("canCommentOnAssets"),
     canUseCapability("canUploadAssets"),
     canUseCapability("canManageAssetReviewers"),
     canUseCapability("canDecideOnAssets"),
     canUseCapability("canShareAssetsExternally"),
+    prisma.assetFolder.findMany({ where: { clientId }, orderBy: { name: "asc" } }),
   ]);
 
   const reviewersRaw = await prisma.assetReviewer.findMany({
@@ -169,6 +170,8 @@ export default async function AssetDetailPage({
         reviewers={reviewers}
         teamMemberOptions={teamMemberOptions}
         imageVersions={imageVersions}
+        folders={folders}
+        currentFolderId={asset.folderId}
         apiBase={`/api/assets/${asset.id}`}
         resolveCommentBase="/api/asset-comments"
         versionSwitchBase={`/clients/${clientId}/assets/${asset.id}`}

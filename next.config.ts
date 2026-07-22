@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    // Vercel Blob's public object host — lets next/image serve resized/
+    // optimized thumbnails for IMAGE asset cards instead of the full file.
+    remotePatterns: [{ protocol: "https", hostname: "**.public.blob.vercel-storage.com" }],
+  },
   turbopack: {
     resolveAlias: {
       // @vercel/blob's browser bundle imports `undici` (a Node-only HTTP lib)

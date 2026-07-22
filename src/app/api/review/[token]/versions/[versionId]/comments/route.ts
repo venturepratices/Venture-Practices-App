@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
 import { ANNOTATION_COLORS, PATH_TYPES, TWO_POINT_TYPES } from "@/lib/asset-annotation";
+import { notifyAssetCommented } from "@/lib/asset-notify";
 import { resolveShareLinkAccess } from "@/lib/share-link";
 import { prisma } from "@/lib/prisma";
 
@@ -89,7 +90,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     },
   });
 
-  const asset = await prisma.asset.findUnique({ where: { id: access.link.assetId }, select: { title: true } });
+  const asset = await prisma.asset.findUnique({ where: { id: access.link.assetId }, select: { title: true, createdById: true } });
   await logActivity({
     actorId: null,
     actorName: reviewer.guestName ?? "A guest reviewer",
@@ -98,6 +99,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     entityLabel: asset?.title ?? "Asset",
     action: "asset_commented",
     description: `${reviewer.guestName ?? "A guest"} commented on asset "${asset?.title ?? ""}" via a share link`,
+  });
+  await notifyAssetCommented({
+    assetId: access.link.assetId,
+    assetTitle: asset?.title ?? "Asset",
+    ownerId: asset?.createdById ?? null,
+    commenterTeamMemberId: null,
+    commenterName: reviewer.guestName ?? "A guest reviewer",
   });
 
   return NextResponse.json(comment, { status: 201 });

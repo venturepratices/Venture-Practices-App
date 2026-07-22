@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Link2, Upload } from "lucide-react";
+import { FileUp, Link2, Upload } from "lucide-react";
 import { upload } from "@vercel/blob/client";
 
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ export function UploadVersionDialog({
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   function reset() {
     setMode("file");
@@ -51,6 +52,17 @@ export function UploadVersionDialog({
     setProgress(null);
     setError(null);
     setSubmitting(false);
+    setDragActive(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
+      setMode("file");
+      setFile(dropped);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,13 +166,31 @@ export function UploadVersionDialog({
             {mode === "file" ? (
               <div className="space-y-2">
                 <Label htmlFor="version-file">File</Label>
-                <Input
-                  id="version-file"
-                  type="file"
-                  accept="image/*,video/*,application/pdf"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  required
-                />
+                <label
+                  htmlFor="version-file"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={handleDrop}
+                  className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-md border-2 border-dashed p-4 text-center transition-colors ${
+                    dragActive ? "border-primary bg-primary/5" : "border-input hover:bg-accent/50"
+                  }`}
+                >
+                  <FileUp className="size-5 text-muted-foreground" />
+                  <span className="text-sm">
+                    {file ? file.name : "Drop a file here, or click to browse"}
+                  </span>
+                  <Input
+                    id="version-file"
+                    type="file"
+                    accept="image/*,video/*,application/pdf"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                    required
+                  />
+                </label>
               </div>
             ) : (
               <div className="space-y-2">

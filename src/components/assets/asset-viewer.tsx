@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, Check, CornerDownRight, Download, ExternalLink, FileText, Images, MessageSquarePlus, RotateCcw, Share2, Upload, X } from "lucide-react";
+import { Archive, ArrowLeft, Check, CornerDownRight, Download, ExternalLink, File, FileText, Film, Globe, Image as ImageIcon, Images, MessageSquarePlus, RotateCcw, Share2, Upload, X } from "lucide-react";
 
 import type { Annotation, AnnotationType } from "@/lib/asset-annotation";
 import { annotationAnchor, DEFAULT_ANNOTATION_COLOR } from "@/lib/asset-annotation";
@@ -12,10 +12,13 @@ import { AnnotationOverlay, type OverlayAnnotation } from "@/components/assets/a
 import { AnnotationToolbar } from "@/components/assets/annotation-toolbar";
 import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 import { ReviewerPanel, type ReviewerRow } from "@/components/assets/reviewer-panel";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ShareLinkDialog } from "@/components/assets/share-link-dialog";
 import { UploadVersionDialog } from "@/components/assets/upload-version-dialog";
 import { VersionCompareDialog } from "@/components/assets/version-compare-dialog";
 import { cn, formatDateTime } from "@/lib/utils";
+
+const NO_FOLDER = "NONE";
 
 export type ViewerComment = {
   id: string;
@@ -58,6 +61,9 @@ type Props = {
   reviewers: ReviewerRow[];
   teamMemberOptions: { id: string; name: string }[];
   imageVersions: { versionNumber: number; blobUrl: string }[];
+  /** Only populated on the internal detail page — omitted (defaults to none) for guest/portal viewers. */
+  folders?: { id: string; name: string; color: string | null }[];
+  currentFolderId?: string | null;
   // The four props below are plain strings, not functions — this component
   // is rendered from a Server Component (the asset detail page), and React
   // cannot serialize a function across that boundary. Every URL is built
@@ -114,6 +120,8 @@ export function AssetViewer(props: Props) {
     reviewers,
     teamMemberOptions,
     imageVersions,
+    folders = [],
+    currentFolderId = null,
     apiBase,
     resolveCommentBase,
     versionSwitchBase,
@@ -121,6 +129,7 @@ export function AssetViewer(props: Props) {
   } = props;
   const router = useRouter();
   const [archiving, setArchiving] = useState(false);
+  const [movingFolder, setMovingFolder] = useState(false);
 
   // Built locally (not passed as props) since functions can't cross the
   // Server Component → Client Component boundary — see the Props comment above.
@@ -147,6 +156,7 @@ export function AssetViewer(props: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const mainTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const visibleComments = comments.filter((c) =>
     filter === "all" ? true : filter === "open" ? !c.resolved : c.resolved
@@ -189,6 +199,32 @@ export function AssetViewer(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAnnotation]);
 
+  // Keyboard shortcuts: n/p switch version, c focuses the comment composer.
+  // Ignored while typing in any field (so normal text like "nope" isn't
+  // hijacked) or while a mark is pending (its own popup owns the keyboard).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+
+      if (e.key === "n" || e.key === "p") {
+        if (props.allVersions.length < 2) return;
+        const sorted = [...props.allVersions].sort((a, b) => a.versionNumber - b.versionNumber);
+        const idx = sorted.findIndex((v) => v.versionNumber === version.versionNumber);
+        const nextIdx = e.key === "n" ? idx + 1 : idx - 1;
+        const targetVersion = sorted[nextIdx];
+        if (targetVersion) router.push(versionSwitchHref(targetVersion.versionNumber));
+      } else if (e.key === "c" && canComment && !pendingAnnotation) {
+        e.preventDefault();
+        mainTextareaRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.allVersions, version.versionNumber, canComment, pendingAnnotation]);
+
   async function postComment(payload: { body: string; annotation?: Annotation; timecodeMs?: number; parentId?: string }) {
     setSubmitting(true);
     setError(null);
@@ -223,6 +259,17 @@ export function AssetViewer(props: Props) {
       body: JSON.stringify({ action: props.status === "ARCHIVED" ? "reopen" : "archive" }),
     });
     setArchiving(false);
+    router.refresh();
+  }
+
+  async function moveFolder(value: string | null) {
+    setMovingFolder(true);
+    await fetch(`/api/assets/${assetId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId: !value || value === NO_FOLDER ? null : value }),
+    });
+    setMovingFolder(false);
     router.refresh();
   }
 
@@ -322,6 +369,24 @@ export function AssetViewer(props: Props) {
             <span className="text-xs text-muted-foreground">Version {version.versionNumber}</span>
           )}
           <div className="flex items-center gap-1.5">
+            {canManageReviewers ? (
+              <Select value={currentFolderId ?? NO_FOLDER} onValueChange={moveFolder} disabled={movingFolder}>
+                <SelectTrigger size="sm" className="w-[150px]">
+                  <SelectValue>
+                    {(value: string) => (value === NO_FOLDER ? "No folder" : folders.find((f) => f.id === value)?.name ?? "No folder")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_FOLDER}>No folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      <span className="size-2 rounded-full" style={{ backgroundColor: folder.color ?? "var(--muted-foreground)" }} />
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             {imageVersions.length > 1 ? (
               <VersionCompareDialog
                 versions={imageVersions}
@@ -480,10 +545,11 @@ export function AssetViewer(props: Props) {
                   </div>
                 ) : null}
                 <textarea
+                  ref={mainTextareaRef}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   rows={2}
-                  placeholder="Leave feedback…"
+                  placeholder="Leave feedback… (press C to jump here, N/P to switch versions)"
                   className="w-full resize-none rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
                 {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
@@ -727,11 +793,12 @@ function MediaArea({
     );
   }
 
-  // OTHER (or missing) — download card.
+  // OTHER (or a kind missing its expected blobUrl/externalUrl) — download card.
   const downloadUrl = version.blobUrl ?? version.externalUrl;
+  const FormatIcon = { IMAGE: ImageIcon, VIDEO: Film, WEBSITE: Globe, PDF: FileText }[version.kind] ?? File;
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-lg border bg-card p-10 text-center">
-      <FileText className="size-12 text-muted-foreground/50" />
+      <FormatIcon className="size-12 text-muted-foreground/50" />
       <p className="text-sm text-muted-foreground">
         This file type can&apos;t be previewed in the browser. Download it to review, then leave comments here.
       </p>

@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { AssetKind } from "@/generated/prisma/enums";
 import { assetKindFromMimeType } from "@/lib/asset-kind";
 import { logActivity } from "@/lib/activity-log";
+import { notifyAssetUploaded } from "@/lib/asset-notify";
 import { recomputeAssetStatus } from "@/lib/asset-status";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -68,6 +69,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ ass
     entityLabel: asset.title,
     action: "version_uploaded",
     description: `${session.user.name ?? "Someone"} uploaded v${nextVersionNumber} of "${asset.title}"`,
+  });
+  await notifyAssetUploaded({
+    assetId,
+    assetTitle: asset.title,
+    versionNumber: nextVersionNumber,
+    uploaderId: session.user.id,
+    uploaderName: session.user.name ?? null,
   });
 
   return NextResponse.json(version, { status: 201 });

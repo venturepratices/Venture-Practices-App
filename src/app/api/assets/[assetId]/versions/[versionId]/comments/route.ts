@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
 import { ANNOTATION_COLORS, PATH_TYPES, TWO_POINT_TYPES } from "@/lib/asset-annotation";
+import { notifyAssetCommented } from "@/lib/asset-notify";
 import { resolveAssetActor, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -54,7 +55,7 @@ export async function POST(
   // Resolve the asset (for its clientId/status) and confirm the version belongs to it.
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
-    select: { id: true, title: true, clientId: true, status: true, versions: { select: { id: true } } },
+    select: { id: true, title: true, clientId: true, status: true, createdById: true, versions: { select: { id: true } } },
   });
   if (!asset || !asset.versions.some((v) => v.id === versionId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -119,6 +120,13 @@ export async function POST(
     entityLabel: asset.title,
     action: "asset_commented",
     description: `${actor.actorName ?? "Someone"} commented on asset "${asset.title}"`,
+  });
+  await notifyAssetCommented({
+    assetId,
+    assetTitle: asset.title,
+    ownerId: asset.createdById,
+    commenterTeamMemberId: actor.actorId,
+    commenterName: actor.actorName,
   });
 
   return NextResponse.json(comment, { status: 201 });

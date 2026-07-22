@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { FileText, Film, Globe, Image as ImageIcon, File } from "lucide-react";
 
@@ -38,11 +39,12 @@ export function AssetCard({
     >
       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted">
         {kind === "IMAGE" && currentVersion?.blobUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={currentVersion.blobUrl}
             alt={asset.title}
-            className="size-full object-cover transition-transform group-hover:scale-105"
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover transition-transform group-hover:scale-105"
           />
         ) : (
           <FormatIcon kind={kind} />

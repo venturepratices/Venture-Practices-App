@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { AssetDecisionValue } from "@/generated/prisma/enums";
 import { logActivity } from "@/lib/activity-log";
+import { notifyAssetDecided, notifyAssetStatusChanged } from "@/lib/asset-notify";
 import { recomputeAssetStatus } from "@/lib/asset-status";
 import { resolveAssetActor, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -83,6 +84,23 @@ export async function POST(
     action: "decision_made",
     description: `${actor.actorName ?? "Someone"} ${decisionLabel(parsed.data.decision).toLowerCase()} "${asset.title}"`,
   });
+  await notifyAssetDecided({
+    assetId,
+    assetTitle: asset.title,
+    ownerId: asset.createdById,
+    deciderTeamMemberId: actor.actorId,
+    deciderName: actor.actorName,
+    decisionLabel: decisionLabel(parsed.data.decision).toLowerCase(),
+  });
+  if (status !== asset.status) {
+    await notifyAssetStatusChanged({
+      assetId,
+      assetTitle: asset.title,
+      ownerId: asset.createdById,
+      status,
+      excludeTeamMemberId: actor.actorId,
+    });
+  }
 
   return NextResponse.json({ decision, status }, { status: 200 });
 }

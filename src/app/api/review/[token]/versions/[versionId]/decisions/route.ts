@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { AssetDecisionValue } from "@/generated/prisma/enums";
 import { logActivity } from "@/lib/activity-log";
+import { notifyAssetDecided, notifyAssetStatusChanged } from "@/lib/asset-notify";
 import { recomputeAssetStatus } from "@/lib/asset-status";
 import { resolveShareLinkAccess } from "@/lib/share-link";
 import { prisma } from "@/lib/prisma";
@@ -79,6 +80,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     action: "decision_made",
     description: `${reviewer.guestName ?? "A guest"} ${decisionLabel(parsed.data.decision)} "${asset.title}" via a share link`,
   });
+  await notifyAssetDecided({
+    assetId: access.link.assetId,
+    assetTitle: asset.title,
+    ownerId: asset.createdById,
+    deciderTeamMemberId: null,
+    deciderName: reviewer.guestName ?? "A guest reviewer",
+    decisionLabel: decisionLabel(parsed.data.decision),
+  });
+  if (status !== asset.status) {
+    await notifyAssetStatusChanged({
+      assetId: access.link.assetId,
+      assetTitle: asset.title,
+      ownerId: asset.createdById,
+      status,
+      excludeTeamMemberId: null,
+    });
+  }
 
   return NextResponse.json({ decision, status }, { status: 200 });
 }

@@ -59,6 +59,12 @@ enum NotificationType {
   STATUS_CHANGED
   DEADLINE_CHANGED
   COMMENTED
+  ASSET_UPLOADED
+  ASSET_COMMENTED
+  ASSET_DECIDED
+  ASSET_APPROVED
+  ASSET_CHANGES_REQUESTED
+  ASSET_DUE_SOON
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -254,6 +260,7 @@ model Client {
   conversationMessages ConversationMessage[]
   clientAccess         ClientAccess[]
   assets               Asset[]
+  assetFolders         AssetFolder[]
   clientUsers          ClientUser[]
 }
 
@@ -543,17 +550,19 @@ model ArchivedTask {
 // ---------------------------------------------------------------------------
 
 model Asset {
-  id          String      @id @default(cuid())
+  id          String       @id @default(cuid())
   clientId    String
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   title       String
-  description String?     @db.Text
-  status      AssetStatus @default(DRAFT)
+  description String?      @db.Text
+  status      AssetStatus  @default(DRAFT)
   dueDate     DateTime?
+  folderId    String?
+  folder      AssetFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdById String?
-  createdBy   TeamMember? @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdBy   TeamMember?  @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   versions   AssetVersion[]
   reviewers  AssetReviewer[]
@@ -561,6 +570,25 @@ model Asset {
 
   @@index([clientId])
   @@index([status])
+  @@index([folderId])
+}
+
+// A lightweight, per-client grouping for assets ("Q3 Campaign", "Website
+// Redesign") — purely organizational, no workflow implications. Deleting a
+// folder never deletes its assets (onDelete: SetNull on Asset.folderId),
+// mirroring the same "detach, don't cascade-delete" choice already made for
+// Task.assignee/Task.client.
+model AssetFolder {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  assets Asset[]
+
+  @@index([clientId])
 }
 
 // One revision of an asset. Exactly one of blobUrl / externalUrl is populated:
