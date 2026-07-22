@@ -78,6 +78,13 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canViewActivity: true,
       canViewArchive: true,
       canRestoreArchive: true,
+      canViewAssets: true,
+      canUploadAssets: true,
+      canCommentOnAssets: true,
+      canDecideOnAssets: true,
+      canManageAssetReviewers: true,
+      canShareAssetsExternally: true,
+      canDeleteAssets: true,
     },
   });
   if (!member) return null;

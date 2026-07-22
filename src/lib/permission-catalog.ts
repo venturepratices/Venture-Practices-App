@@ -65,6 +65,18 @@ export const PERMISSION_GROUPS = [
       { key: "canRestoreArchive", label: "Restore archived tasks" },
     ],
   },
+  {
+    title: "Assets (review & approval)",
+    items: [
+      { key: "canViewAssets", label: "View assets" },
+      { key: "canUploadAssets", label: "Upload assets / new versions" },
+      { key: "canCommentOnAssets", label: "Comment on assets" },
+      { key: "canDecideOnAssets", label: "Approve / request changes" },
+      { key: "canManageAssetReviewers", label: "Manage reviewers" },
+      { key: "canShareAssetsExternally", label: "Share externally (public link)" },
+      { key: "canDeleteAssets", label: "Delete assets" },
+    ],
+  },
 ] as const;
 
 export const CAPABILITIES = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
@@ -91,4 +103,11 @@ export const BASIC_MEMBER_CAPABILITIES: Capability[] = [
   "canCreateMeetingNotes",
   "canDeleteMeetingNotes",
   "canManageClientLinks",
+  // Assets — day-to-day work capabilities included in the preset. The more
+  // sensitive canManageAssetReviewers / canShareAssetsExternally / canDeleteAssets
+  // are left off and granted deliberately.
+  "canViewAssets",
+  "canUploadAssets",
+  "canCommentOnAssets",
+  "canDecideOnAssets",
 ];

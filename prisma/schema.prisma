@@ -40,6 +40,19 @@ enum TaskStatus {
   COMPLETE
 }
 
+enum LandingPageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  LIVE
+  ARCHIVED
+}
+
+enum MeetingNoteSource {
+  MANUAL
+  FATHOM_WEBHOOK // reserved for when Fathom API/webhook access is confirmed; not wired up yet
+}
+
 enum NotificationType {
   ASSIGNED
   MENTIONED
@@ -48,17 +61,40 @@ enum NotificationType {
   COMMENTED
 }
 
+// Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
+enum AssetStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  ARCHIVED
+}
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  PDF
+  WEBSITE // externalUrl points at a page/landing page; no file bytes stored
+  OTHER
+}
+
+enum AssetDecisionValue {
+  APPROVED
+  APPROVED_WITH_CHANGES
+  CHANGES_REQUESTED
+}
+
 model TeamMember {
-  id                 String   @id @default(cuid())
+  id                 String  @id @default(cuid())
   name               String
-  email              String   @unique
+  email              String  @unique
   passwordHash       String
   // True when an admin has just set this person's password for them (a
   // temporary/recovery password) — forces them to /change-password on their
   // next login before they can do anything else. Cleared once they set their
   // own new password.
-  mustChangePassword Boolean  @default(false)
-  role               Role     @default(AGENCY)
+  mustChangePassword Boolean @default(false)
+  role               Role    @default(AGENCY)
   // Access control. Admins bypass every check below (full access + team/
   // permission management + granting others admin/permissions). Members are
   // gated by these granular per-feature flags + the ClientAccess join (WHICH
@@ -66,8 +102,8 @@ model TeamMember {
   // request via src/lib/permissions.ts, NOT baked into the JWT — so revoking
   // access takes effect immediately. Deliberately NOT auto-granted on create —
   // an admin checks exactly the boxes they want each person to have, every time.
-  isAdmin          Boolean @default(false)
-  allClientsAccess Boolean @default(false) // Member sees every client without a per-client ClientAccess row
+  isAdmin            Boolean @default(false)
+  allClientsAccess   Boolean @default(false) // Member sees every client without a per-client ClientAccess row
 
   // Clients
   canCreateClients Boolean @default(false)
@@ -110,18 +146,33 @@ model TeamMember {
   canViewArchive    Boolean @default(false)
   canRestoreArchive Boolean @default(false)
 
+  // Asset Approval (Phase 2). View is the base; upload/comment/decide are the
+  // day-to-day work; manage-reviewers/share-externally/delete are more sensitive.
+  canViewAssets            Boolean @default(false)
+  canUploadAssets          Boolean @default(false)
+  canCommentOnAssets       Boolean @default(false)
+  canDecideOnAssets        Boolean @default(false)
+  canManageAssetReviewers  Boolean @default(false)
+  canShareAssetsExternally Boolean @default(false)
+  canDeleteAssets          Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions      Session[]
-  accounts      Account[]
-  assignedTasks Task[]         @relation("TaskAssignee")
-  archivedTasks ArchivedTask[] @relation("ArchivedBy")
-  comments      Comment[]
-  clientNotes   ClientNote[]
-  activityLogs  ActivityLog[]
-  notifications Notification[]
-  clientAccess  ClientAccess[]
+  sessions               Session[]
+  accounts               Account[]
+  assignedTasks          Task[]           @relation("TaskAssignee")
+  archivedTasks          ArchivedTask[]   @relation("ArchivedBy")
+  comments               Comment[]
+  clientNotes            ClientNote[]
+  meetingNotes           MeetingNote[]
+  activityLogs           ActivityLog[]
+  notifications          Notification[]
+  clientAccess           ClientAccess[]
+  createdAssets          Asset[]          @relation("AssetCreatedBy")
+  uploadedAssetVersions  AssetVersion[]   @relation("AssetVersionUploadedBy")
+  assetReviewerRoles     AssetReviewer[]  @relation("AssetReviewer")
+  createdAssetShareLinks AssetShareLink[] @relation("AssetShareLinkCreatedBy")
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -194,11 +245,14 @@ model Client {
 
   tasks                Task[]
   notes                ClientNote[]
+  meetingNotes         MeetingNote[]
+  landingPages         LandingPage[]
   links                ClientLink[]
   credentials          ClientCredential[]
   highLevelConnection  ClientHighLevelConnection?
   conversationMessages ConversationMessage[]
   clientAccess         ClientAccess[]
+  assets               Asset[]
 }
 
 // Quick-access links to client-related sites (their website, ad accounts, GBP
@@ -297,6 +351,46 @@ model ClientNote {
   @@index([clientId])
 }
 
+// A structured, per-meeting record distinct from ClientNote's free-text log:
+// title/date/raw transcript plus an AI-generated structured summary. Fed
+// manually today (paste a Fathom transcript in); FATHOM_WEBHOOK is reserved
+// for when Fathom API/webhook access is confirmed, not wired up yet.
+model MeetingNote {
+  id          String            @id @default(cuid())
+  clientId    String
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      TeamMember?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  title       String
+  meetingDate DateTime
+  transcript  String            @db.Text
+  summary     String            @db.Text
+  source      MeetingNoteSource @default(MANUAL)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([clientId])
+}
+
+// Tracks a client's landing page as a deliverable: status + where it lives.
+// The page itself is built/hosted outside this app (a standalone static
+// template kit pasted into GoHighLevel's Custom Code element) — this model
+// only records status and pointers, mirroring the ClientNote pattern above.
+model LandingPage {
+  id              String            @id @default(cuid())
+  clientId        String
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status          LandingPageStatus @default(NOT_STARTED)
+  ghlPageUrl      String? // the live page's URL inside GHL
+  templateVersion String? // matches a tag/CHANGELOG entry in the template kit
+  sourcePath      String? // path to clients/<client-slug>/ in the template kit repo
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([clientId])
+}
+
 model Task {
   id         String         @id @default(cuid())
   title      String
@@ -319,13 +413,13 @@ model Task {
 }
 
 model Comment {
-  id        String     @id @default(cuid())
+  id        String      @id @default(cuid())
   taskId    String
-  task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
   authorId  String?
   author    TeamMember? @relation(fields: [authorId], references: [id], onDelete: SetNull)
   body      String
-  createdAt DateTime   @default(now())
+  createdAt DateTime    @default(now())
 
   @@index([taskId])
 }
@@ -346,7 +440,7 @@ model TaskLink {
 // those tables since one log spans several unrelated models; entityLabel is
 // denormalized so an entry still reads sensibly after the entity is deleted.
 model ActivityLog {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   actorId     String?
   actor       TeamMember? @relation(fields: [actorId], references: [id], onDelete: SetNull)
   actorName   String?
@@ -355,7 +449,7 @@ model ActivityLog {
   entityLabel String
   action      String
   description String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
 
   @@index([entityType, entityId])
   @@index([createdAt])
@@ -387,7 +481,7 @@ model Notification {
 // read independent of the live relational DB (see archive durability mechanism
 // in src/lib/archive.ts, which also mirrors this snapshot to Vercel Blob).
 model ArchivedTask {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   originalTaskId String
   title          String
   assigneeId     String?
@@ -399,9 +493,9 @@ model ArchivedTask {
   deadline       DateTime?
   taskCreatedAt  DateTime
   taskUpdatedAt  DateTime
-  deletedAt      DateTime @default(now())
+  deletedAt      DateTime       @default(now())
   deletedById    String?
-  deletedBy      TeamMember? @relation("ArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletedBy      TeamMember?    @relation("ArchivedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
   // Comments/TaskLink rows are hard-deleted (onDelete: Cascade) when the live
   // Task is deleted, so they're snapshotted here as plain JSON at archive time
@@ -410,4 +504,157 @@ model ArchivedTask {
   links    Json?
 
   @@index([originalTaskId])
+}
+
+// ---------------------------------------------------------------------------
+// Asset Approval (Phase 2 prototype) — see "Feature: Asset Approval prototype"
+// in the plan file. An Asset belongs to one Client and has one or more
+// AssetVersions in chronological order. Reviewers (agency staff and/or guests
+// via a share link) leave AssetComments (spatial pins on images, timecodes on
+// video, per-page for PDF) and per-version AssetDecisions. Overall Asset.status
+// is derived from those decisions.
+// ---------------------------------------------------------------------------
+
+model Asset {
+  id          String      @id @default(cuid())
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  description String?     @db.Text
+  status      AssetStatus @default(DRAFT)
+  dueDate     DateTime?
+  createdById String?
+  createdBy   TeamMember? @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  versions   AssetVersion[]
+  reviewers  AssetReviewer[]
+  shareLinks AssetShareLink[]
+
+  @@index([clientId])
+  @@index([status])
+}
+
+// One revision of an asset. Exactly one of blobUrl / externalUrl is populated:
+// blobUrl for uploaded files (bytes in Vercel Blob at assets/<clientId>/<assetId>/…),
+// externalUrl for WEBSITE (a URL pasted in). versionNumber starts at 1 per asset
+// and increments; comments/decisions attach per-version so uploading v2 preserves
+// v1 feedback untouched.
+model AssetVersion {
+  id            String      @id @default(cuid())
+  assetId       String
+  asset         Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  kind          AssetKind
+  blobUrl       String?
+  externalUrl   String?
+  mimeType      String?
+  sizeBytes     Int?
+  uploadedById  String?
+  uploadedBy    TeamMember? @relation("AssetVersionUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedAt    DateTime    @default(now())
+
+  decisions AssetDecision[]
+  comments  AssetComment[]
+
+  @@unique([assetId, versionNumber])
+  @@index([assetId])
+}
+
+// A reviewer assigned to an asset. Exactly one of teamMemberId (agency staff)
+// OR guestEmail (external guest, tokenized share link) is populated per row.
+// clientUserId is reserved for Slice 4b (real client-login accounts) — column
+// added now so the Slice 1 migration doesn't need to touch this table again.
+model AssetReviewer {
+  id           String      @id @default(cuid())
+  assetId      String
+  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  teamMemberId String?
+  teamMember   TeamMember? @relation("AssetReviewer", fields: [teamMemberId], references: [id], onDelete: SetNull)
+  clientUserId String? // reserved for Slice 4b
+  guestEmail   String?
+  guestName    String?
+  createdAt    DateTime    @default(now())
+
+  decisions AssetDecision[] @relation("ReviewerDecisions")
+  comments  AssetComment[]  @relation("ReviewerComments")
+
+  @@index([assetId])
+  @@index([teamMemberId])
+}
+
+// A reviewer's decision on a specific version. One row per (versionId,
+// reviewerId) — upserted; the latest decision replaces prior on the same
+// version. Overall Asset.status is derived from these per-version rows.
+model AssetDecision {
+  id         String             @id @default(cuid())
+  versionId  String
+  version    AssetVersion       @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   AssetReviewer      @relation("ReviewerDecisions", fields: [reviewerId], references: [id], onDelete: Cascade)
+  decision   AssetDecisionValue
+  note       String?            @db.Text
+  decidedAt  DateTime           @default(now())
+
+  @@unique([versionId, reviewerId])
+  @@index([versionId])
+}
+
+// A comment on a specific version. `annotation` holds the markup shape (pin,
+// rectangle, ellipse, arrow, pencil, or highlighter) as JSON:
+// `{ type, color, points: [{x,y}, ...] }`, with all point coordinates stored
+// as PERCENTAGES (0–100) of the media's rendered size — resolution/viewport
+// independent, same principle the original pinX/pinY-only design used. A
+// plain pin has one point; rectangle/ellipse/arrow have two (opposite
+// corners, or start/end); pencil/highlighter have many (the traced path).
+// pinX/pinY are kept for the handful of pre-annotation-toolbar rows created
+// in Slice 2 (plain point pins, no `annotation`) — new rows always populate
+// `annotation` instead and leave pinX/pinY null. page is 1-indexed for PDF
+// (which doesn't support drawn markup — see AGENTS notes); timecodeMs is
+// milliseconds for VIDEO, paired with `annotation` when a shape is drawn on a
+// paused frame. parentId is a self-relation for threaded replies; resolvedAt
+// marks resolved without deleting.
+model AssetComment {
+  id         String         @id @default(cuid())
+  versionId  String
+  version    AssetVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   AssetReviewer  @relation("ReviewerComments", fields: [reviewerId], references: [id], onDelete: Cascade)
+  body       String         @db.Text
+  pinX       Float? // legacy plain-pin coordinate (pre-annotation-toolbar rows only)
+  pinY       Float?
+  annotation Json? // { type: "pin"|"rectangle"|"ellipse"|"arrow"|"pencil"|"highlighter", color: string, points: {x:number,y:number}[] }
+  timecodeMs Int?
+  page       Int?
+  parentId   String?
+  parent     AssetComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    AssetComment[] @relation("CommentReplies")
+  resolvedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([versionId])
+  @@index([parentId])
+}
+
+// A tokenized share link — a client can review the asset via /review/[token]
+// without an account. passwordHash + expiresAt both optional (Ziflow parity).
+// token is a 256-bit random value (see src/lib/share-link.ts) — the link IS
+// the credential, so guessing it is not a realistic attack; failedPasswordAttempts
+// + lockedUntil instead guard against brute-forcing a chosen link PASSWORD,
+// which is a much smaller keyspace than the token itself.
+model AssetShareLink {
+  id                     String      @id @default(cuid())
+  assetId                String
+  asset                  Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  token                  String      @unique
+  passwordHash           String?
+  expiresAt              DateTime?
+  failedPasswordAttempts Int         @default(0)
+  lockedUntil            DateTime?
+  createdById            String?
+  createdBy              TeamMember? @relation("AssetShareLinkCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt              DateTime    @default(now())
+
+  @@index([assetId])
 }

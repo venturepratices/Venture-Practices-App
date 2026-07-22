@@ -21,5 +21,8 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg)$).*)"],
+  // /review/* is the public, tokenized guest review surface (Slice 4a) — it
+  // must never hit this auth gate. Its own routes/pages enforce access purely
+  // via the share-link token, independent of any TeamMember session.
+  matcher: ["/((?!api|review|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg)$).*)"],
 };

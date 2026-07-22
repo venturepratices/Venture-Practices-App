@@ -33,6 +33,7 @@ export default async function ClientLayout({
         clientId={clientId}
         canViewCredentials={!!(perms?.isAdmin || perms?.caps.canViewCredentials)}
         canViewConversations={!!(perms?.isAdmin || perms?.caps.canViewConversations)}
+        canViewAssets={!!(perms?.isAdmin || perms?.caps.canViewAssets)}
       />
       <div className="flex-1 overflow-y-auto p-6">{children}</div>
     </div>

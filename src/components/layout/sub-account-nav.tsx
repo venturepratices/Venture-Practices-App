@@ -12,7 +12,7 @@ const LOCAL_LINKS = [
   { segment: "meetings", label: "Meeting Notes" },
   { segment: "conversations", label: "Conversations", cap: "conversations" as const },
   { segment: "calls", label: "Calls", cap: "conversations" as const },
-  { segment: "assets", label: "Assets", comingSoon: true },
+  { segment: "assets", label: "Assets", cap: "assets" as const },
   { segment: "credentials", label: "Credentials", cap: "credentials" as const },
   { segment: "finance", label: "Finance", comingSoon: true },
 ];
@@ -21,16 +21,19 @@ export function SubAccountNav({
   clientId,
   canViewCredentials = false,
   canViewConversations = false,
+  canViewAssets = false,
 }: {
   clientId: string;
   canViewCredentials?: boolean;
   canViewConversations?: boolean;
+  canViewAssets?: boolean;
 }) {
   const pathname = usePathname();
 
   const links = LOCAL_LINKS.filter((link) => {
     if (link.cap === "credentials") return canViewCredentials;
     if (link.cap === "conversations") return canViewConversations;
+    if (link.cap === "assets") return canViewAssets;
     return true;
   });
 
