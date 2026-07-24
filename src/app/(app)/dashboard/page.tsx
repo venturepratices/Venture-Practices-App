@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { CalendarCheck } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
-import { StatusPill } from "@/components/tasks/status-pill";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBar } from "@/components/dashboard/status-bar";
+import { StatusPill, TASK_STATUS_TONES } from "@/components/tasks/status-pill";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 
@@ -85,7 +88,14 @@ export default async function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-base">Tasks by status</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="space-y-3">
+          <StatusBar
+            segments={TASK_STATUS_VALUES.map((status) => ({
+              tone: TASK_STATUS_TONES[status],
+              count: countByStatus[status] ?? 0,
+            }))}
+          />
+          <div className="flex flex-wrap gap-3">
           {TASK_STATUS_VALUES.map((status) => (
             <Link
               key={status}
@@ -96,6 +106,7 @@ export default async function DashboardPage() {
               <span className="text-sm text-muted-foreground">{countByStatus[status] ?? 0}</span>
             </Link>
           ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -105,7 +116,7 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           {dueSoon.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing due in the next 7 days.</p>
+            <EmptyState icon={CalendarCheck} title="Nothing due in the next 7 days." />
           ) : (
             <div className="divide-y">
               {dueSoon.map((task) => (

@@ -25,7 +25,7 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-lg border bg-muted/20 transition-colors ${isOver ? "bg-muted/50" : ""}`}
+      className={`flex w-72 shrink-0 snap-start flex-col rounded-lg border bg-muted/20 transition-colors ${isOver ? "bg-muted/50" : ""}`}
     >
       <div className="flex items-center justify-between border-b p-3">
         <StatusPill status={status} />
@@ -82,7 +82,7 @@ export function TaskBoard({ tasks, showClientOnCards }: { tasks: TaskWithRelatio
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
         {TASK_STATUS_VALUES.map((status) => (
           <Column
             key={status}

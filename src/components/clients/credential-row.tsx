@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CredentialFormDialog } from "@/components/clients/credential-form-dialog";
 
 type Credential = {
@@ -95,14 +96,28 @@ export function CredentialRow({
         <div className="flex items-center gap-2 pt-1">
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{revealedPassword ?? "••••••••"}</code>
           {revealedPassword ? (
-            <>
-              <Button variant="ghost" size="icon-sm" aria-label="Copy password" onClick={copy}>
-                <Copy className="size-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Hide password" onClick={hide}>
-                <EyeOff className="size-3.5" />
-              </Button>
-            </>
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" aria-label="Copy password" onClick={copy}>
+                      <Copy className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Copy password</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" aria-label="Hide password" onClick={hide}>
+                      <EyeOff className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Hide password</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : canReveal ? (
             <Dialog
               open={revealOpen}
@@ -165,9 +180,18 @@ export function CredentialRow({
               </Button>
             }
           />
-          <Button variant="ghost" size="icon-sm" aria-label={`Delete ${credential.label}`} onClick={handleDelete}>
-            <Trash2 className="size-3.5" />
-          </Button>
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" aria-label={`Delete ${credential.label}`} onClick={handleDelete}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>Delete credential</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       ) : null}
     </div>

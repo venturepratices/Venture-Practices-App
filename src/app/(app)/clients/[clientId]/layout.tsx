@@ -26,7 +26,7 @@ export default async function ClientLayout({
   return (
     <div className="-m-6 flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-6 py-4">
-        <h1 className="text-xl font-semibold">{client.name}</h1>
+        <h1 className="text-2xl font-semibold">{client.name}</h1>
         <ClientStatusPill status={client.status} />
       </div>
       <SubAccountNav

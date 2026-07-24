@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { ListChecks, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import type { TaskWithRelations } from "@/types/task";
@@ -72,7 +73,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
       ) : null}
 
       {tasks.length === 0 ? (
-        <p className="px-3 py-6 text-center text-sm text-muted-foreground">No tasks yet.</p>
+        <EmptyState icon={ListChecks} title="No tasks yet." className="py-6" />
       ) : (
         <div className="divide-y">
           <TaskListHeader showClient={showClientColumn} />

@@ -52,11 +52,11 @@ export function ActivityFilters({ teamMembers }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SearchInput placeholder="Search activity..." className="w-64" />
+    <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+      <SearchInput placeholder="Search activity..." className="w-full sm:w-64" />
 
       <Select value={actorId} onValueChange={(value) => setParam("actorId", value)}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue>
             {(value: string) => (value === ALL ? "Everyone" : teamMembers.find((m) => m.id === value)?.name ?? value)}
           </SelectValue>
@@ -72,7 +72,7 @@ export function ActivityFilters({ teamMembers }: Props) {
       </Select>
 
       <Select value={entityType} onValueChange={(value) => setParam("entityType", value)}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue>{(value: string) => (value === ALL ? "All types" : ENTITY_TYPE_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -86,7 +86,7 @@ export function ActivityFilters({ teamMembers }: Props) {
       </Select>
 
       <Select value={range} onValueChange={(value) => setParam("range", value, ["from", "to"])}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "Any time" : RANGE_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>

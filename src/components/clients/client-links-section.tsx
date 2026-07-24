@@ -7,6 +7,7 @@ import { ExternalLink, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ClientLink } from "@/generated/prisma/client";
 
 export function ClientLinksSection({
@@ -63,9 +64,18 @@ export function ClientLinksSection({
                 <span className="truncate">{link.label}</span>
               </a>
               {canManage ? (
-                <Button variant="ghost" size="icon-sm" aria-label={`Remove ${link.label}`} onClick={() => deleteLink(link.id)}>
-                  <X className="size-3.5" />
-                </Button>
+                <TooltipProvider delay={300}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button variant="ghost" size="icon-sm" aria-label={`Remove ${link.label}`} onClick={() => deleteLink(link.id)}>
+                          <X className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Remove link</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : null}
             </li>
           ))}

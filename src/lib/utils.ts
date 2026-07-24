@@ -16,3 +16,11 @@ export function endOfDay(dateString: string): Date {
   date.setHours(23, 59, 59, 999);
   return date;
 }
+
+export function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}

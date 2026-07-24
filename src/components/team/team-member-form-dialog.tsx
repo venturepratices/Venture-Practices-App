@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Wand2 } from "lucide-react";
+import { Loader2, Wand2 } from "lucide-react";
 
 import {
   createTeamMemberAction,
@@ -189,6 +189,7 @@ export function TeamMemberFormDialog(props: Props) {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               {isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

@@ -27,7 +27,7 @@ export function TaskCard({
         transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
       }
       className={cn(
-        "cursor-pointer rounded-md border bg-card p-3 text-sm shadow-sm transition-shadow hover:shadow-md",
+        "cursor-pointer rounded-md border bg-card p-3 text-sm shadow-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md",
         isDragging && "z-10 opacity-70 shadow-lg"
       )}
     >

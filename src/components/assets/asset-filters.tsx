@@ -58,11 +58,11 @@ export function AssetFilters({ teamMembers }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SearchInput placeholder="Search assets..." className="w-64" />
+    <div className="flex flex-1 flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+      <SearchInput placeholder="Search assets..." className="w-full sm:w-64" />
 
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>
             {(value: string) =>
               (STATUS_VALUES as readonly string[]).includes(value) ? <AssetStatusPill status={value} /> : "All statuses"
@@ -80,7 +80,7 @@ export function AssetFilters({ teamMembers }: Props) {
       </Select>
 
       <Select value={kind} onValueChange={(value) => setParam("kind", value)}>
-        <SelectTrigger className="w-[140px]">
+        <SelectTrigger className="w-full sm:w-[140px]">
           <SelectValue>{(value: string) => (value === ALL ? "All formats" : KIND_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -94,7 +94,7 @@ export function AssetFilters({ teamMembers }: Props) {
       </Select>
 
       <Select value={reviewerId} onValueChange={(value) => setParam("reviewerId", value)}>
-        <SelectTrigger className="w-[170px]">
+        <SelectTrigger className="w-full sm:w-[170px]">
           <SelectValue>
             {(value: string) => (value === ALL ? "Any reviewer" : teamMembers.find((m) => m.id === value)?.name ?? value)}
           </SelectValue>

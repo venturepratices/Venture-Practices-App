@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import {
   createClientUserAction,
@@ -91,6 +92,7 @@ export function ClientUserFormDialog(props: Props) {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               {isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

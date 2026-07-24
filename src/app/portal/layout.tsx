@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 
@@ -23,14 +24,9 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary font-heading text-xs font-bold text-primary-foreground">
-            VP
-          </div>
-          <div className="leading-tight">
-            <p className="font-heading text-sm font-semibold">Venture Practices</p>
-            <p className="text-xs text-muted-foreground">{client?.name ?? "Client portal"}</p>
-          </div>
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="Venture Practices" width={216} height={140} className="h-9 w-auto shrink-0" priority />
+          <p className="text-sm text-muted-foreground">{client?.name ?? "Client portal"}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{clientUser.name}</span>

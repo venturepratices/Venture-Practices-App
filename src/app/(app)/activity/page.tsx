@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { History } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { canUseCapability } from "@/lib/permissions";
@@ -6,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type SearchParams = {
   q?: string;
@@ -83,9 +85,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-4 rounded-lg border divide-y">
         {entries.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {hasFilters ? "No activity matches these filters." : "No activity yet."}
-          </p>
+          <EmptyState icon={History} title={hasFilters ? "No activity matches these filters." : "No activity yet."} />
         ) : (
           entries.map((entry) => (
             <div key={entry.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">

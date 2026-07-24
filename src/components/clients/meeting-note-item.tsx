@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -39,9 +40,18 @@ export function MeetingNoteItem({ clientId, meetingNote }: Props) {
             {meetingNote.author?.name ? ` · added by ${meetingNote.author.name}` : ""}
           </span>
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Delete meeting note" onClick={remove}>
-          <Trash2 className="size-3.5" />
-        </Button>
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="Delete meeting note" onClick={remove}>
+                  <Trash2 className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>Delete meeting note</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <div className="mt-1.5 whitespace-pre-wrap text-muted-foreground">{meetingNote.summary}</div>

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { StatusPillBase, type StatusTone } from "@/components/ui/status-pill";
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Active",
@@ -10,26 +10,22 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   COMPLETE: "Complete",
 };
 
-const STATUS_CLASSES: Record<string, string> = {
-  ACTIVE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-  IN_PROGRESS: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  PRIORITY: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  NEXT_UP: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
-  WAITING_ON_CLIENT: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  ON_HOLD: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
-  COMPLETE: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+export const TASK_STATUS_TONES: Record<string, StatusTone> = {
+  ACTIVE: "success",
+  IN_PROGRESS: "blue",
+  PRIORITY: "danger",
+  NEXT_UP: "violet",
+  WAITING_ON_CLIENT: "warning",
+  ON_HOLD: "neutral",
+  COMPLETE: "teal",
 };
 
 export function StatusPill({ status, className }: { status: string; className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold",
-        STATUS_CLASSES[status],
-        className
-      )}
-    >
-      {TASK_STATUS_LABELS[status] ?? status}
-    </span>
+    <StatusPillBase
+      tone={TASK_STATUS_TONES[status]}
+      label={TASK_STATUS_LABELS[status] ?? status}
+      className={className}
+    />
   );
 }

@@ -33,25 +33,51 @@
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-secondary-accent-foreground: var(--secondary-accent-foreground);
+  --color-secondary-accent: var(--secondary-accent);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-status-success-foreground: var(--status-success-foreground);
+  --color-status-success: var(--status-success);
+  --color-status-warning-foreground: var(--status-warning-foreground);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger-foreground: var(--status-danger-foreground);
+  --color-status-danger: var(--status-danger);
+  --color-status-neutral-foreground: var(--status-neutral-foreground);
+  --color-status-neutral: var(--status-neutral);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
+  --radius-control-xs: min(var(--radius-md), 10px);
+  --radius-control-sm: min(var(--radius-md), 12px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-pill-pop: pill-pop 200ms ease-out;
+}
+
+@keyframes pill-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /*
  * Brand palette lifted from venturepractices.com's live computed styles:
- * teal #2D94C0 (their primary CTA), coral #F16857 (their secondary CTA, used
- * sparingly here), near-black body text #3B3B3B, Poppins/Montserrat fonts.
+ * teal #2D94C0 (their primary CTA, --primary) and coral #F16857 (their
+ * secondary CTA, --secondary-accent — used sparingly, e.g. the asset "Share
+ * for review" button), near-black body text #3B3B3B, Poppins/Montserrat fonts.
  * The sidebar is intentionally always the dark-navy brand scheme (matches
  * their footer), independent of light/dark mode, since there's no theme
  * toggle in this app yet.
@@ -67,14 +93,24 @@
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #1f2937;
+  --secondary-accent: #f16857;
+  --secondary-accent-foreground: #ffffff;
   --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
+  --muted-foreground: #64748b;
   --accent: #eaf6fa;
   --accent-foreground: #12475d;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #2d94c0;
+  --status-success: #d1fae5;
+  --status-success-foreground: #065f46;
+  --status-warning: #fef3c7;
+  --status-warning-foreground: #92400e;
+  --status-danger: #ffe4e6;
+  --status-danger-foreground: #9f1239;
+  --status-neutral: #e4e4e7;
+  --status-neutral-foreground: #3f3f46;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -102,14 +138,24 @@
   --primary-foreground: #0c1115;
   --secondary: #262c34;
   --secondary-foreground: #e5e7eb;
+  --secondary-accent: #f16857;
+  --secondary-accent-foreground: #ffffff;
   --muted: #262c34;
-  --muted-foreground: #9aa4b2;
+  --muted-foreground: #94a3b8;
   --accent: #1c313b;
   --accent-foreground: #bfe6f2;
   --destructive: oklch(0.704 0.191 22.216);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.15);
   --ring: #4bafd6;
+  --status-success: rgba(6, 78, 59, 0.4);
+  --status-success-foreground: #6ee7b7;
+  --status-warning: rgba(120, 53, 15, 0.4);
+  --status-warning-foreground: #fcd34d;
+  --status-danger: rgba(136, 19, 55, 0.4);
+  --status-danger-foreground: #fecdd3;
+  --status-neutral: #27272a;
+  --status-neutral-foreground: #a1a1aa;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

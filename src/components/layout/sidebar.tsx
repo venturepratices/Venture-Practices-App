@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -69,15 +70,12 @@ export function Sidebar({
       ) : null}
       <aside
         className={cn(
-          "z-50 h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:static md:z-auto md:flex",
-          isOpen ? "fixed inset-y-0 left-0 flex" : "hidden"
+          "fixed inset-y-0 left-0 z-50 flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 md:static md:z-auto md:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none md:pointer-events-auto"
         )}
       >
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-heading text-xs font-bold text-sidebar-primary-foreground">
-            VP
-          </span>
-          <span className="truncate font-heading text-sm font-semibold">Venture Practices</span>
+          <Image src="/logo.png" alt="Venture Practices" width={216} height={140} className="h-9 w-auto shrink-0" priority />
           <button
             type="button"
             aria-label="Close menu"

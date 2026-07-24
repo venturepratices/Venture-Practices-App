@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plug, Unplug } from "lucide-react";
+import { Loader2, Plug, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -141,6 +141,7 @@ export function HighLevelConnectionSection({
               </div>
               <DialogFooter>
                 <Button type="button" onClick={handleConnect} disabled={isSaving || !locationId.trim() || !token.trim()}>
+                  {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
                   {isSaving ? "Connecting..." : "Connect"}
                 </Button>
               </DialogFooter>

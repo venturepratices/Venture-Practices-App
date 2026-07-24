@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { Archive } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { canUseCapability } from "@/lib/permissions";
@@ -9,6 +10,7 @@ import { ArchiveFilters } from "@/components/archive/archive-filters";
 import { ArchivedTaskDetailPanel } from "@/components/archive/archived-task-detail-panel";
 import { ArchivedTaskRow } from "@/components/archive/archived-task-row";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type SearchParams = {
   q?: string;
@@ -79,9 +81,10 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
 
       <div className="mt-4 rounded-lg border divide-y">
         {archivedTasks.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {hasFilters ? "No archived tasks match these filters." : "Nothing has been deleted yet."}
-          </p>
+          <EmptyState
+            icon={Archive}
+            title={hasFilters ? "No archived tasks match these filters." : "Nothing has been deleted yet."}
+          />
         ) : (
           archivedTasks.map((task) => <ArchivedTaskRow key={task.id} task={task} />)
         )}

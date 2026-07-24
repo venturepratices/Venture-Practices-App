@@ -1,8 +1,11 @@
+import { ListChecks } from "lucide-react";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
@@ -86,19 +89,30 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-4">
-        {isBoard ? (
-          tasks.length === 0 ? (
-            <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
-              No tasks match these filters.
-            </p>
+        {/* Board is unwieldy on a phone-width viewport, so it only renders at md+;
+            below that, List always shows instead — Board stays manually selectable
+            via the toggle above, it just renders as List until the screen is wide
+            enough for horizontally-scrolling columns. */}
+        <div className={isBoard ? "hidden md:block" : undefined}>
+          {isBoard ? (
+            tasks.length === 0 ? (
+              <div className="rounded-lg border">
+                <EmptyState icon={ListChecks} title="No tasks match these filters." />
+              </div>
+            ) : (
+              <TaskBoard tasks={tasks} showClientOnCards />
+            )
           ) : (
-            <TaskBoard tasks={tasks} showClientOnCards />
-          )
-        ) : (
-          // TaskList always renders (even with zero tasks) so its own "Add task" box
-          // stays visible — it already handles its own empty state internally.
-          <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
-        )}
+            // TaskList always renders (even with zero tasks) so its own "Add task" box
+            // stays visible — it already handles its own empty state internally.
+            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
+          )}
+        </div>
+        {isBoard ? (
+          <div className="md:hidden">
+            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

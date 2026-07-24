@@ -35,7 +35,7 @@ export function AssetCard({
   return (
     <Link
       href={href ?? `/clients/${clientId}/assets/${asset.id}`}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md"
+      className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted">
         {kind === "IMAGE" && currentVersion?.blobUrl ? (

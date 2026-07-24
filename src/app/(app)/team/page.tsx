@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Users } from "lucide-react";
 
 import { CAPABILITIES, type Capability } from "@/lib/permission-catalog";
 import { isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { initialsOf } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TeamMemberFormDialog } from "@/components/team/team-member-form-dialog";
 import { DeleteTeamMemberButton } from "@/components/team/delete-team-member-button";
 
@@ -23,6 +25,11 @@ function accessSummary(member: MemberRow): string {
     : `${member.clientAccess.length} client${member.clientAccess.length === 1 ? "" : "s"}`;
   const enabledCount = CAPABILITIES.filter((cap) => member[cap]).length;
   return `Member · ${clientsPart} · ${enabledCount}/${CAPABILITIES.length} permissions`;
+}
+
+function accessRatio(member: MemberRow): number {
+  if (member.isAdmin) return 1;
+  return CAPABILITIES.filter((cap) => member[cap]).length / CAPABILITIES.length;
 }
 
 export default async function TeamPage() {
@@ -102,7 +109,7 @@ export default async function TeamPage() {
 
       <div className="mt-6 rounded-lg border divide-y">
         {members.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">No team members yet.</p>
+          <EmptyState icon={Users} title="No team members yet." />
         ) : (
           members.map((member) => {
             const defaultCaps = Object.fromEntries(CAPABILITIES.map((cap) => [cap, member[cap]])) as Record<
@@ -111,10 +118,23 @@ export default async function TeamPage() {
             >;
             return (
               <div key={member.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="font-medium">{member.name}</p>
-                  <p className="text-sm text-muted-foreground">{member.email}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{accessSummary(member)}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                    {initialsOf(member.name)}
+                  </div>
+                  <div>
+                    <p className="font-medium">{member.name}</p>
+                    <p className="text-sm text-muted-foreground">{member.email}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{accessSummary(member)}</p>
+                      <div className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${accessRatio(member) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <TeamMemberFormDialog

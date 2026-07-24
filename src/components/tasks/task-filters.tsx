@@ -69,9 +69,9 @@ export function TaskFilters({ clients, teamMembers }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "All statuses" : <StatusPill status={value} />)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -85,7 +85,7 @@ export function TaskFilters({ clients, teamMembers }: Props) {
       </Select>
 
       <Select value={clientId} onValueChange={(value) => setParam("clientId", value)}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue>
             {(value: string) => {
               if (value === ALL) return "All clients";
@@ -106,7 +106,7 @@ export function TaskFilters({ clients, teamMembers }: Props) {
       </Select>
 
       <Select value={assigneeId} onValueChange={(value) => setParam("assigneeId", value)}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue>
             {(value: string) => {
               if (value === ALL) return "All assignees";
@@ -127,7 +127,7 @@ export function TaskFilters({ clients, teamMembers }: Props) {
       </Select>
 
       <Select value={occurrence} onValueChange={(value) => setParam("occurrence", value)}>
-        <SelectTrigger className="w-[170px]">
+        <SelectTrigger className="w-full sm:w-[170px]">
           <SelectValue>{(value: string) => (value === ALL ? "All occurrences" : TASK_OCCURRENCE_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -141,7 +141,7 @@ export function TaskFilters({ clients, teamMembers }: Props) {
       </Select>
 
       <Select value={deadline} onValueChange={(value) => setParam("deadline", value, ["deadlineFrom", "deadlineTo"])}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "Any deadline" : DEADLINE_LABELS[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>

@@ -38,36 +38,41 @@ export function SubAccountNav({
   });
 
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b px-4 md:px-6">
-      {links.map(({ segment, label, comingSoon }) => {
-        const href = segment ? `/clients/${clientId}/${segment}` : `/clients/${clientId}`;
-        const active = pathname === href;
+    <div className="relative border-b">
+      <nav className="flex gap-1 overflow-x-auto px-4 md:px-6">
+        {links.map(({ segment, label, comingSoon }) => {
+          const href = segment ? `/clients/${clientId}/${segment}` : `/clients/${clientId}`;
+          const active = pathname === href;
 
-        if (comingSoon) {
+          if (comingSoon) {
+            return (
+              <span
+                key={segment}
+                title="Coming in Phase 2"
+                className="shrink-0 cursor-not-allowed border-b-2 border-transparent px-3 py-2.5 text-sm text-muted-foreground/50"
+              >
+                {label}
+              </span>
+            );
+          }
+
           return (
-            <span
+            <Link
               key={segment}
-              title="Coming in Phase 2"
-              className="shrink-0 cursor-not-allowed border-b-2 border-transparent px-3 py-2.5 text-sm text-muted-foreground/50"
+              href={href}
+              className={cn(
+                "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
             >
               {label}
-            </span>
+            </Link>
           );
-        }
-
-        return (
-          <Link
-            key={segment}
-            href={href}
-            className={cn(
-              "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-              active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+        })}
+      </nav>
+      {/* Fade hints there's more to scroll to on narrow screens; hidden at md+
+          where every tab fits without scrolling. */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent md:hidden" />
+    </div>
   );
 }

@@ -22,7 +22,7 @@ type ClientCardData = {
 
 export function ClientCard({ client }: { client: ClientCardData }) {
   return (
-    <Card className="relative transition-shadow hover:shadow-md">
+    <Card className="relative transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md">
       <div className="absolute right-3 top-3">
         <ClientFormDialog
           mode="edit"

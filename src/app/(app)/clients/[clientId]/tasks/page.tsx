@@ -37,11 +37,20 @@ export default async function ClientTasksPage({
         <TaskViewToggle view={isBoard ? "board" : "list"} />
       </div>
       <div className="mt-4">
+        {/* Board only renders at md+; below that, List shows instead — see
+            src/app/(app)/tasks/page.tsx for the full rationale. */}
+        <div className={isBoard ? "hidden md:block" : undefined}>
+          {isBoard ? (
+            <TaskBoard tasks={tasks} />
+          ) : (
+            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
+          )}
+        </div>
         {isBoard ? (
-          <TaskBoard tasks={tasks} />
-        ) : (
-          <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
-        )}
+          <div className="md:hidden">
+            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +110,7 @@ export function CredentialFormDialog(props: Props) {
             onClick={handleSubmit}
             disabled={isSaving || !label.trim() || (props.mode === "create" && !password.trim())}
           >
+            {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>

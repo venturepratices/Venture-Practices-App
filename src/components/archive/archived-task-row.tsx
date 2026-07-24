@@ -30,9 +30,17 @@ export function ArchivedTaskRow({ task }: Props) {
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") open();
       }}
-      className={cn(ARCHIVE_GRID, "w-full cursor-pointer items-center px-4 py-3 text-sm transition-colors hover:bg-muted")}
+      className={cn(
+        ARCHIVE_GRID,
+        "w-full cursor-pointer animate-in items-center px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
+      )}
     >
-      <span className="min-w-0 truncate line-through decoration-muted-foreground/50">{task.title}</span>
+      <span className="min-w-0">
+        <span className="block truncate line-through decoration-muted-foreground/50">{task.title}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
+          {[task.clientName ?? "Internal", task.assigneeName ?? "Unassigned"].join(" · ")}
+        </span>
+      </span>
       <span className="hidden truncate text-muted-foreground md:block">{task.clientName ?? "Internal"}</span>
       <span className="hidden truncate text-muted-foreground md:block">{task.assigneeName ?? "Unassigned"}</span>
       <StatusPill status={task.status} className="justify-self-start" />

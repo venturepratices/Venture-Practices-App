@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { changePasswordAction, type ChangePasswordState } from "@/lib/actions/change-password";
 import { Button } from "@/components/ui/button";
@@ -18,9 +20,7 @@ export default function ChangePasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0f1a20] via-[#10151a] to-[#12313f] px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary font-heading text-sm font-bold text-primary-foreground">
-            VP
-          </div>
+          <Image src="/logo.png" alt="Venture Practices" width={216} height={140} className="mb-2 h-10 w-auto" priority />
           <CardTitle className="text-xl">Change your password</CardTitle>
           <CardDescription>Set a new password for your account.</CardDescription>
         </CardHeader>
@@ -53,6 +53,7 @@ export default function ChangePasswordPage() {
             {confirmError ? <p className="text-sm text-destructive">{confirmError}</p> : null}
             {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
             <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               {isPending ? "Saving..." : "Change password"}
             </Button>
           </form>

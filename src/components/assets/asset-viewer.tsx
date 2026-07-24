@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, Check, CornerDownRight, Download, ExternalLink, File, FileText, Film, Globe, Image as ImageIcon, Images, MessageSquarePlus, RotateCcw, Share2, Upload, X } from "lucide-react";
+import { Archive, ArrowLeft, Check, CornerDownRight, Download, ExternalLink, File, FileText, Film, Folder, Globe, Image as ImageIcon, Images, MessageSquarePlus, RotateCcw, Share2, Upload, X } from "lucide-react";
 
 import type { Annotation, AnnotationType } from "@/lib/asset-annotation";
 import { annotationAnchor, DEFAULT_ANNOTATION_COLOR } from "@/lib/asset-annotation";
@@ -13,6 +13,7 @@ import { AnnotationToolbar } from "@/components/assets/annotation-toolbar";
 import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 import { ReviewerPanel, type ReviewerRow } from "@/components/assets/reviewer-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { ShareLinkDialog } from "@/components/assets/share-link-dialog";
 import { UploadVersionDialog } from "@/components/assets/upload-version-dialog";
 import { VersionCompareDialog } from "@/components/assets/version-compare-dialog";
@@ -369,73 +370,87 @@ export function AssetViewer(props: Props) {
             <span className="text-xs text-muted-foreground">Version {version.versionNumber}</span>
           )}
           <div className="flex items-center gap-1.5">
-            {canManageReviewers ? (
-              <Select value={currentFolderId ?? NO_FOLDER} onValueChange={moveFolder} disabled={movingFolder}>
-                <SelectTrigger size="sm" className="w-[150px]">
-                  <SelectValue>
-                    {(value: string) => (value === NO_FOLDER ? "No folder" : folders.find((f) => f.id === value)?.name ?? "No folder")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_FOLDER}>No folder</SelectItem>
-                  {folders.map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>
-                      <span className="size-2 rounded-full" style={{ backgroundColor: folder.color ?? "var(--muted-foreground)" }} />
-                      {folder.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-            {imageVersions.length > 1 ? (
-              <VersionCompareDialog
-                versions={imageVersions}
-                trigger={
-                  <Button variant="outline" size="sm">
-                    <Images className="mr-1.5 size-3.5" />
-                    Compare
-                  </Button>
-                }
-              />
-            ) : null}
-            {canUpload ? (
-              <UploadVersionDialog
-                clientId={clientId}
-                assetId={assetId}
-                trigger={
-                  <Button variant="outline" size="sm">
-                    <Upload className="mr-1.5 size-3.5" />
-                    New version
-                  </Button>
-                }
-              />
-            ) : null}
-            {canManageReviewers ? (
-              <Button variant="outline" size="sm" onClick={toggleArchived} disabled={archiving}>
-                {props.status === "ARCHIVED" ? (
-                  <>
-                    <RotateCcw className="mr-1.5 size-3.5" />
-                    Reopen
-                  </>
-                ) : (
-                  <>
-                    <Archive className="mr-1.5 size-3.5" />
-                    Archive
-                  </>
-                )}
-              </Button>
-            ) : null}
-            {canShare ? (
-              <ShareLinkDialog
-                assetId={assetId}
-                trigger={
-                  <Button variant="outline" size="sm">
-                    <Share2 className="mr-1.5 size-3.5" />
-                    Share for review
-                  </Button>
-                }
-              />
-            ) : null}
+            {[
+              canManageReviewers || imageVersions.length > 1 || canUpload ? (
+                <div key="organize" className="flex items-center gap-1.5">
+                  {canManageReviewers ? (
+                    <Select value={currentFolderId ?? NO_FOLDER} onValueChange={moveFolder} disabled={movingFolder}>
+                      <SelectTrigger size="sm" className="w-[150px]">
+                        <SelectValue>
+                          {(value: string) => (value === NO_FOLDER ? "No folder" : folders.find((f) => f.id === value)?.name ?? "No folder")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_FOLDER}>No folder</SelectItem>
+                        {folders.map((folder) => (
+                          <SelectItem key={folder.id} value={folder.id}>
+                            <Folder className="size-3.5" style={{ color: folder.color ?? "var(--muted-foreground)" }} />
+                            {folder.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  {imageVersions.length > 1 ? (
+                    <VersionCompareDialog
+                      versions={imageVersions}
+                      trigger={
+                        <Button variant="outline" size="sm">
+                          <Images className="mr-1.5 size-3.5" />
+                          Compare
+                        </Button>
+                      }
+                    />
+                  ) : null}
+                  {canUpload ? (
+                    <UploadVersionDialog
+                      clientId={clientId}
+                      assetId={assetId}
+                      trigger={
+                        <Button variant="outline" size="sm">
+                          <Upload className="mr-1.5 size-3.5" />
+                          New version
+                        </Button>
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null,
+              canManageReviewers ? (
+                <Button key="archive" variant="outline" size="sm" onClick={toggleArchived} disabled={archiving}>
+                  {props.status === "ARCHIVED" ? (
+                    <>
+                      <RotateCcw className="mr-1.5 size-3.5" />
+                      Reopen
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="mr-1.5 size-3.5" />
+                      Archive
+                    </>
+                  )}
+                </Button>
+              ) : null,
+              canShare ? (
+                <ShareLinkDialog
+                  key="share"
+                  assetId={assetId}
+                  trigger={
+                    <Button variant="accent-cta" size="sm">
+                      <Share2 className="mr-1.5 size-3.5" />
+                      Share for review
+                    </Button>
+                  }
+                />
+              ) : null,
+            ]
+              .filter(Boolean)
+              .map((group, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  {i > 0 ? <Separator orientation="vertical" className="mr-1.5 h-5" /> : null}
+                  {group}
+                </div>
+              ))}
           </div>
         </div>
       </div>

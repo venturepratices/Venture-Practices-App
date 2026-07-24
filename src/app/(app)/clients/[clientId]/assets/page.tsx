@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/info-tip";
 import { AssetFilters } from "@/components/assets/asset-filters";
 import { AssetFolderSidebar } from "@/components/assets/asset-folder-sidebar";
+import { AssetFolderToggleButton } from "@/components/assets/asset-folder-toggle-button";
 import { AssetRow, type AssetRowData } from "@/components/assets/asset-row";
+import { AssetSidebarProvider } from "@/components/assets/asset-sidebar-context";
 import { NewAssetDialog } from "@/components/assets/new-asset-dialog";
 
 const STATUS_VALUES = ["DRAFT", "IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"] as const;
@@ -175,11 +177,15 @@ export default async function ClientAssetsPage({
         ) : null}
       </div>
 
+      <AssetSidebarProvider>
       <div className="flex min-h-0 flex-1">
         <AssetFolderSidebar clientId={clientId} folders={folders} allCount={allCount} archivedCount={archivedCount} canManage={canManage} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          <AssetFilters teamMembers={teamMembers} />
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <AssetFolderToggleButton />
+            <AssetFilters teamMembers={teamMembers} />
+          </div>
 
           {rows.length === 0 ? (
             <div className="mt-4 rounded-lg border border-dashed p-10 text-center">
@@ -194,6 +200,7 @@ export default async function ClientAssetsPage({
           )}
         </div>
       </div>
+      </AssetSidebarProvider>
     </div>
   );
 }

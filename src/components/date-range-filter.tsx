@@ -34,14 +34,14 @@ export function DateRangeFilter({ label, fromKey, toKey, clearKeys = [] }: Props
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+    <div className="flex w-full flex-wrap items-center gap-1.5 text-sm text-muted-foreground sm:w-auto">
       <span className="whitespace-nowrap text-xs">{label}</span>
       <Input
         type="date"
         value={from}
         onChange={(event) => setParam(fromKey, event.target.value)}
         aria-label={`${label} from date`}
-        className="h-8 w-[140px]"
+        className="h-8 w-[calc(50%-2.5rem)] min-w-[110px] sm:w-[140px]"
       />
       <span className="text-xs">to</span>
       <Input
@@ -49,7 +49,7 @@ export function DateRangeFilter({ label, fromKey, toKey, clearKeys = [] }: Props
         value={to}
         onChange={(event) => setParam(toKey, event.target.value)}
         aria-label={`${label} to date`}
-        className="h-8 w-[140px]"
+        className="h-8 w-[calc(50%-2.5rem)] min-w-[110px] sm:w-[140px]"
       />
     </div>
   );

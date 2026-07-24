@@ -1,15 +1,11 @@
-import { cn } from "@/lib/utils";
+import { StatusPillBase, type StatusTone } from "@/components/ui/status-pill";
 
-/**
- * Colored pill for AssetStatus — mirrors the visual language of
- * status-pill.tsx (Task) and client-status-pill.tsx (Client).
- */
-const STYLES: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
-  IN_REVIEW: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  APPROVED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
-  CHANGES_REQUESTED: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
-  ARCHIVED: "bg-muted text-muted-foreground",
+const TONES: Record<string, StatusTone> = {
+  DRAFT: "slate",
+  IN_REVIEW: "warning",
+  APPROVED: "success",
+  CHANGES_REQUESTED: "danger",
+  ARCHIVED: "neutral",
 };
 
 const LABELS: Record<string, string> = {
@@ -22,14 +18,6 @@ const LABELS: Record<string, string> = {
 
 export function AssetStatusPill({ status, className }: { status: string; className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        STYLES[status] ?? "bg-muted text-muted-foreground",
-        className
-      )}
-    >
-      {LABELS[status] ?? status}
-    </span>
+    <StatusPillBase tone={TONES[status] ?? "neutral"} label={LABELS[status] ?? status} className={className} />
   );
 }

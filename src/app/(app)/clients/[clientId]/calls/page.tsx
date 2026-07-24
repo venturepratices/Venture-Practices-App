@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Phone, PlugZap } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
 import { CallLogRow, type CallRow } from "@/components/clients/call-log-row";
 import { SyncNowButton } from "@/components/clients/sync-now-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default async function CallsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
@@ -15,12 +17,17 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {
     return (
-      <div className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
-        HighLevel isn&apos;t connected for this client yet.{" "}
-        <Link href={`/clients/${clientId}`} className="text-primary underline-offset-4 hover:underline">
-          Connect it on the Info tab
-        </Link>{" "}
-        to see call tracking here.
+      <div className="rounded-lg border">
+        <EmptyState
+          icon={PlugZap}
+          title="HighLevel isn't connected for this client yet."
+          description="Connect it on the Info tab to see call tracking here."
+          action={
+            <Link href={`/clients/${clientId}`} className="text-sm text-primary underline-offset-4 hover:underline">
+              Connect it on the Info tab
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -61,7 +68,9 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">No calls yet.</p>
+        <div className="rounded-lg border">
+          <EmptyState icon={Phone} title="No calls yet." />
+        </div>
       ) : (
         <ul className="divide-y rounded-lg border">
           {rows.map((call) => (

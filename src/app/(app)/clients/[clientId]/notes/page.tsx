@@ -1,7 +1,10 @@
+import { NotebookText } from "lucide-react";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ClientNoteFilters } from "@/components/clients/client-note-filters";
 import { ClientNoteItem } from "@/components/clients/client-note-item";
 import { NewClientNoteForm } from "@/components/clients/new-client-note-form";
@@ -66,9 +69,7 @@ export default async function ClientNotesPage({
 
       <div className="mt-4 rounded-lg border divide-y">
         {notes.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {hasFilters ? "No notes match these filters." : "No notes yet."}
-          </p>
+          <EmptyState icon={NotebookText} title={hasFilters ? "No notes match these filters." : "No notes yet."} />
         ) : (
           notes.map((note) => <ClientNoteItem key={note.id} clientId={clientId} note={note} />)
         )}

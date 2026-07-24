@@ -1,7 +1,10 @@
+import { CalendarClock } from "lucide-react";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { MeetingNoteFilters } from "@/components/clients/meeting-note-filters";
 import { MeetingNoteItem } from "@/components/clients/meeting-note-item";
 import { NewMeetingNoteForm } from "@/components/clients/new-meeting-note-form";
@@ -67,9 +70,10 @@ export default async function ClientMeetingsPage({
 
       <div className="mt-4 rounded-lg border divide-y">
         {meetingNotes.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {hasFilters ? "No meeting notes match these filters." : "No meeting notes yet."}
-          </p>
+          <EmptyState
+            icon={CalendarClock}
+            title={hasFilters ? "No meeting notes match these filters." : "No meeting notes yet."}
+          />
         ) : (
           meetingNotes.map((meetingNote) => (
             <MeetingNoteItem key={meetingNote.id} clientId={clientId} meetingNote={meetingNote} />

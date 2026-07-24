@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { Archive, Check, FolderPlus, Images, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Archive, Check, Folder, FolderPlus, Images, Pencil, Trash2, X } from "lucide-react";
 
 import { ANNOTATION_COLORS } from "@/lib/asset-annotation";
 import { cn } from "@/lib/utils";
+import { useAssetSidebar } from "@/components/assets/asset-sidebar-context";
 
 type FolderItem = { id: string; name: string; color: string | null; count: number };
 
@@ -34,6 +35,15 @@ export function AssetFolderSidebar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isOpen, close } = useAssetSidebar();
+
+  // Folder/archive selection lives in searchParams, not pathname, so the
+  // drawer auto-closes on any selection change — mirrors the main app
+  // sidebar's pathname-based auto-close (src/components/layout/sidebar.tsx).
+  useEffect(() => {
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const currentFolderId = searchParams.get("folderId");
   const currentView = searchParams.get("view");
@@ -113,7 +123,27 @@ export function AssetFolderSidebar({
   }
 
   return (
-    <aside className="flex w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-2">
+    <>
+      {isOpen ? (
+        <button
+          type="button"
+          aria-label="Close folders"
+          onClick={close}
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+        />
+      ) : null}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-[240px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-background p-2 transition-transform duration-200 md:static md:z-auto md:w-[220px] md:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none md:pointer-events-auto"
+        )}
+      >
+        <div className="mb-1 flex items-center justify-between md:hidden">
+          <p className="px-1 text-sm font-semibold">Folders</p>
+          <button type="button" aria-label="Close folders" onClick={close} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
       <Link
         href={hrefFor({})}
         className={cn(
@@ -173,9 +203,9 @@ export function AssetFolderSidebar({
                     active && "bg-accent"
                   )}
                 >
-                  <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: folder.color ?? "var(--muted-foreground)" }}
+                  <Folder
+                    className="size-3.5 shrink-0"
+                    style={{ color: folder.color ?? "var(--muted-foreground)" }}
                   />
                   <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                   <span className="text-xs text-muted-foreground">{folder.count}</span>
@@ -260,6 +290,7 @@ export function AssetFolderSidebar({
           </button>
         )
       ) : null}
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -79,7 +79,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
       }}
       className={cn(
         taskRowGridClass(showClient),
-        "w-full cursor-pointer rounded-md px-1.5 py-2.5 text-sm transition-colors hover:bg-muted"
+        "w-full cursor-pointer animate-in rounded-md px-1.5 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
       )}
     >
       <span onClick={(e) => e.stopPropagation()} className="flex size-4 items-center">
@@ -91,7 +91,18 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
           />
         ) : null}
       </span>
-      <span className="min-w-0 truncate">{task.title}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{task.title}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
+          {[
+            showClient ? task.client?.name ?? null : null,
+            task.deadline ? `Due ${new Date(task.deadline).toLocaleDateString()}` : null,
+            task.assignee?.name ?? "Unassigned",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      </span>
       {showClient ? (
         <span className="hidden truncate text-muted-foreground md:block">{task.client?.name ?? "—"}</span>
       ) : null}

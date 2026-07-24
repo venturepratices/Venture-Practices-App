@@ -58,7 +58,10 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
   return (
     <Link
       href={`/clients/${clientId}/assets/${asset.id}`}
-      className={cn(ASSET_ROW_GRID, "w-full items-center px-3 py-2.5 text-sm transition-colors hover:bg-muted")}
+      className={cn(
+        ASSET_ROW_GRID,
+        "w-full animate-in items-center px-3 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
+      )}
     >
       <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
         {isImage ? (
@@ -73,6 +76,20 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
         {asset.description ? (
           <p className="truncate text-xs text-muted-foreground">{asset.description}</p>
         ) : null}
+        <p className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
+          {[
+            KIND_LABELS[kind],
+            `v${asset.currentVersion?.versionNumber ?? 1}`,
+            asset.changesRequested
+              ? "Changes requested"
+              : asset.reviewerCount > 0
+                ? `${asset.approvedCount}/${asset.reviewerCount} approved`
+                : null,
+            asset.dueDate ? `Due ${asset.dueDate.toLocaleDateString()}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       </div>
 
       <AssetStatusPill status={asset.status} className="justify-self-start" />

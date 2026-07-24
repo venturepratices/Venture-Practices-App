@@ -43,11 +43,11 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SearchInput placeholder="Search archived tasks..." className="w-64" />
+    <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+      <SearchInput placeholder="Search archived tasks..." className="w-full sm:w-64" />
 
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "All statuses" : <StatusPill status={value} />)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -61,7 +61,7 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
       </Select>
 
       <Select value={clientName} onValueChange={(value) => setParam("clientName", value)}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue>
             {(value: string) => {
               if (value === ALL) return "All clients";
@@ -82,7 +82,7 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
       </Select>
 
       <Select value={deletedById} onValueChange={(value) => setParam("deletedById", value)}>
-        <SelectTrigger className="w-[170px]">
+        <SelectTrigger className="w-full sm:w-[170px]">
           <SelectValue>
             {(value: string) =>
               value === ALL ? "Deleted by anyone" : `Deleted by ${teamMembers.find((m) => m.id === value)?.name ?? value}`

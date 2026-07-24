@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
+import { KeyRound, Plus } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CredentialFormDialog } from "@/components/clients/credential-form-dialog";
 import { CredentialRow } from "@/components/clients/credential-row";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default async function ClientCredentialsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
@@ -47,7 +48,9 @@ export default async function ClientCredentialsPage({ params }: { params: Promis
 
       <div className="mt-4 space-y-2">
         {credentials.length === 0 ? (
-          <p className="rounded-lg border px-4 py-6 text-center text-sm text-muted-foreground">No credentials stored yet.</p>
+          <div className="rounded-lg border">
+            <EmptyState icon={KeyRound} title="No credentials stored yet." className="py-6" />
+          </div>
         ) : (
           credentials.map((credential) => (
             <CredentialRow key={credential.id} credential={credential} canManage={canManage} canReveal={canReveal} />

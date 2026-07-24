@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -76,12 +77,28 @@ export function ClientNoteItem({ clientId, note }: Props) {
         </div>
         {!isEditing ? (
           <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label="Edit note" onClick={startEdit}>
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Delete note" onClick={remove}>
-              <Trash2 className="size-3.5" />
-            </Button>
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" aria-label="Edit note" onClick={startEdit}>
+                      <Pencil className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Edit note</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" aria-label="Delete note" onClick={remove}>
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Delete note</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         ) : null}
       </div>
@@ -99,6 +116,7 @@ export function ClientNoteItem({ clientId, note }: Props) {
           />
           <div className="flex items-center gap-2">
             <Button size="sm" disabled={isSaving || !draft.trim()} onClick={save}>
+              {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
               {isSaving ? "Saving..." : "Save"}
             </Button>
             <Button variant="ghost" size="sm" onClick={cancelEdit}>

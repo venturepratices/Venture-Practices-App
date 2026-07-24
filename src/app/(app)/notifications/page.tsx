@@ -1,8 +1,11 @@
+import { Bell } from "lucide-react";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NotificationFilters } from "@/components/notifications/notification-filters";
 import { NotificationRow } from "@/components/notifications/notification-row";
 
@@ -60,9 +63,10 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 
       <div className="mt-4 rounded-lg border divide-y">
         {notifications.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {hasFilters ? "No notifications match these filters." : "Nothing yet — you're all caught up."}
-          </p>
+          <EmptyState
+            icon={Bell}
+            title={hasFilters ? "No notifications match these filters." : "Nothing yet — you're all caught up."}
+          />
         ) : (
           notifications.map((notification) => <NotificationRow key={notification.id} notification={notification} />)
         )}

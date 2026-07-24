@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ExternalLink, Plus, Trash2, X } from "lucide-react";
+import { ExternalLink, Loader2, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,6 +217,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                     Discard
                   </Button>
                   <Button size="sm" onClick={save} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
                     {isSaving ? "Saving..." : "Save changes"}
                   </Button>
                 </div>

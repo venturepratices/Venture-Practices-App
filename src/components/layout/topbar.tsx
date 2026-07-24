@@ -2,17 +2,10 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
+import { initialsOf } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MobileMenuButton } from "@/components/layout/mobile-menu-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
-
-function initialsOf(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export function TopBar({
   userName,
@@ -26,11 +19,11 @@ export function TopBar({
   return (
     <header className="flex h-14 items-center border-b bg-card px-4 md:px-6">
       <MobileMenuButton />
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex min-w-0 items-center gap-3">
         <NotificationBell unreadCount={unreadCount} />
-        <div className="text-right text-sm leading-tight">
-          <p className="font-medium">{userName ?? "Team member"}</p>
-          <p className="text-muted-foreground">{userEmail}</p>
+        <div className="min-w-0 max-w-[100px] text-right text-sm leading-tight sm:max-w-[220px]">
+          <p className="truncate font-medium">{userName ?? "Team member"}</p>
+          <p className="truncate text-muted-foreground">{userEmail}</p>
         </div>
         <Link
           href="/change-password"

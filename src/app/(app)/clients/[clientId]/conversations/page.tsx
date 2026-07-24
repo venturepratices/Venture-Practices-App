@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, MessageSquare, Phone, Voicemail } from "lucide-react";
+import { Mail, MessageSquare, Phone, PlugZap, Voicemail } from "lucide-react";
 
 import { notFound } from "next/navigation";
 
@@ -9,6 +9,7 @@ import { syncClientConversations } from "@/lib/highlevel";
 import { cn } from "@/lib/utils";
 import { ConversationDetailThread, type ThreadMessage } from "@/components/clients/conversation-thread";
 import { SyncNowButton } from "@/components/clients/sync-now-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ContactSummary = {
   contactId: string;
@@ -40,12 +41,16 @@ export default async function ConversationsPage({
   const connection = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
   if (!connection) {
     return (
-      <div className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
-        HighLevel isn&apos;t connected for this client yet.{" "}
-        <Link href={`/clients/${clientId}`} className="text-primary underline-offset-4 hover:underline">
-          Connect it on the Info tab
-        </Link>{" "}
-        to see conversations here.
+      <div className="rounded-lg border">
+        <EmptyState
+          icon={PlugZap}
+          title="HighLevel isn't connected for this client yet."
+          action={
+            <Link href={`/clients/${clientId}`} className="text-sm text-primary underline-offset-4 hover:underline">
+              Connect it on the Info tab to see conversations here
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -121,9 +126,9 @@ export default async function ConversationsPage({
       ) : null}
 
       {contacts.length === 0 ? (
-        <p className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
-          No conversations yet.
-        </p>
+        <div className="rounded-lg border">
+          <EmptyState icon={MessageSquare} title="No conversations yet." />
+        </div>
       ) : (
         <div className="flex h-[calc(100vh-260px)] min-h-[420px] overflow-hidden rounded-lg border">
           <aside className="w-72 shrink-0 overflow-y-auto border-r">

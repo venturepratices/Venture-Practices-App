@@ -1,7 +1,10 @@
+import { CalendarCheck } from "lucide-react";
+
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskRow } from "@/components/tasks/task-row";
@@ -58,9 +61,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         </CardHeader>
         <CardContent className="p-0">
           {myDayTasks.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Nothing overdue or due today. You&apos;re caught up.
-            </p>
+            <EmptyState icon={CalendarCheck} title="Nothing overdue or due today. You're caught up." />
           ) : (
             <div className="divide-y">
               {myDayTasks.map((task) => (
@@ -72,17 +73,32 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       </Card>
 
       <div className="mt-6">
+        {/* Board only renders at md+; below that, List shows instead — see
+            src/app/(app)/tasks/page.tsx for the full rationale. */}
+        <div className={isBoard ? "hidden md:block" : undefined}>
+          {isBoard ? (
+            <TaskBoard tasks={tasks} />
+          ) : (
+            <TaskList
+              tasks={tasks}
+              showClientColumn
+              newTaskDefaults={{ assigneeId: session?.user?.id }}
+              clients={clients}
+              teamMembers={teamMembers}
+            />
+          )}
+        </div>
         {isBoard ? (
-          <TaskBoard tasks={tasks} />
-        ) : (
-          <TaskList
-            tasks={tasks}
-            showClientColumn
-            newTaskDefaults={{ assigneeId: session?.user?.id }}
-            clients={clients}
-            teamMembers={teamMembers}
-          />
-        )}
+          <div className="md:hidden">
+            <TaskList
+              tasks={tasks}
+              showClientColumn
+              newTaskDefaults={{ assigneeId: session?.user?.id }}
+              clients={clients}
+              teamMembers={teamMembers}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

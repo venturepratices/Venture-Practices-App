@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { createClientAction, updateClientAction, type ClientFormState } from "@/lib/actions/clients";
 import { CLIENT_STATUS_VALUES } from "@/lib/validations/client";
@@ -88,7 +89,7 @@ export function ClientFormDialog(props: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="contactName">Contact name</Label>
                 <Input id="contactName" name="contactName" defaultValue={props.mode === "edit" ? props.contactName ?? "" : ""} />
@@ -134,6 +135,7 @@ export function ClientFormDialog(props: Props) {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               {isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
