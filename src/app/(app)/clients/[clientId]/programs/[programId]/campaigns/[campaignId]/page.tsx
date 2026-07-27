@@ -4,8 +4,9 @@ import { ChevronLeft, ListChecks } from "lucide-react";
 
 import { canUseCapability, requireClientAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { CAMPAIGN_STAGE_LABELS } from "@/lib/campaign-stage";
+import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CampaignStepper } from "@/components/programs/campaign-stepper";
 import { StageSelect } from "@/components/programs/stage-select";
 
 function formatDate(date: Date) {
@@ -49,6 +50,12 @@ export default async function CampaignDetailPage({
     return acc;
   }, {});
 
+  const taskCounts = CAMPAIGN_STAGE_VALUES.reduce<Record<string, { total: number; complete: number }>>((acc, stage) => {
+    const stageTasks = tasksByStage[stage] ?? [];
+    acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    return acc;
+  }, {});
+
   return (
     <div className="max-w-3xl">
       <Link
@@ -62,6 +69,10 @@ export default async function CampaignDetailPage({
       <div className="mt-2 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Campaign #{campaign.sequenceNumber}</h2>
         <StageSelect campaignId={campaign.id} currentStage={campaign.currentStage} canManage={canManage} />
+      </div>
+
+      <div className="mt-4 rounded-lg border p-4">
+        <CampaignStepper currentStage={campaign.currentStage} taskCounts={taskCounts} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">

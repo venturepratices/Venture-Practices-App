@@ -9,6 +9,7 @@ import { StatusPillBase } from "@/components/ui/status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CampaignRow } from "@/components/programs/campaign-row";
 import { NewCampaignDialog } from "@/components/programs/new-campaign-dialog";
+import { ProgramTimeline } from "@/components/programs/program-timeline";
 
 export default async function ProgramDetailPage({ params }: { params: Promise<{ clientId: string; programId: string }> }) {
   const { clientId, programId } = await params;
@@ -64,6 +65,12 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
           />
         ) : null}
       </div>
+
+      {program.campaigns.length > 0 ? (
+        <div className="mt-6">
+          <ProgramTimeline campaigns={program.campaigns} clientId={clientId} programId={program.id} />
+        </div>
+      ) : null}
 
       <div className="mt-6">
         <h3 className="text-sm font-semibold text-muted-foreground">Campaigns</h3>

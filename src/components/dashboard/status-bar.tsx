@@ -3,7 +3,9 @@ import type { StatusTone } from "@/components/ui/status-pill";
 
 // Solid, saturated fills (not the pale pill tokens) so segments stay
 // visible against the muted track at both small widths and in dark mode.
-const TONE_BG: Record<StatusTone, string> = {
+// Exported for reuse by other hand-rolled proportional visuals (e.g. the
+// Direct Mail program timeline's campaign bars/stage dots).
+export const TONE_BG: Record<StatusTone, string> = {
   success: "bg-emerald-500",
   warning: "bg-amber-500",
   danger: "bg-rose-500",
