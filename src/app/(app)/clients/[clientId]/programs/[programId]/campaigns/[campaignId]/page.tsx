@@ -4,8 +4,11 @@ import { ChevronLeft } from "lucide-react";
 
 import { canUseCapability, requireClientAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
+import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
+import { ApplyTemplateDialog } from "@/components/programs/apply-template-dialog";
 import { CampaignStepper } from "@/components/programs/campaign-stepper";
+import { DeleteCampaignButton } from "@/components/programs/delete-campaign-button";
+import { EditCampaignDialog } from "@/components/programs/edit-campaign-dialog";
 import { StageSelect } from "@/components/programs/stage-select";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
@@ -33,11 +36,18 @@ export default async function CampaignDetailPage({
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
 
-  const [campaign, teamMembers] = await Promise.all([
+  const [campaign, teamMembers, templates] = await Promise.all([
     prisma.campaign.findFirst({
       where: { id: campaignId, programId, program: { clientId } },
       include: {
-        program: { select: { id: true, name: true } },
+        program: {
+          select: {
+            id: true,
+            name: true,
+            accountManagerId: true,
+            roleBindings: { select: { roleTag: true, teamMemberId: true } },
+          },
+        },
         tasks: {
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
@@ -48,8 +58,11 @@ export default async function CampaignDetailPage({
       },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   if (!campaign) notFound();
+
+  const bindingFor = (roleTag: string) => campaign.program.roleBindings.find((b) => b.roleTag === roleTag)?.teamMemberId ?? null;
 
   const tasksByStage = campaign.tasks.reduce<Record<string, typeof campaign.tasks>>((acc, task) => {
     const key = task.campaignStage ?? "PLANNING";
@@ -73,9 +86,22 @@ export default async function CampaignDetailPage({
         {campaign.program.name}
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Campaign #{campaign.sequenceNumber}</h2>
-        <StageSelect campaignId={campaign.id} currentStage={campaign.currentStage} canManage={canManage} />
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{campaignLabel(campaign)}</h2>
+        <div className="flex items-center gap-2">
+          {canManage ? (
+            <>
+              <EditCampaignDialog campaign={campaign} />
+              <DeleteCampaignButton
+                campaignId={campaign.id}
+                campaignLabel={campaignLabel(campaign)}
+                clientId={clientId}
+                programId={programId}
+              />
+            </>
+          ) : null}
+          <StageSelect campaignId={campaign.id} currentStage={campaign.currentStage} canManage={canManage} />
+        </div>
       </div>
 
       <div className="mt-4 rounded-lg border p-4">
@@ -132,10 +158,24 @@ export default async function CampaignDetailPage({
       </div>
 
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-muted-foreground">Tasks</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Completing every task in a stage automatically advances the campaign to the next one.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground">Tasks</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Completing every task in a stage automatically advances the campaign to the next one.
+            </p>
+          </div>
+          {canManage && campaign.tasks.length === 0 ? (
+            <ApplyTemplateDialog
+              campaignId={campaign.id}
+              templates={templates}
+              teamMembers={teamMembers}
+              defaultAccountManagerId={bindingFor("ACCOUNT_MANAGER") ?? campaign.program.accountManagerId}
+              defaultCreativeId={bindingFor("CREATIVE")}
+              defaultProductionId={bindingFor("PRODUCTION")}
+            />
+          ) : null}
+        </div>
 
         <div className="mt-3 space-y-5">
           {CAMPAIGN_STAGE_VALUES.map((stage) => {

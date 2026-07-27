@@ -37,3 +37,8 @@ export function nextCampaignStage(stage: CampaignStageValue): CampaignStageValue
   const index = CAMPAIGN_STAGE_VALUES.indexOf(stage);
   return index === -1 || index === CAMPAIGN_STAGE_VALUES.length - 1 ? null : CAMPAIGN_STAGE_VALUES[index + 1];
 }
+
+/** Prefers the campaign's own name; falls back to "Campaign #N" when unnamed. */
+export function campaignLabel(campaign: { name?: string | null; sequenceNumber: number }): string {
+  return campaign.name?.trim() || `Campaign #${campaign.sequenceNumber}`;
+}

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 export function NewCampaignDialog({ programId, trigger }: { programId: string; trigger: React.ReactElement }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
   const [mailDate, setMailDate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [geography, setGeography] = useState("");
@@ -30,6 +31,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
   const [isSaving, setIsSaving] = useState(false);
 
   function reset() {
+    setName("");
     setMailDate("");
     setQuantity("");
     setGeography("");
@@ -46,6 +48,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        name: name.trim() || null,
         mailDate: new Date(`${mailDate}T00:00:00.000Z`).toISOString(),
         quantity: quantity ? Number(quantity) : null,
         geography: geography.trim() || null,
@@ -77,6 +80,15 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="campaign-name">Name (optional)</Label>
+            <Input
+              id="campaign-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. July Mailer — leave blank for &quot;Campaign #N&quot;"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="campaign-mail-date">Mail date</Label>
             <Input id="campaign-mail-date" type="date" value={mailDate} onChange={(e) => setMailDate(e.target.value)} required />

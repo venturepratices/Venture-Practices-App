@@ -1,7 +1,13 @@
 import Link from "next/link";
 
 import { TONE_BG } from "@/components/dashboard/status-bar";
-import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_TONES, CAMPAIGN_STAGE_VALUES, type CampaignStageValue } from "@/lib/campaign-stage";
+import {
+  CAMPAIGN_STAGE_LABELS,
+  CAMPAIGN_STAGE_TONES,
+  CAMPAIGN_STAGE_VALUES,
+  campaignLabel,
+  type CampaignStageValue,
+} from "@/lib/campaign-stage";
 
 const MONTH_WIDTH = 96;
 const LABEL_WIDTH = 140;
@@ -9,6 +15,7 @@ const LABEL_WIDTH = 140;
 type TimelineCampaign = {
   id: string;
   sequenceNumber: number;
+  name?: string | null;
   mailDate: Date;
   creativeDueDate: Date;
   currentStage: CampaignStageValue;
@@ -92,7 +99,7 @@ export function ProgramTimeline({
                 className="shrink-0 truncate border-r px-3 py-2.5 text-sm font-medium hover:text-primary"
                 style={{ width: LABEL_WIDTH }}
               >
-                Campaign #{campaign.sequenceNumber}
+                {campaignLabel(campaign)}
               </Link>
               <div className="relative shrink-0" style={{ width: trackWidth, height: 36 }}>
                 <div className="absolute inset-0 flex">
@@ -108,7 +115,7 @@ export function ProgramTimeline({
                 <div
                   className={`absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full ring-2 ring-background ${TONE_BG[CAMPAIGN_STAGE_TONES[campaign.currentStage]]}`}
                   style={{ left: dotLeft }}
-                  title={`Campaign #${campaign.sequenceNumber} — ${CAMPAIGN_STAGE_LABELS[campaign.currentStage]}`}
+                  title={`${campaignLabel(campaign)} — ${CAMPAIGN_STAGE_LABELS[campaign.currentStage]}`}
                 />
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { logActivity } from "@/lib/activity-log";
-import { CAMPAIGN_STAGE_LABELS, nextCampaignStage, type CampaignStageValue } from "@/lib/campaign-stage";
+import { CAMPAIGN_STAGE_LABELS, campaignLabel as formatCampaignLabel, nextCampaignStage, type CampaignStageValue } from "@/lib/campaign-stage";
 import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 
@@ -59,7 +59,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   });
   if (advanced.count === 0) return null; // already advanced by a concurrent request
 
-  const campaignLabel = `Campaign #${campaign.sequenceNumber} — ${campaign.program.name}`;
+  const campaignLabel = `${formatCampaignLabel(campaign)} — ${campaign.program.name}`;
   const newStageLabel = CAMPAIGN_STAGE_LABELS[newStage];
 
   const newStageAssigneeIds = new Set<string>();

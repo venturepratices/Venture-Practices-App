@@ -1,0 +1,112 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
+import { campaignLabel } from "@/lib/campaign-stage";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
+import { spawnCampaignTasks, type TemplateSnapshot } from "@/lib/program-template";
+
+const applyTemplateSchema = z.object({
+  templateId: z.string(),
+  accountManagerId: z.string().nullable().optional(),
+  creativeId: z.string().nullable().optional(),
+  productionId: z.string().nullable().optional(),
+});
+
+export async function POST(request: Request, { params }: { params: Promise<{ campaignId: string }> }) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { campaignId } = await params;
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    include: { program: { select: { id: true, clientId: true, name: true } } },
+  });
+  if (!campaign) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  try {
+    await requireClientAccess(campaign.program.clientId);
+    await requireCapability("canManageDirectMail");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = applyTemplateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  const template = await prisma.programTemplate.findUnique({
+    where: { id: parsed.data.templateId },
+    include: { stages: { orderBy: { sequenceNumber: "asc" }, include: { tasks: { orderBy: { sequenceNumber: "asc" } } } } },
+  });
+  if (!template) {
+    return NextResponse.json({ error: "Template not found" }, { status: 400 });
+  }
+
+  const stagesSnapshot: TemplateSnapshot = template.stages.map((stage) => ({
+    stage: stage.stage,
+    sequenceNumber: stage.sequenceNumber,
+    tasks: stage.tasks.map((task) => ({
+      title: task.title,
+      roleTag: task.roleTag,
+      daysBeforeMailDate: task.daysBeforeMailDate,
+      sequenceNumber: task.sequenceNumber,
+    })),
+  }));
+
+  const bindings = {
+    accountManagerId: parsed.data.accountManagerId ?? null,
+    creativeId: parsed.data.creativeId ?? null,
+    productionId: parsed.data.productionId ?? null,
+  };
+
+  const taskCount = await prisma.$transaction(
+    async (tx) => {
+      await spawnCampaignTasks(tx, {
+        programId: campaign.programId,
+        campaignId: campaign.id,
+        mailDate: campaign.mailDate,
+        stagesSnapshot,
+        bindings,
+      });
+
+      for (const [roleTag, teamMemberId] of [
+        ["ACCOUNT_MANAGER", bindings.accountManagerId],
+        ["CREATIVE", bindings.creativeId],
+        ["PRODUCTION", bindings.productionId],
+      ] as const) {
+        if (!teamMemberId) continue;
+        await tx.programRoleBinding.upsert({
+          where: { programId_roleTag: { programId: campaign.programId, roleTag } },
+          create: { programId: campaign.programId, roleTag, teamMemberId },
+          update: { teamMemberId },
+        });
+      }
+
+      await tx.campaign.update({ where: { id: campaign.id }, data: { stagesSnapshot } });
+
+      return tx.task.count({ where: { campaignId: campaign.id } });
+    },
+    { timeout: 30000 }
+  );
+
+  await logActivity({
+    actorId: session.user.id,
+    actorName: session.user.name ?? null,
+    entityType: "Campaign",
+    entityId: campaign.id,
+    entityLabel: `${campaign.program.name} — ${campaignLabel(campaign)}`,
+    action: "template_applied",
+    description: `${session.user.name ?? "Someone"} applied the "${template.name}" template to ${campaignLabel(campaign)} (${campaign.program.name})`,
+  });
+
+  return NextResponse.json({ ok: true, taskCount });
+}

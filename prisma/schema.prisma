@@ -571,6 +571,7 @@ model Campaign {
   programId        String
   program          Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
   sequenceNumber   Int
+  name             String?
   mailDate         DateTime
   creativeDueDate  DateTime
   approvalDueDate  DateTime

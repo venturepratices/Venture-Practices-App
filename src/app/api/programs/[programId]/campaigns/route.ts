@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { campaignLabel } from "@/lib/campaign-stage";
 import { computeCampaignDueDates } from "@/lib/date-math";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -72,6 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     data: {
       programId,
       sequenceNumber: (last?.sequenceNumber ?? 0) + 1,
+      name: parsed.data.name ?? null,
       mailDate,
       ...dueDates,
       quantity: parsed.data.quantity ?? null,
@@ -87,9 +89,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     actorName: session.user.name ?? null,
     entityType: "Campaign",
     entityId: campaign.id,
-    entityLabel: `${program.name} — Campaign #${campaign.sequenceNumber}`,
+    entityLabel: `${program.name} — ${campaignLabel(campaign)}`,
     action: "campaign_created",
-    description: `${session.user.name ?? "Someone"} added campaign #${campaign.sequenceNumber} to "${program.name}"`,
+    description: `${session.user.name ?? "Someone"} added ${campaignLabel(campaign)} to "${program.name}"`,
   });
 
   return NextResponse.json(campaign, { status: 201 });

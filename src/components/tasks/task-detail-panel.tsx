@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
-import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
+import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
@@ -26,7 +26,7 @@ const NO_CAMPAIGN = "__none__";
 type ProgramOption = {
   id: string;
   name: string;
-  campaigns: { id: string; sequenceNumber: number; currentStage: string }[];
+  campaigns: { id: string; sequenceNumber: number; name?: string | null; currentStage: string }[];
 };
 
 type Draft = {
@@ -393,7 +393,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                         {(value: string) => {
                           if (value === NO_CAMPAIGN) return "Program-level (no campaign)";
                           const campaign = programs?.find((p) => p.id === draft.programId)?.campaigns.find((c) => c.id === value);
-                          return campaign ? `Campaign #${campaign.sequenceNumber}` : value;
+                          return campaign ? campaignLabel(campaign) : value;
                         }}
                       </SelectValue>
                     </SelectTrigger>
@@ -403,7 +403,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                         ?.find((p) => p.id === draft.programId)
                         ?.campaigns.map((campaign) => (
                           <SelectItem key={campaign.id} value={campaign.id}>
-                            Campaign #{campaign.sequenceNumber}
+                            {campaignLabel(campaign)}
                           </SelectItem>
                         ))}
                     </SelectContent>
