@@ -60,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const mailDate = new Date(parsed.data.mailDate);
+  const mailDate = parsed.data.mailDate ? new Date(parsed.data.mailDate) : null;
   const dueDates = computeCampaignDueDates(mailDate);
 
   const last = await prisma.campaign.findFirst({

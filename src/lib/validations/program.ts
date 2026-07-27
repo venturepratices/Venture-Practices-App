@@ -42,7 +42,6 @@ export const createProgramSchema = z.object({
   status: z.enum(PROGRAM_STATUS_VALUES).optional(),
   startMonth: z.string().datetime(),
   lengthMonths: z.coerce.number().int().min(1).max(36).optional(),
-  accountManagerId: z.string().nullable().optional(),
 });
 
 export const updateProgramSchema = z.object({
@@ -51,7 +50,6 @@ export const updateProgramSchema = z.object({
   status: z.enum(PROGRAM_STATUS_VALUES).optional(),
   startMonth: z.string().datetime().optional(),
   lengthMonths: z.coerce.number().int().min(1).max(36).optional(),
-  accountManagerId: z.string().nullable().optional(),
 });
 
 export type CreateProgramInput = z.infer<typeof createProgramSchema>;

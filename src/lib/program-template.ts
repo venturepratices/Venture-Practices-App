@@ -49,7 +49,11 @@ export async function spawnCampaignTasks(
   params: {
     programId: string;
     campaignId: string;
-    mailDate: Date;
+    // The program's own client, so spawned tasks show up in that client's
+    // Tasks tab like any other task — not just on the Direct Mail campaign
+    // page itself.
+    clientId: string;
+    mailDate: Date | null;
     stagesSnapshot: TemplateSnapshot;
     bindings: RoleBindings;
   }
@@ -64,9 +68,12 @@ export async function spawnCampaignTasks(
       title: task.title,
       programId: params.programId,
       campaignId: params.campaignId,
+      clientId: params.clientId,
       campaignStage: task.stage,
       deadline:
-        task.daysBeforeMailDate != null ? new Date(params.mailDate.getTime() - task.daysBeforeMailDate * DAY_MS) : null,
+        params.mailDate && task.daysBeforeMailDate != null
+          ? new Date(params.mailDate.getTime() - task.daysBeforeMailDate * DAY_MS)
+          : null,
     })),
   });
 

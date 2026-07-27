@@ -10,7 +10,6 @@ type ProgramCardData = {
   product: string;
   status: string;
   lengthMonths: number;
-  accountManager: { name: string } | null;
   campaigns: { id: string }[];
 };
 
@@ -25,11 +24,10 @@ export function ProgramCard({ clientId, program }: { clientId: string; program: 
           <StatusPillBase tone={PROGRAM_STATUS_TONES[program.status]} label={PROGRAM_STATUS_LABELS[program.status] ?? program.status} />
           <span className="text-sm text-muted-foreground">{PROGRAM_PRODUCT_LABELS[program.product] ?? program.product}</span>
         </CardContent>
-        <CardContent className="flex items-center justify-between pt-0 text-sm text-muted-foreground">
+        <CardContent className="pt-0 text-sm text-muted-foreground">
           <span>
             {program.campaigns.length} campaign{program.campaigns.length === 1 ? "" : "s"} · {program.lengthMonths} mo
           </span>
-          <span>{program.accountManager?.name ?? "Unassigned"}</span>
         </CardContent>
       </Card>
     </Link>

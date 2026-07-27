@@ -13,8 +13,8 @@ import { StageSelect } from "@/components/programs/stage-select";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 
-function formatDate(date: Date) {
-  return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+function formatDate(date: Date | null) {
+  return date ? date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 function formatCurrency(cents: number) {
@@ -40,14 +40,7 @@ export default async function CampaignDetailPage({
     prisma.campaign.findFirst({
       where: { id: campaignId, programId, program: { clientId } },
       include: {
-        program: {
-          select: {
-            id: true,
-            name: true,
-            accountManagerId: true,
-            roleBindings: { select: { roleTag: true, teamMemberId: true } },
-          },
-        },
+        program: { select: { id: true, name: true } },
         tasks: {
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
@@ -61,8 +54,6 @@ export default async function CampaignDetailPage({
     prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   if (!campaign) notFound();
-
-  const bindingFor = (roleTag: string) => campaign.program.roleBindings.find((b) => b.roleTag === roleTag)?.teamMemberId ?? null;
 
   const tasksByStage = campaign.tasks.reduce<Record<string, typeof campaign.tasks>>((acc, task) => {
     const key = task.campaignStage ?? "PLANNING";
@@ -166,14 +157,7 @@ export default async function CampaignDetailPage({
             </p>
           </div>
           {canManage && campaign.tasks.length === 0 ? (
-            <ApplyTemplateDialog
-              campaignId={campaign.id}
-              templates={templates}
-              teamMembers={teamMembers}
-              defaultAccountManagerId={bindingFor("ACCOUNT_MANAGER") ?? campaign.program.accountManagerId}
-              defaultCreativeId={bindingFor("CREATIVE")}
-              defaultProductionId={bindingFor("PRODUCTION")}
-            />
+            <ApplyTemplateDialog campaignId={campaign.id} templates={templates} />
           ) : null}
         </div>
 

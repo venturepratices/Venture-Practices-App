@@ -7,16 +7,16 @@ type CampaignRowData = {
   id: string;
   sequenceNumber: number;
   name?: string | null;
-  mailDate: Date | string;
-  creativeDueDate: Date | string;
-  approvalDueDate: Date | string;
-  printDueDate: Date | string;
+  mailDate: Date | string | null;
+  creativeDueDate: Date | string | null;
+  approvalDueDate: Date | string | null;
+  printDueDate: Date | string | null;
   currentStage: string;
   tasks?: { id: string }[];
 };
 
-function formatDate(date: Date | string) {
-  return new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+function formatDate(date: Date | string | null) {
+  return date ? new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 export function CampaignRow({

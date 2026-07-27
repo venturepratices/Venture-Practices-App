@@ -10,9 +10,6 @@ import { spawnCampaignTasks, type TemplateSnapshot } from "@/lib/program-templat
 
 const applyTemplateSchema = z.object({
   templateId: z.string(),
-  accountManagerId: z.string().nullable().optional(),
-  creativeId: z.string().nullable().optional(),
-  productionId: z.string().nullable().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ campaignId: string }> }) {
@@ -62,34 +59,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
     })),
   }));
 
-  const bindings = {
-    accountManagerId: parsed.data.accountManagerId ?? null,
-    creativeId: parsed.data.creativeId ?? null,
-    productionId: parsed.data.productionId ?? null,
-  };
+  // Role-tagged auto-assignment was removed — spawned tasks always start
+  // unassigned; assign people per-task afterward from the campaign page.
+  const bindings = { accountManagerId: null, creativeId: null, productionId: null };
 
   const taskCount = await prisma.$transaction(
     async (tx) => {
       await spawnCampaignTasks(tx, {
         programId: campaign.programId,
         campaignId: campaign.id,
+        clientId: campaign.program.clientId,
         mailDate: campaign.mailDate,
         stagesSnapshot,
         bindings,
       });
-
-      for (const [roleTag, teamMemberId] of [
-        ["ACCOUNT_MANAGER", bindings.accountManagerId],
-        ["CREATIVE", bindings.creativeId],
-        ["PRODUCTION", bindings.productionId],
-      ] as const) {
-        if (!teamMemberId) continue;
-        await tx.programRoleBinding.upsert({
-          where: { programId_roleTag: { programId: campaign.programId, roleTag } },
-          create: { programId: campaign.programId, roleTag, teamMemberId },
-          update: { teamMemberId },
-        });
-      }
 
       await tx.campaign.update({ where: { id: campaign.id }, data: { stagesSnapshot } });
 

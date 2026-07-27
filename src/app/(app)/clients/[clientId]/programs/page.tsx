@@ -16,16 +16,14 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
 
-  const [programs, teamMembers, templates] = await Promise.all([
+  const [programs, templates] = await Promise.all([
     prisma.program.findMany({
       where: { clientId },
       include: {
-        accountManager: { select: { name: true } },
         campaigns: { select: { id: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -45,7 +43,6 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
             <CampaignWizardDialog
               clientId={clientId}
               templates={templates}
-              teamMembers={teamMembers}
               trigger={
                 <Button size="sm" variant="outline">
                   <Sparkles className="size-4" />
@@ -55,7 +52,6 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
             />
             <NewProgramDialog
               clientId={clientId}
-              teamMembers={teamMembers}
               trigger={
                 <Button size="sm">
                   <Plus className="size-4" />

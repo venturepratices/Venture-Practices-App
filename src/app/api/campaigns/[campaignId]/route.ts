@@ -70,10 +70,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     where: { id: campaignId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name?.trim() || null } : {}),
-      ...(parsed.data.mailDate !== undefined ? { mailDate: new Date(parsed.data.mailDate) } : {}),
-      ...(parsed.data.creativeDueDate !== undefined ? { creativeDueDate: new Date(parsed.data.creativeDueDate) } : {}),
-      ...(parsed.data.approvalDueDate !== undefined ? { approvalDueDate: new Date(parsed.data.approvalDueDate) } : {}),
-      ...(parsed.data.printDueDate !== undefined ? { printDueDate: new Date(parsed.data.printDueDate) } : {}),
+      ...(parsed.data.mailDate !== undefined ? { mailDate: parsed.data.mailDate ? new Date(parsed.data.mailDate) : null } : {}),
+      ...(parsed.data.creativeDueDate !== undefined
+        ? { creativeDueDate: parsed.data.creativeDueDate ? new Date(parsed.data.creativeDueDate) : null }
+        : {}),
+      ...(parsed.data.approvalDueDate !== undefined
+        ? { approvalDueDate: parsed.data.approvalDueDate ? new Date(parsed.data.approvalDueDate) : null }
+        : {}),
+      ...(parsed.data.printDueDate !== undefined ? { printDueDate: parsed.data.printDueDate ? new Date(parsed.data.printDueDate) : null } : {}),
       ...(parsed.data.currentStage !== undefined ? { currentStage: parsed.data.currentStage } : {}),
       ...(parsed.data.quantity !== undefined ? { quantity: parsed.data.quantity } : {}),
       ...(parsed.data.geography !== undefined ? { geography: parsed.data.geography } : {}),

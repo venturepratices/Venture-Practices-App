@@ -12,9 +12,9 @@ import { prisma } from "@/lib/prisma";
  *     wizard-spawned assignees about their tasks in the first place, since
  *     the wizard creates all tasks up front without notifying anyone.
  *   - everyone else "related to the project" — any assignee on any task in
- *     the campaign, plus the program's bound roles — gets a broader
- *     CAMPAIGN_STAGE_ADVANCED notification, skipping anyone who already got
- *     the more specific task-assigned one above.
+ *     the campaign — gets a broader CAMPAIGN_STAGE_ADVANCED notification,
+ *     skipping anyone who already got the more specific task-assigned one
+ *     above.
  *
  * The stage transition itself is a conditional update guarded on the
  * currently-stored stage, so completing the same task twice (or two tasks in
@@ -24,15 +24,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: {
-      program: {
-        select: {
-          id: true,
-          name: true,
-          accountManagerId: true,
-          accountManager: { select: { id: true, name: true } },
-          roleBindings: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true } } } },
-        },
-      },
+      program: { select: { id: true, name: true } },
       tasks: {
         select: {
           id: true,
@@ -82,12 +74,6 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   const related = new Map<string, string>();
   for (const task of campaign.tasks) {
     for (const a of task.assignees) related.set(a.teamMemberId, a.teamMember.name);
-  }
-  if (campaign.program.accountManagerId && campaign.program.accountManager) {
-    related.set(campaign.program.accountManagerId, campaign.program.accountManager.name);
-  }
-  for (const rb of campaign.program.roleBindings) {
-    if (rb.teamMemberId && rb.teamMember) related.set(rb.teamMemberId, rb.teamMember.name);
   }
 
   for (const [teamMemberId, name] of related) {

@@ -17,7 +17,6 @@ import {
 import { ProductStep } from "@/components/programs/wizard/product-step";
 import { ScheduleStep } from "@/components/programs/wizard/schedule-step";
 import { DefaultsStep } from "@/components/programs/wizard/defaults-step";
-import { RoleBindingsStep } from "@/components/programs/wizard/role-bindings-step";
 import { ReviewStep } from "@/components/programs/wizard/review-step";
 
 export type WizardDraft = {
@@ -32,9 +31,6 @@ export type WizardDraft = {
   geography: string;
   offer: string;
   cta: string;
-  accountManagerId: string | null;
-  creativeId: string | null;
-  productionId: string | null;
 };
 
 const INITIAL_DRAFT: WizardDraft = {
@@ -49,23 +45,23 @@ const INITIAL_DRAFT: WizardDraft = {
   geography: "",
   offer: "",
   cta: "",
-  accountManagerId: null,
-  creativeId: null,
-  productionId: null,
 };
 
-const STEPS = ["Product", "Schedule", "Defaults", "Roles", "Review"] as const;
+const STEPS = ["Product", "Schedule", "Defaults", "Review"] as const;
+
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export function CampaignWizardDialog({
   clientId,
   trigger,
   templates,
-  teamMembers,
 }: {
   clientId: string;
   trigger: React.ReactElement;
   templates: { id: string; name: string }[];
-  teamMembers: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -84,7 +80,7 @@ export function CampaignWizardDialog({
     setError(null);
   }
 
-  const canProceed = step === 1 ? Boolean(draft.name.trim() && draft.startMonth) : true;
+  const canProceed = step === 1 ? Boolean(draft.name.trim()) : true;
 
   async function submit() {
     setError(null);
@@ -97,7 +93,9 @@ export function CampaignWizardDialog({
         templateId: draft.templateId,
         name: draft.name.trim(),
         product: draft.product,
-        startMonth: new Date(`${draft.startMonth}-01T00:00:00.000Z`).toISOString(),
+        // If left blank, default to the current month rather than blocking
+        // the wizard on a date the user may not have decided yet.
+        startMonth: new Date(`${draft.startMonth || currentMonthValue()}-01T00:00:00.000Z`).toISOString(),
         lengthMonths: Number(draft.lengthMonths) || 1,
         mailDayOfMonth: Number(draft.mailDayOfMonth) || 15,
         quantity: draft.quantity ? Number(draft.quantity) : null,
@@ -105,9 +103,6 @@ export function CampaignWizardDialog({
         geography: draft.geography.trim() || null,
         offer: draft.offer.trim() || null,
         cta: draft.cta.trim() || null,
-        accountManagerId: draft.accountManagerId,
-        creativeId: draft.creativeId,
-        productionId: draft.productionId,
       }),
     });
     setIsSaving(false);
@@ -120,11 +115,6 @@ export function CampaignWizardDialog({
       const data = await response.json().catch(() => null);
       setError(data?.error ?? "Couldn't run the wizard.");
     }
-  }
-
-  function teamMemberName(id: string | null) {
-    if (!id) return "Unassigned";
-    return teamMembers.find((m) => m.id === id)?.name ?? id;
   }
 
   return (
@@ -141,7 +131,7 @@ export function CampaignWizardDialog({
           <DialogTitle>Campaign Generator — {STEPS[step]}</DialogTitle>
           <DialogDescription>
             Step {step + 1} of {STEPS.length}: sets up the program, its monthly campaigns, and (if a template is
-            chosen) spawns every stage task with its assignee resolved.
+            chosen) spawns every stage task, unassigned — assign people to tasks afterward from the campaign page.
           </DialogDescription>
         </DialogHeader>
 
@@ -149,12 +139,10 @@ export function CampaignWizardDialog({
           {step === 0 ? <ProductStep draft={draft} setField={setField} templates={templates} /> : null}
           {step === 1 ? <ScheduleStep draft={draft} setField={setField} /> : null}
           {step === 2 ? <DefaultsStep draft={draft} setField={setField} /> : null}
-          {step === 3 ? <RoleBindingsStep draft={draft} setField={setField} teamMembers={teamMembers} /> : null}
-          {step === 4 ? (
+          {step === 3 ? (
             <ReviewStep
               draft={draft}
               templateName={draft.templateId ? templates.find((t) => t.id === draft.templateId)?.name ?? "—" : "None — blank program"}
-              teamMemberName={teamMemberName}
             />
           ) : null}
           {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}

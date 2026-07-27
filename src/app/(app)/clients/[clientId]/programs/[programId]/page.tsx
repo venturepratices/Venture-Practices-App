@@ -25,7 +25,6 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const program = await prisma.program.findFirst({
     where: { id: programId, clientId },
     include: {
-      accountManager: { select: { id: true, name: true } },
       campaigns: {
         orderBy: { sequenceNumber: "asc" },
         include: { tasks: { select: { id: true } } },
@@ -50,7 +49,6 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
               label={PROGRAM_STATUS_LABELS[program.status] ?? program.status}
             />
             <span className="text-sm text-muted-foreground">{PROGRAM_PRODUCT_LABELS[program.product] ?? program.product}</span>
-            <span className="text-sm text-muted-foreground">· {program.accountManager?.name ?? "Unassigned"}</span>
           </div>
         </div>
         {canManage ? (

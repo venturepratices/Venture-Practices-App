@@ -16,10 +16,12 @@ type TimelineCampaign = {
   id: string;
   sequenceNumber: number;
   name?: string | null;
-  mailDate: Date;
-  creativeDueDate: Date;
+  mailDate: Date | null;
+  creativeDueDate: Date | null;
   currentStage: CampaignStageValue;
 };
+
+type ScheduledCampaign = TimelineCampaign & { mailDate: Date; creativeDueDate: Date };
 
 function monthKey(date: Date) {
   return date.getFullYear() * 12 + date.getMonth();
@@ -52,7 +54,15 @@ export function ProgramTimeline({
 }) {
   if (campaigns.length === 0) return null;
 
-  const keys = campaigns.flatMap((c) => [monthKey(c.creativeDueDate), monthKey(c.mailDate)]);
+  const scheduled: ScheduledCampaign[] = campaigns.filter(
+    (c): c is ScheduledCampaign => c.mailDate != null && c.creativeDueDate != null
+  );
+  const unscheduledCount = campaigns.length - scheduled.length;
+  if (scheduled.length === 0) {
+    return <p className="text-sm text-muted-foreground">No campaigns have a mail date set yet.</p>;
+  }
+
+  const keys = scheduled.flatMap((c) => [monthKey(c.creativeDueDate), monthKey(c.mailDate)]);
   const minKey = Math.min(...keys);
   const maxKey = Math.max(...keys);
   const monthCount = maxKey - minKey + 1;
@@ -83,7 +93,7 @@ export function ProgramTimeline({
           </div>
         </div>
 
-        {campaigns.map((campaign) => {
+        {scheduled.map((campaign) => {
           const startOffset = monthKey(campaign.creativeDueDate) - minKey;
           const endOffset = monthKey(campaign.mailDate) - minKey;
           const barLeft = startOffset * MONTH_WIDTH + 4;
@@ -122,6 +132,11 @@ export function ProgramTimeline({
           );
         })}
       </div>
+      {unscheduledCount > 0 ? (
+        <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+          {unscheduledCount} campaign{unscheduledCount === 1 ? "" : "s"} without a mail date yet — not shown above.
+        </p>
+      ) : null}
     </div>
   );
 }

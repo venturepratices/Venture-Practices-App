@@ -41,7 +41,6 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
   }
 
   async function handleSubmit() {
-    if (!mailDate) return;
     setError(null);
     setIsSaving(true);
     const response = await fetch(`/api/programs/${programId}/campaigns`, {
@@ -49,7 +48,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.trim() || null,
-        mailDate: new Date(`${mailDate}T00:00:00.000Z`).toISOString(),
+        mailDate: mailDate ? new Date(`${mailDate}T00:00:00.000Z`).toISOString() : null,
         quantity: quantity ? Number(quantity) : null,
         geography: geography.trim() || null,
         budgetCents: budget ? Math.round(Number(budget) * 100) : null,
@@ -77,6 +76,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
           <DialogTitle>New campaign</DialogTitle>
           <DialogDescription>
             Creative, approval, and print due dates are computed automatically from the mail date (4/3/2 weeks out).
+            Leave dates blank to fill in later.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -91,7 +91,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
           </div>
           <div className="space-y-2">
             <Label htmlFor="campaign-mail-date">Mail date</Label>
-            <Input id="campaign-mail-date" type="date" value={mailDate} onChange={(e) => setMailDate(e.target.value)} required />
+            <Input id="campaign-mail-date" type="date" value={mailDate} onChange={(e) => setMailDate(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -125,7 +125,7 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
-          <Button type="button" onClick={handleSubmit} disabled={isSaving || !mailDate}>
+          <Button type="button" onClick={handleSubmit} disabled={isSaving}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
             {isSaving ? "Adding..." : "Add campaign"}
           </Button>

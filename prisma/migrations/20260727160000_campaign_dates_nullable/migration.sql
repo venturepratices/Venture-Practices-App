@@ -1,0 +1,4 @@
+ALTER TABLE "Campaign" ALTER COLUMN "mailDate" DROP NOT NULL;
+ALTER TABLE "Campaign" ALTER COLUMN "creativeDueDate" DROP NOT NULL;
+ALTER TABLE "Campaign" ALTER COLUMN "approvalDueDate" DROP NOT NULL;
+ALTER TABLE "Campaign" ALTER COLUMN "printDueDate" DROP NOT NULL;

@@ -49,11 +49,10 @@ export async function POST(request: Request) {
     }));
   }
 
-  const bindings = {
-    accountManagerId: input.accountManagerId,
-    creativeId: input.creativeId,
-    productionId: input.productionId,
-  };
+  // Role-tagged auto-assignment (Account Manager / Creative / Production) was
+  // removed — spawned tasks always start unassigned; assign people per-task
+  // afterward from the campaign page.
+  const bindings = { accountManagerId: null, creativeId: null, productionId: null };
 
   const startMonth = new Date(input.startMonth);
 
@@ -66,19 +65,9 @@ export async function POST(request: Request) {
         status: "ACTIVE",
         startMonth,
         lengthMonths: input.lengthMonths,
-        accountManagerId: input.accountManagerId,
         templateSnapshot: stagesSnapshot.length > 0 ? stagesSnapshot : undefined,
       },
     });
-
-    for (const [roleTag, teamMemberId] of [
-      ["ACCOUNT_MANAGER", input.accountManagerId],
-      ["CREATIVE", input.creativeId],
-      ["PRODUCTION", input.productionId],
-    ] as const) {
-      if (!teamMemberId) continue;
-      await tx.programRoleBinding.create({ data: { programId: program.id, roleTag, teamMemberId } });
-    }
 
     const campaigns = [];
     for (let i = 0; i < input.lengthMonths; i++) {
@@ -102,7 +91,14 @@ export async function POST(request: Request) {
       campaigns.push(campaign);
 
       if (stagesSnapshot.length > 0) {
-        await spawnCampaignTasks(tx, { programId: program.id, campaignId: campaign.id, mailDate, stagesSnapshot, bindings });
+        await spawnCampaignTasks(tx, {
+          programId: program.id,
+          campaignId: campaign.id,
+          clientId: input.clientId,
+          mailDate,
+          stagesSnapshot,
+          bindings,
+        });
       }
     }
 

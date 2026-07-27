@@ -17,7 +17,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
     where: { id: programId },
     include: {
       client: { select: { id: true, name: true } },
-      accountManager: { select: { id: true, name: true } },
       campaigns: { orderBy: { sequenceNumber: "asc" } },
       tasks: {
         where: { campaignId: null },
@@ -73,7 +72,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pr
       ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
       ...(parsed.data.startMonth !== undefined ? { startMonth: new Date(parsed.data.startMonth) } : {}),
       ...(parsed.data.lengthMonths !== undefined ? { lengthMonths: parsed.data.lengthMonths } : {}),
-      ...(parsed.data.accountManagerId !== undefined ? { accountManagerId: parsed.data.accountManagerId } : {}),
     },
   });
 

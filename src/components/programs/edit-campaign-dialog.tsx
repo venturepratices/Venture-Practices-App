@@ -20,10 +20,10 @@ import { Label } from "@/components/ui/label";
 type EditableCampaign = {
   id: string;
   name: string | null;
-  mailDate: Date | string;
-  creativeDueDate: Date | string;
-  approvalDueDate: Date | string;
-  printDueDate: Date | string;
+  mailDate: Date | string | null;
+  creativeDueDate: Date | string | null;
+  approvalDueDate: Date | string | null;
+  printDueDate: Date | string | null;
   quantity: number | null;
   geography: string | null;
   budgetCents: number | null;
@@ -31,8 +31,8 @@ type EditableCampaign = {
   cta: string | null;
 };
 
-function toDateInputValue(date: Date | string) {
-  return new Date(date).toISOString().slice(0, 10);
+function toDateInputValue(date: Date | string | null) {
+  return date ? new Date(date).toISOString().slice(0, 10) : "";
 }
 
 export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign }) {
@@ -52,7 +52,6 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit() {
-    if (!mailDate || !creativeDueDate || !approvalDueDate || !printDueDate) return;
     setError(null);
     setIsSaving(true);
     const response = await fetch(`/api/campaigns/${campaign.id}`, {
@@ -60,10 +59,10 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.trim() || null,
-        mailDate: new Date(`${mailDate}T00:00:00.000Z`).toISOString(),
-        creativeDueDate: new Date(`${creativeDueDate}T00:00:00.000Z`).toISOString(),
-        approvalDueDate: new Date(`${approvalDueDate}T00:00:00.000Z`).toISOString(),
-        printDueDate: new Date(`${printDueDate}T00:00:00.000Z`).toISOString(),
+        mailDate: mailDate ? new Date(`${mailDate}T00:00:00.000Z`).toISOString() : null,
+        creativeDueDate: creativeDueDate ? new Date(`${creativeDueDate}T00:00:00.000Z`).toISOString() : null,
+        approvalDueDate: approvalDueDate ? new Date(`${approvalDueDate}T00:00:00.000Z`).toISOString() : null,
+        printDueDate: printDueDate ? new Date(`${printDueDate}T00:00:00.000Z`).toISOString() : null,
         quantity: quantity ? Number(quantity) : null,
         geography: geography.trim() || null,
         budgetCents: budget ? Math.round(Number(budget) * 100) : null,
@@ -95,7 +94,7 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit campaign</DialogTitle>
-          <DialogDescription>Due dates aren't recomputed automatically once edited directly.</DialogDescription>
+          <DialogDescription>Due dates aren't recomputed automatically once edited directly. Leave any date blank to clear it.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
@@ -110,7 +109,7 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="edit-campaign-mail-date">Mail date</Label>
-              <Input id="edit-campaign-mail-date" type="date" value={mailDate} onChange={(e) => setMailDate(e.target.value)} required />
+              <Input id="edit-campaign-mail-date" type="date" value={mailDate} onChange={(e) => setMailDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-campaign-creative-due">Creative due</Label>
@@ -119,7 +118,6 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
                 type="date"
                 value={creativeDueDate}
                 onChange={(e) => setCreativeDueDate(e.target.value)}
-                required
               />
             </div>
             <div className="space-y-2">
@@ -129,18 +127,11 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
                 type="date"
                 value={approvalDueDate}
                 onChange={(e) => setApprovalDueDate(e.target.value)}
-                required
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-campaign-print-due">Print due</Label>
-              <Input
-                id="edit-campaign-print-due"
-                type="date"
-                value={printDueDate}
-                onChange={(e) => setPrintDueDate(e.target.value)}
-                required
-              />
+              <Input id="edit-campaign-print-due" type="date" value={printDueDate} onChange={(e) => setPrintDueDate(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -170,11 +161,7 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSaving || !mailDate || !creativeDueDate || !approvalDueDate || !printDueDate}
-          >
+          <Button type="button" onClick={handleSubmit} disabled={isSaving}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
             {isSaving ? "Saving..." : "Save changes"}
           </Button>

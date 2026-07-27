@@ -15,9 +15,6 @@ export const createProgramWizardSchema = z.object({
   geography: z.string().trim().max(300).nullable(),
   offer: z.string().trim().max(300).nullable(),
   cta: z.string().trim().max(300).nullable(),
-  accountManagerId: z.string().nullable(),
-  creativeId: z.string().nullable(),
-  productionId: z.string().nullable(),
 });
 
 export type CreateProgramWizardInput = z.infer<typeof createProgramWizardSchema>;

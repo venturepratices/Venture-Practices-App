@@ -572,10 +572,12 @@ model Campaign {
   program          Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
   sequenceNumber   Int
   name             String?
-  mailDate         DateTime
-  creativeDueDate  DateTime
-  approvalDueDate  DateTime
-  printDueDate     DateTime
+  // All four nullable — a campaign can be created before its dates are
+  // decided; forms don't block progress on them, they can be filled in later.
+  mailDate         DateTime?
+  creativeDueDate  DateTime?
+  approvalDueDate  DateTime?
+  printDueDate     DateTime?
   currentStage     CampaignStage @default(PLANNING)
   quantity         Int?
   geography        String?

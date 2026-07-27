@@ -19,29 +19,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const NONE = "__none__";
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
 
-export function NewProgramDialog({
-  clientId,
-  teamMembers,
-  trigger,
-}: {
-  clientId: string;
-  teamMembers: { id: string; name: string }[];
-  trigger: React.ReactElement;
-}) {
+export function NewProgramDialog({ clientId, trigger }: { clientId: string; trigger: React.ReactElement }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [product, setProduct] = useState<string>("NEW_MOVERS");
   const [startMonth, setStartMonth] = useState("");
   const [lengthMonths, setLengthMonths] = useState("1");
-  const [accountManagerId, setAccountManagerId] = useState<string>(NONE);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit() {
-    if (!name.trim() || !startMonth) return;
+    if (!name.trim()) return;
     setError(null);
     setIsSaving(true);
     const response = await fetch("/api/programs", {
@@ -51,9 +45,10 @@ export function NewProgramDialog({
         clientId,
         name: name.trim(),
         product,
-        startMonth: new Date(`${startMonth}-01T00:00:00.000Z`).toISOString(),
+        // If left blank, default to the current month rather than blocking
+        // creation on a date the user may not have decided yet.
+        startMonth: new Date(`${startMonth || currentMonthValue()}-01T00:00:00.000Z`).toISOString(),
         lengthMonths: Number(lengthMonths) || 1,
-        accountManagerId: accountManagerId === NONE ? null : accountManagerId,
       }),
     });
     setIsSaving(false);
@@ -63,7 +58,6 @@ export function NewProgramDialog({
       setName("");
       setStartMonth("");
       setLengthMonths("1");
-      setAccountManagerId(NONE);
       router.refresh();
     } else {
       const data = await response.json().catch(() => null);
@@ -108,7 +102,8 @@ export function NewProgramDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="program-start">Start month</Label>
-              <Input id="program-start" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} required />
+              <Input id="program-start" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Leave blank to default to the current month.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="program-length">Length (months)</Label>
@@ -122,28 +117,10 @@ export function NewProgramDialog({
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="program-am">Account manager</Label>
-            <Select value={accountManagerId} onValueChange={(value) => value && setAccountManagerId(value)}>
-              <SelectTrigger id="program-am" className="w-full">
-                <SelectValue>
-                  {(value: string) => (value === NONE ? "Unassigned" : teamMembers.find((m) => m.id === value)?.name ?? value)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Unassigned</SelectItem>
-                {teamMembers.map((member) => (
-                  <SelectItem key={member.id} value={member.id}>
-                    {member.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
-          <Button type="button" onClick={handleSubmit} disabled={isSaving || !name.trim() || !startMonth}>
+          <Button type="button" onClick={handleSubmit} disabled={isSaving || !name.trim()}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
             {isSaving ? "Creating..." : "Create program"}
           </Button>

@@ -68,7 +68,6 @@ export async function POST(request: Request) {
       status: parsed.data.status ?? "DRAFT",
       startMonth: new Date(parsed.data.startMonth),
       lengthMonths: parsed.data.lengthMonths ?? 1,
-      accountManagerId: parsed.data.accountManagerId ?? null,
     },
   });
 
