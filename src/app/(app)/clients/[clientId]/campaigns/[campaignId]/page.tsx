@@ -24,9 +24,9 @@ function formatCurrency(cents: number) {
 export default async function CampaignDetailPage({
   params,
 }: {
-  params: Promise<{ clientId: string; programId: string; campaignId: string }>;
+  params: Promise<{ clientId: string; campaignId: string }>;
 }) {
-  const { clientId, programId, campaignId } = await params;
+  const { clientId, campaignId } = await params;
 
   try {
     await requireClientAccess(clientId);
@@ -38,9 +38,8 @@ export default async function CampaignDetailPage({
 
   const [campaign, teamMembers, templates] = await Promise.all([
     prisma.campaign.findFirst({
-      where: { id: campaignId, programId, program: { clientId } },
+      where: { id: campaignId, clientId },
       include: {
-        program: { select: { id: true, name: true } },
         tasks: {
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
@@ -70,11 +69,11 @@ export default async function CampaignDetailPage({
   return (
     <div className="max-w-3xl">
       <Link
-        href={`/clients/${clientId}/programs/${programId}`}
+        href={`/clients/${clientId}/campaigns`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ChevronLeft className="size-4" />
-        {campaign.program.name}
+        Direct Mail
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -83,12 +82,7 @@ export default async function CampaignDetailPage({
           {canManage ? (
             <>
               <EditCampaignDialog campaign={campaign} />
-              <DeleteCampaignButton
-                campaignId={campaign.id}
-                campaignLabel={campaignLabel(campaign)}
-                clientId={clientId}
-                programId={programId}
-              />
+              <DeleteCampaignButton campaignId={campaign.id} campaignLabel={campaignLabel(campaign)} clientId={clientId} />
             </>
           ) : null}
           <StageSelect campaignId={campaign.id} currentStage={campaign.currentStage} canManage={canManage} />
@@ -186,7 +180,6 @@ export default async function CampaignDetailPage({
                         clientId={clientId}
                         lockClient
                         teamMembers={teamMembers}
-                        programId={campaign.programId}
                         campaignId={campaign.id}
                         campaignStage={stage}
                       />

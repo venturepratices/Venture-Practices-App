@@ -6,7 +6,7 @@ import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { spawnCampaignTasks, type TemplateSnapshot } from "@/lib/program-template";
-import { createProgramWizardSchema } from "@/lib/validations/program-wizard";
+import { createCampaignWizardSchema } from "@/lib/validations/campaign";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const parsed = createProgramWizardSchema.safeParse(body);
+  const parsed = createCampaignWizardSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
@@ -56,66 +56,63 @@ export async function POST(request: Request) {
 
   const startMonth = new Date(input.startMonth);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const program = await tx.program.create({
-      data: {
-        clientId: input.clientId,
-        name: input.name,
-        product: input.product,
-        status: "ACTIVE",
-        startMonth,
-        lengthMonths: input.lengthMonths,
-        templateSnapshot: stagesSnapshot.length > 0 ? stagesSnapshot : undefined,
-      },
-    });
+  const last = await prisma.campaign.findFirst({
+    where: { clientId: input.clientId },
+    orderBy: { sequenceNumber: "desc" },
+    select: { sequenceNumber: true },
+  });
+  const startingSequence = (last?.sequenceNumber ?? 0) + 1;
 
-    const campaigns = [];
-    for (let i = 0; i < input.lengthMonths; i++) {
-      const mailDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, input.mailDayOfMonth);
-      const dueDates = computeCampaignDueDates(mailDate);
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const campaigns = [];
+      for (let i = 0; i < input.lengthMonths; i++) {
+        const mailDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, input.mailDayOfMonth);
+        const dueDates = computeCampaignDueDates(mailDate);
 
-      const campaign = await tx.campaign.create({
-        data: {
-          programId: program.id,
-          sequenceNumber: i + 1,
-          mailDate,
-          ...dueDates,
-          quantity: input.quantity,
-          budgetCents: input.budgetCents,
-          geography: input.geography,
-          offer: input.offer,
-          cta: input.cta,
-          stagesSnapshot: stagesSnapshot.length > 0 ? stagesSnapshot : undefined,
-        },
-      });
-      campaigns.push(campaign);
-
-      if (stagesSnapshot.length > 0) {
-        await spawnCampaignTasks(tx, {
-          programId: program.id,
-          campaignId: campaign.id,
-          clientId: input.clientId,
-          mailDate,
-          stagesSnapshot,
-          bindings,
+        const campaign = await tx.campaign.create({
+          data: {
+            clientId: input.clientId,
+            sequenceNumber: startingSequence + i,
+            mailDate,
+            ...dueDates,
+            quantity: input.quantity,
+            budgetCents: input.budgetCents,
+            geography: input.geography,
+            offer: input.offer,
+            cta: input.cta,
+            stagesSnapshot: stagesSnapshot.length > 0 ? stagesSnapshot : undefined,
+          },
         });
+        campaigns.push(campaign);
+
+        if (stagesSnapshot.length > 0) {
+          await spawnCampaignTasks(tx, {
+            campaignId: campaign.id,
+            clientId: input.clientId,
+            mailDate,
+            stagesSnapshot,
+            bindings,
+          });
+        }
       }
-    }
 
-    const taskCount = await tx.task.count({ where: { programId: program.id } });
+      const taskCount = await tx.task.count({ where: { campaignId: { in: campaigns.map((c) => c.id) } } });
 
-    return { program, campaignCount: campaigns.length, taskCount };
-  }, { timeout: 30000 });
+      return { campaigns, campaignCount: campaigns.length, taskCount };
+    },
+    { timeout: 30000 }
+  );
 
   const client = await prisma.client.findUnique({ where: { id: input.clientId }, select: { name: true } });
   await logActivity({
     actorId: session.user.id,
     actorName: session.user.name ?? null,
-    entityType: "Program",
-    entityId: result.program.id,
-    entityLabel: result.program.name,
-    action: "program_created",
-    description: `${session.user.name ?? "Someone"} ran the Campaign Generator wizard for "${result.program.name}" (${client?.name ?? "a client"}) — ${result.campaignCount} campaigns, ${result.taskCount} tasks`,
+    entityType: "Campaign",
+    entityId: result.campaigns[0]?.id ?? input.clientId,
+    entityLabel: client?.name ?? "a client",
+    action: "campaign_created",
+    description: `${session.user.name ?? "Someone"} ran the Campaign Generator wizard for "${client?.name ?? "a client"}" — ${result.campaignCount} campaigns, ${result.taskCount} tasks`,
   });
 
   return NextResponse.json(result, { status: 201 });

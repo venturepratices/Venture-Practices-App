@@ -20,7 +20,6 @@ type Props = {
   lockClient?: boolean;
   clients?: { id: string; name: string }[];
   teamMembers?: { id: string; name: string }[];
-  programId?: string | null;
   campaignId?: string | null;
   campaignStage?: string | null;
 };
@@ -31,7 +30,6 @@ export function NewTaskInput({
   lockClient,
   clients = [],
   teamMembers = [],
-  programId,
   campaignId,
   campaignStage,
 }: Props) {
@@ -68,7 +66,6 @@ export function NewTaskInput({
         status,
         occurrence,
         deadline: deadline ? new Date(deadline).toISOString() : null,
-        ...(programId !== undefined ? { programId } : {}),
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(campaignStage !== undefined ? { campaignStage } : {}),
       }),

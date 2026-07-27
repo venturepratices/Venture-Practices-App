@@ -47,9 +47,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function spawnCampaignTasks(
   tx: Prisma.TransactionClient,
   params: {
-    programId: string;
     campaignId: string;
-    // The program's own client, so spawned tasks show up in that client's
+    // The campaign's own client, so spawned tasks show up in that client's
     // Tasks tab like any other task — not just on the Direct Mail campaign
     // page itself.
     clientId: string;
@@ -66,7 +65,6 @@ export async function spawnCampaignTasks(
   const createdTasks = await tx.task.createManyAndReturn({
     data: flatTasks.map((task) => ({
       title: task.title,
-      programId: params.programId,
       campaignId: params.campaignId,
       clientId: params.clientId,
       campaignStage: task.stage,

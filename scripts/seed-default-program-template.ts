@@ -75,7 +75,6 @@ async function main() {
   const template = await prisma.programTemplate.create({
     data: {
       name: TEMPLATE_NAME,
-      product: null,
       stages: {
         create: STAGES.map((stage, stageIndex) => ({
           stage: stage.stage,

@@ -35,7 +35,6 @@ export const createTaskSchema = z.object({
   status: z.enum(TASK_STATUS_VALUES).optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   deadline: z.string().datetime().nullable().optional(),
-  programId: z.string().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
 });
@@ -47,7 +46,6 @@ export const updateTaskSchema = z.object({
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   status: z.enum(TASK_STATUS_VALUES).optional(),
   deadline: z.string().datetime().nullable().optional(),
-  programId: z.string().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
 });

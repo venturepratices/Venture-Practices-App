@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: {
-      program: { select: { id: true, clientId: true, name: true } },
+      client: { select: { id: true, name: true } },
       tasks: {
         include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
         orderBy: { createdAt: "desc" },
@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
   }
 
   try {
-    await requireClientAccess(campaign.program.clientId);
+    await requireClientAccess(campaign.clientId);
     await requireCapability("canViewDirectMail");
   } catch (error) {
     return toErrorResponse(error);
@@ -47,14 +47,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
   const { campaignId } = await params;
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    include: { program: { select: { clientId: true, name: true } } },
+    include: { client: { select: { id: true, name: true } } },
   });
   if (!campaign) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    await requireClientAccess(campaign.program.clientId);
+    await requireClientAccess(campaign.clientId);
     await requireCapability("canManageDirectMail");
   } catch (error) {
     return toErrorResponse(error);
@@ -92,12 +92,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     actorName: session.user.name ?? null,
     entityType: "Campaign",
     entityId: campaign.id,
-    entityLabel: `${campaign.program.name} — ${campaignLabel(updated)}`,
+    entityLabel: `${campaignLabel(updated)} — ${campaign.client.name}`,
     action: "campaign_updated",
     description:
       parsed.data.currentStage !== undefined
-        ? `${session.user.name ?? "Someone"} advanced ${campaignLabel(updated)} (${campaign.program.name}) to ${updated.currentStage}`
-        : `${session.user.name ?? "Someone"} updated ${campaignLabel(updated)} (${campaign.program.name})`,
+        ? `${session.user.name ?? "Someone"} advanced ${campaignLabel(updated)} (${campaign.client.name}) to ${updated.currentStage}`
+        : `${session.user.name ?? "Someone"} updated ${campaignLabel(updated)} (${campaign.client.name})`,
   });
 
   return NextResponse.json(updated);
@@ -112,14 +112,14 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { campaignId } = await params;
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    include: { program: { select: { clientId: true, name: true } } },
+    include: { client: { select: { id: true, name: true } } },
   });
   if (!campaign) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    await requireClientAccess(campaign.program.clientId);
+    await requireClientAccess(campaign.clientId);
     await requireCapability("canManageDirectMail");
   } catch (error) {
     return toErrorResponse(error);
@@ -136,9 +136,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     actorName: session.user.name ?? null,
     entityType: "Campaign",
     entityId: campaign.id,
-    entityLabel: `${campaign.program.name} — ${campaignLabel(campaign)}`,
+    entityLabel: `${campaignLabel(campaign)} — ${campaign.client.name}`,
     action: "campaign_deleted",
-    description: `${session.user.name ?? "Someone"} deleted ${campaignLabel(campaign)} from "${campaign.program.name}"`,
+    description: `${session.user.name ?? "Someone"} deleted ${campaignLabel(campaign)} for "${campaign.client.name}"`,
   });
 
   return NextResponse.json({ ok: true });

@@ -13,15 +13,6 @@ export function ScheduleStep({
 }) {
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="wizard-name">Program name</Label>
-        <Input
-          id="wizard-name"
-          value={draft.name}
-          onChange={(e) => setField("name", e.target.value)}
-          placeholder="e.g. New Movers — Fall 2026"
-        />
-      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="wizard-start">Start month</Label>

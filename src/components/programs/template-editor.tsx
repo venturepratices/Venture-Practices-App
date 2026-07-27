@@ -6,7 +6,6 @@ import { ChevronDown, Loader2, Plus, Trash2, X } from "lucide-react";
 
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, type CampaignStageValue } from "@/lib/campaign-stage";
 import { ROLE_TAG_LABELS, ROLE_TAG_VALUES, type RoleTagValue } from "@/lib/role-tag";
-import { PROGRAM_PRODUCT_LABELS } from "@/lib/validations/program";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,7 +17,6 @@ type StagesDraft = Record<CampaignStageValue, TemplateTask[]>;
 export type ProgramTemplateWithStages = {
   id: string;
   name: string;
-  product: string | null;
   isActive: boolean;
   stages: {
     stage: CampaignStageValue;
@@ -100,10 +98,7 @@ export function TemplateEditor({ template }: { template: ProgramTemplateWithStag
       >
         <div>
           <p className="font-medium">{template.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {template.product ? PROGRAM_PRODUCT_LABELS[template.product] ?? template.product : "Any product"}
-            {!isActive ? " · Inactive" : ""}
-          </p>
+          {!isActive ? <p className="text-xs text-muted-foreground">Inactive</p> : null}
         </div>
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
       </button>

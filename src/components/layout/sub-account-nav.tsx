@@ -13,7 +13,7 @@ const LOCAL_LINKS = [
   { segment: "conversations", label: "Conversations", cap: "conversations" as const },
   { segment: "calls", label: "Calls", cap: "conversations" as const },
   { segment: "assets", label: "Assets", cap: "assets" as const },
-  { segment: "programs", label: "Direct Mail", cap: "directMail" as const },
+  { segment: "campaigns", label: "Direct Mail", cap: "directMail" as const },
   { segment: "credentials", label: "Credentials", cap: "credentials" as const },
   { segment: "finance", label: "Finance", comingSoon: true },
 ];

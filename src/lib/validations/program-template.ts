@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
-import { PROGRAM_PRODUCT_VALUES } from "@/lib/validations/program";
 import { ROLE_TAG_VALUES } from "@/lib/role-tag";
 
 const taskTemplateSchema = z.object({
@@ -17,13 +16,11 @@ const stageTemplateSchema = z.object({
 
 export const createProgramTemplateSchema = z.object({
   name: z.string().trim().min(1, "Template name is required").max(120),
-  product: z.enum(PROGRAM_PRODUCT_VALUES).nullable().optional(),
   stages: z.array(stageTemplateSchema),
 });
 
 export const updateProgramTemplateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
-  product: z.enum(PROGRAM_PRODUCT_VALUES).nullable().optional(),
   isActive: z.boolean().optional(),
   // When provided, replaces the entire stages/tasks tree wholesale — templates
   // are edited infrequently by admins, so a full-tree replace is simpler and

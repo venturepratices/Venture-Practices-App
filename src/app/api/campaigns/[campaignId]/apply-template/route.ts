@@ -21,14 +21,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
   const { campaignId } = await params;
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    include: { program: { select: { id: true, clientId: true, name: true } } },
+    include: { client: { select: { id: true, name: true } } },
   });
   if (!campaign) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    await requireClientAccess(campaign.program.clientId);
+    await requireClientAccess(campaign.clientId);
     await requireCapability("canManageDirectMail");
   } catch (error) {
     return toErrorResponse(error);
@@ -66,9 +66,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
   const taskCount = await prisma.$transaction(
     async (tx) => {
       await spawnCampaignTasks(tx, {
-        programId: campaign.programId,
         campaignId: campaign.id,
-        clientId: campaign.program.clientId,
+        clientId: campaign.clientId,
         mailDate: campaign.mailDate,
         stagesSnapshot,
         bindings,
@@ -86,9 +85,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
     actorName: session.user.name ?? null,
     entityType: "Campaign",
     entityId: campaign.id,
-    entityLabel: `${campaign.program.name} — ${campaignLabel(campaign)}`,
+    entityLabel: `${campaignLabel(campaign)} — ${campaign.client.name}`,
     action: "template_applied",
-    description: `${session.user.name ?? "Someone"} applied the "${template.name}" template to ${campaignLabel(campaign)} (${campaign.program.name})`,
+    description: `${session.user.name ?? "Someone"} applied the "${template.name}" template to ${campaignLabel(campaign)} (${campaign.client.name})`,
   });
 
   return NextResponse.json({ ok: true, taskCount });

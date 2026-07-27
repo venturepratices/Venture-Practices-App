@@ -24,7 +24,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: {
-      program: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true } },
       tasks: {
         select: {
           id: true,
@@ -51,7 +51,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   });
   if (advanced.count === 0) return null; // already advanced by a concurrent request
 
-  const campaignLabel = `${formatCampaignLabel(campaign)} — ${campaign.program.name}`;
+  const campaignLabel = `${formatCampaignLabel(campaign)} — ${campaign.client.name}`;
   const newStageLabel = CAMPAIGN_STAGE_LABELS[newStage];
 
   const newStageAssigneeIds = new Set<string>();

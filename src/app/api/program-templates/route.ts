@@ -51,7 +51,6 @@ export async function POST(request: Request) {
   const template = await prisma.programTemplate.create({
     data: {
       name: parsed.data.name,
-      product: parsed.data.product ?? null,
       stages: {
         create: parsed.data.stages.map((stage, stageIndex) => ({
           stage: stage.stage,

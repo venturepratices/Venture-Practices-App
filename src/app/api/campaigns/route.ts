@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { campaignLabel } from "@/lib/campaign-stage";
+import { computeCampaignDueDates } from "@/lib/date-math";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { createProgramSchema } from "@/lib/validations/program";
+import { createCampaignSchema } from "@/lib/validations/campaign";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -24,16 +26,12 @@ export async function GET(request: Request) {
     return toErrorResponse(error);
   }
 
-  const programs = await prisma.program.findMany({
+  const campaigns = await prisma.campaign.findMany({
     where: { clientId },
-    include: {
-      accountManager: { select: { id: true, name: true } },
-      campaigns: { orderBy: { sequenceNumber: "asc" } },
-    },
-    orderBy: { createdAt: "desc" },
+    orderBy: { sequenceNumber: "asc" },
   });
 
-  return NextResponse.json(programs);
+  return NextResponse.json(campaigns);
 }
 
 export async function POST(request: Request) {
@@ -55,19 +53,32 @@ export async function POST(request: Request) {
     return toErrorResponse(error);
   }
 
-  const parsed = createProgramSchema.safeParse(body);
+  const parsed = createCampaignSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const program = await prisma.program.create({
+  const mailDate = parsed.data.mailDate ? new Date(parsed.data.mailDate) : null;
+  const dueDates = computeCampaignDueDates(mailDate);
+
+  const last = await prisma.campaign.findFirst({
+    where: { clientId },
+    orderBy: { sequenceNumber: "desc" },
+    select: { sequenceNumber: true },
+  });
+
+  const campaign = await prisma.campaign.create({
     data: {
       clientId,
-      name: parsed.data.name,
-      product: parsed.data.product ?? "NEW_MOVERS",
-      status: parsed.data.status ?? "DRAFT",
-      startMonth: new Date(parsed.data.startMonth),
-      lengthMonths: parsed.data.lengthMonths ?? 1,
+      sequenceNumber: (last?.sequenceNumber ?? 0) + 1,
+      name: parsed.data.name ?? null,
+      mailDate,
+      ...dueDates,
+      quantity: parsed.data.quantity ?? null,
+      geography: parsed.data.geography ?? null,
+      budgetCents: parsed.data.budgetCents ?? null,
+      offer: parsed.data.offer ?? null,
+      cta: parsed.data.cta ?? null,
     },
   });
 
@@ -75,12 +86,12 @@ export async function POST(request: Request) {
   await logActivity({
     actorId: session.user.id,
     actorName: session.user.name ?? null,
-    entityType: "Program",
-    entityId: program.id,
-    entityLabel: program.name,
-    action: "program_created",
-    description: `${session.user.name ?? "Someone"} created the Direct Mail program "${program.name}" for "${client?.name ?? "a client"}"`,
+    entityType: "Campaign",
+    entityId: campaign.id,
+    entityLabel: `${campaignLabel(campaign)} — ${client?.name ?? "a client"}`,
+    action: "campaign_created",
+    description: `${session.user.name ?? "Someone"} added ${campaignLabel(campaign)} for "${client?.name ?? "a client"}"`,
   });
 
-  return NextResponse.json(program, { status: 201 });
+  return NextResponse.json(campaign, { status: 201 });
 }

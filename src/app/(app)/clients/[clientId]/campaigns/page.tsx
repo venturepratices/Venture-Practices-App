@@ -6,23 +6,22 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/info-tip";
-import { NewProgramDialog } from "@/components/programs/new-program-dialog";
-import { ProgramCard } from "@/components/programs/program-card";
+import { CampaignRow } from "@/components/programs/campaign-row";
+import { CampaignsTimeline } from "@/components/programs/campaigns-timeline";
+import { NewCampaignDialog } from "@/components/programs/new-campaign-dialog";
 import { CampaignWizardDialog } from "@/components/programs/wizard/wizard-shell";
 
-export default async function ClientProgramsPage({ params }: { params: Promise<{ clientId: string }> }) {
+export default async function ClientCampaignsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
   // Client-access is enforced by the layout; this adds the Direct Mail capability.
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
 
-  const [programs, templates] = await Promise.all([
-    prisma.program.findMany({
+  const [campaigns, templates] = await Promise.all([
+    prisma.campaign.findMany({
       where: { clientId },
-      include: {
-        campaigns: { select: { id: true } },
-      },
-      orderBy: { createdAt: "desc" },
+      include: { tasks: { select: { id: true } } },
+      orderBy: { sequenceNumber: "asc" },
     }),
     prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
@@ -33,9 +32,9 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           Direct Mail
           <InfoTip>
-            A program is one mail engagement for this client (e.g. New Movers). Each program contains monthly
-            campaigns — one per physical mailing — moving through Planning → Creative → Review → Approval →
-            Production → Mailed → Results.
+            Each campaign is one physical mailing for this client, moving through Planning → Creative → Review →
+            Approval → Production → Mailed → Results. Use the Campaign Generator to create several at once (e.g. a
+            run of monthly mailers), or add campaigns one at a time.
           </InfoTip>
         </h2>
         {canManage ? (
@@ -50,12 +49,12 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
                 </Button>
               }
             />
-            <NewProgramDialog
+            <NewCampaignDialog
               clientId={clientId}
               trigger={
                 <Button size="sm">
                   <Plus className="size-4" />
-                  New program
+                  New campaign
                 </Button>
               }
             />
@@ -63,18 +62,22 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
         ) : null}
       </div>
 
-      <div className="mt-4">
-        {programs.length === 0 ? (
-          <div className="rounded-lg border">
-            <EmptyState icon={Mail} title="No Direct Mail programs yet." className="py-6" />
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {programs.map((program) => (
-              <ProgramCard key={program.id} clientId={clientId} program={program} />
-            ))}
-          </div>
-        )}
+      {campaigns.length > 0 ? (
+        <div className="mt-6">
+          <CampaignsTimeline campaigns={campaigns} clientId={clientId} />
+        </div>
+      ) : null}
+
+      <div className="mt-6">
+        <div className="rounded-lg border divide-y">
+          {campaigns.length === 0 ? (
+            <EmptyState icon={Mail} title="No Direct Mail campaigns yet." className="py-6" />
+          ) : (
+            campaigns.map((campaign) => (
+              <CampaignRow key={campaign.id} clientId={clientId} campaign={campaign} canManage={canManage} />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

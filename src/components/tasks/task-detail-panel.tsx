@@ -20,14 +20,9 @@ import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
 const NO_CLIENT = "__none__";
-const NO_PROGRAM = "__none__";
 const NO_CAMPAIGN = "__none__";
 
-type ProgramOption = {
-  id: string;
-  name: string;
-  campaigns: { id: string; sequenceNumber: number; name?: string | null; currentStage: string }[];
-};
+type CampaignOption = { id: string; sequenceNumber: number; name?: string | null; currentStage: string };
 
 type Draft = {
   title: string;
@@ -36,7 +31,6 @@ type Draft = {
   clientId: string;
   occurrence: string;
   deadline: string; // "YYYY-MM-DD" or ""
-  programId: string;
   campaignId: string;
   campaignStage: string;
 };
@@ -49,7 +43,6 @@ function draftFromTask(task: TaskDetail): Draft {
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
     deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
-    programId: task.programId ?? NO_PROGRAM,
     campaignId: task.campaignId ?? NO_CAMPAIGN,
     campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
   };
@@ -74,7 +67,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [programs, setPrograms] = useState<ProgramOption[] | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignOption[] | null>(null);
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -110,21 +103,22 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     };
   }, [taskId]);
 
-  // Direct Mail programs for the task's client — only fetched once a
-  // client-scoped task is open, since a program can't attach to a client-less
-  // (internal) task. Silently empty (not an error state) for a member without
-  // canViewDirectMail — the route 403s and the section just doesn't render.
+  // Direct Mail campaigns for the task's client — only fetched once a
+  // client-scoped task is open, since a campaign can't attach to a
+  // client-less (internal) task. Silently empty (not an error state) for a
+  // member without canViewDirectMail — the route 403s and the section just
+  // doesn't render.
   useEffect(() => {
     const clientId = task?.clientId;
     if (!clientId) {
-      setPrograms(null);
+      setCampaigns(null);
       return;
     }
     let cancelled = false;
-    fetch(`/api/programs?clientId=${clientId}`)
+    fetch(`/api/campaigns?clientId=${clientId}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: ProgramOption[] | null) => {
-        if (!cancelled) setPrograms(data);
+      .then((data: CampaignOption[] | null) => {
+        if (!cancelled) setCampaigns(data);
       });
     return () => {
       cancelled = true;
@@ -162,9 +156,6 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     if (draft.occurrence !== base.occurrence) fields.occurrence = draft.occurrence;
     if (draft.deadline !== base.deadline) {
       fields.deadline = draft.deadline ? new Date(draft.deadline).toISOString() : null;
-    }
-    if (draft.programId !== base.programId) {
-      fields.programId = draft.programId === NO_PROGRAM ? null : draft.programId;
     }
     if (draft.campaignId !== base.campaignId) {
       fields.campaignId = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignId;
@@ -344,43 +335,14 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                 />
               </div>
 
-              {programs && programs.length > 0 ? (
+              {campaigns && campaigns.length > 0 ? (
                 <div className="space-y-1.5">
-                  <Label>Direct Mail program</Label>
-                  <Select
-                    value={draft.programId}
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      setDraft((prev) =>
-                        prev ? { ...prev, programId: value, campaignId: NO_CAMPAIGN, campaignStage: "PLANNING" } : prev
-                      );
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(value: string) => (value === NO_PROGRAM ? "None" : programs.find((p) => p.id === value)?.name ?? value)}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_PROGRAM}>None</SelectItem>
-                      {programs.map((program) => (
-                        <SelectItem key={program.id} value={program.id}>
-                          {program.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              {draft.programId !== NO_PROGRAM ? (
-                <div className="space-y-1.5">
-                  <Label>Campaign</Label>
+                  <Label>Direct Mail campaign</Label>
                   <Select
                     value={draft.campaignId}
                     onValueChange={(value) => {
                       if (!value) return;
-                      const campaign = programs?.find((p) => p.id === draft.programId)?.campaigns.find((c) => c.id === value);
+                      const campaign = campaigns.find((c) => c.id === value);
                       setDraft((prev) =>
                         prev
                           ? { ...prev, campaignId: value, campaignStage: campaign?.currentStage ?? prev.campaignStage }
@@ -391,27 +353,25 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                     <SelectTrigger className="w-full">
                       <SelectValue>
                         {(value: string) => {
-                          if (value === NO_CAMPAIGN) return "Program-level (no campaign)";
-                          const campaign = programs?.find((p) => p.id === draft.programId)?.campaigns.find((c) => c.id === value);
+                          if (value === NO_CAMPAIGN) return "None";
+                          const campaign = campaigns.find((c) => c.id === value);
                           return campaign ? campaignLabel(campaign) : value;
                         }}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_CAMPAIGN}>Program-level (no campaign)</SelectItem>
-                      {programs
-                        ?.find((p) => p.id === draft.programId)
-                        ?.campaigns.map((campaign) => (
-                          <SelectItem key={campaign.id} value={campaign.id}>
-                            {campaignLabel(campaign)}
-                          </SelectItem>
-                        ))}
+                      <SelectItem value={NO_CAMPAIGN}>None</SelectItem>
+                      {campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaignLabel(campaign)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               ) : null}
 
-              {draft.programId !== NO_PROGRAM && draft.campaignId !== NO_CAMPAIGN ? (
+              {draft.campaignId !== NO_CAMPAIGN ? (
                 <div className="space-y-1.5">
                   <Label>Stage</Label>
                   <Select value={draft.campaignStage} onValueChange={(value) => value && setField("campaignStage", value)}>

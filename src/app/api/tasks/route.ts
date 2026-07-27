@@ -40,7 +40,6 @@ export async function POST(request: Request) {
     data: {
       title: parsed.data.title,
       clientId: parsed.data.clientId ?? null,
-      programId: parsed.data.programId ?? null,
       campaignId: parsed.data.campaignId ?? null,
       campaignStage: parsed.data.campaignStage ?? null,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),

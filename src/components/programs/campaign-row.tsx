@@ -21,18 +21,16 @@ function formatDate(date: Date | string | null) {
 
 export function CampaignRow({
   clientId,
-  programId,
   campaign,
   canManage,
 }: {
   clientId: string;
-  programId: string;
   campaign: CampaignRowData;
   canManage: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-      <Link href={`/clients/${clientId}/programs/${programId}/campaigns/${campaign.id}`} className="min-w-0 flex-1">
+      <Link href={`/clients/${clientId}/campaigns/${campaign.id}`} className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{campaignLabel(campaign)}</p>
         <p className="text-xs text-muted-foreground">
           Mails {formatDate(campaign.mailDate)} · Creative due {formatDate(campaign.creativeDueDate)} · Approval due{" "}

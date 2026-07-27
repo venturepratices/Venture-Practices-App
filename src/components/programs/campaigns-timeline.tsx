@@ -36,22 +36,14 @@ function formatDate(date: Date) {
 }
 
 /**
- * Horizontal overview of every campaign in a program, laid out by month.
+ * Horizontal overview of a client's campaigns, laid out by month.
  * Month-level granularity only (no day precision) — matches how due dates
  * are actually computed (a few weeks before mailDate, usually the same or
  * adjacent month), and keeps this a lightweight hand-rolled visual rather
  * than a full day-precise Gantt chart. Purely presentational: reads
  * currentStage, doesn't write anything.
  */
-export function ProgramTimeline({
-  campaigns,
-  clientId,
-  programId,
-}: {
-  campaigns: TimelineCampaign[];
-  clientId: string;
-  programId: string;
-}) {
+export function CampaignsTimeline({ campaigns, clientId }: { campaigns: TimelineCampaign[]; clientId: string }) {
   if (campaigns.length === 0) return null;
 
   const scheduled: ScheduledCampaign[] = campaigns.filter(
@@ -105,7 +97,7 @@ export function ProgramTimeline({
           return (
             <div key={campaign.id} className="flex items-center">
               <Link
-                href={`/clients/${clientId}/programs/${programId}/campaigns/${campaign.id}`}
+                href={`/clients/${clientId}/campaigns/${campaign.id}`}
                 className="shrink-0 truncate border-r px-3 py-2.5 text-sm font-medium hover:text-primary"
                 style={{ width: LABEL_WIDTH }}
               >

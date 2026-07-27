@@ -10,12 +10,10 @@ export function DeleteCampaignButton({
   campaignId,
   campaignLabel,
   clientId,
-  programId,
 }: {
   campaignId: string;
   campaignLabel: string;
   clientId: string;
-  programId: string;
 }) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -25,7 +23,7 @@ export function DeleteCampaignButton({
     setIsDeleting(true);
     const response = await fetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
     if (response.ok) {
-      router.push(`/clients/${clientId}/programs/${programId}`);
+      router.push(`/clients/${clientId}/campaigns`);
       router.refresh();
     } else {
       setIsDeleting(false);

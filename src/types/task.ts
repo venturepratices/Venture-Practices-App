@@ -20,8 +20,7 @@ export type TaskDetail = Prisma.TaskGetPayload<{
     client: { select: { id: true; name: true } };
     comments: { include: { author: { select: { id: true; name: true } } } };
     links: true;
-    program: { select: { id: true; name: true } };
-    campaign: { select: { id: true; sequenceNumber: true; currentStage: true; programId: true } };
+    campaign: { select: { id: true; sequenceNumber: true; currentStage: true } };
   };
 }>;
 

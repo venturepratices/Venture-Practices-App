@@ -1,13 +1,12 @@
 "use client";
 
-import { PROGRAM_PRODUCT_LABELS, PROGRAM_PRODUCT_VALUES } from "@/lib/validations/program";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { WizardDraft } from "@/components/programs/wizard/wizard-shell";
 
 const NO_TEMPLATE = "__none__";
 
-export function ProductStep({
+export function TemplateStep({
   draft,
   setField,
   templates,
@@ -19,22 +18,6 @@ export function ProductStep({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label>Product</Label>
-        <Select value={draft.product} onValueChange={(value) => value && setField("product", value)}>
-          <SelectTrigger className="w-full">
-            <SelectValue>{(value: string) => PROGRAM_PRODUCT_LABELS[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {PROGRAM_PRODUCT_VALUES.map((value) => (
-              <SelectItem key={value} value={value}>
-                {PROGRAM_PRODUCT_LABELS[value]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1.5">
         <Label>Template</Label>
         <Select
           value={draft.templateId ?? NO_TEMPLATE}
@@ -42,11 +25,11 @@ export function ProductStep({
         >
           <SelectTrigger className="w-full">
             <SelectValue>
-              {(value: string) => (value === NO_TEMPLATE ? "No template — blank program" : templates.find((t) => t.id === value)?.name ?? value)}
+              {(value: string) => (value === NO_TEMPLATE ? "No template — blank campaigns" : templates.find((t) => t.id === value)?.name ?? value)}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_TEMPLATE}>No template — blank program</SelectItem>
+            <SelectItem value={NO_TEMPLATE}>No template — blank campaigns</SelectItem>
             {templates.map((template) => (
               <SelectItem key={template.id} value={template.id}>
                 {template.name}
@@ -55,8 +38,7 @@ export function ProductStep({
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          The template's stage tasks get spawned into every campaign this wizard creates, with assignees resolved
-          from the role bindings step.
+          The template's stage tasks get spawned into every campaign this wizard creates, unassigned.
         </p>
       </div>
     </div>

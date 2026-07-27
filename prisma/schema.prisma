@@ -92,25 +92,6 @@ enum AssetDecisionValue {
   CHANGES_REQUESTED
 }
 
-// Direct Mail Program — top-level workflow object for a client engagement.
-// Each Program contains 1..N monthly Campaigns. See "Feature: Direct Mail
-// Program" in the plan file.
-enum ProgramStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  COMPLETED
-}
-
-enum ProgramProduct {
-  NEW_MOVERS
-  EDDM
-  INVITATION
-  REACTIVATION
-  RECALL
-  OTHER
-}
-
 enum CampaignStage {
   PLANNING
   CREATIVE
@@ -121,10 +102,10 @@ enum CampaignStage {
   RESULTS
 }
 
-// Direct Mail Program templates (Slice 2) — the role a template task is
-// meant for. Resolved to a real TeamMember per-Program via ProgramRoleBinding
-// at wizard time. CLIENT intentionally has no TeamMember binding — those
-// tasks surface as client-facing todos in the portal (Slice 5).
+// Direct Mail template task role — kept for documentation/labeling on the
+// template editor even though nothing currently resolves it to a real
+// TeamMember (the per-program role-binding concept was removed). CLIENT
+// intentionally implies no TeamMember — those template tasks stay unassigned.
 enum RoleTag {
   ACCOUNT_MANAGER
   CREATIVE
@@ -205,11 +186,8 @@ model TeamMember {
   canDeleteAssets          Boolean @default(false)
   canManageClientUsers     Boolean @default(false)
 
-  // Direct Mail Program — view is the base (see the tab, program details,
-  // campaigns, stages); manage lets you create programs/campaigns, edit dates,
-  // advance stages, attach tasks. Assignee on the program (accountManagerId)
-  // is separate from this — anyone with view can be assigned to a task inside
-  // a program regardless of these caps.
+  // Direct Mail — view is the base (see the tab, campaigns, stages); manage
+  // lets you create campaigns, edit dates, advance stages, attach tasks.
   canViewDirectMail   Boolean @default(false)
   canManageDirectMail Boolean @default(false)
 
@@ -231,8 +209,6 @@ model TeamMember {
   uploadedAssetVersions  AssetVersion[]       @relation("AssetVersionUploadedBy")
   assetReviewerRoles     AssetReviewer[]      @relation("AssetReviewer")
   createdAssetShareLinks AssetShareLink[]     @relation("AssetShareLinkCreatedBy")
-  managedPrograms        Program[]            @relation("ProgramAccountManager")
-  programRoleBindings    ProgramRoleBinding[]
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -315,7 +291,7 @@ model Client {
   assets               Asset[]
   assetFolders         AssetFolder[]
   clientUsers          ClientUser[]
-  programs             Program[]
+  campaigns            Campaign[]
 }
 
 // A real login account for a client contact — distinct from TeamMember (a
@@ -497,14 +473,10 @@ model Task {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
-  // Direct Mail attachment — a Task may optionally belong to a Program (a
-  // program-level task like "sign off on strategy") and/or a Campaign+Stage
-  // (a per-mailing task inside a stage like "Approve geographies"). Both
-  // nullable + SetNull on delete so a Task survives its program/campaign
-  // being removed. `templateTaskId` reserved for Slice 2 (wizard) to track
-  // which TaskTemplate a Task was spawned from; unused in Slice 1.
-  programId      String?
-  program        Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  // Direct Mail attachment — a Task may optionally belong to a Campaign+Stage
+  // (a per-mailing task inside a stage like "Approve geographies"). Nullable +
+  // SetNull on delete so a Task survives its campaign being removed.
+  // `templateTaskId` tracks which TaskTemplate a Task was spawned from.
   campaignId     String?
   campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   campaignStage  CampaignStage?
@@ -516,7 +488,6 @@ model Task {
   @@index([clientId])
   @@index([assigneeId])
   @@index([status])
-  @@index([programId])
   @@index([campaignId, campaignStage])
 }
 
@@ -534,42 +505,19 @@ model TaskAssignee {
   @@index([teamMemberId])
 }
 
-// A per-client Direct Mail engagement. Contains 1..N monthly Campaigns —
-// each Campaign is one physical mailing on a specific in-home date. Slice 1
-// is manual creation via a dialog; Slice 2 will wire the wizard + template
-// snapshot. `templateSnapshot` reserved for Slice 2 (unused in Slice 1).
-model Program {
-  id               String         @id @default(cuid())
-  clientId         String
-  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name             String
-  product          ProgramProduct @default(NEW_MOVERS)
-  status           ProgramStatus  @default(DRAFT)
-  // First mailing month; DB stores day-1 of that month for consistency.
-  startMonth       DateTime
-  lengthMonths     Int            @default(1)
-  accountManagerId String?
-  accountManager   TeamMember?    @relation("ProgramAccountManager", fields: [accountManagerId], references: [id], onDelete: SetNull)
-  templateSnapshot Json?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  campaigns    Campaign[]
-  tasks        Task[]
-  roleBindings ProgramRoleBinding[]
-
-  @@index([clientId])
-}
-
-// One physical mailing within a Program. `sequenceNumber` is 1-based ordinal
-// within the program (1st campaign, 2nd, ...). Due dates are derived from
-// mailDate at creation (4w/3w/2w before) but stored so they can be manually
-// overridden per-campaign later without recomputing. `stagesSnapshot`
-// reserved for Slice 2's template snapshot (unused in Slice 1).
+// A per-client Direct Mail mailing, attached directly to the Client (the
+// earlier "Program" grouping layer was removed — a client just has a flat
+// list of campaigns, some of which the Campaign Generator wizard may have
+// created in one batch). `sequenceNumber` is a 1-based ordinal per client,
+// used only as a display fallback when `name` is blank. Due dates are
+// derived from mailDate at creation (4w/3w/2w before) but stored so they can
+// be manually overridden later without recomputing. `stagesSnapshot` is the
+// template snapshot taken at creation time (see ProgramTemplate below) —
+// editing the template later never changes an already-created campaign.
 model Campaign {
   id               String        @id @default(cuid())
-  programId        String
-  program          Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  clientId         String
+  client           Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   sequenceNumber   Int
   name             String?
   // All four nullable — a campaign can be created before its dates are
@@ -590,23 +538,21 @@ model Campaign {
 
   tasks Task[]
 
-  @@index([programId])
-  @@unique([programId, sequenceNumber])
+  @@index([clientId])
+  @@unique([clientId, sequenceNumber])
 }
 
-// Direct Mail template engine (Slice 2) — the editable master that the
-// Campaign Generator wizard copies from. ProgramTemplate -> StageTemplate (one
-// per CampaignStage) -> TaskTemplate (the actual seeded tasks). At wizard time
-// the current contents are snapshotted into Program.templateSnapshot /
-// Campaign.stagesSnapshot, so editing a template later never changes
-// in-flight programs.
+// Direct Mail template engine — the editable master that the Campaign
+// Generator wizard copies from. ProgramTemplate -> StageTemplate (one per
+// CampaignStage) -> TaskTemplate (the actual seeded tasks). At wizard time
+// the current contents are snapshotted into Campaign.stagesSnapshot, so
+// editing a template later never changes an already-created campaign.
 model ProgramTemplate {
-  id        String          @id @default(cuid())
-  name      String          @unique
-  product   ProgramProduct?
-  isActive  Boolean         @default(true)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   stages StageTemplate[]
 }
@@ -636,21 +582,6 @@ model TaskTemplate {
   sequenceNumber     Int
 
   @@index([stageTemplateId])
-}
-
-// Per-Program binding of a template RoleTag to a real TeamMember, set during
-// the wizard. CLIENT role tag is intentionally never bound here — those
-// template tasks stay unassigned agency-side and surface as client-facing
-// todos in the portal (Slice 5).
-model ProgramRoleBinding {
-  id           String     @id @default(cuid())
-  programId    String
-  program      Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
-  roleTag      RoleTag
-  teamMemberId String?
-  teamMember   TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
-
-  @@unique([programId, roleTag])
 }
 
 model Comment {

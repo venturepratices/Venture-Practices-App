@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function NewCampaignDialog({ programId, trigger }: { programId: string; trigger: React.ReactElement }) {
+export function NewCampaignDialog({ clientId, trigger }: { clientId: string; trigger: React.ReactElement }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -43,10 +43,11 @@ export function NewCampaignDialog({ programId, trigger }: { programId: string; t
   async function handleSubmit() {
     setError(null);
     setIsSaving(true);
-    const response = await fetch(`/api/programs/${programId}/campaigns`, {
+    const response = await fetch(`/api/campaigns`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        clientId,
         name: name.trim() || null,
         mailDate: mailDate ? new Date(`${mailDate}T00:00:00.000Z`).toISOString() : null,
         quantity: quantity ? Number(quantity) : null,

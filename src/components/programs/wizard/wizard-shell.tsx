@@ -14,15 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ProductStep } from "@/components/programs/wizard/product-step";
+import { TemplateStep } from "@/components/programs/wizard/template-step";
 import { ScheduleStep } from "@/components/programs/wizard/schedule-step";
 import { DefaultsStep } from "@/components/programs/wizard/defaults-step";
 import { ReviewStep } from "@/components/programs/wizard/review-step";
 
 export type WizardDraft = {
   templateId: string | null;
-  name: string;
-  product: string;
   startMonth: string; // "YYYY-MM"
   lengthMonths: string;
   mailDayOfMonth: string;
@@ -35,8 +33,6 @@ export type WizardDraft = {
 
 const INITIAL_DRAFT: WizardDraft = {
   templateId: null,
-  name: "",
-  product: "NEW_MOVERS",
   startMonth: "",
   lengthMonths: "6",
   mailDayOfMonth: "15",
@@ -47,7 +43,7 @@ const INITIAL_DRAFT: WizardDraft = {
   cta: "",
 };
 
-const STEPS = ["Product", "Schedule", "Defaults", "Review"] as const;
+const STEPS = ["Template", "Schedule", "Defaults", "Review"] as const;
 
 function currentMonthValue() {
   const now = new Date();
@@ -80,19 +76,17 @@ export function CampaignWizardDialog({
     setError(null);
   }
 
-  const canProceed = step === 1 ? Boolean(draft.name.trim()) : true;
+  const canProceed = true;
 
   async function submit() {
     setError(null);
     setIsSaving(true);
-    const response = await fetch("/api/programs/wizard", {
+    const response = await fetch("/api/campaigns/wizard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId,
         templateId: draft.templateId,
-        name: draft.name.trim(),
-        product: draft.product,
         // If left blank, default to the current month rather than blocking
         // the wizard on a date the user may not have decided yet.
         startMonth: new Date(`${draft.startMonth || currentMonthValue()}-01T00:00:00.000Z`).toISOString(),
@@ -130,19 +124,20 @@ export function CampaignWizardDialog({
         <DialogHeader>
           <DialogTitle>Campaign Generator — {STEPS[step]}</DialogTitle>
           <DialogDescription>
-            Step {step + 1} of {STEPS.length}: sets up the program, its monthly campaigns, and (if a template is
-            chosen) spawns every stage task, unassigned — assign people to tasks afterward from the campaign page.
+            Step {step + 1} of {STEPS.length}: creates several monthly campaigns for this client at once, and (if a
+            template is chosen) spawns every stage task, unassigned — assign people to tasks afterward from the
+            campaign page.
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-2">
-          {step === 0 ? <ProductStep draft={draft} setField={setField} templates={templates} /> : null}
+          {step === 0 ? <TemplateStep draft={draft} setField={setField} templates={templates} /> : null}
           {step === 1 ? <ScheduleStep draft={draft} setField={setField} /> : null}
           {step === 2 ? <DefaultsStep draft={draft} setField={setField} /> : null}
           {step === 3 ? (
             <ReviewStep
               draft={draft}
-              templateName={draft.templateId ? templates.find((t) => t.id === draft.templateId)?.name ?? "—" : "None — blank program"}
+              templateName={draft.templateId ? templates.find((t) => t.id === draft.templateId)?.name ?? "—" : "None — blank campaigns"}
             />
           ) : null}
           {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
@@ -159,7 +154,7 @@ export function CampaignWizardDialog({
           ) : (
             <Button type="button" onClick={submit} disabled={isSaving}>
               {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-              {isSaving ? "Creating..." : "Create program"}
+              {isSaving ? "Creating..." : "Create campaigns"}
             </Button>
           )}
         </DialogFooter>
