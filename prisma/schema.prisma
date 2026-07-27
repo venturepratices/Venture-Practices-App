@@ -292,6 +292,28 @@ model Client {
   assetFolders         AssetFolder[]
   clientUsers          ClientUser[]
   campaigns            Campaign[]
+  intake               ClientIntake?
+}
+
+// Direct Mail client intake — filled in progressively by the client via the
+// portal (Slice 5). Deliberately does NOT duplicate fields that already
+// exist on Client (contactName/contactEmail/contactPhone/website/about) —
+// the portal intake form edits those directly alongside these DM-specific
+// additions. All fields nullable/optional; agency side displays read-only,
+// only the client edits via the portal.
+model ClientIntake {
+  id       String @id @default(cuid())
+  clientId String @unique
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  targetAudience     String? @db.Text
+  offerDetails       String? @db.Text
+  brandGuidelinesUrl String?
+  additionalNotes    String? @db.Text
+
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // A real login account for a client contact — distinct from TeamMember (a
@@ -533,6 +555,14 @@ model Campaign {
   offer            String?
   cta              String?
   stagesSnapshot   Json?
+  // The Asset that serves as this campaign's mailer proof — set by the
+  // agency once a design is uploaded. When that Asset's status flips to
+  // APPROVED (see maybeCompleteApprovalTasksForProofAsset in
+  // src/lib/campaign-advance.ts), the campaign's Approval-stage tasks
+  // auto-complete and the normal stage auto-advance runs. @unique because an
+  // Asset can only be the proof for one campaign at a time.
+  proofAssetId     String?       @unique
+  proofAsset       Asset?        @relation("CampaignProofAsset", fields: [proofAssetId], references: [id], onDelete: SetNull)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -707,9 +737,10 @@ model Asset {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  versions   AssetVersion[]
-  reviewers  AssetReviewer[]
-  shareLinks AssetShareLink[]
+  versions        AssetVersion[]
+  reviewers       AssetReviewer[]
+  shareLinks      AssetShareLink[]
+  proofOfCampaign Campaign?        @relation("CampaignProofAsset")
 
   @@index([clientId])
   @@index([status])

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { campaignLabel } from "@/lib/campaign-stage";
+import { maybeCompleteApprovalTasksForProofAsset } from "@/lib/campaign-advance";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { updateCampaignSchema } from "@/lib/validations/campaign";
@@ -66,26 +67,55 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const updated = await prisma.campaign.update({
-    where: { id: campaignId },
-    data: {
-      ...(parsed.data.name !== undefined ? { name: parsed.data.name?.trim() || null } : {}),
-      ...(parsed.data.mailDate !== undefined ? { mailDate: parsed.data.mailDate ? new Date(parsed.data.mailDate) : null } : {}),
-      ...(parsed.data.creativeDueDate !== undefined
-        ? { creativeDueDate: parsed.data.creativeDueDate ? new Date(parsed.data.creativeDueDate) : null }
-        : {}),
-      ...(parsed.data.approvalDueDate !== undefined
-        ? { approvalDueDate: parsed.data.approvalDueDate ? new Date(parsed.data.approvalDueDate) : null }
-        : {}),
-      ...(parsed.data.printDueDate !== undefined ? { printDueDate: parsed.data.printDueDate ? new Date(parsed.data.printDueDate) : null } : {}),
-      ...(parsed.data.currentStage !== undefined ? { currentStage: parsed.data.currentStage } : {}),
-      ...(parsed.data.quantity !== undefined ? { quantity: parsed.data.quantity } : {}),
-      ...(parsed.data.geography !== undefined ? { geography: parsed.data.geography } : {}),
-      ...(parsed.data.budgetCents !== undefined ? { budgetCents: parsed.data.budgetCents } : {}),
-      ...(parsed.data.offer !== undefined ? { offer: parsed.data.offer } : {}),
-      ...(parsed.data.cta !== undefined ? { cta: parsed.data.cta } : {}),
-    },
-  });
+  // Linking a proof asset: it must belong to this campaign's own client —
+  // prevents linking another client's asset by guessing/probing an id.
+  let linkedAsset: { status: string } | null = null;
+  if (parsed.data.proofAssetId) {
+    linkedAsset = await prisma.asset.findFirst({
+      where: { id: parsed.data.proofAssetId, clientId: campaign.clientId },
+      select: { status: true },
+    });
+    if (!linkedAsset) {
+      return NextResponse.json({ error: "That asset doesn't belong to this client." }, { status: 400 });
+    }
+  }
+
+  let updated;
+  try {
+    updated = await prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name?.trim() || null } : {}),
+        ...(parsed.data.mailDate !== undefined ? { mailDate: parsed.data.mailDate ? new Date(parsed.data.mailDate) : null } : {}),
+        ...(parsed.data.creativeDueDate !== undefined
+          ? { creativeDueDate: parsed.data.creativeDueDate ? new Date(parsed.data.creativeDueDate) : null }
+          : {}),
+        ...(parsed.data.approvalDueDate !== undefined
+          ? { approvalDueDate: parsed.data.approvalDueDate ? new Date(parsed.data.approvalDueDate) : null }
+          : {}),
+        ...(parsed.data.printDueDate !== undefined ? { printDueDate: parsed.data.printDueDate ? new Date(parsed.data.printDueDate) : null } : {}),
+        ...(parsed.data.currentStage !== undefined ? { currentStage: parsed.data.currentStage } : {}),
+        ...(parsed.data.quantity !== undefined ? { quantity: parsed.data.quantity } : {}),
+        ...(parsed.data.geography !== undefined ? { geography: parsed.data.geography } : {}),
+        ...(parsed.data.budgetCents !== undefined ? { budgetCents: parsed.data.budgetCents } : {}),
+        ...(parsed.data.offer !== undefined ? { offer: parsed.data.offer } : {}),
+        ...(parsed.data.cta !== undefined ? { cta: parsed.data.cta } : {}),
+        ...(parsed.data.proofAssetId !== undefined ? { proofAssetId: parsed.data.proofAssetId } : {}),
+      },
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+      return NextResponse.json({ error: "That asset is already linked to another campaign." }, { status: 409 });
+    }
+    throw error;
+  }
+
+  // Edge case: linking an asset that's already APPROVED (approved before the
+  // link existed, so recomputeAssetStatus never re-fires) — complete the
+  // Approval-stage tasks now instead of waiting for another decision.
+  if (parsed.data.proofAssetId && linkedAsset?.status === "APPROVED") {
+    await maybeCompleteApprovalTasksForProofAsset(parsed.data.proofAssetId, session.user.id);
+  }
 
   await logActivity({
     actorId: session.user.id,

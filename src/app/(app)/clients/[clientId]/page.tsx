@@ -9,6 +9,16 @@ import { ClientLinksSection } from "@/components/clients/client-links-section";
 import { ClientUsersSection } from "@/components/clients/client-users-section";
 import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
 
+function IntakeField({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="whitespace-pre-wrap text-sm">{value}</p>
+    </div>
+  );
+}
+
 function InfoRow({ icon: Icon, value, href }: { icon: React.ComponentType<{ className?: string }>; value: string | null; href?: string }) {
   if (!value) return null;
   return (
@@ -33,6 +43,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       links: { orderBy: { createdAt: "asc" } },
       highLevelConnection: true,
       clientUsers: { orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } },
+      intake: true,
     },
   });
   if (!client) notFound();
@@ -41,6 +52,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const canManageLinks = await canUseCapability("canManageClientLinks");
   const canManageHighLevel = await canUseCapability("canManageHighLevel");
   const canManageClientUsers = await canUseCapability("canManageClientUsers");
+  const canViewDirectMail = await canUseCapability("canViewDirectMail");
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasBusinessInfo = client.website || client.address;
@@ -98,6 +110,22 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
 
       <ClientUsersSection clientId={client.id} clientUsers={client.clientUsers} canManage={canManageClientUsers} />
+
+      {canViewDirectMail ? (
+        <div className="space-y-3 rounded-lg border p-4">
+          <p className="text-sm font-medium">Direct Mail intake</p>
+          {client.intake ? (
+            <div className="space-y-3">
+              <IntakeField label="Target audience" value={client.intake.targetAudience} />
+              <IntakeField label="Typical offer" value={client.intake.offerDetails} />
+              <IntakeField label="Brand guidelines" value={client.intake.brandGuidelinesUrl} />
+              <IntakeField label="Additional notes" value={client.intake.additionalNotes} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Not submitted yet — the client fills this in via their portal.</p>
+          )}
+        </div>
+      ) : null}
 
       {canManageHighLevel ? (
         <HighLevelConnectionSection

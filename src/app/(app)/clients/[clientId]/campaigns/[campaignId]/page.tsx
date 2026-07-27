@@ -6,9 +6,11 @@ import { canUseCapability, requireClientAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { ApplyTemplateDialog } from "@/components/programs/apply-template-dialog";
+import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 import { CampaignStepper } from "@/components/programs/campaign-stepper";
 import { DeleteCampaignButton } from "@/components/programs/delete-campaign-button";
 import { EditCampaignDialog } from "@/components/programs/edit-campaign-dialog";
+import { ProofAssetSelect } from "@/components/programs/proof-asset-select";
 import { StageSelect } from "@/components/programs/stage-select";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
@@ -36,10 +38,11 @@ export default async function CampaignDetailPage({
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
 
-  const [campaign, teamMembers, templates] = await Promise.all([
+  const [campaign, teamMembers, templates, assets] = await Promise.all([
     prisma.campaign.findFirst({
       where: { id: campaignId, clientId },
       include: {
+        proofAsset: { select: { id: true, title: true, status: true } },
         tasks: {
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
@@ -51,6 +54,11 @@ export default async function CampaignDetailPage({
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.asset.findMany({
+      where: { clientId, status: { not: "ARCHIVED" } },
+      select: { id: true, title: true, status: true },
+      orderBy: { title: "asc" },
+    }),
   ]);
   if (!campaign) notFound();
 
@@ -140,6 +148,23 @@ export default async function CampaignDetailPage({
             <p className="text-sm font-medium">{campaign.cta}</p>
           </div>
         ) : null}
+        <div className="col-span-2">
+          <p className="text-xs text-muted-foreground">Proof asset</p>
+          {canManage ? (
+            <div className="mt-1 max-w-xs">
+              <ProofAssetSelect campaignId={campaign.id} clientId={clientId} currentAssetId={campaign.proofAssetId} options={assets} />
+            </div>
+          ) : campaign.proofAsset ? (
+            <div className="flex items-center gap-2">
+              <Link href={`/clients/${clientId}/assets/${campaign.proofAsset.id}`} className="text-sm font-medium hover:text-primary">
+                {campaign.proofAsset.title}
+              </Link>
+              <AssetStatusPill status={campaign.proofAsset.status} />
+            </div>
+          ) : (
+            <p className="text-sm font-medium">Not linked</p>
+          )}
+        </div>
       </div>
 
       <div className="mt-6">

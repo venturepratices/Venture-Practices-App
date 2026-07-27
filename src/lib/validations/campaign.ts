@@ -24,6 +24,7 @@ export const updateCampaignSchema = z.object({
   budgetCents: z.coerce.number().int().min(0).nullable().optional(),
   offer: z.string().trim().max(300).nullable().optional(),
   cta: z.string().trim().max(300).nullable().optional(),
+  proofAssetId: z.string().nullable().optional(),
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;

@@ -1,4 +1,5 @@
 import { AssetDecisionValue, AssetStatus } from "@/generated/prisma/enums";
+import { maybeCompleteApprovalTasksForProofAsset } from "@/lib/campaign-advance";
 import { prisma } from "@/lib/prisma";
 
 const APPROVED_LIKE: AssetDecisionValue[] = [AssetDecisionValue.APPROVED, AssetDecisionValue.APPROVED_WITH_CHANGES];
@@ -46,6 +47,9 @@ export async function recomputeAssetStatus(assetId: string): Promise<AssetStatus
   const status = computeVersionStatus(asset.reviewers.length, decisions);
   if (status !== asset.status) {
     await prisma.asset.update({ where: { id: assetId }, data: { status } });
+    if (status === AssetStatus.APPROVED) {
+      await maybeCompleteApprovalTasksForProofAsset(assetId, null);
+    }
   }
   return status;
 }

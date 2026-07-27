@@ -6,6 +6,7 @@ import { signOut } from "@/lib/auth";
 import { getClientUserSession } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { PortalNav } from "@/components/portal/portal-nav";
 
 /**
  * The entire client-portal shell (Slice 4b) — deliberately tiny: brand,
@@ -42,6 +43,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </form>
         </div>
       </header>
+      <PortalNav />
       <div className="flex-1">{children}</div>
     </div>
   );

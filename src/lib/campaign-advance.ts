@@ -101,3 +101,46 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
 
   return { newStage };
 }
+
+/**
+ * Called after an Asset's status recomputes to APPROVED (see
+ * recomputeAssetStatus in src/lib/asset-status.ts). If that asset is linked
+ * as some campaign's proof asset, marks every incomplete Approval-stage task
+ * on that campaign COMPLETE and runs the normal auto-advance above. actorId
+ * is null for the recompute-triggered path (matches the null-actor
+ * convention for system-driven ActivityLog entries elsewhere in this file);
+ * a caller that already has a real actor (e.g. linking an already-APPROVED
+ * asset to a campaign) may pass one instead.
+ *
+ * Deliberately one-directional: unlinking a proof asset later never
+ * reopens these tasks or reverses the stage advance.
+ */
+export async function maybeCompleteApprovalTasksForProofAsset(assetId: string, actorId: string | null) {
+  const campaign = await prisma.campaign.findFirst({ where: { proofAssetId: assetId }, select: { id: true } });
+  if (!campaign) return;
+
+  const incomplete = await prisma.task.findMany({
+    where: { campaignId: campaign.id, campaignStage: "APPROVAL", status: { not: "COMPLETE" } },
+    select: { id: true, title: true },
+  });
+  if (incomplete.length === 0) return;
+
+  await prisma.task.updateMany({
+    where: { id: { in: incomplete.map((t) => t.id) } },
+    data: { status: "COMPLETE" },
+  });
+
+  for (const task of incomplete) {
+    await logActivity({
+      actorId,
+      actorName: null,
+      entityType: "Task",
+      entityId: task.id,
+      entityLabel: task.title,
+      action: "status_changed",
+      description: `"${task.title}" auto-completed — proof asset approved`,
+    });
+  }
+
+  await maybeAdvanceCampaignStage(campaign.id, actorId);
+}
