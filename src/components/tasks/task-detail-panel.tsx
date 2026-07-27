@@ -12,12 +12,22 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
+import { StagePill } from "@/components/programs/stage-pill";
+import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
 const UNASSIGNED = "__unassigned__";
 const NO_CLIENT = "__none__";
+const NO_PROGRAM = "__none__";
+const NO_CAMPAIGN = "__none__";
+
+type ProgramOption = {
+  id: string;
+  name: string;
+  campaigns: { id: string; sequenceNumber: number; currentStage: string }[];
+};
 
 type Draft = {
   title: string;
@@ -26,6 +36,9 @@ type Draft = {
   clientId: string;
   occurrence: string;
   deadline: string; // "YYYY-MM-DD" or ""
+  programId: string;
+  campaignId: string;
+  campaignStage: string;
 };
 
 function draftFromTask(task: TaskDetail): Draft {
@@ -36,6 +49,9 @@ function draftFromTask(task: TaskDetail): Draft {
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
     deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
+    programId: task.programId ?? NO_PROGRAM,
+    campaignId: task.campaignId ?? NO_CAMPAIGN,
+    campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
   };
 }
 
@@ -58,6 +74,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [programs, setPrograms] = useState<ProgramOption[] | null>(null);
 
   const teamMemberNames = Object.fromEntries(teamMembers.map((m) => [m.id, m.name]));
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
@@ -94,6 +111,27 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     };
   }, [taskId]);
 
+  // Direct Mail programs for the task's client — only fetched once a
+  // client-scoped task is open, since a program can't attach to a client-less
+  // (internal) task. Silently empty (not an error state) for a member without
+  // canViewDirectMail — the route 403s and the section just doesn't render.
+  useEffect(() => {
+    const clientId = task?.clientId;
+    if (!clientId) {
+      setPrograms(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/programs?clientId=${clientId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ProgramOption[] | null) => {
+        if (!cancelled) setPrograms(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.clientId]);
+
   function close() {
     if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
     const params = new URLSearchParams(searchParams.toString());
@@ -125,6 +163,15 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     if (draft.occurrence !== base.occurrence) fields.occurrence = draft.occurrence;
     if (draft.deadline !== base.deadline) {
       fields.deadline = draft.deadline ? new Date(draft.deadline).toISOString() : null;
+    }
+    if (draft.programId !== base.programId) {
+      fields.programId = draft.programId === NO_PROGRAM ? null : draft.programId;
+    }
+    if (draft.campaignId !== base.campaignId) {
+      fields.campaignId = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignId;
+    }
+    if (draft.campaignId !== base.campaignId || draft.campaignStage !== base.campaignStage) {
+      fields.campaignStage = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignStage;
     }
     if (Object.keys(fields).length === 0) return;
 
@@ -305,6 +352,91 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                   onChange={(event) => setField("deadline", event.target.value)}
                 />
               </div>
+
+              {programs && programs.length > 0 ? (
+                <div className="space-y-1.5">
+                  <Label>Direct Mail program</Label>
+                  <Select
+                    value={draft.programId}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      setDraft((prev) =>
+                        prev ? { ...prev, programId: value, campaignId: NO_CAMPAIGN, campaignStage: "PLANNING" } : prev
+                      );
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value: string) => (value === NO_PROGRAM ? "None" : programs.find((p) => p.id === value)?.name ?? value)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PROGRAM}>None</SelectItem>
+                      {programs.map((program) => (
+                        <SelectItem key={program.id} value={program.id}>
+                          {program.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {draft.programId !== NO_PROGRAM ? (
+                <div className="space-y-1.5">
+                  <Label>Campaign</Label>
+                  <Select
+                    value={draft.campaignId}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      const campaign = programs?.find((p) => p.id === draft.programId)?.campaigns.find((c) => c.id === value);
+                      setDraft((prev) =>
+                        prev
+                          ? { ...prev, campaignId: value, campaignStage: campaign?.currentStage ?? prev.campaignStage }
+                          : prev
+                      );
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value: string) => {
+                          if (value === NO_CAMPAIGN) return "Program-level (no campaign)";
+                          const campaign = programs?.find((p) => p.id === draft.programId)?.campaigns.find((c) => c.id === value);
+                          return campaign ? `Campaign #${campaign.sequenceNumber}` : value;
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_CAMPAIGN}>Program-level (no campaign)</SelectItem>
+                      {programs
+                        ?.find((p) => p.id === draft.programId)
+                        ?.campaigns.map((campaign) => (
+                          <SelectItem key={campaign.id} value={campaign.id}>
+                            Campaign #{campaign.sequenceNumber}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {draft.programId !== NO_PROGRAM && draft.campaignId !== NO_CAMPAIGN ? (
+                <div className="space-y-1.5">
+                  <Label>Stage</Label>
+                  <Select value={draft.campaignStage} onValueChange={(value) => value && setField("campaignStage", value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>{(stage: string) => <StagePill stage={stage} />}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAMPAIGN_STAGE_VALUES.map((stage) => (
+                        <SelectItem key={stage} value={stage}>
+                          {CAMPAIGN_STAGE_LABELS[stage]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
 
             <Separator />

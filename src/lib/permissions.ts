@@ -86,6 +86,8 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canShareAssetsExternally: true,
       canDeleteAssets: true,
       canManageClientUsers: true,
+      canViewDirectMail: true,
+      canManageDirectMail: true,
     },
   });
   if (!member) return null;

@@ -78,6 +78,13 @@ export const PERMISSION_GROUPS = [
       { key: "canManageClientUsers", label: "Manage client login accounts" },
     ],
   },
+  {
+    title: "Direct Mail",
+    items: [
+      { key: "canViewDirectMail", label: "View programs & campaigns" },
+      { key: "canManageDirectMail", label: "Create / edit programs & campaigns" },
+    ],
+  },
 ] as const;
 
 export const CAPABILITIES = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
@@ -111,4 +118,5 @@ export const BASIC_MEMBER_CAPABILITIES: Capability[] = [
   "canUploadAssets",
   "canCommentOnAssets",
   "canDecideOnAssets",
+  "canViewDirectMail",
 ];

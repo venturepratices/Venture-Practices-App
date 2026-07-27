@@ -26,6 +26,8 @@ const TASK_INCLUDE = {
     orderBy: { createdAt: "asc" as const },
   },
   links: { orderBy: { createdAt: "asc" as const } },
+  program: { select: { id: true, name: true } },
+  campaign: { select: { id: true, sequenceNumber: true, currentStage: true, programId: true } },
 } as const;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {

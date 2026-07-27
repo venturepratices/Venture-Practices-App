@@ -90,6 +90,35 @@ enum AssetDecisionValue {
   CHANGES_REQUESTED
 }
 
+// Direct Mail Program — top-level workflow object for a client engagement.
+// Each Program contains 1..N monthly Campaigns. See "Feature: Direct Mail
+// Program" in the plan file.
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum ProgramProduct {
+  NEW_MOVERS
+  EDDM
+  INVITATION
+  REACTIVATION
+  RECALL
+  OTHER
+}
+
+enum CampaignStage {
+  PLANNING
+  CREATIVE
+  REVIEW
+  APPROVAL
+  PRODUCTION
+  MAILED
+  RESULTS
+}
+
 model TeamMember {
   id                 String  @id @default(cuid())
   name               String
@@ -163,6 +192,14 @@ model TeamMember {
   canDeleteAssets          Boolean @default(false)
   canManageClientUsers     Boolean @default(false)
 
+  // Direct Mail Program — view is the base (see the tab, program details,
+  // campaigns, stages); manage lets you create programs/campaigns, edit dates,
+  // advance stages, attach tasks. Assignee on the program (accountManagerId)
+  // is separate from this — anyone with view can be assigned to a task inside
+  // a program regardless of these caps.
+  canViewDirectMail   Boolean @default(false)
+  canManageDirectMail Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -180,6 +217,7 @@ model TeamMember {
   uploadedAssetVersions  AssetVersion[]   @relation("AssetVersionUploadedBy")
   assetReviewerRoles     AssetReviewer[]  @relation("AssetReviewer")
   createdAssetShareLinks AssetShareLink[] @relation("AssetShareLinkCreatedBy")
+  managedPrograms        Program[]        @relation("ProgramAccountManager")
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -262,6 +300,7 @@ model Client {
   assets               Asset[]
   assetFolders         AssetFolder[]
   clientUsers          ClientUser[]
+  programs             Program[]
 }
 
 // A real login account for a client contact — distinct from TeamMember (a
@@ -438,12 +477,83 @@ model Task {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
+  // Direct Mail attachment — a Task may optionally belong to a Program (a
+  // program-level task like "sign off on strategy") and/or a Campaign+Stage
+  // (a per-mailing task inside a stage like "Approve geographies"). Both
+  // nullable + SetNull on delete so a Task survives its program/campaign
+  // being removed. `templateTaskId` reserved for Slice 2 (wizard) to track
+  // which TaskTemplate a Task was spawned from; unused in Slice 1.
+  programId      String?
+  program        Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  campaignId     String?
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignStage  CampaignStage?
+  templateTaskId String?
+
   comments Comment[]
   links    TaskLink[]
 
   @@index([clientId])
   @@index([assigneeId])
   @@index([status])
+  @@index([programId])
+  @@index([campaignId, campaignStage])
+}
+
+// A per-client Direct Mail engagement. Contains 1..N monthly Campaigns —
+// each Campaign is one physical mailing on a specific in-home date. Slice 1
+// is manual creation via a dialog; Slice 2 will wire the wizard + template
+// snapshot. `templateSnapshot` reserved for Slice 2 (unused in Slice 1).
+model Program {
+  id               String         @id @default(cuid())
+  clientId         String
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  product          ProgramProduct @default(NEW_MOVERS)
+  status           ProgramStatus  @default(DRAFT)
+  // First mailing month; DB stores day-1 of that month for consistency.
+  startMonth       DateTime
+  lengthMonths     Int            @default(1)
+  accountManagerId String?
+  accountManager   TeamMember?    @relation("ProgramAccountManager", fields: [accountManagerId], references: [id], onDelete: SetNull)
+  templateSnapshot Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  campaigns Campaign[]
+  tasks     Task[]
+
+  @@index([clientId])
+}
+
+// One physical mailing within a Program. `sequenceNumber` is 1-based ordinal
+// within the program (1st campaign, 2nd, ...). Due dates are derived from
+// mailDate at creation (4w/3w/2w before) but stored so they can be manually
+// overridden per-campaign later without recomputing. `stagesSnapshot`
+// reserved for Slice 2's template snapshot (unused in Slice 1).
+model Campaign {
+  id               String        @id @default(cuid())
+  programId        String
+  program          Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sequenceNumber   Int
+  mailDate         DateTime
+  creativeDueDate  DateTime
+  approvalDueDate  DateTime
+  printDueDate     DateTime
+  currentStage     CampaignStage @default(PLANNING)
+  quantity         Int?
+  geography        String?
+  budgetCents      Int?
+  offer            String?
+  cta              String?
+  stagesSnapshot   Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tasks Task[]
+
+  @@index([programId])
+  @@unique([programId, sequenceNumber])
 }
 
 model Comment {

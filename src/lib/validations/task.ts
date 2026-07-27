@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
+
 export const TASK_OCCURRENCE_VALUES = [
   "RECURRING_WEEKLY",
   "RECURRING_MONTHLY",
@@ -42,6 +44,9 @@ export const updateTaskSchema = z.object({
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   status: z.enum(TASK_STATUS_VALUES).optional(),
   deadline: z.string().datetime().nullable().optional(),
+  programId: z.string().nullable().optional(),
+  campaignId: z.string().nullable().optional(),
+  campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;

@@ -76,6 +76,8 @@ export default async function TeamPage() {
         canShareAssetsExternally: true,
         canDeleteAssets: true,
         canManageClientUsers: true,
+        canViewDirectMail: true,
+        canManageDirectMail: true,
       },
       orderBy: { name: "asc" },
     }),
