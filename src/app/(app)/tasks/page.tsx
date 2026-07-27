@@ -30,8 +30,8 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
   if (params.status) where.status = params.status as Prisma.TaskWhereInput["status"];
   if (params.clientId === "NONE") where.clientId = null;
   else if (params.clientId) where.clientId = params.clientId;
-  if (params.assigneeId === "UNASSIGNED") where.assigneeId = null;
-  else if (params.assigneeId) where.assigneeId = params.assigneeId;
+  if (params.assigneeId === "UNASSIGNED") where.assignees = { none: {} };
+  else if (params.assigneeId) where.assignees = { some: { teamMemberId: params.assigneeId } };
   if (params.occurrence) where.occurrence = params.occurrence as Prisma.TaskWhereInput["occurrence"];
 
   if (params.deadlineFrom || params.deadlineTo) {
@@ -61,7 +61,10 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
   const [tasks, clients, teamMembers] = await Promise.all([
     prisma.task.findMany({
       where,
-      include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
+      include: {
+        assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+        client: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),

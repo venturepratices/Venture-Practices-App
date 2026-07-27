@@ -36,7 +36,7 @@ export default async function CampaignDetailPage({
     include: {
       program: { select: { id: true, name: true } },
       tasks: {
-        include: { assignee: { select: { name: true } } },
+        include: { assignees: { include: { teamMember: { select: { name: true } } } } },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -133,7 +133,9 @@ export default async function CampaignDetailPage({
                   {tasks.map((task) => (
                     <div key={task.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                       <span>{task.title}</span>
-                      <span className="text-xs text-muted-foreground">{task.assignee?.name ?? "Unassigned"}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned"}
+                      </span>
                     </div>
                   ))}
                 </div>

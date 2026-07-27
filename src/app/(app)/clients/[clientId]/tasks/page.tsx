@@ -18,7 +18,10 @@ export default async function ClientTasksPage({
   const [tasks, teamMembers] = await Promise.all([
     prisma.task.findMany({
       where: { clientId },
-      include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
+      include: {
+        assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+        client: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),

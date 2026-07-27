@@ -119,6 +119,17 @@ enum CampaignStage {
   RESULTS
 }
 
+// Direct Mail Program templates (Slice 2) — the role a template task is
+// meant for. Resolved to a real TeamMember per-Program via ProgramRoleBinding
+// at wizard time. CLIENT intentionally has no TeamMember binding — those
+// tasks surface as client-facing todos in the portal (Slice 5).
+enum RoleTag {
+  ACCOUNT_MANAGER
+  CREATIVE
+  PRODUCTION
+  CLIENT
+}
+
 model TeamMember {
   id                 String  @id @default(cuid())
   name               String
@@ -205,19 +216,21 @@ model TeamMember {
 
   sessions               Session[]
   accounts               Account[]
-  assignedTasks          Task[]           @relation("TaskAssignee")
-  archivedTasks          ArchivedTask[]   @relation("ArchivedBy")
+  assignedTasks          Task[]               @relation("TaskAssignee")
+  taskAssignments        TaskAssignee[]
+  archivedTasks          ArchivedTask[]       @relation("ArchivedBy")
   comments               Comment[]
   clientNotes            ClientNote[]
   meetingNotes           MeetingNote[]
   activityLogs           ActivityLog[]
   notifications          Notification[]
   clientAccess           ClientAccess[]
-  createdAssets          Asset[]          @relation("AssetCreatedBy")
-  uploadedAssetVersions  AssetVersion[]   @relation("AssetVersionUploadedBy")
-  assetReviewerRoles     AssetReviewer[]  @relation("AssetReviewer")
-  createdAssetShareLinks AssetShareLink[] @relation("AssetShareLinkCreatedBy")
-  managedPrograms        Program[]        @relation("ProgramAccountManager")
+  createdAssets          Asset[]              @relation("AssetCreatedBy")
+  uploadedAssetVersions  AssetVersion[]       @relation("AssetVersionUploadedBy")
+  assetReviewerRoles     AssetReviewer[]      @relation("AssetReviewer")
+  createdAssetShareLinks AssetShareLink[]     @relation("AssetShareLinkCreatedBy")
+  managedPrograms        Program[]            @relation("ProgramAccountManager")
+  programRoleBindings    ProgramRoleBinding[]
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -467,8 +480,13 @@ model LandingPage {
 model Task {
   id         String         @id @default(cuid())
   title      String
+  // Deprecated shadow column from the single-assignee era. Data has been
+  // migrated into TaskAssignee (see that model); reads/writes now go through
+  // `assignees`. Kept for one release as a safety net, not read by app code —
+  // drop in a follow-up cleanup once Slice 2 has been live a while.
   assigneeId String?
   assignee   TeamMember?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignees  TaskAssignee[]
   clientId   String? // null = internal/agency task, not tied to a client
   client     Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   occurrence TaskOccurrence @default(NON_RECURRING)
@@ -500,6 +518,20 @@ model Task {
   @@index([campaignId, campaignStage])
 }
 
+// Multi-assignee join (Slice 2) — replaces the single-assignee Task.assigneeId
+// column. Same @@unique + Cascade shape as ClientAccess.
+model TaskAssignee {
+  id           String     @id @default(cuid())
+  taskId       String
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([taskId, teamMemberId])
+  @@index([teamMemberId])
+}
+
 // A per-client Direct Mail engagement. Contains 1..N monthly Campaigns —
 // each Campaign is one physical mailing on a specific in-home date. Slice 1
 // is manual creation via a dialog; Slice 2 will wire the wizard + template
@@ -520,8 +552,9 @@ model Program {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  campaigns Campaign[]
-  tasks     Task[]
+  campaigns    Campaign[]
+  tasks        Task[]
+  roleBindings ProgramRoleBinding[]
 
   @@index([clientId])
 }
@@ -554,6 +587,65 @@ model Campaign {
 
   @@index([programId])
   @@unique([programId, sequenceNumber])
+}
+
+// Direct Mail template engine (Slice 2) — the editable master that the
+// Campaign Generator wizard copies from. ProgramTemplate -> StageTemplate (one
+// per CampaignStage) -> TaskTemplate (the actual seeded tasks). At wizard time
+// the current contents are snapshotted into Program.templateSnapshot /
+// Campaign.stagesSnapshot, so editing a template later never changes
+// in-flight programs.
+model ProgramTemplate {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  product   ProgramProduct?
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  stages StageTemplate[]
+}
+
+model StageTemplate {
+  id             String          @id @default(cuid())
+  templateId     String
+  template       ProgramTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stage          CampaignStage
+  sequenceNumber Int
+
+  tasks TaskTemplate[]
+
+  @@index([templateId])
+  @@unique([templateId, stage])
+}
+
+model TaskTemplate {
+  id                 String        @id @default(cuid())
+  stageTemplateId    String
+  stageTemplate      StageTemplate @relation(fields: [stageTemplateId], references: [id], onDelete: Cascade)
+  title              String
+  roleTag            RoleTag
+  // How many days before the campaign's mailDate this task is due; null =
+  // no auto-computed deadline for this template task.
+  daysBeforeMailDate Int?
+  sequenceNumber     Int
+
+  @@index([stageTemplateId])
+}
+
+// Per-Program binding of a template RoleTag to a real TeamMember, set during
+// the wizard. CLIENT role tag is intentionally never bound here — those
+// template tasks stay unassigned agency-side and surface as client-facing
+// todos in the portal (Slice 5).
+model ProgramRoleBinding {
+  id           String     @id @default(cuid())
+  programId    String
+  program      Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  roleTag      RoleTag
+  teamMemberId String?
+  teamMember   TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, roleTag])
 }
 
 model Comment {
@@ -628,8 +720,13 @@ model ArchivedTask {
   id             String         @id @default(cuid())
   originalTaskId String
   title          String
+  // Legacy single-assignee snapshot fields — still populated (first assignee)
+  // for rows archived before the multi-assignee refactor. New archives also
+  // populate `assignees` below with the full list; UI prefers that when present.
   assigneeId     String?
   assigneeName   String?
+  // Full multi-assignee snapshot as [{id, name}, ...]. Null on pre-Slice-2 rows.
+  assignees      Json?
   clientId       String?
   clientName     String?
   occurrence     TaskOccurrence

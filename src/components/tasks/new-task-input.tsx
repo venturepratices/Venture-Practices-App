@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusPill } from "@/components/tasks/status-pill";
+import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 
-const UNASSIGNED = "__unassigned__";
 const NO_CLIENT = "__none__";
 
 type Props = {
@@ -27,7 +27,7 @@ export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], t
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState("NEXT_UP");
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
-  const [assignee, setAssignee] = useState(assigneeId ?? UNASSIGNED);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : []);
   const [client, setClient] = useState(clientId ?? NO_CLIENT);
   const [deadline, setDeadline] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -37,7 +37,7 @@ export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], t
     setTitle("");
     setStatus("NEXT_UP");
     setOccurrence("NON_RECURRING");
-    setAssignee(assigneeId ?? UNASSIGNED);
+    setAssigneeIds(assigneeId ? [assigneeId] : []);
     setClient(clientId ?? NO_CLIENT);
     setDeadline("");
   }
@@ -52,7 +52,7 @@ export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], t
       body: JSON.stringify({
         title: trimmed,
         clientId: lockClient ? clientId ?? null : client === NO_CLIENT ? null : client,
-        assigneeId: assignee === UNASSIGNED ? null : assignee,
+        assigneeIds,
         status,
         occurrence,
         deadline: deadline ? new Date(deadline).toISOString() : null,
@@ -116,22 +116,8 @@ export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], t
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Assignee</Label>
-          <Select value={assignee} onValueChange={(value) => value && setAssignee(value)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue>
-                {(value: string) => (value === UNASSIGNED ? "Unassigned" : teamMembers.find((m) => m.id === value)?.name ?? value)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-              {teamMembers.map((member) => (
-                <SelectItem key={member.id} value={member.id}>
-                  {member.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs text-muted-foreground">Assignees</Label>
+          <TaskAssigneesPicker teamMembers={teamMembers} value={assigneeIds} onChange={setAssigneeIds} triggerClassName="w-[160px]" />
         </div>
 
         {lockClient ? null : (

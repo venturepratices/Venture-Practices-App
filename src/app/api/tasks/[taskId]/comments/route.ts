@@ -26,7 +26,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { title: true, clientId: true, assigneeId: true, assignee: { select: { name: true } } },
+    select: {
+      title: true,
+      clientId: true,
+      assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+    },
   });
   if (!task) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -73,14 +77,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     });
   }
 
-  if (task?.assigneeId && task.assigneeId !== session.user.id && !mentionedIds.has(task.assigneeId)) {
+  for (const a of task?.assignees ?? []) {
+    if (a.teamMemberId === session.user.id || mentionedIds.has(a.teamMemberId)) continue;
     await notify({
-      recipientId: task.assigneeId,
+      recipientId: a.teamMemberId,
       type: "COMMENTED",
       entityType: "Task",
       entityId: taskId,
-      entityLabel: task.title,
-      message: `${task.assignee?.name ?? "Someone"} — ${session.user.name ?? "someone"} commented on "${task.title}"`,
+      entityLabel: task!.title,
+      message: `${a.teamMember.name} — ${session.user.name ?? "someone"} commented on "${task!.title}"`,
     });
   }
 

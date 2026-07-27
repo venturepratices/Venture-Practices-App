@@ -3,6 +3,8 @@ import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot } from "@/types/task";
 
+type ArchivedAssigneeSnapshot = { id: string; name: string };
+
 /**
  * Deletes a live Task and writes a full denormalized snapshot to ArchivedTask
  * in the same transaction, so a task is never just hard-deleted. Immediately
@@ -16,19 +18,25 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
     const task = await tx.task.findUniqueOrThrow({
       where: { id: taskId },
       include: {
-        assignee: true,
+        assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: true,
         comments: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
         links: { orderBy: { createdAt: "asc" } },
       },
     });
 
+    const assigneeSnapshots: ArchivedAssigneeSnapshot[] = task.assignees.map((a) => ({
+      id: a.teamMemberId,
+      name: a.teamMember.name,
+    }));
+
     const archivedTask = await tx.archivedTask.create({
       data: {
         originalTaskId: task.id,
         title: task.title,
-        assigneeId: task.assigneeId,
-        assigneeName: task.assignee?.name ?? null,
+        assigneeId: assigneeSnapshots[0]?.id ?? null,
+        assigneeName: assigneeSnapshots[0]?.name ?? null,
+        assignees: assigneeSnapshots,
         clientId: task.clientId,
         clientName: task.client?.name ?? null,
         occurrence: task.occurrence,
@@ -80,26 +88,34 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
  * as "Former team member", the same fallback used when a real author account
  * is later deleted, so this isn't a new UI case.
  *
- * If the original assignee or client no longer exists, the restored task
- * falls back to unassigned/internal rather than reusing a dangling id.
+ * Any original assignee or the client that no longer exists is dropped
+ * (assignees individually, client falls back to internal) rather than
+ * reusing a dangling id.
  */
 export async function restoreArchivedTask(archivedTaskId: string) {
   return prisma.$transaction(async (tx) => {
     const archived = await tx.archivedTask.findUniqueOrThrow({ where: { id: archivedTaskId } });
 
-    const [assignee, client] = await Promise.all([
-      archived.assigneeId ? tx.teamMember.findUnique({ where: { id: archived.assigneeId }, select: { id: true } }) : null,
+    const snapshotAssignees =
+      (archived.assignees as ArchivedAssigneeSnapshot[] | null) ??
+      (archived.assigneeId ? [{ id: archived.assigneeId, name: archived.assigneeName ?? "" }] : []);
+
+    const [existingAssignees, client] = await Promise.all([
+      snapshotAssignees.length > 0
+        ? tx.teamMember.findMany({ where: { id: { in: snapshotAssignees.map((a) => a.id) } }, select: { id: true } })
+        : [],
       archived.clientId ? tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } }) : null,
     ]);
+    const existingIds = new Set(existingAssignees.map((a) => a.id));
 
     const task = await tx.task.create({
       data: {
         title: archived.title,
-        assigneeId: assignee ? archived.assigneeId : null,
         clientId: client ? archived.clientId : null,
         occurrence: archived.occurrence,
         status: archived.status,
         deadline: archived.deadline,
+        assignees: { create: snapshotAssignees.filter((a) => existingIds.has(a.id)).map((a) => ({ teamMemberId: a.id })) },
       },
     });
 

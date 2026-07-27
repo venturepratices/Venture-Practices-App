@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
       campaigns: { orderBy: { sequenceNumber: "asc" } },
       tasks: {
         where: { campaignId: null },
-        include: { assignee: { select: { id: true, name: true } } },
+        include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
         orderBy: { createdAt: "desc" },
       },
     },

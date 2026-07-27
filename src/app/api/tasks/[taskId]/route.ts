@@ -19,7 +19,7 @@ const OCCURRENCE_LABELS: Record<string, string> = {
 };
 
 const TASK_INCLUDE = {
-  assignee: { select: { id: true, name: true } },
+  assignees: { include: { teamMember: { select: { id: true, name: true } } } },
   client: { select: { id: true, name: true } },
   comments: {
     include: { author: { select: { id: true, name: true } } },
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
 
   const before = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { assignee: { select: { name: true } }, client: { select: { name: true } } },
+    include: { assignees: { select: { teamMemberId: true } }, client: { select: { name: true } } },
   });
   if (!before) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -72,12 +72,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return toErrorResponse(error);
   }
 
-  const { deadline, ...rest } = parsed.data;
+  const { deadline, assigneeIds, ...rest } = parsed.data;
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
       ...rest,
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
+      ...(assigneeIds !== undefined
+        ? {
+            assignees: {
+              deleteMany: { teamMemberId: { notIn: assigneeIds } },
+              createMany: { data: assigneeIds.map((teamMemberId) => ({ teamMemberId })), skipDuplicates: true },
+            },
+          }
+        : {}),
     },
     include: TASK_INCLUDE,
   });
@@ -89,27 +97,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     }
     if (parsed.data.status !== undefined && parsed.data.status !== before.status) {
       changes.push(`status changed to ${TASK_STATUS_LABELS[parsed.data.status]}`);
-      if (task.assigneeId && task.assigneeId !== session.user.id) {
+      for (const a of task.assignees) {
+        if (a.teamMemberId === session.user.id) continue;
         await notify({
-          recipientId: task.assigneeId,
+          recipientId: a.teamMemberId,
           type: "STATUS_CHANGED",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${task.assignee?.name ?? "Someone"} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
+          message: `${a.teamMember.name} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
         });
       }
     }
-    if (parsed.data.assigneeId !== undefined && parsed.data.assigneeId !== before.assigneeId) {
-      changes.push(`assignee changed to ${task.assignee?.name ?? "Unassigned"}`);
-      if (task.assigneeId && task.assigneeId !== session.user.id) {
+    if (assigneeIds !== undefined) {
+      const beforeIds = new Set(before.assignees.map((a) => a.teamMemberId));
+      const added = task.assignees.filter((a) => !beforeIds.has(a.teamMemberId));
+      const afterIds = new Set(task.assignees.map((a) => a.teamMemberId));
+      const changed = added.length > 0 || before.assignees.some((a) => !afterIds.has(a.teamMemberId));
+      if (changed) {
+        const names = task.assignees.map((a) => a.teamMember.name);
+        changes.push(`assignees changed to ${names.length > 0 ? names.join(", ") : "Unassigned"}`);
+      }
+      for (const a of added) {
+        if (a.teamMemberId === session.user.id) continue;
         await notify({
-          recipientId: task.assigneeId,
+          recipientId: a.teamMemberId,
           type: "ASSIGNED",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${task.assignee?.name ?? "Someone"} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+          message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
         });
       }
     }
@@ -125,14 +142,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       if (newTime !== oldTime) {
         const deadlineLabel = deadline ? new Date(deadline).toLocaleDateString() : "none";
         changes.push(`deadline changed to ${deadlineLabel}`);
-        if (task.assigneeId && task.assigneeId !== session.user.id) {
+        for (const a of task.assignees) {
+          if (a.teamMemberId === session.user.id) continue;
           await notify({
-            recipientId: task.assigneeId,
+            recipientId: a.teamMemberId,
             type: "DEADLINE_CHANGED",
             entityType: "Task",
             entityId: task.id,
             entityLabel: task.title,
-            message: `${task.assignee?.name ?? "Someone"} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
+            message: `${a.teamMember.name} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
           });
         }
       }
@@ -162,14 +180,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           action: "created",
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
-        if (next.assigneeId) {
+        for (const a of next.assignees) {
           await notify({
-            recipientId: next.assigneeId,
+            recipientId: a.teamMemberId,
             type: "ASSIGNED",
             entityType: "Task",
             entityId: next.id,
             entityLabel: next.title,
-            message: `${next.assignee?.name ?? "Someone"} — you have a new recurring task: "${next.title}"`,
+            message: `${a.teamMember.name} — you have a new recurring task: "${next.title}"`,
           });
         }
       }

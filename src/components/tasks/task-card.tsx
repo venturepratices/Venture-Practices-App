@@ -36,7 +36,7 @@ export function TaskCard({
         <p className="mt-1 truncate text-xs text-muted-foreground">{task.client?.name ?? "Internal / Agency"}</p>
       ) : null}
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span className="truncate">{task.assignee?.name ?? "Unassigned"}</span>
+        <span className="truncate">{task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned"}</span>
         {task.deadline ? (
           <span className="flex items-center gap-1">
             <CalendarIcon className="size-3" />

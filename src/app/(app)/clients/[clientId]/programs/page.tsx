@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Mail, Plus } from "lucide-react";
+import { Mail, Plus, Sparkles } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/info-tip";
 import { NewProgramDialog } from "@/components/programs/new-program-dialog";
 import { ProgramCard } from "@/components/programs/program-card";
+import { CampaignWizardDialog } from "@/components/programs/wizard/wizard-shell";
 
 export default async function ClientProgramsPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
@@ -15,7 +16,7 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
 
-  const [programs, teamMembers] = await Promise.all([
+  const [programs, teamMembers, templates] = await Promise.all([
     prisma.program.findMany({
       where: { clientId },
       include: {
@@ -25,6 +26,7 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.programTemplate.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (
@@ -39,16 +41,29 @@ export default async function ClientProgramsPage({ params }: { params: Promise<{
           </InfoTip>
         </h2>
         {canManage ? (
-          <NewProgramDialog
-            clientId={clientId}
-            teamMembers={teamMembers}
-            trigger={
-              <Button size="sm">
-                <Plus className="size-4" />
-                New program
-              </Button>
-            }
-          />
+          <div className="flex items-center gap-2">
+            <CampaignWizardDialog
+              clientId={clientId}
+              templates={templates}
+              teamMembers={teamMembers}
+              trigger={
+                <Button size="sm" variant="outline">
+                  <Sparkles className="size-4" />
+                  Campaign Generator
+                </Button>
+              }
+            />
+            <NewProgramDialog
+              clientId={clientId}
+              teamMembers={teamMembers}
+              trigger={
+                <Button size="sm">
+                  <Plus className="size-4" />
+                  New program
+                </Button>
+              }
+            />
+          </div>
         ) : null}
       </div>
 

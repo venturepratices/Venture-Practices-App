@@ -49,6 +49,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const assigneeNames = task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned";
 
   function openTask() {
     const params = new URLSearchParams(searchParams.toString());
@@ -97,7 +98,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
           {[
             showClient ? task.client?.name ?? null : null,
             task.deadline ? `Due ${new Date(task.deadline).toLocaleDateString()}` : null,
-            task.assignee?.name ?? "Unassigned",
+            assigneeNames,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -116,7 +117,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
           "—"
         )}
       </span>
-      <span className="hidden truncate text-muted-foreground md:block">{task.assignee?.name ?? "Unassigned"}</span>
+      <span className="hidden truncate text-muted-foreground md:block">{assigneeNames}</span>
       <span onClick={(e) => e.stopPropagation()} className="justify-self-end">
         <Select value={task.status} onValueChange={updateStatus}>
           <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">

@@ -30,7 +30,10 @@ export default async function DashboardPage() {
     prisma.client.count({ where: { ...clientScope, status: "ACTIVE" } }),
     prisma.task.findMany({
       where: { ...taskScope, status: { not: "COMPLETE" }, deadline: { lte: sevenDaysFromNow } },
-      include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
+      include: {
+        assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+        client: { select: { id: true, name: true } },
+      },
       orderBy: { deadline: "asc" },
       take: 8,
     }),

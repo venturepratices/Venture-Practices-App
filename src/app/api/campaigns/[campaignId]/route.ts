@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
     include: {
       program: { select: { id: true, clientId: true, name: true } },
       tasks: {
-        include: { assignee: { select: { id: true, name: true } } },
+        include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
         orderBy: { createdAt: "desc" },
       },
     },

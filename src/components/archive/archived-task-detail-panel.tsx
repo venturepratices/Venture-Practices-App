@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_OCCURRENCE_LABELS } from "@/lib/validations/task";
 import { formatDateTime } from "@/lib/utils";
-import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedTaskDetail } from "@/types/task";
+import { archivedAssigneeNames, type ArchivedCommentSnapshot, type ArchivedLinkSnapshot, type ArchivedTaskDetail } from "@/types/task";
 
 export function ArchivedTaskDetailPanel() {
   const router = useRouter();
@@ -86,7 +86,7 @@ export function ArchivedTaskDetailPanel() {
 
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Assignee</p>
-                <p className="text-sm text-muted-foreground">{task.assigneeName ?? "Unassigned"}</p>
+                <p className="text-sm text-muted-foreground">{archivedAssigneeNames(task)}</p>
               </div>
 
               <div className="space-y-1.5">

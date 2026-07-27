@@ -13,12 +13,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
+import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
-const UNASSIGNED = "__unassigned__";
 const NO_CLIENT = "__none__";
 const NO_PROGRAM = "__none__";
 const NO_CAMPAIGN = "__none__";
@@ -32,7 +32,7 @@ type ProgramOption = {
 type Draft = {
   title: string;
   status: string;
-  assigneeId: string;
+  assigneeIds: string[];
   clientId: string;
   occurrence: string;
   deadline: string; // "YYYY-MM-DD" or ""
@@ -45,7 +45,7 @@ function draftFromTask(task: TaskDetail): Draft {
   return {
     title: task.title,
     status: task.status,
-    assigneeId: task.assigneeId ?? UNASSIGNED,
+    assigneeIds: task.assignees.map((a) => a.teamMemberId).sort(),
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
     deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
@@ -76,7 +76,6 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [programs, setPrograms] = useState<ProgramOption[] | null>(null);
 
-  const teamMemberNames = Object.fromEntries(teamMembers.map((m) => [m.id, m.name]));
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
   const isDirty = Boolean(task && draft && JSON.stringify(draft) !== JSON.stringify(draftFromTask(task)));
@@ -154,8 +153,8 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     const fields: Record<string, unknown> = {};
     if (draft.title.trim() && draft.title.trim() !== base.title) fields.title = draft.title.trim();
     if (draft.status !== base.status) fields.status = draft.status;
-    if (draft.assigneeId !== base.assigneeId) {
-      fields.assigneeId = draft.assigneeId === UNASSIGNED ? null : draft.assigneeId;
+    if (JSON.stringify(draft.assigneeIds) !== JSON.stringify(base.assigneeIds)) {
+      fields.assigneeIds = draft.assigneeIds;
     }
     if (draft.clientId !== base.clientId) {
       fields.clientId = draft.clientId === NO_CLIENT ? null : draft.clientId;
@@ -289,20 +288,12 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Assignee</Label>
-                <Select value={draft.assigneeId} onValueChange={(value) => value && setField("assigneeId", value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue>{(value: string) => (value === UNASSIGNED ? "Unassigned" : teamMemberNames[value])}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                    {teamMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Assignees</Label>
+                <TaskAssigneesPicker
+                  teamMembers={teamMembers}
+                  value={draft.assigneeIds}
+                  onChange={(ids) => setField("assigneeIds", [...ids].sort())}
+                />
               </div>
 
               <div className="space-y-1.5">

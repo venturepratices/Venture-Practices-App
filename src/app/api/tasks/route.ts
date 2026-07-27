@@ -28,16 +28,18 @@ export async function POST(request: Request) {
     return toErrorResponse(error);
   }
 
+  const assigneeIds = [...new Set(parsed.data.assigneeIds ?? [])];
+
   const task = await prisma.task.create({
     data: {
       title: parsed.data.title,
       clientId: parsed.data.clientId ?? null,
-      assigneeId: parsed.data.assigneeId ?? null,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
+      assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },
     },
-    include: { assignee: { select: { id: true, name: true } } },
+    include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
   });
 
   await logActivity({
@@ -50,14 +52,15 @@ export async function POST(request: Request) {
     description: `${session.user.name ?? "Someone"} created task "${task.title}"`,
   });
 
-  if (task.assigneeId && task.assigneeId !== session.user.id) {
+  for (const a of task.assignees) {
+    if (a.teamMemberId === session.user.id) continue;
     await notify({
-      recipientId: task.assigneeId,
+      recipientId: a.teamMemberId,
       type: "ASSIGNED",
       entityType: "Task",
       entityId: task.id,
       entityLabel: task.title,
-      message: `${task.assignee?.name ?? "Someone"} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+      message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
     });
   }
 

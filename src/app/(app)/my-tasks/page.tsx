@@ -18,8 +18,11 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const [tasks, clients, teamMembers] = await Promise.all([
     session?.user?.id
       ? prisma.task.findMany({
-          where: { assigneeId: session.user.id },
-          include: { assignee: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } },
+          where: { assignees: { some: { teamMemberId: session.user.id } } },
+          include: {
+            assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+            client: { select: { id: true, name: true } },
+          },
           orderBy: { createdAt: "desc" },
         })
       : Promise.resolve([]),

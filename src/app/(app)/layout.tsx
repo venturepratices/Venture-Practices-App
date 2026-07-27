@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isAdmin={!!perms?.isAdmin}
           canViewActivity={!!perms?.caps.canViewActivity}
           canViewArchive={!!perms?.caps.canViewArchive}
+          canManageDirectMail={!!perms?.caps.canManageDirectMail}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar userName={session?.user?.name} userEmail={session?.user?.email} unreadCount={unreadCount} />

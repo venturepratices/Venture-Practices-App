@@ -22,15 +22,17 @@ function computeNextDeadline(current: Date | null, occurrence: TaskOccurrence): 
 export async function maybeCreateNextOccurrence(task: Task) {
   if (!RECURRING_OCCURRENCES.includes(task.occurrence)) return null;
 
+  const currentAssignees = await prisma.taskAssignee.findMany({ where: { taskId: task.id } });
+
   return prisma.task.create({
     data: {
       title: task.title,
-      assigneeId: task.assigneeId,
       clientId: task.clientId,
       occurrence: task.occurrence,
       status: "NEXT_UP",
       deadline: computeNextDeadline(task.deadline, task.occurrence),
+      assignees: { create: currentAssignees.map((a) => ({ teamMemberId: a.teamMemberId })) },
     },
-    include: { assignee: { select: { id: true, name: true } } },
+    include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
   });
 }

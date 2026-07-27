@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -22,6 +22,12 @@ const AGENCY_LINKS = [
   { href: "/team", label: "Team", icon: Users, adminOnly: true },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
+  {
+    href: "/settings/direct-mail-templates",
+    label: "Direct Mail Templates",
+    icon: Mail,
+    needs: "canManageDirectMail" as const,
+  },
 ];
 
 export function Sidebar({
@@ -29,23 +35,26 @@ export function Sidebar({
   isAdmin = false,
   canViewActivity = false,
   canViewArchive = false,
+  canManageDirectMail = false,
 }: {
   clients: SidebarClient[];
   isAdmin?: boolean;
   canViewActivity?: boolean;
   canViewArchive?: boolean;
+  canManageDirectMail?: boolean;
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
   const { isOpen, close } = useMobileSidebar();
 
-  // Hide nav items the viewer can't use — Team is admin-only; Activity/Archive
-  // each need their own specific capability. (These are also enforced
-  // server-side; hiding is just so people don't see dead links.)
+  // Hide nav items the viewer can't use — Team is admin-only; Activity/Archive/
+  // Direct Mail Templates each need their own specific capability. (These are
+  // also enforced server-side; hiding is just so people don't see dead links.)
   const links = AGENCY_LINKS.filter((link) => {
     if ("adminOnly" in link && link.adminOnly) return isAdmin;
     if ("needs" in link && link.needs === "canViewActivity") return isAdmin || canViewActivity;
     if ("needs" in link && link.needs === "canViewArchive") return isAdmin || canViewArchive;
+    if ("needs" in link && link.needs === "canManageDirectMail") return isAdmin || canManageDirectMail;
     return true;
   });
 

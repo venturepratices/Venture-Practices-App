@@ -31,7 +31,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
       },
       tasks: {
         where: { campaignId: null },
-        include: { assignee: { select: { name: true } } },
+        include: { assignees: { include: { teamMember: { select: { name: true } } } } },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -85,7 +85,9 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
             {program.tasks.map((task) => (
               <div key={task.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <span>{task.title}</span>
-                <span className="text-xs text-muted-foreground">{task.assignee?.name ?? "Unassigned"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned"}
+                </span>
               </div>
             ))}
           </div>

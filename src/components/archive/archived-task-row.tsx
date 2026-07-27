@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { cn, formatDateTime } from "@/lib/utils";
 import { ARCHIVE_GRID } from "@/components/archive/archive-grid";
+import { archivedAssigneeNames } from "@/types/task";
 import type { ArchivedTask } from "@/generated/prisma/client";
 
 type Props = {
@@ -15,6 +16,7 @@ export function ArchivedTaskRow({ task }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const assigneeNames = archivedAssigneeNames(task);
 
   function open() {
     const params = new URLSearchParams(searchParams.toString());
@@ -38,11 +40,11 @@ export function ArchivedTaskRow({ task }: Props) {
       <span className="min-w-0">
         <span className="block truncate line-through decoration-muted-foreground/50">{task.title}</span>
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
-          {[task.clientName ?? "Internal", task.assigneeName ?? "Unassigned"].join(" · ")}
+          {[task.clientName ?? "Internal", assigneeNames].join(" · ")}
         </span>
       </span>
       <span className="hidden truncate text-muted-foreground md:block">{task.clientName ?? "Internal"}</span>
-      <span className="hidden truncate text-muted-foreground md:block">{task.assigneeName ?? "Unassigned"}</span>
+      <span className="hidden truncate text-muted-foreground md:block">{assigneeNames}</span>
       <StatusPill status={task.status} className="justify-self-start" />
       <span className="hidden justify-self-end text-right text-xs text-muted-foreground md:block">
         Deleted {formatDateTime(task.deletedAt)}
