@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
+import { maybeAdvanceCampaignStage } from "@/lib/campaign-advance";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -190,6 +191,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             message: `${a.teamMember.name} — you have a new recurring task: "${next.title}"`,
           });
         }
+      }
+
+      if (task.campaignId) {
+        await maybeAdvanceCampaignStage(task.campaignId, session.user.id);
       }
     }
   }

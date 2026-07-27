@@ -65,6 +65,8 @@ enum NotificationType {
   ASSET_APPROVED
   ASSET_CHANGES_REQUESTED
   ASSET_DUE_SOON
+  CAMPAIGN_STAGE_ADVANCED
+  CAMPAIGN_TASK_ASSIGNED
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.

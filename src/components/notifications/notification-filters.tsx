@@ -17,6 +17,8 @@ const TYPE_LABELS: Record<string, string> = {
   STATUS_CHANGED: "Status changed",
   DEADLINE_CHANGED: "Deadline changed",
   COMMENTED: "New comment",
+  CAMPAIGN_STAGE_ADVANCED: "Campaign stage advanced",
+  CAMPAIGN_TASK_ASSIGNED: "New campaign task",
 };
 
 const READ_LABELS: Record<string, string> = {
