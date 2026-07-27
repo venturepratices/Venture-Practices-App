@@ -21,8 +21,14 @@ export async function POST(request: Request) {
 
   // A task tied to a client requires access to that client, in addition to
   // the create-tasks capability everyone (client-scoped or internal) needs.
+  // A task attached directly to a campaign stage is a Direct Mail structural
+  // change (same gate as creating the campaign itself), not a plain task add.
   try {
-    await requireCapability("canCreateTasks");
+    if (parsed.data.campaignId) {
+      await requireCapability("canManageDirectMail");
+    } else {
+      await requireCapability("canCreateTasks");
+    }
     if (parsed.data.clientId) await requireClientAccess(parsed.data.clientId);
   } catch (error) {
     return toErrorResponse(error);
@@ -34,6 +40,9 @@ export async function POST(request: Request) {
     data: {
       title: parsed.data.title,
       clientId: parsed.data.clientId ?? null,
+      programId: parsed.data.programId ?? null,
+      campaignId: parsed.data.campaignId ?? null,
+      campaignStage: parsed.data.campaignStage ?? null,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),

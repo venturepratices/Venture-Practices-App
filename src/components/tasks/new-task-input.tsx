@@ -20,9 +20,21 @@ type Props = {
   lockClient?: boolean;
   clients?: { id: string; name: string }[];
   teamMembers?: { id: string; name: string }[];
+  programId?: string | null;
+  campaignId?: string | null;
+  campaignStage?: string | null;
 };
 
-export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], teamMembers = [] }: Props) {
+export function NewTaskInput({
+  clientId,
+  assigneeId,
+  lockClient,
+  clients = [],
+  teamMembers = [],
+  programId,
+  campaignId,
+  campaignStage,
+}: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState("NEXT_UP");
@@ -56,6 +68,9 @@ export function NewTaskInput({ clientId, assigneeId, lockClient, clients = [], t
         status,
         occurrence,
         deadline: deadline ? new Date(deadline).toISOString() : null,
+        ...(programId !== undefined ? { programId } : {}),
+        ...(campaignId !== undefined ? { campaignId } : {}),
+        ...(campaignStage !== undefined ? { campaignStage } : {}),
       }),
     });
 
