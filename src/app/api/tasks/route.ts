@@ -21,17 +21,37 @@ export async function POST(request: Request) {
 
   // A task tied to a client requires access to that client, in addition to
   // the create-tasks capability everyone (client-scoped or internal) needs.
-  // A task attached directly to a campaign stage is a Direct Mail structural
-  // change (same gate as creating the campaign itself), not a plain task add.
+  // A task attached directly to a campaign stage or a workflow instance is a
+  // structural change to that pipeline (same gate as creating it), not a
+  // plain task add.
   try {
     if (parsed.data.campaignId) {
       await requireCapability("canManageDirectMail");
+    } else if (parsed.data.workflowInstanceId) {
+      await requireCapability("canManageWorkflows");
     } else {
       await requireCapability("canCreateTasks");
     }
     if (parsed.data.clientId) await requireClientAccess(parsed.data.clientId);
   } catch (error) {
     return toErrorResponse(error);
+  }
+
+  if (parsed.data.workflowInstanceId) {
+    const instance = await prisma.workflowInstance.findUnique({
+      where: { id: parsed.data.workflowInstanceId },
+      select: { id: true, clientId: true },
+    });
+    if (!instance) {
+      return NextResponse.json({ error: "Workflow not found" }, { status: 400 });
+    }
+    if (instance.clientId) {
+      try {
+        await requireClientAccess(instance.clientId);
+      } catch (error) {
+        return toErrorResponse(error);
+      }
+    }
   }
 
   const assigneeIds = [...new Set(parsed.data.assigneeIds ?? [])];
@@ -43,6 +63,8 @@ export async function POST(request: Request) {
       clientId: parsed.data.clientId ?? null,
       campaignId: parsed.data.campaignId ?? null,
       campaignStage: parsed.data.campaignStage ?? null,
+      workflowInstanceId: parsed.data.workflowInstanceId ?? null,
+      workflowStageNumber: parsed.data.workflowStageNumber ?? null,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),

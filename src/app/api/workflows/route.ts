@@ -64,6 +64,38 @@ export async function POST(request: Request) {
     }
   }
 
+  const clientId = parsed.data.clientId ?? null;
+
+  // Blank start — no template, no stages/tasks yet. The user builds up the
+  // pipeline afterward via the "Add stage" affordance + per-stage ad-hoc
+  // task adds, both on the instance detail page.
+  if (!parsed.data.workflowTemplateId) {
+    const instance = await prisma.workflowInstance.create({
+      data: {
+        name: parsed.data.name,
+        workflowTemplateId: null,
+        clientId,
+        stagesSnapshot: [],
+        currentStageNumber: 1,
+        createdById: session.user.id,
+      },
+    });
+
+    const client = clientId ? await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } }) : null;
+    const instanceLabel = client ? `${instance.name} — ${client.name}` : instance.name;
+    await logActivity({
+      actorId: session.user.id,
+      actorName: session.user.name ?? null,
+      entityType: "WorkflowInstance",
+      entityId: instance.id,
+      entityLabel: instanceLabel,
+      action: "workflow_started",
+      description: `${session.user.name ?? "Someone"} started "${instanceLabel}" from scratch (no template)`,
+    });
+
+    return NextResponse.json(instance, { status: 201 });
+  }
+
   const template = await prisma.workflowTemplate.findUnique({
     where: { id: parsed.data.workflowTemplateId },
     include: {
@@ -98,8 +130,6 @@ export async function POST(request: Request) {
       links: task.links.map((link) => ({ url: link.url, label: link.label })),
     })),
   }));
-
-  const clientId = parsed.data.clientId ?? null;
 
   const { instance, taskCount } = await prisma.$transaction(async (tx) => {
     const created = await tx.workflowInstance.create({

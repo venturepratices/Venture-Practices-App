@@ -31,6 +31,7 @@ export function NewWorkflowDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [startBlank, setStartBlank] = useState(templates.length === 0);
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -41,14 +42,15 @@ export function NewWorkflowDialog({
   }
 
   async function handleSubmit() {
-    if (!templateId || !name.trim()) return;
+    if (!startBlank && !templateId) return;
+    if (!name.trim()) return;
     setError(null);
     setIsSaving(true);
     const response = await fetch("/api/workflows", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        workflowTemplateId: templateId,
+        workflowTemplateId: startBlank ? null : templateId,
         name: name.trim(),
         clientId: fixedClientId,
       }),
@@ -78,16 +80,43 @@ export function NewWorkflowDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start a workflow</DialogTitle>
-          <DialogDescription>Spawns a real task per template task, grouped into stages.</DialogDescription>
+          <DialogDescription>
+            {startBlank ? "Start with no stages — add them yourself once it's running." : "Spawns a real task per template task, grouped into stages."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label>Template</Label>
-            {templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No templates yet — create one in Settings → Workflow Templates first.
-              </p>
-            ) : (
+          {templates.length > 0 ? (
+            <div className="flex gap-1.5 rounded-lg border p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={startBlank ? "ghost" : "secondary"}
+                className="flex-1"
+                onClick={() => setStartBlank(false)}
+              >
+                From template
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={startBlank ? "secondary" : "ghost"}
+                className="flex-1"
+                onClick={() => setStartBlank(true)}
+              >
+                Start blank
+              </Button>
+            </div>
+          ) : null}
+
+          {startBlank ? (
+            <p className="text-sm text-muted-foreground">
+              {templates.length === 0
+                ? "No templates yet — start blank and add stages/tasks yourself, or create a template in Settings → Workflow Templates first."
+                : "No stages to start — you'll add them from the workflow's own page once it's created."}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <Label>Template</Label>
               <Select
                 value={templateId}
                 onValueChange={(value) => {
@@ -107,8 +136,8 @@ export function NewWorkflowDialog({
                   ))}
                 </SelectContent>
               </Select>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="workflow-name">Name</Label>
@@ -124,7 +153,7 @@ export function NewWorkflowDialog({
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
-          <Button type="button" onClick={handleSubmit} disabled={isSaving || !templateId || !name.trim()}>
+          <Button type="button" onClick={handleSubmit} disabled={isSaving || (!startBlank && !templateId) || !name.trim()}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
             {isSaving ? "Starting..." : "Start workflow"}
           </Button>

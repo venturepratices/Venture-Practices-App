@@ -23,6 +23,8 @@ type Props = {
   teamMembers?: { id: string; name: string }[];
   campaignId?: string | null;
   campaignStage?: string | null;
+  workflowInstanceId?: string | null;
+  workflowStageNumber?: number | null;
 };
 
 export function NewTaskInput({
@@ -33,6 +35,8 @@ export function NewTaskInput({
   teamMembers = [],
   campaignId,
   campaignStage,
+  workflowInstanceId,
+  workflowStageNumber,
 }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -72,6 +76,8 @@ export function NewTaskInput({
         deadline: deadline ? new Date(deadline).toISOString() : null,
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(campaignStage !== undefined ? { campaignStage } : {}),
+        ...(workflowInstanceId !== undefined ? { workflowInstanceId } : {}),
+        ...(workflowStageNumber !== undefined ? { workflowStageNumber } : {}),
       }),
     });
 

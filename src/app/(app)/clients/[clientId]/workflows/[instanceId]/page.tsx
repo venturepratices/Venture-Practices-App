@@ -14,21 +14,24 @@ export default async function ClientWorkflowInstanceDetailPage({
   if (!(await canUseCapability("canViewWorkflows"))) notFound();
   const canManage = await canUseCapability("canManageWorkflows");
 
-  const instance = await prisma.workflowInstance.findFirst({
-    where: { id: instanceId, clientId },
-    include: {
-      client: { select: { id: true, name: true } },
-      workflowTemplate: { select: { id: true, name: true } },
-      createdBy: { select: { id: true, name: true } },
-      tasks: {
-        include: {
-          assignees: { include: { teamMember: { select: { id: true, name: true } } } },
-          client: { select: { id: true, name: true } },
+  const [instance, teamMembers] = await Promise.all([
+    prisma.workflowInstance.findFirst({
+      where: { id: instanceId, clientId },
+      include: {
+        client: { select: { id: true, name: true } },
+        workflowTemplate: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        tasks: {
+          include: {
+            assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+            client: { select: { id: true, name: true } },
+          },
+          orderBy: [{ workflowStageNumber: "asc" }, { createdAt: "asc" }],
         },
-        orderBy: [{ workflowStageNumber: "asc" }, { createdAt: "asc" }],
       },
-    },
-  });
+    }),
+    canManage ? prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+  ]);
   if (!instance) notFound();
 
   return (
@@ -38,6 +41,7 @@ export default async function ClientWorkflowInstanceDetailPage({
       backHref={`/clients/${clientId}/workflows`}
       backLabel="Workflows"
       redirectOnDelete={`/clients/${clientId}/workflows`}
+      teamMembers={teamMembers}
     />
   );
 }

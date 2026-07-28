@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
+import { AddStageInput } from "@/components/workflows/add-stage-input";
 import { WorkflowInstanceControls } from "@/components/workflows/workflow-instance-controls";
 import { WORKFLOW_STATUS_LABEL, WORKFLOW_STATUS_TONE } from "@/components/workflows/workflow-instance-card";
 import { WorkflowPipeline } from "@/components/workflows/workflow-pipeline";
+import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
@@ -35,12 +37,14 @@ export function WorkflowInstanceDetail({
   backHref,
   backLabel,
   redirectOnDelete,
+  teamMembers = [],
 }: {
   instance: WorkflowInstanceDetailData;
   canManage: boolean;
   backHref: string;
   backLabel: string;
   redirectOnDelete: string;
+  teamMembers?: { id: string; name: string }[];
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const tasksByStage = instance.tasks.reduce<Record<number, typeof instance.tasks>>((acc, task) => {
@@ -78,47 +82,75 @@ export function WorkflowInstanceDetail({
         {instance.createdBy ? ` · started by ${instance.createdBy.name}` : ""}
       </p>
 
-      <div className="mt-4 rounded-lg border p-4">
-        <WorkflowPipeline
-          stages={snapshot}
-          currentStageNumber={instance.currentStageNumber}
-          isComplete={instance.status === "COMPLETE"}
-          taskCounts={taskCounts}
-        />
-      </div>
+      {snapshot.length > 0 ? (
+        <div className="mt-4 rounded-lg border p-4">
+          <WorkflowPipeline
+            stages={snapshot}
+            currentStageNumber={instance.currentStageNumber}
+            isComplete={instance.status === "COMPLETE"}
+            taskCounts={taskCounts}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-6 space-y-5">
-        {snapshot.map((stage) => {
-          const stageTasks = tasksByStage[stage.sequenceNumber] ?? [];
-          const unassignedCount = stageTasks.filter((t) => t.assignees.length === 0).length;
-          return (
-            <div key={stage.sequenceNumber}>
-              <div className="flex items-center gap-2">
-                <p className="text-base font-bold text-foreground">{stage.name}</p>
-                {unassignedCount > 0 ? (
-                  <span className="rounded-full bg-status-warning px-1.5 py-0.5 text-[10px] font-bold text-status-warning-foreground">
-                    {unassignedCount} unassigned
-                  </span>
+        {snapshot.length === 0 ? (
+          <p className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">
+            No stages yet — add one below to start building this workflow's pipeline.
+          </p>
+        ) : (
+          snapshot.map((stage) => {
+            const stageTasks = tasksByStage[stage.sequenceNumber] ?? [];
+            const unassignedCount = stageTasks.filter((t) => t.assignees.length === 0).length;
+            return (
+              <div key={stage.sequenceNumber}>
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-bold text-foreground">{stage.name}</p>
+                  {unassignedCount > 0 ? (
+                    <span className="rounded-full bg-status-warning px-1.5 py-0.5 text-[10px] font-bold text-status-warning-foreground">
+                      {unassignedCount} unassigned
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-1 rounded-lg border">
+                  {stageTasks.length > 0 ? (
+                    <>
+                      <TaskListHeader />
+                      <div className="divide-y px-1.5">
+                        {stageTasks.map((task) => (
+                          <TaskRow key={task.id} task={task} />
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="px-4 py-3 text-sm text-muted-foreground">No tasks in this stage.</p>
+                  )}
+                </div>
+                {canManage && instance.status === "ACTIVE" ? (
+                  <div className="mt-2">
+                    <NewTaskInput
+                      clientId={instance.clientId}
+                      lockClient
+                      teamMembers={teamMembers}
+                      workflowInstanceId={instance.id}
+                      workflowStageNumber={stage.sequenceNumber}
+                    />
+                  </div>
                 ) : null}
               </div>
-              <div className="mt-1 rounded-lg border">
-                {stageTasks.length > 0 ? (
-                  <>
-                    <TaskListHeader />
-                    <div className="divide-y px-1.5">
-                      {stageTasks.map((task) => (
-                        <TaskRow key={task.id} task={task} />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="px-4 py-3 text-sm text-muted-foreground">No tasks in this stage.</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
+
+      {canManage && instance.status === "ACTIVE" ? (
+        <div className="mt-6">
+          <AddStageInput
+            instanceId={instance.id}
+            existingStages={snapshot.map((s) => ({ name: s.name, description: s.description }))}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
