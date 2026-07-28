@@ -16,7 +16,17 @@ export default async function WorkflowsPage() {
   const [instances, templates] = await Promise.all([
     prisma.workflowInstance.findMany({
       where: { clientId: null },
-      include: { client: { select: { id: true, name: true } }, tasks: { select: { status: true, workflowStageNumber: true } } },
+      include: {
+        client: { select: { id: true, name: true } },
+        tasks: {
+          select: {
+            status: true,
+            workflowStageNumber: true,
+            deadline: true,
+            assignees: { include: { teamMember: { select: { name: true } } } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     }),
     canManage

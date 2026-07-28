@@ -6,6 +6,7 @@ import { WorkflowFolderSelect } from "@/components/workflows/workflow-folder-sel
 import { WorkflowInstanceControls } from "@/components/workflows/workflow-instance-controls";
 import { WORKFLOW_STATUS_LABEL, WORKFLOW_STATUS_TONE } from "@/components/workflows/workflow-instance-card";
 import { WorkflowPipeline } from "@/components/workflows/workflow-pipeline";
+import { WorkflowSummaryCard } from "@/components/workflows/workflow-summary-card";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import { StatusPillBase } from "@/components/ui/status-pill";
@@ -40,6 +41,7 @@ export function WorkflowInstanceDetail({
   redirectOnDelete,
   teamMembers = [],
   folders = [],
+  recentActivity = [],
 }: {
   instance: WorkflowInstanceDetailData;
   canManage: boolean;
@@ -48,6 +50,7 @@ export function WorkflowInstanceDetail({
   redirectOnDelete: string;
   teamMembers?: { id: string; name: string }[];
   folders?: { id: string; name: string }[];
+  recentActivity?: { id: string; description: string; createdAt: Date }[];
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const tasksByStage = instance.tasks.reduce<Record<number, typeof instance.tasks>>((acc, task) => {
@@ -87,6 +90,8 @@ export function WorkflowInstanceDetail({
         {instance.workflowTemplate ? ` · from template "${instance.workflowTemplate.name}"` : ""}
         {instance.createdBy ? ` · started by ${instance.createdBy.name}` : ""}
       </p>
+
+      <WorkflowSummaryCard instance={instance} recentActivity={recentActivity} />
 
       {snapshot.length > 0 ? (
         <div className="mt-4 rounded-lg border p-4">

@@ -29,6 +29,18 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
   ]);
   if (!instance) notFound();
 
+  const recentActivity = await prisma.activityLog.findMany({
+    where: {
+      OR: [
+        { entityType: "WorkflowInstance", entityId: instance.id },
+        { entityType: "Task", entityId: { in: instance.tasks.map((t) => t.id) } },
+      ],
+    },
+    select: { id: true, description: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+
   return (
     <WorkflowInstanceDetail
       instance={instance}
@@ -37,6 +49,7 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
       backLabel="Workflows"
       redirectOnDelete="/workflows"
       teamMembers={teamMembers}
+      recentActivity={recentActivity}
     />
   );
 }

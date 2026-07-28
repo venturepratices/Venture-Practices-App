@@ -35,6 +35,18 @@ export default async function ClientWorkflowInstanceDetailPage({
   ]);
   if (!instance) notFound();
 
+  const recentActivity = await prisma.activityLog.findMany({
+    where: {
+      OR: [
+        { entityType: "WorkflowInstance", entityId: instance.id },
+        { entityType: "Task", entityId: { in: instance.tasks.map((t) => t.id) } },
+      ],
+    },
+    select: { id: true, description: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+
   return (
     <WorkflowInstanceDetail
       instance={instance}
@@ -44,6 +56,7 @@ export default async function ClientWorkflowInstanceDetailPage({
       redirectOnDelete={`/clients/${clientId}/workflows`}
       teamMembers={teamMembers}
       folders={folders}
+      recentActivity={recentActivity}
     />
   );
 }

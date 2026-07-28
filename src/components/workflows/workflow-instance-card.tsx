@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 
 import { StatusPillBase, type StatusTone } from "@/components/ui/status-pill";
 import { WorkflowPipeline } from "@/components/workflows/workflow-pipeline";
@@ -11,9 +12,20 @@ export const WORKFLOW_STATUS_LABEL: Record<string, string> = { ACTIVE: "Active",
 export type WorkflowInstanceCardData = Prisma.WorkflowInstanceGetPayload<{
   include: {
     client: { select: { id: true; name: true } };
-    tasks: { select: { status: true; workflowStageNumber: true } };
+    tasks: {
+      select: {
+        status: true;
+        workflowStageNumber: true;
+        deadline: true;
+        assignees: { include: { teamMember: { select: { name: true } } } };
+      };
+    };
   };
 }>;
+
+function daysSince(date: Date) {
+  return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
+}
 
 /**
  * Clickable list row shared by the internal /workflows list and each
@@ -40,6 +52,19 @@ export function WorkflowInstanceCard({
   const metaParts: string[] = [];
   if (!hideClientLabel) metaParts.push(instance.client ? instance.client.name : "Internal");
   if (totalTasks > 0) metaParts.push(`${completeTasks}/${totalTasks} tasks done`);
+  metaParts.push(`started ${daysSince(instance.createdAt)}d ago`);
+
+  const currentStageName = snapshot.find((s) => s.sequenceNumber === instance.currentStageNumber)?.name;
+  const currentStageTasks = instance.tasks.filter((t) => t.workflowStageNumber === instance.currentStageNumber && t.status !== "COMPLETE");
+  const assigneeNames = [...new Set(currentStageTasks.flatMap((t) => t.assignees.map((a) => a.teamMember.name)))];
+  const overdueCount = instance.tasks.filter((t) => t.status !== "COMPLETE" && t.deadline && t.deadline.getTime() < Date.now()).length;
+
+  const turnLabel =
+    assigneeNames.length === 0
+      ? null
+      : assigneeNames.length <= 2
+        ? assigneeNames.join(", ")
+        : `${assigneeNames.slice(0, 2).join(", ")} +${assigneeNames.length - 2} more`;
 
   return (
     <Link href={href} className="block rounded-lg border p-4 transition-colors hover:border-primary">
@@ -47,9 +72,26 @@ export function WorkflowInstanceCard({
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">{instance.name}</p>
           <StatusPillBase tone={WORKFLOW_STATUS_TONE[instance.status]} label={WORKFLOW_STATUS_LABEL[instance.status]} />
+          {overdueCount > 0 ? (
+            <span className="flex items-center gap-1 rounded-full bg-status-danger px-1.5 py-0.5 text-[10px] font-bold text-status-danger-foreground">
+              <AlertTriangle className="size-3" />
+              {overdueCount} overdue
+            </span>
+          ) : null}
         </div>
-        {metaParts.length > 0 ? <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p> : null}
+        <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p>
       </div>
+      {instance.status === "ACTIVE" && currentStageName ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          On: <span className="font-medium text-foreground">{currentStageName}</span>
+          {turnLabel ? (
+            <>
+              {" "}
+              · waiting on <span className="font-medium text-foreground">{turnLabel}</span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <div className="mt-3">
         <WorkflowPipeline
           stages={snapshot}
