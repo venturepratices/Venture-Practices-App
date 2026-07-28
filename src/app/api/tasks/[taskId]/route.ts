@@ -8,6 +8,7 @@ import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
+import { maybeAdvanceWorkflowStage } from "@/lib/workflow-advance";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { updateTaskSchema } from "@/lib/validations/task";
 
@@ -194,6 +195,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
 
       if (task.campaignId) {
         await maybeAdvanceCampaignStage(task.campaignId, session.user.id);
+      }
+
+      if (task.workflowInstanceId) {
+        await maybeAdvanceWorkflowStage(task.workflowInstanceId, session.user.id);
       }
     }
   }

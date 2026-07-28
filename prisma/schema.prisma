@@ -67,6 +67,8 @@ enum NotificationType {
   ASSET_DUE_SOON
   CAMPAIGN_STAGE_ADVANCED
   CAMPAIGN_TASK_ASSIGNED
+  WORKFLOW_STAGE_STARTED
+  WORKFLOW_COMPLETED
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -191,24 +193,33 @@ model TeamMember {
   canViewDirectMail   Boolean @default(false)
   canManageDirectMail Boolean @default(false)
 
+  // Workflows — generic staged-pipeline templates (Client Onboarding, etc.),
+  // a sibling of Direct Mail's engine but reusable for any process. View is
+  // the base (see templates + in-flight instances); manage lets you author
+  // templates and start/cancel/advance instances.
+  canViewWorkflows   Boolean @default(false)
+  canManageWorkflows Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions               Session[]
-  accounts               Account[]
-  assignedTasks          Task[]               @relation("TaskAssignee")
-  taskAssignments        TaskAssignee[]
-  archivedTasks          ArchivedTask[]       @relation("ArchivedBy")
-  comments               Comment[]
-  clientNotes            ClientNote[]
-  meetingNotes           MeetingNote[]
-  activityLogs           ActivityLog[]
-  notifications          Notification[]
-  clientAccess           ClientAccess[]
-  createdAssets          Asset[]              @relation("AssetCreatedBy")
-  uploadedAssetVersions  AssetVersion[]       @relation("AssetVersionUploadedBy")
-  assetReviewerRoles     AssetReviewer[]      @relation("AssetReviewer")
-  createdAssetShareLinks AssetShareLink[]     @relation("AssetShareLinkCreatedBy")
+  sessions                     Session[]
+  accounts                     Account[]
+  assignedTasks                Task[]                         @relation("TaskAssignee")
+  taskAssignments              TaskAssignee[]
+  archivedTasks                ArchivedTask[]                 @relation("ArchivedBy")
+  comments                     Comment[]
+  clientNotes                  ClientNote[]
+  meetingNotes                 MeetingNote[]
+  activityLogs                 ActivityLog[]
+  notifications                Notification[]
+  clientAccess                 ClientAccess[]
+  createdAssets                Asset[]                        @relation("AssetCreatedBy")
+  uploadedAssetVersions        AssetVersion[]                 @relation("AssetVersionUploadedBy")
+  assetReviewerRoles           AssetReviewer[]                @relation("AssetReviewer")
+  createdAssetShareLinks       AssetShareLink[]               @relation("AssetShareLinkCreatedBy")
+  workflowTaskTemplateDefaults WorkflowTaskTemplateAssignee[]
+  createdWorkflowInstances     WorkflowInstance[]             @relation("WorkflowInstanceCreator")
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -293,6 +304,7 @@ model Client {
   clientUsers          ClientUser[]
   campaigns            Campaign[]
   intake               ClientIntake?
+  workflowInstances    WorkflowInstance[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -504,6 +516,18 @@ model Task {
   campaignStage  CampaignStage?
   templateTaskId String?
 
+  // Workflow Templates attachment — a Task may optionally belong to a
+  // WorkflowInstance's stage (independent of, and parallel to, the Direct
+  // Mail campaign attachment above). `workflowStageNumber` is denormalized
+  // from the instance's stagesSnapshot at spawn time so "is this task in the
+  // instance's current stage?" is a cheap comparison, no join needed.
+  // `workflowTaskTemplateId` tracks provenance only, same bare-string
+  // convention as templateTaskId.
+  workflowInstanceId     String?
+  workflowInstance       WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  workflowStageNumber    Int?
+  workflowTaskTemplateId String?
+
   comments Comment[]
   links    TaskLink[]
 
@@ -511,6 +535,7 @@ model Task {
   @@index([assigneeId])
   @@index([status])
   @@index([campaignId, campaignStage])
+  @@index([workflowInstanceId, workflowStageNumber])
 }
 
 // Multi-assignee join (Slice 2) — replaces the single-assignee Task.assigneeId
@@ -537,39 +562,39 @@ model TaskAssignee {
 // template snapshot taken at creation time (see ProgramTemplate below) —
 // editing the template later never changes an already-created campaign.
 model Campaign {
-  id               String        @id @default(cuid())
-  clientId         String
-  client           Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  sequenceNumber   Int
-  name             String?
+  id              String        @id @default(cuid())
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sequenceNumber  Int
+  name            String?
   // All four nullable — a campaign can be created before its dates are
   // decided; forms don't block progress on them, they can be filled in later.
-  mailDate         DateTime?
-  creativeDueDate  DateTime?
-  approvalDueDate  DateTime?
-  printDueDate     DateTime?
-  currentStage     CampaignStage @default(PLANNING)
-  quantity         Int?
-  geography        String?
-  budgetCents      Int?
-  offer            String?
-  cta              String?
-  stagesSnapshot   Json?
+  mailDate        DateTime?
+  creativeDueDate DateTime?
+  approvalDueDate DateTime?
+  printDueDate    DateTime?
+  currentStage    CampaignStage @default(PLANNING)
+  quantity        Int?
+  geography       String?
+  budgetCents     Int?
+  offer           String?
+  cta             String?
+  stagesSnapshot  Json?
   // The Asset that serves as this campaign's mailer proof — set by the
   // agency once a design is uploaded. When that Asset's status flips to
   // APPROVED (see maybeCompleteApprovalTasksForProofAsset in
   // src/lib/campaign-advance.ts), the campaign's Approval-stage tasks
   // auto-complete and the normal stage auto-advance runs. @unique because an
   // Asset can only be the proof for one campaign at a time.
-  proofAssetId     String?       @unique
-  proofAsset       Asset?        @relation("CampaignProofAsset", fields: [proofAssetId], references: [id], onDelete: SetNull)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  proofAssetId    String?       @unique
+  proofAsset      Asset?        @relation("CampaignProofAsset", fields: [proofAssetId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   tasks Task[]
 
-  @@index([clientId])
   @@unique([clientId, sequenceNumber])
+  @@index([clientId])
 }
 
 // Direct Mail template engine — the editable master that the Campaign
@@ -596,8 +621,8 @@ model StageTemplate {
 
   tasks TaskTemplate[]
 
-  @@index([templateId])
   @@unique([templateId, stage])
+  @@index([templateId])
 }
 
 model TaskTemplate {
@@ -612,6 +637,107 @@ model TaskTemplate {
   sequenceNumber     Int
 
   @@index([stageTemplateId])
+}
+
+// ---------------------------------------------------------------------------
+// Workflow Templates — a generic, reusable staged-pipeline engine, sibling to
+// (not a replacement for) the Direct Mail template engine above. Where Direct
+// Mail's stages are the fixed 7-value CampaignStage enum, a WorkflowTemplate's
+// stages are user-defined (WorkflowStageTemplate.name is free text) so the
+// same mechanism can drive Client Onboarding, New Hire Onboarding, or any
+// other staged, hand-off-driven process. Structure/shape directly informed by
+// Robert Ortiz's "Practice Mailers Direct Mail Workflow" doc (2026-07-27),
+// which called for a named-stage pipeline with per-stage task buckets. See
+// "Feature: Workflow Templates" in the plan file for full design rationale.
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stageTemplates WorkflowStageTemplate[]
+  instances      WorkflowInstance[]
+}
+
+model WorkflowStageTemplate {
+  id                 String           @id @default(cuid())
+  workflowTemplateId String
+  workflowTemplate   WorkflowTemplate @relation(fields: [workflowTemplateId], references: [id], onDelete: Cascade)
+  name               String // user-defined stage name, e.g. "Client Intake Pending"
+  description        String?
+  sequenceNumber     Int // 1-based position in the pipeline
+
+  taskTemplates WorkflowTaskTemplate[]
+
+  @@unique([workflowTemplateId, sequenceNumber])
+  @@index([workflowTemplateId])
+}
+
+model WorkflowTaskTemplate {
+  id                      String                @id @default(cuid())
+  workflowStageTemplateId String
+  workflowStageTemplate   WorkflowStageTemplate @relation(fields: [workflowStageTemplateId], references: [id], onDelete: Cascade)
+  sequenceNumber          Int // order within the stage; display-only, no intra-stage advance logic
+  title                   String
+  description             String?
+  defaultStatus           TaskStatus            @default(NEXT_UP)
+
+  defaultAssignees WorkflowTaskTemplateAssignee[]
+
+  @@index([workflowStageTemplateId])
+}
+
+// Default assignee(s) for a template task — a real TeamMember, never a role
+// (deliberately, per explicit product decision — see plan). Editable at both
+// template-edit time and per-instance time; spawning a Task from this just
+// copies these into normal TaskAssignee rows.
+model WorkflowTaskTemplateAssignee {
+  id                     String               @id @default(cuid())
+  workflowTaskTemplateId String
+  workflowTaskTemplate   WorkflowTaskTemplate @relation(fields: [workflowTaskTemplateId], references: [id], onDelete: Cascade)
+  teamMemberId           String
+  teamMember             TeamMember           @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowTaskTemplateId, teamMemberId])
+  @@index([teamMemberId])
+}
+
+enum WorkflowInstanceStatus {
+  ACTIVE
+  COMPLETE
+  CANCELLED
+}
+
+// One running (or finished/cancelled) execution of a WorkflowTemplate.
+// clientId is deliberately OPTIONAL — an internal workflow (e.g. new-hire
+// onboarding) has no client. stagesSnapshot freezes {name, description,
+// sequenceNumber}[] at creation time (same durability pattern as
+// Campaign.stagesSnapshot) so editing the template later never mutates an
+// in-flight instance. currentStageNumber is the source of truth for "what
+// stage is this on" — advanced by src/lib/workflow-advance.ts, never by
+// recomputing from task state on every read.
+model WorkflowInstance {
+  id                 String                 @id @default(cuid())
+  name               String
+  workflowTemplateId String?
+  workflowTemplate   WorkflowTemplate?      @relation(fields: [workflowTemplateId], references: [id], onDelete: SetNull)
+  clientId           String?
+  client             Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status             WorkflowInstanceStatus @default(ACTIVE)
+  stagesSnapshot     Json
+  currentStageNumber Int                    @default(1)
+  createdById        String?
+  createdBy          TeamMember?            @relation("WorkflowInstanceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  completedAt        DateTime?
+
+  tasks Task[]
+
+  @@index([clientId])
+  @@index([status])
 }
 
 model Comment {

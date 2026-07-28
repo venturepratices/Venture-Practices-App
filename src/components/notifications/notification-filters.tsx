@@ -19,6 +19,8 @@ const TYPE_LABELS: Record<string, string> = {
   COMMENTED: "New comment",
   CAMPAIGN_STAGE_ADVANCED: "Campaign stage advanced",
   CAMPAIGN_TASK_ASSIGNED: "New campaign task",
+  WORKFLOW_STAGE_STARTED: "Workflow stage started",
+  WORKFLOW_COMPLETED: "Workflow completed",
 };
 
 const READ_LABELS: Record<string, string> = {

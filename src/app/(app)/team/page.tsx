@@ -78,6 +78,8 @@ export default async function TeamPage() {
         canManageClientUsers: true,
         canViewDirectMail: true,
         canManageDirectMail: true,
+        canViewWorkflows: true,
+        canManageWorkflows: true,
       },
       orderBy: { name: "asc" },
     }),

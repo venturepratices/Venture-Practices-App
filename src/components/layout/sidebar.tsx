@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, LayoutDashboard, LayoutList, ListChecks, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, GitBranch, LayoutDashboard, LayoutList, ListChecks, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -19,6 +19,7 @@ const AGENCY_LINKS = [
   { href: "/clients", label: "All Clients", icon: Building2 },
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
+  { href: "/workflows", label: "Workflows", icon: GitBranch, needs: "canViewWorkflows" as const },
   { href: "/team", label: "Team", icon: Users, adminOnly: true },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
@@ -28,6 +29,12 @@ const AGENCY_LINKS = [
     icon: Mail,
     needs: "canManageDirectMail" as const,
   },
+  {
+    href: "/settings/workflow-templates",
+    label: "Workflow Templates",
+    icon: GitBranch,
+    needs: "canManageWorkflows" as const,
+  },
 ];
 
 export function Sidebar({
@@ -36,12 +43,16 @@ export function Sidebar({
   canViewActivity = false,
   canViewArchive = false,
   canManageDirectMail = false,
+  canViewWorkflows = false,
+  canManageWorkflows = false,
 }: {
   clients: SidebarClient[];
   isAdmin?: boolean;
   canViewActivity?: boolean;
   canViewArchive?: boolean;
   canManageDirectMail?: boolean;
+  canViewWorkflows?: boolean;
+  canManageWorkflows?: boolean;
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
@@ -55,6 +66,8 @@ export function Sidebar({
     if ("needs" in link && link.needs === "canViewActivity") return isAdmin || canViewActivity;
     if ("needs" in link && link.needs === "canViewArchive") return isAdmin || canViewArchive;
     if ("needs" in link && link.needs === "canManageDirectMail") return isAdmin || canManageDirectMail;
+    if ("needs" in link && link.needs === "canViewWorkflows") return isAdmin || canViewWorkflows || canManageWorkflows;
+    if ("needs" in link && link.needs === "canManageWorkflows") return isAdmin || canManageWorkflows;
     return true;
   });
 

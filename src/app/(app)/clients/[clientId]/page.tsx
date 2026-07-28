@@ -1,13 +1,18 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Mail, MapPin, Phone, Pencil, Globe } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { StatusPillBase, type StatusTone } from "@/components/ui/status-pill";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
 import { ClientUsersSection } from "@/components/clients/client-users-section";
 import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
+
+const WORKFLOW_STATUS_TONE: Record<string, StatusTone> = { ACTIVE: "blue", COMPLETE: "success", CANCELLED: "slate" };
+const WORKFLOW_STATUS_LABEL: Record<string, string> = { ACTIVE: "Active", COMPLETE: "Complete", CANCELLED: "Cancelled" };
 
 function IntakeField({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -53,6 +58,14 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const canManageHighLevel = await canUseCapability("canManageHighLevel");
   const canManageClientUsers = await canUseCapability("canManageClientUsers");
   const canViewDirectMail = await canUseCapability("canViewDirectMail");
+  const canViewWorkflows = await canUseCapability("canViewWorkflows");
+  const workflowInstances = canViewWorkflows
+    ? await prisma.workflowInstance.findMany({
+        where: { clientId },
+        select: { id: true, name: true, status: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasBusinessInfo = client.website || client.address;
@@ -110,6 +123,24 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
 
       <ClientUsersSection clientId={client.id} clientUsers={client.clientUsers} canManage={canManageClientUsers} />
+
+      {canViewWorkflows && workflowInstances.length > 0 ? (
+        <div className="space-y-2 rounded-lg border p-4">
+          <p className="text-sm font-medium">Workflows for this client</p>
+          <div className="space-y-1.5">
+            {workflowInstances.map((instance) => (
+              <Link
+                key={instance.id}
+                href={`/workflows/${instance.id}`}
+                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+              >
+                <span className="truncate">{instance.name}</span>
+                <StatusPillBase tone={WORKFLOW_STATUS_TONE[instance.status]} label={WORKFLOW_STATUS_LABEL[instance.status]} />
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {canViewDirectMail ? (
         <div className="space-y-3 rounded-lg border p-4">

@@ -88,6 +88,8 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canManageClientUsers: true,
       canViewDirectMail: true,
       canManageDirectMail: true,
+      canViewWorkflows: true,
+      canManageWorkflows: true,
     },
   });
   if (!member) return null;
