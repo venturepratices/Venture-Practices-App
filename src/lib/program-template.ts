@@ -4,6 +4,7 @@ import type { RoleTagValue } from "@/lib/role-tag";
 
 export type TemplateSnapshotTask = {
   title: string;
+  description: string | null;
   roleTag: RoleTagValue;
   daysBeforeMailDate: number | null;
   sequenceNumber: number;
@@ -65,6 +66,7 @@ export async function spawnCampaignTasks(
   const createdTasks = await tx.task.createManyAndReturn({
     data: flatTasks.map((task) => ({
       title: task.title,
+      description: task.description,
       campaignId: params.campaignId,
       clientId: params.clientId,
       campaignStage: task.stage,

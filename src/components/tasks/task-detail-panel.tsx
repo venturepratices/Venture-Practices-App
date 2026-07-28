@@ -26,6 +26,7 @@ type CampaignOption = { id: string; sequenceNumber: number; name?: string | null
 
 type Draft = {
   title: string;
+  description: string;
   status: string;
   assigneeIds: string[];
   clientId: string;
@@ -38,6 +39,7 @@ type Draft = {
 function draftFromTask(task: TaskDetail): Draft {
   return {
     title: task.title,
+    description: task.description ?? "",
     status: task.status,
     assigneeIds: task.assignees.map((a) => a.teamMemberId).sort(),
     clientId: task.clientId ?? NO_CLIENT,
@@ -146,6 +148,7 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     const base = draftFromTask(task);
     const fields: Record<string, unknown> = {};
     if (draft.title.trim() && draft.title.trim() !== base.title) fields.title = draft.title.trim();
+    if (draft.description !== base.description) fields.description = draft.description.trim() || null;
     if (draft.status !== base.status) fields.status = draft.status;
     if (JSON.stringify(draft.assigneeIds) !== JSON.stringify(base.assigneeIds)) {
       fields.assigneeIds = draft.assigneeIds;
@@ -262,6 +265,17 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
             ) : null}
 
             <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="task-description">Description</Label>
+                <Textarea
+                  id="task-description"
+                  value={draft.description}
+                  onChange={(event) => setField("description", event.target.value)}
+                  placeholder="Add more detail about this task..."
+                  className="min-h-20 text-sm"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={draft.status} onValueChange={(value) => value && setField("status", value)}>

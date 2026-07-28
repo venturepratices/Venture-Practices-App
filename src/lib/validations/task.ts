@@ -30,6 +30,7 @@ export const TASK_OCCURRENCE_LABELS: Record<string, string> = {
 
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
+  description: z.string().trim().max(4000).nullable().optional(),
   clientId: z.string().nullable().optional(),
   assigneeIds: z.array(z.string()).optional(),
   status: z.enum(TASK_STATUS_VALUES).optional(),
@@ -41,6 +42,7 @@ export const createTaskSchema = z.object({
 
 export const updateTaskSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),
+  description: z.string().trim().max(4000).nullable().optional(),
   assigneeIds: z.array(z.string()).optional(),
   clientId: z.string().nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),

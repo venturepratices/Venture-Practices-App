@@ -58,6 +58,7 @@ export async function POST(request: Request) {
           tasks: {
             create: stage.tasks.map((task, taskIndex) => ({
               title: task.title,
+              description: task.description ?? null,
               roleTag: task.roleTag,
               daysBeforeMailDate: task.daysBeforeMailDate ?? null,
               sequenceNumber: taskIndex + 1,

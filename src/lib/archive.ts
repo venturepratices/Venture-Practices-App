@@ -34,6 +34,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
       data: {
         originalTaskId: task.id,
         title: task.title,
+        description: task.description,
         assigneeId: assigneeSnapshots[0]?.id ?? null,
         assigneeName: assigneeSnapshots[0]?.name ?? null,
         assignees: assigneeSnapshots,
@@ -111,6 +112,7 @@ export async function restoreArchivedTask(archivedTaskId: string) {
     const task = await tx.task.create({
       data: {
         title: archived.title,
+        description: archived.description,
         clientId: client ? archived.clientId : null,
         occurrence: archived.occurrence,
         status: archived.status,

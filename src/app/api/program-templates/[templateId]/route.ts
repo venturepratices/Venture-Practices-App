@@ -75,6 +75,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
             tasks: {
               create: stage.tasks.map((task, taskIndex) => ({
                 title: task.title,
+                description: task.description ?? null,
                 roleTag: task.roleTag,
                 daysBeforeMailDate: task.daysBeforeMailDate ?? null,
                 sequenceNumber: taskIndex + 1,

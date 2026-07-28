@@ -5,6 +5,7 @@ import { ROLE_TAG_VALUES } from "@/lib/role-tag";
 
 const taskTemplateSchema = z.object({
   title: z.string().trim().min(1, "Task title is required").max(300),
+  description: z.string().trim().max(2000).nullable().optional(),
   roleTag: z.enum(ROLE_TAG_VALUES),
   daysBeforeMailDate: z.coerce.number().int().nullable().optional(),
 });

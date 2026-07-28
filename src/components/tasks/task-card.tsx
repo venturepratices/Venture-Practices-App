@@ -32,6 +32,7 @@ export function TaskCard({
       )}
     >
       <p className="font-medium">{task.title}</p>
+      {task.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{task.description}</p> : null}
       {showClient ? (
         <p className="mt-1 truncate text-xs text-muted-foreground">{task.client?.name ?? "Internal / Agency"}</p>
       ) : null}

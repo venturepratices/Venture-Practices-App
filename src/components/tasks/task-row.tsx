@@ -94,6 +94,9 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
       </span>
       <span className="min-w-0">
         <span className="block truncate">{task.title}</span>
+        {task.description ? (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{task.description}</span>
+        ) : null}
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
           {[
             showClient ? task.client?.name ?? null : null,

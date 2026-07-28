@@ -39,6 +39,7 @@ export async function spawnWorkflowTasks(
   const createdTasks = await tx.task.createManyAndReturn({
     data: flatTasks.map((task) => ({
       title: task.title,
+      description: task.description,
       status: task.defaultStatus,
       clientId: params.clientId,
       workflowInstanceId: params.instanceId,

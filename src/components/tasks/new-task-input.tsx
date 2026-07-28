@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
@@ -35,6 +36,7 @@ export function NewTaskInput({
 }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [status, setStatus] = useState("NEXT_UP");
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : []);
@@ -45,6 +47,7 @@ export function NewTaskInput({
 
   function resetFields() {
     setTitle("");
+    setDescription("");
     setStatus("NEXT_UP");
     setOccurrence("NON_RECURRING");
     setAssigneeIds(assigneeId ? [assigneeId] : []);
@@ -61,6 +64,7 @@ export function NewTaskInput({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: trimmed,
+        description: description.trim() || null,
         clientId: lockClient ? clientId ?? null : client === NO_CLIENT ? null : client,
         assigneeIds,
         status,
@@ -108,6 +112,14 @@ export function NewTaskInput({
         }}
         placeholder="Task title..."
         disabled={isPending}
+      />
+
+      <Textarea
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+        placeholder="Description (optional)..."
+        disabled={isPending}
+        className="min-h-16 text-sm"
       />
 
       <div className="flex flex-wrap items-end gap-2">

@@ -490,8 +490,9 @@ model LandingPage {
 }
 
 model Task {
-  id         String         @id @default(cuid())
-  title      String
+  id          String         @id @default(cuid())
+  title       String
+  description String?        @db.Text
   // Deprecated shadow column from the single-assignee era. Data has been
   // migrated into TaskAssignee (see that model); reads/writes now go through
   // `assignees`. Kept for one release as a safety net, not read by app code —
@@ -630,6 +631,7 @@ model TaskTemplate {
   stageTemplateId    String
   stageTemplate      StageTemplate @relation(fields: [stageTemplateId], references: [id], onDelete: Cascade)
   title              String
+  description        String?
   roleTag            RoleTag
   // How many days before the campaign's mailDate this task is due; null =
   // no auto-computed deadline for this template task.
@@ -812,6 +814,7 @@ model ArchivedTask {
   id             String         @id @default(cuid())
   originalTaskId String
   title          String
+  description    String?
   // Legacy single-assignee snapshot fields — still populated (first assignee)
   // for rows archived before the multi-assignee refactor. New archives also
   // populate `assignees` below with the full list; UI prefers that when present.

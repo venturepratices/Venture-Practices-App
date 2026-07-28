@@ -27,6 +27,7 @@ export async function maybeCreateNextOccurrence(task: Task) {
   return prisma.task.create({
     data: {
       title: task.title,
+      description: task.description,
       clientId: task.clientId,
       occurrence: task.occurrence,
       status: "NEXT_UP",
