@@ -2,16 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Link2, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlignLeft, ChevronDown, ChevronUp, Link2, Loader2, Plus, Trash2, X } from "lucide-react";
 
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
+type ComposerField = "description" | "link";
 
 type TaskStatusValue = (typeof TASK_STATUS_VALUES)[number];
 type TeamMemberOption = { id: string; name: string };
@@ -82,6 +86,7 @@ export function WorkflowTemplateEditor({
   const [newStageName, setNewStageName] = useState("");
   const [newTaskByStage, setNewTaskByStage] = useState<Record<number, TemplateTaskDraft>>({});
   const [newLinkByStage, setNewLinkByStage] = useState<Record<number, TemplateTaskLinkDraft>>({});
+  const [expandedComposerField, setExpandedComposerField] = useState<Record<number, Record<ComposerField, boolean>>>({});
 
   const baseline = templateToDraft(template);
   const isDirty = JSON.stringify(stagesDraft) !== JSON.stringify(baseline) || isActive !== template.isActive;
@@ -92,6 +97,17 @@ export function WorkflowTemplateEditor({
 
   function linkDraftFor(stageIndex: number): TemplateTaskLinkDraft {
     return newLinkByStage[stageIndex] ?? EMPTY_NEW_LINK;
+  }
+
+  function isFieldExpanded(stageIndex: number, field: ComposerField): boolean {
+    return expandedComposerField[stageIndex]?.[field] ?? false;
+  }
+
+  function toggleComposerField(stageIndex: number, field: ComposerField) {
+    setExpandedComposerField((prev) => {
+      const current = prev[stageIndex] ?? { description: false, link: false };
+      return { ...prev, [stageIndex]: { ...current, [field]: !current[field] } };
+    });
   }
 
   function updateStageDescription(stageIndex: number, description: string) {
@@ -151,6 +167,7 @@ export function WorkflowTemplateEditor({
     );
     setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: EMPTY_NEW_TASK }));
     setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: EMPTY_NEW_LINK }));
+    setExpandedComposerField((prev) => ({ ...prev, [stageIndex]: { description: false, link: false } }));
   }
 
   function removeTask(stageIndex: number, taskIndex: number) {
@@ -205,8 +222,8 @@ export function WorkflowTemplateEditor({
       </button>
 
       {expanded ? (
-        <div className="space-y-5 border-t px-4 py-4">
-          <div className="flex items-center justify-between">
+        <div className="border-t px-4 py-4">
+          <div className="flex items-center justify-between pb-4">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
               Active
@@ -217,173 +234,238 @@ export function WorkflowTemplateEditor({
             </Button>
           </div>
 
-          {stagesDraft.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No stages yet. Add one below to start building the pipeline.</p>
-          ) : (
-            <ol className="space-y-4">
-              {stagesDraft.map((stage, stageIndex) => (
-                <li key={stageIndex} className="rounded-md border bg-muted/20 p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="shrink-0 text-xs font-semibold text-muted-foreground">Stage {stageIndex + 1}</span>
-                    <Input
-                      value={stage.name}
-                      onChange={(e) => renameStage(stageIndex, e.target.value)}
-                      className="h-8 flex-1 text-sm font-medium"
-                    />
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Move stage up"
-                        disabled={stageIndex === 0}
-                        onClick={() => moveStage(stageIndex, -1)}
-                      >
-                        <ChevronUp className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Move stage down"
-                        disabled={stageIndex === stagesDraft.length - 1}
-                        onClick={() => moveStage(stageIndex, 1)}
-                      >
-                        <ChevronDown className="size-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Remove stage" onClick={() => removeStage(stageIndex)}>
-                        <X className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
+          <Separator />
 
-                  <Textarea
-                    value={stage.description ?? ""}
-                    onChange={(e) => updateStageDescription(stageIndex, e.target.value)}
-                    placeholder="Stage description (optional)"
-                    className="mt-2 min-h-14 text-xs"
-                  />
-
-                  <div className="mt-3 space-y-2">
-                    {stage.tasks.length > 0 ? (
-                      <ul className="space-y-1.5">
-                        {stage.tasks.map((task, taskIndex) => (
-                          <li key={taskIndex} className="rounded-md border bg-background px-2.5 py-1.5 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                {TASK_STATUS_LABELS[task.defaultStatus]}
-                              </span>
-                              <span className="shrink-0 text-xs text-muted-foreground">
-                                {task.defaultAssigneeIds.length > 0
-                                  ? teamMembers
-                                      .filter((m) => task.defaultAssigneeIds.includes(m.id))
-                                      .map((m) => m.name)
-                                      .join(", ")
-                                  : "Unassigned"}
-                              </span>
-                              <button onClick={() => removeTask(stageIndex, taskIndex)} className="shrink-0 text-muted-foreground hover:text-destructive">
-                                <X className="size-3.5" />
-                              </button>
-                            </div>
-                            {task.description || task.links.length > 0 ? (
-                              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                                {task.description ? <span className="min-w-0 flex-1 truncate">{task.description}</span> : null}
-                                {task.links.length > 0 ? (
-                                  <span className="flex shrink-0 items-center gap-0.5">
-                                    <Link2 className="size-3" />
-                                    {task.links.length}
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No tasks in this stage yet.</p>
-                    )}
-
-                    <div className="space-y-1.5 rounded-md border border-dashed p-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
+          <div className="mt-4">
+            {stagesDraft.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No stages yet. Add one below to start building the pipeline.</p>
+            ) : (
+              <ol className="space-y-4">
+                {stagesDraft.map((stage, stageIndex) => (
+                  <li key={stageIndex}>
+                    <Card size="sm">
+                      <CardHeader className="flex-row items-center gap-2 pb-3">
+                        <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+                          Stage {stageIndex + 1}
+                        </span>
                         <Input
-                          value={draftFor(stageIndex).title}
-                          onChange={(e) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), title: e.target.value } }))}
-                          placeholder="Task title"
-                          className="h-8 flex-1 text-sm"
+                          value={stage.name}
+                          onChange={(e) => renameStage(stageIndex, e.target.value)}
+                          className="h-8 flex-1 border-transparent bg-transparent px-1.5 text-sm font-semibold shadow-none hover:border-input focus-visible:border-ring"
                         />
-                        <Select
-                          value={draftFor(stageIndex).defaultStatus}
-                          onValueChange={(value) =>
-                            value &&
-                            setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value as TaskStatusValue } }))
-                          }
-                        >
-                          <SelectTrigger className="h-8 w-[140px] text-sm">
-                            <SelectValue>{(value: string) => TASK_STATUS_LABELS[value] ?? value}</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TASK_STATUS_VALUES.map((value) => (
-                              <SelectItem key={value} value={value}>
-                                {TASK_STATUS_LABELS[value]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <TaskAssigneesPicker
-                          teamMembers={teamMembers}
-                          value={draftFor(stageIndex).defaultAssigneeIds}
-                          onChange={(ids) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultAssigneeIds: ids } }))}
-                          triggerClassName="h-8 w-[160px]"
-                        />
-                        <Button variant="outline" size="icon-sm" aria-label="Add task" onClick={() => addTask(stageIndex)}>
-                          <Plus className="size-4" />
-                        </Button>
-                      </div>
-
-                      <Textarea
-                        value={draftFor(stageIndex).description ?? ""}
-                        onChange={(e) => updateNewTaskDescription(stageIndex, e.target.value)}
-                        placeholder="Task description (optional)"
-                        className="h-8 min-h-8 text-xs"
-                      />
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Input
-                          value={linkDraftFor(stageIndex).label}
-                          onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), label: e.target.value } }))}
-                          placeholder="Link label"
-                          className="h-7 w-[120px] text-xs"
-                        />
-                        <Input
-                          value={linkDraftFor(stageIndex).url}
-                          onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), url: e.target.value } }))}
-                          placeholder="https://..."
-                          className="h-7 flex-1 text-xs"
-                        />
-                        <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={() => addPendingLink(stageIndex)}>
-                          <Link2 className="size-3.5" />
-                        </Button>
-                      </div>
-
-                      {draftFor(stageIndex).links.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {draftFor(stageIndex).links.map((link, linkIndex) => (
-                            <span key={linkIndex} className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">
-                              {link.label}
-                              <button onClick={() => removePendingLink(stageIndex, linkIndex)}>
-                                <X className="size-2.5" />
-                              </button>
-                            </span>
-                          ))}
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Move stage up"
+                            disabled={stageIndex === 0}
+                            onClick={() => moveStage(stageIndex, -1)}
+                          >
+                            <ChevronUp className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Move stage down"
+                            disabled={stageIndex === stagesDraft.length - 1}
+                            onClick={() => moveStage(stageIndex, 1)}
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="Remove stage" onClick={() => removeStage(stageIndex)}>
+                            <X className="size-3.5" />
+                          </Button>
                         </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
+                      </CardHeader>
 
-          <div className="flex items-center gap-1.5 border-t pt-3">
+                      <Separator />
+
+                      <CardContent className="space-y-4 pt-3">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Stage description
+                          </p>
+                          <Textarea
+                            value={stage.description ?? ""}
+                            onChange={(e) => updateStageDescription(stageIndex, e.target.value)}
+                            placeholder="What is this stage for? (optional)"
+                            className="min-h-12 text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Tasks{stage.tasks.length > 0 ? ` (${stage.tasks.length})` : ""}
+                          </p>
+                          {stage.tasks.length > 0 ? (
+                            <ul className="space-y-1.5">
+                              {stage.tasks.map((task, taskIndex) => (
+                                <li key={taskIndex} className="rounded-lg border bg-card px-3 py-2 text-sm shadow-sm">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="min-w-0 flex-1 truncate font-medium">{task.title}</span>
+                                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                      {TASK_STATUS_LABELS[task.defaultStatus]}
+                                    </span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                      {task.defaultAssigneeIds.length > 0
+                                        ? teamMembers
+                                            .filter((m) => task.defaultAssigneeIds.includes(m.id))
+                                            .map((m) => m.name)
+                                            .join(", ")
+                                        : "Unassigned"}
+                                    </span>
+                                    <button
+                                      onClick={() => removeTask(stageIndex, taskIndex)}
+                                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                                      aria-label={`Remove ${task.title}`}
+                                    >
+                                      <X className="size-3.5" />
+                                    </button>
+                                  </div>
+                                  {task.description || task.links.length > 0 ? (
+                                    <div className="mt-1.5 flex items-center gap-2 border-t pt-1.5 text-xs text-muted-foreground">
+                                      {task.description ? <span className="min-w-0 flex-1 truncate">{task.description}</span> : null}
+                                      {task.links.length > 0 ? (
+                                        <span className="flex shrink-0 items-center gap-0.5">
+                                          <Link2 className="size-3" />
+                                          {task.links.length}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">No tasks in this stage yet.</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2.5 rounded-lg border border-dashed bg-muted/20 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Add a task
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Input
+                              value={draftFor(stageIndex).title}
+                              onChange={(e) =>
+                                setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), title: e.target.value } }))
+                              }
+                              placeholder="Task title"
+                              className="h-8 flex-1 text-sm"
+                            />
+                            <Select
+                              value={draftFor(stageIndex).defaultStatus}
+                              onValueChange={(value) =>
+                                value &&
+                                setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value as TaskStatusValue } }))
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-[140px] text-sm">
+                                <SelectValue>{(value: string) => TASK_STATUS_LABELS[value] ?? value}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TASK_STATUS_VALUES.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {TASK_STATUS_LABELS[value]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <TaskAssigneesPicker
+                              teamMembers={teamMembers}
+                              value={draftFor(stageIndex).defaultAssigneeIds}
+                              onChange={(ids) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultAssigneeIds: ids } }))}
+                              triggerClassName="h-8 w-[160px]"
+                            />
+                            <Button variant="outline" size="icon-sm" aria-label="Add task" onClick={() => addTask(stageIndex)}>
+                              <Plus className="size-4" />
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleComposerField(stageIndex, "description")}
+                              className={cn(
+                                "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                                isFieldExpanded(stageIndex, "description") || draftFor(stageIndex).description
+                                  ? "border-primary/40 bg-primary/10 text-primary"
+                                  : "border-input text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <AlignLeft className="size-3" />
+                              Description
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleComposerField(stageIndex, "link")}
+                              className={cn(
+                                "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                                isFieldExpanded(stageIndex, "link") || draftFor(stageIndex).links.length > 0
+                                  ? "border-primary/40 bg-primary/10 text-primary"
+                                  : "border-input text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <Link2 className="size-3" />
+                              Link{draftFor(stageIndex).links.length > 0 ? ` (${draftFor(stageIndex).links.length})` : ""}
+                            </button>
+                          </div>
+
+                          {isFieldExpanded(stageIndex, "description") ? (
+                            <Textarea
+                              value={draftFor(stageIndex).description ?? ""}
+                              onChange={(e) => updateNewTaskDescription(stageIndex, e.target.value)}
+                              placeholder="Task description (optional)"
+                              className="min-h-14 text-xs"
+                              autoFocus
+                            />
+                          ) : null}
+
+                          {isFieldExpanded(stageIndex, "link") ? (
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Input
+                                  value={linkDraftFor(stageIndex).label}
+                                  onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), label: e.target.value } }))}
+                                  placeholder="Link label"
+                                  className="h-7 w-[120px] text-xs"
+                                  autoFocus
+                                />
+                                <Input
+                                  value={linkDraftFor(stageIndex).url}
+                                  onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), url: e.target.value } }))}
+                                  placeholder="https://..."
+                                  className="h-7 flex-1 text-xs"
+                                />
+                                <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={() => addPendingLink(stageIndex)}>
+                                  <Plus className="size-3.5" />
+                                </Button>
+                              </div>
+                              {draftFor(stageIndex).links.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {draftFor(stageIndex).links.map((link, linkIndex) => (
+                                    <span key={linkIndex} className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                                      {link.label}
+                                      <button onClick={() => removePendingLink(stageIndex, linkIndex)} aria-label={`Remove ${link.label}`}>
+                                        <X className="size-2.5" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center gap-1.5 border-t pt-4">
             <Input
               value={newStageName}
               onChange={(e) => setNewStageName(e.target.value)}
@@ -400,7 +482,7 @@ export function WorkflowTemplateEditor({
           </div>
 
           {isDirty ? (
-            <div className="flex justify-end gap-2 border-t pt-3">
+            <div className="mt-4 flex justify-end gap-2 border-t pt-4">
               <Button
                 variant="ghost"
                 size="sm"
