@@ -85,6 +85,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
                 defaultAssignees: {
                   create: task.defaultAssigneeIds.map((teamMemberId) => ({ teamMemberId })),
                 },
+                links: {
+                  create: task.links.map((link) => ({ url: link.url, label: link.label })),
+                },
               })),
             },
           },

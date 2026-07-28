@@ -69,7 +69,12 @@ export async function POST(request: Request) {
     include: {
       stageTemplates: {
         orderBy: { sequenceNumber: "asc" },
-        include: { taskTemplates: { orderBy: { sequenceNumber: "asc" }, include: { defaultAssignees: true } } },
+        include: {
+          taskTemplates: {
+            orderBy: { sequenceNumber: "asc" },
+            include: { defaultAssignees: true, links: { orderBy: { createdAt: "asc" } } },
+          },
+        },
       },
     },
   });
@@ -90,6 +95,7 @@ export async function POST(request: Request) {
       defaultStatus: task.defaultStatus,
       sequenceNumber: task.sequenceNumber,
       defaultAssigneeIds: task.defaultAssignees.map((a) => a.teamMemberId),
+      links: task.links.map((link) => ({ url: link.url, label: link.label })),
     })),
   }));
 

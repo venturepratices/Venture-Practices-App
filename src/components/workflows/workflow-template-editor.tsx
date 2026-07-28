@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Link2, Loader2, Plus, Trash2, X } from "lucide-react";
 
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
@@ -10,16 +10,19 @@ import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type TaskStatusValue = (typeof TASK_STATUS_VALUES)[number];
 type TeamMemberOption = { id: string; name: string };
+type TemplateTaskLinkDraft = { url: string; label: string };
 
 type TemplateTaskDraft = {
   title: string;
   description: string | null;
   defaultStatus: TaskStatusValue;
   defaultAssigneeIds: string[];
+  links: TemplateTaskLinkDraft[];
 };
 
 type TemplateStageDraft = {
@@ -41,6 +44,7 @@ export type WorkflowTemplateWithStages = {
       description: string | null;
       defaultStatus: TaskStatusValue;
       defaultAssignees: { teamMember: { id: string; name: string } }[];
+      links: { url: string; label: string }[];
     }[];
   }[];
 };
@@ -54,11 +58,13 @@ function templateToDraft(template: WorkflowTemplateWithStages): TemplateStageDra
       description: task.description,
       defaultStatus: task.defaultStatus,
       defaultAssigneeIds: task.defaultAssignees.map((a) => a.teamMember.id),
+      links: task.links.map((link) => ({ url: link.url, label: link.label })),
     })),
   }));
 }
 
-const EMPTY_NEW_TASK: TemplateTaskDraft = { title: "", description: null, defaultStatus: "NEXT_UP", defaultAssigneeIds: [] };
+const EMPTY_NEW_TASK: TemplateTaskDraft = { title: "", description: null, defaultStatus: "NEXT_UP", defaultAssigneeIds: [], links: [] };
+const EMPTY_NEW_LINK: TemplateTaskLinkDraft = { url: "", label: "" };
 
 export function WorkflowTemplateEditor({
   template,
@@ -75,12 +81,42 @@ export function WorkflowTemplateEditor({
   const [isDeleting, setIsDeleting] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [newTaskByStage, setNewTaskByStage] = useState<Record<number, TemplateTaskDraft>>({});
+  const [newLinkByStage, setNewLinkByStage] = useState<Record<number, TemplateTaskLinkDraft>>({});
 
   const baseline = templateToDraft(template);
   const isDirty = JSON.stringify(stagesDraft) !== JSON.stringify(baseline) || isActive !== template.isActive;
 
   function draftFor(stageIndex: number): TemplateTaskDraft {
     return newTaskByStage[stageIndex] ?? EMPTY_NEW_TASK;
+  }
+
+  function linkDraftFor(stageIndex: number): TemplateTaskLinkDraft {
+    return newLinkByStage[stageIndex] ?? EMPTY_NEW_LINK;
+  }
+
+  function updateStageDescription(stageIndex: number, description: string) {
+    setStagesDraft((prev) => prev.map((s, i) => (i === stageIndex ? { ...s, description: description || null } : s)));
+  }
+
+  function updateNewTaskDescription(stageIndex: number, description: string) {
+    setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), description: description || null } }));
+  }
+
+  function addPendingLink(stageIndex: number) {
+    const link = linkDraftFor(stageIndex);
+    if (!link.label.trim() || !link.url.trim()) return;
+    setNewTaskByStage((prev) => ({
+      ...prev,
+      [stageIndex]: { ...draftFor(stageIndex), links: [...draftFor(stageIndex).links, { url: link.url.trim(), label: link.label.trim() }] },
+    }));
+    setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: EMPTY_NEW_LINK }));
+  }
+
+  function removePendingLink(stageIndex: number, linkIndex: number) {
+    setNewTaskByStage((prev) => ({
+      ...prev,
+      [stageIndex]: { ...draftFor(stageIndex), links: draftFor(stageIndex).links.filter((_, i) => i !== linkIndex) },
+    }));
   }
 
   function addStage() {
@@ -114,6 +150,7 @@ export function WorkflowTemplateEditor({
       prev.map((s, i) => (i === stageIndex ? { ...s, tasks: [...s.tasks, { ...draft, title: draft.title.trim() }] } : s))
     );
     setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: EMPTY_NEW_TASK }));
+    setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: EMPTY_NEW_LINK }));
   }
 
   function removeTask(stageIndex: number, taskIndex: number) {
@@ -137,6 +174,7 @@ export function WorkflowTemplateEditor({
             description: task.description,
             defaultStatus: task.defaultStatus,
             defaultAssigneeIds: task.defaultAssigneeIds,
+            links: task.links,
           })),
         })),
       }),
@@ -217,26 +255,46 @@ export function WorkflowTemplateEditor({
                     </div>
                   </div>
 
+                  <Textarea
+                    value={stage.description ?? ""}
+                    onChange={(e) => updateStageDescription(stageIndex, e.target.value)}
+                    placeholder="Stage description (optional)"
+                    className="mt-2 min-h-14 text-xs"
+                  />
+
                   <div className="mt-3 space-y-2">
                     {stage.tasks.length > 0 ? (
                       <ul className="space-y-1.5">
                         {stage.tasks.map((task, taskIndex) => (
-                          <li key={taskIndex} className="flex items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-1.5 text-sm">
-                            <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                              {TASK_STATUS_LABELS[task.defaultStatus]}
-                            </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {task.defaultAssigneeIds.length > 0
-                                ? teamMembers
-                                    .filter((m) => task.defaultAssigneeIds.includes(m.id))
-                                    .map((m) => m.name)
-                                    .join(", ")
-                                : "Unassigned"}
-                            </span>
-                            <button onClick={() => removeTask(stageIndex, taskIndex)} className="shrink-0 text-muted-foreground hover:text-destructive">
-                              <X className="size-3.5" />
-                            </button>
+                          <li key={taskIndex} className="rounded-md border bg-background px-2.5 py-1.5 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {TASK_STATUS_LABELS[task.defaultStatus]}
+                              </span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {task.defaultAssigneeIds.length > 0
+                                  ? teamMembers
+                                      .filter((m) => task.defaultAssigneeIds.includes(m.id))
+                                      .map((m) => m.name)
+                                      .join(", ")
+                                  : "Unassigned"}
+                              </span>
+                              <button onClick={() => removeTask(stageIndex, taskIndex)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                                <X className="size-3.5" />
+                              </button>
+                            </div>
+                            {task.description || task.links.length > 0 ? (
+                              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                {task.description ? <span className="min-w-0 flex-1 truncate">{task.description}</span> : null}
+                                {task.links.length > 0 ? (
+                                  <span className="flex shrink-0 items-center gap-0.5">
+                                    <Link2 className="size-3" />
+                                    {task.links.length}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
@@ -244,40 +302,80 @@ export function WorkflowTemplateEditor({
                       <p className="text-xs text-muted-foreground">No tasks in this stage yet.</p>
                     )}
 
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Input
-                        value={draftFor(stageIndex).title}
-                        onChange={(e) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), title: e.target.value } }))}
-                        placeholder="Task title"
-                        className="h-8 flex-1 text-sm"
+                    <div className="space-y-1.5 rounded-md border border-dashed p-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Input
+                          value={draftFor(stageIndex).title}
+                          onChange={(e) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), title: e.target.value } }))}
+                          placeholder="Task title"
+                          className="h-8 flex-1 text-sm"
+                        />
+                        <Select
+                          value={draftFor(stageIndex).defaultStatus}
+                          onValueChange={(value) =>
+                            value &&
+                            setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value as TaskStatusValue } }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-[140px] text-sm">
+                            <SelectValue>{(value: string) => TASK_STATUS_LABELS[value] ?? value}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TASK_STATUS_VALUES.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {TASK_STATUS_LABELS[value]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <TaskAssigneesPicker
+                          teamMembers={teamMembers}
+                          value={draftFor(stageIndex).defaultAssigneeIds}
+                          onChange={(ids) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultAssigneeIds: ids } }))}
+                          triggerClassName="h-8 w-[160px]"
+                        />
+                        <Button variant="outline" size="icon-sm" aria-label="Add task" onClick={() => addTask(stageIndex)}>
+                          <Plus className="size-4" />
+                        </Button>
+                      </div>
+
+                      <Textarea
+                        value={draftFor(stageIndex).description ?? ""}
+                        onChange={(e) => updateNewTaskDescription(stageIndex, e.target.value)}
+                        placeholder="Task description (optional)"
+                        className="h-8 min-h-8 text-xs"
                       />
-                      <Select
-                        value={draftFor(stageIndex).defaultStatus}
-                        onValueChange={(value) =>
-                          value &&
-                          setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value as TaskStatusValue } }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-[140px] text-sm">
-                          <SelectValue>{(value: string) => TASK_STATUS_LABELS[value] ?? value}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_STATUS_VALUES.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {TASK_STATUS_LABELS[value]}
-                            </SelectItem>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Input
+                          value={linkDraftFor(stageIndex).label}
+                          onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), label: e.target.value } }))}
+                          placeholder="Link label"
+                          className="h-7 w-[120px] text-xs"
+                        />
+                        <Input
+                          value={linkDraftFor(stageIndex).url}
+                          onChange={(e) => setNewLinkByStage((prev) => ({ ...prev, [stageIndex]: { ...linkDraftFor(stageIndex), url: e.target.value } }))}
+                          placeholder="https://..."
+                          className="h-7 flex-1 text-xs"
+                        />
+                        <Button variant="outline" size="icon-sm" aria-label="Add link" onClick={() => addPendingLink(stageIndex)}>
+                          <Link2 className="size-3.5" />
+                        </Button>
+                      </div>
+
+                      {draftFor(stageIndex).links.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {draftFor(stageIndex).links.map((link, linkIndex) => (
+                            <span key={linkIndex} className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                              {link.label}
+                              <button onClick={() => removePendingLink(stageIndex, linkIndex)}>
+                                <X className="size-2.5" />
+                              </button>
+                            </span>
                           ))}
-                        </SelectContent>
-                      </Select>
-                      <TaskAssigneesPicker
-                        teamMembers={teamMembers}
-                        value={draftFor(stageIndex).defaultAssigneeIds}
-                        onChange={(ids) => setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultAssigneeIds: ids } }))}
-                        triggerClassName="h-8 w-[160px]"
-                      />
-                      <Button variant="outline" size="icon-sm" aria-label="Add task" onClick={() => addTask(stageIndex)}>
-                        <Plus className="size-4" />
-                      </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </li>

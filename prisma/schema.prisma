@@ -687,8 +687,24 @@ model WorkflowTaskTemplate {
   defaultStatus           TaskStatus            @default(NEXT_UP)
 
   defaultAssignees WorkflowTaskTemplateAssignee[]
+  links            WorkflowTaskTemplateLink[]
 
   @@index([workflowStageTemplateId])
+}
+
+// Reference links attached to a template task (e.g. a brief doc, a style
+// guide) — mirrors TaskLink exactly. Copied onto the real spawned Task's
+// TaskLink rows at instance-creation time (see spawnWorkflowTasks), so
+// attachments auto-populate without a manual step per instance.
+model WorkflowTaskTemplateLink {
+  id                     String               @id @default(cuid())
+  workflowTaskTemplateId String
+  workflowTaskTemplate   WorkflowTaskTemplate @relation(fields: [workflowTaskTemplateId], references: [id], onDelete: Cascade)
+  url                    String
+  label                  String
+  createdAt              DateTime             @default(now())
+
+  @@index([workflowTaskTemplateId])
 }
 
 // Default assignee(s) for a template task — a real TeamMember, never a role

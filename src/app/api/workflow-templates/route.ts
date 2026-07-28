@@ -13,6 +13,7 @@ export const TEMPLATE_INCLUDE = {
         orderBy: { sequenceNumber: "asc" as const },
         include: {
           defaultAssignees: { include: { teamMember: { select: { id: true, name: true } } } },
+          links: { orderBy: { createdAt: "asc" as const } },
         },
       },
     },
@@ -77,6 +78,9 @@ export async function POST(request: Request) {
               sequenceNumber: taskIndex + 1,
               defaultAssignees: {
                 create: task.defaultAssigneeIds.map((teamMemberId) => ({ teamMemberId })),
+              },
+              links: {
+                create: task.links.map((link) => ({ url: link.url, label: link.label })),
               },
             })),
           },

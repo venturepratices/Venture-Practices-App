@@ -20,7 +20,10 @@ export default async function WorkflowTemplatesPage() {
           include: {
             taskTemplates: {
               orderBy: { sequenceNumber: "asc" },
-              include: { defaultAssignees: { include: { teamMember: { select: { id: true, name: true } } } } },
+              include: {
+                defaultAssignees: { include: { teamMember: { select: { id: true, name: true } } } },
+                links: { orderBy: { createdAt: "asc" } },
+              },
             },
           },
         },

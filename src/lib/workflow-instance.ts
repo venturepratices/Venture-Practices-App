@@ -3,12 +3,15 @@ import type { TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 export type TaskStatusValue = (typeof TASK_STATUS_VALUES)[number];
 
+export type StageSnapshotTaskLink = { url: string; label: string };
+
 export type StageSnapshotTask = {
   title: string;
   description: string | null;
   defaultStatus: TaskStatusValue;
   sequenceNumber: number;
   defaultAssigneeIds: string[];
+  links: StageSnapshotTaskLink[];
 };
 
 export type StageSnapshotStage = {
@@ -52,5 +55,12 @@ export async function spawnWorkflowTasks(
   );
   if (assigneeRows.length > 0) {
     await tx.taskAssignee.createMany({ data: assigneeRows });
+  }
+
+  const linkRows = createdTasks.flatMap((task, index) =>
+    flatTasks[index].links.map((link) => ({ taskId: task.id, url: link.url, label: link.label }))
+  );
+  if (linkRows.length > 0) {
+    await tx.taskLink.createMany({ data: linkRows });
   }
 }
