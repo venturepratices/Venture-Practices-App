@@ -3,19 +3,21 @@ import { GitBranch, Plus } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/info-tip";
-import { Button } from "@/components/ui/button";
 import { NewWorkflowDialog } from "@/components/workflows/new-workflow-dialog";
 import { WorkflowInstanceCard } from "@/components/workflows/workflow-instance-card";
 
-export default async function WorkflowsPage() {
+export default async function ClientWorkflowsPage({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  // Client-access is enforced by the layout; this adds the Workflows capability.
   if (!(await canUseCapability("canViewWorkflows"))) notFound();
   const canManage = await canUseCapability("canManageWorkflows");
 
   const [instances, templates] = await Promise.all([
     prisma.workflowInstance.findMany({
-      where: { clientId: null },
+      where: { clientId },
       include: { client: { select: { id: true, name: true } }, tasks: { select: { status: true, workflowStageNumber: true } } },
       orderBy: { createdAt: "desc" },
     }),
@@ -25,22 +27,19 @@ export default async function WorkflowsPage() {
   ]);
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            Workflows
-            <InfoTip>
-              Workflows with no specific client — internal processes like new-hire onboarding. Client-tied workflows
-              now live on that client&apos;s own Workflows tab.
-            </InfoTip>
-          </h1>
-          <p className="mt-1 text-muted-foreground">Internal, no-client workflows across the agency.</p>
-        </div>
+    <div>
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          Workflows
+          <InfoTip>
+            A running instance of a Workflow Template — a staged pipeline of tasks. As each stage's tasks all
+            complete, the next stage's assignees get notified it's their turn.
+          </InfoTip>
+        </h2>
         {canManage ? (
           <NewWorkflowDialog
             templates={templates}
-            fixedClientId={null}
+            fixedClientId={clientId}
             trigger={
               <Button size="sm">
                 <Plus className="size-4" />
@@ -53,12 +52,10 @@ export default async function WorkflowsPage() {
 
       <div className="mt-6 space-y-3">
         {instances.length === 0 ? (
-          <div className="rounded-lg border">
-            <EmptyState icon={GitBranch} title="No internal workflows yet." description="Start one from a template to see it here." />
-          </div>
+          <EmptyState icon={GitBranch} title="No workflows yet." description="Start one from a template to see it here." className="py-6" />
         ) : (
           instances.map((instance) => (
-            <WorkflowInstanceCard key={instance.id} instance={instance} href={`/workflows/${instance.id}`} hideClientLabel />
+            <WorkflowInstanceCard key={instance.id} instance={instance} href={`/clients/${clientId}/workflows/${instance.id}`} hideClientLabel />
           ))
         )}
       </div>

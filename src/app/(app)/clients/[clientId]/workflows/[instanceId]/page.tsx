@@ -4,13 +4,18 @@ import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { WorkflowInstanceDetail } from "@/components/workflows/workflow-instance-detail";
 
-export default async function WorkflowInstanceDetailPage({ params }: { params: Promise<{ instanceId: string }> }) {
+export default async function ClientWorkflowInstanceDetailPage({
+  params,
+}: {
+  params: Promise<{ clientId: string; instanceId: string }>;
+}) {
+  const { clientId, instanceId } = await params;
+  // Client-access is enforced by the layout; this adds the Workflows capability.
   if (!(await canUseCapability("canViewWorkflows"))) notFound();
   const canManage = await canUseCapability("canManageWorkflows");
 
-  const { instanceId } = await params;
   const instance = await prisma.workflowInstance.findFirst({
-    where: { id: instanceId, clientId: null },
+    where: { id: instanceId, clientId },
     include: {
       client: { select: { id: true, name: true } },
       workflowTemplate: { select: { id: true, name: true } },
@@ -30,9 +35,9 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
     <WorkflowInstanceDetail
       instance={instance}
       canManage={canManage}
-      backHref="/workflows"
+      backHref={`/clients/${clientId}/workflows`}
       backLabel="Workflows"
-      redirectOnDelete="/workflows"
+      redirectOnDelete={`/clients/${clientId}/workflows`}
     />
   );
 }

@@ -18,27 +18,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const NO_CLIENT = "__none__";
-
 type TemplateOption = { id: string; name: string };
-type ClientOption = { id: string; name: string };
 
 export function NewWorkflowDialog({
   trigger,
   templates,
-  clients,
-  defaultClientId,
+  fixedClientId,
 }: {
   trigger: React.ReactElement;
   templates: TemplateOption[];
-  clients: ClientOption[];
-  defaultClientId?: string;
+  fixedClientId: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [name, setName] = useState("");
-  const [clientId, setClientId] = useState(defaultClientId ?? NO_CLIENT);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -56,7 +50,7 @@ export function NewWorkflowDialog({
       body: JSON.stringify({
         workflowTemplateId: templateId,
         name: name.trim(),
-        clientId: clientId === NO_CLIENT ? null : clientId,
+        clientId: fixedClientId,
       }),
     });
     setIsSaving(false);
@@ -65,7 +59,7 @@ export function NewWorkflowDialog({
       const created = await response.json();
       setOpen(false);
       setName("");
-      router.push(`/workflows/${created.id}`);
+      router.push(fixedClientId ? `/clients/${fixedClientId}/workflows/${created.id}` : `/workflows/${created.id}`);
     } else {
       const data = await response.json().catch(() => null);
       setError(data?.error ?? "Couldn't start that workflow.");
@@ -125,25 +119,6 @@ export function NewWorkflowDialog({
               placeholder="e.g. Onboarding — Journey Smiles"
               required
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Client (optional)</Label>
-            <Select value={clientId} onValueChange={(value) => value && setClientId(value)}>
-              <SelectTrigger>
-                <SelectValue>
-                  {(value: string) => (value === NO_CLIENT ? "Internal — no client" : clients.find((c) => c.id === value)?.name ?? value)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_CLIENT}>Internal — no client</SelectItem>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}

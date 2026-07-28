@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { archiveTask } from "@/lib/archive";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
@@ -52,7 +53,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { instanceId } = await params;
   const instance = await prisma.workflowInstance.findUnique({
     where: { id: instanceId },
-    include: { client: { select: { name: true } } },
+    include: { client: { select: { name: true } }, tasks: { select: { id: true, title: true } } },
   });
   if (!instance) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -65,14 +66,25 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return toErrorResponse(error);
   }
 
-  // Tasks survive the instance's deletion (Task.workflowInstanceId is
-  // nullable) — explicitly clear workflowInstanceId/workflowStageNumber
-  // rather than relying on the DB's ON DELETE SET NULL, which wouldn't also
-  // clear workflowStageNumber. Same pattern as the Campaign DELETE route.
-  await prisma.task.updateMany({
-    where: { workflowInstanceId: instanceId },
-    data: { workflowInstanceId: null, workflowStageNumber: null },
-  });
+  // Unlike Cancel (which detaches tasks and leaves them live), Delete follows
+  // this app's universal "delete = archive" convention — every task the
+  // workflow spawned is archived via the same archiveTask() the single-task
+  // delete route uses, recoverable from /archive. Sequential, not
+  // Promise.all: archiveTask does a write transaction per task, and the
+  // Prisma client here is a single shared connection.
+  for (const task of instance.tasks) {
+    await archiveTask(task.id, session.user.id);
+    await logActivity({
+      actorId: session.user.id,
+      actorName: session.user.name ?? null,
+      entityType: "Task",
+      entityId: task.id,
+      entityLabel: task.title,
+      action: "archived",
+      description: `${session.user.name ?? "Someone"} archived task "${task.title}"`,
+    });
+  }
+
   await prisma.workflowInstance.delete({ where: { id: instanceId } });
 
   const instanceLabel = instance.client ? `${instance.name} — ${instance.client.name}` : instance.name;
@@ -83,7 +95,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityId: instanceId,
     entityLabel: instanceLabel,
     action: "workflow_deleted",
-    description: `${session.user.name ?? "Someone"} deleted workflow "${instanceLabel}"`,
+    description: `${session.user.name ?? "Someone"} deleted workflow "${instanceLabel}" and archived its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
   });
 
   return NextResponse.json({ ok: true });
