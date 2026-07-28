@@ -76,18 +76,18 @@ export function WorkflowSummaryCard({ instance, recentActivity }: { instance: Wo
         </div>
 
         {overdue.length > 0 ? (
-          <div className="rounded-md bg-status-danger/10 p-2.5">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-status-danger">
+          <div className="rounded-md bg-status-danger p-2.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-status-danger-foreground">
               <AlertTriangle className="size-3.5" />
               Overdue ({overdue.length})
             </p>
             <ul className="mt-1 space-y-0.5">
               {overdue.slice(0, 4).map((t) => (
-                <li key={t.id} className="truncate text-sm text-status-danger">
-                  {t.title} <span className="text-status-danger/70">— was due {t.deadline!.toLocaleDateString()}</span>
+                <li key={t.id} className="truncate text-sm text-status-danger-foreground">
+                  {t.title} <span className="opacity-70">— was due {t.deadline!.toLocaleDateString()}</span>
                 </li>
               ))}
-              {overdue.length > 4 ? <li className="text-xs text-status-danger/70">+{overdue.length - 4} more</li> : null}
+              {overdue.length > 4 ? <li className="text-xs text-status-danger-foreground opacity-70">+{overdue.length - 4} more</li> : null}
             </ul>
           </div>
         ) : null}
