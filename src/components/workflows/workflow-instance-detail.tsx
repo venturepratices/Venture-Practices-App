@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 import { AddStageInput } from "@/components/workflows/add-stage-input";
+import { WorkflowFolderSelect } from "@/components/workflows/workflow-folder-select";
 import { WorkflowInstanceControls } from "@/components/workflows/workflow-instance-controls";
 import { WORKFLOW_STATUS_LABEL, WORKFLOW_STATUS_TONE } from "@/components/workflows/workflow-instance-card";
 import { WorkflowPipeline } from "@/components/workflows/workflow-pipeline";
@@ -38,6 +39,7 @@ export function WorkflowInstanceDetail({
   backLabel,
   redirectOnDelete,
   teamMembers = [],
+  folders = [],
 }: {
   instance: WorkflowInstanceDetailData;
   canManage: boolean;
@@ -45,6 +47,7 @@ export function WorkflowInstanceDetail({
   backLabel: string;
   redirectOnDelete: string;
   teamMembers?: { id: string; name: string }[];
+  folders?: { id: string; name: string }[];
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const tasksByStage = instance.tasks.reduce<Record<number, typeof instance.tasks>>((acc, task) => {
@@ -72,7 +75,10 @@ export function WorkflowInstanceDetail({
           <StatusPillBase tone={WORKFLOW_STATUS_TONE[instance.status]} label={WORKFLOW_STATUS_LABEL[instance.status]} />
         </div>
         {canManage ? (
-          <WorkflowInstanceControls instanceId={instance.id} instanceName={instance.name} status={instance.status} redirectOnDelete={redirectOnDelete} />
+          <div className="flex items-center gap-2">
+            {instance.clientId ? <WorkflowFolderSelect instanceId={instance.id} folderId={instance.folderId} folders={folders} /> : null}
+            <WorkflowInstanceControls instanceId={instance.id} instanceName={instance.name} status={instance.status} redirectOnDelete={redirectOnDelete} />
+          </div>
         ) : null}
       </div>
 

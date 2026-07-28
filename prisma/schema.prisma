@@ -305,6 +305,7 @@ model Client {
   campaigns            Campaign[]
   intake               ClientIntake?
   workflowInstances    WorkflowInstance[]
+  workflowFolders      WorkflowFolder[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -746,6 +747,8 @@ model WorkflowInstance {
   status             WorkflowInstanceStatus @default(ACTIVE)
   stagesSnapshot     Json
   currentStageNumber Int                    @default(1)
+  folderId           String?
+  folder             WorkflowFolder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdById        String?
   createdBy          TeamMember?            @relation("WorkflowInstanceCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt          DateTime               @default(now())
@@ -756,6 +759,25 @@ model WorkflowInstance {
 
   @@index([clientId])
   @@index([status])
+  @@index([folderId])
+}
+
+// A lightweight, per-client grouping for workflow instances — same
+// organizational-only, "detach don't cascade-delete" shape as AssetFolder.
+// Deliberately scoped per-client only (not usable on the internal, no-client
+// /workflows page) — that list is small enough that a folder UI there would
+// be clutter without payoff.
+model WorkflowFolder {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  instances WorkflowInstance[]
+
+  @@index([clientId])
 }
 
 model Comment {

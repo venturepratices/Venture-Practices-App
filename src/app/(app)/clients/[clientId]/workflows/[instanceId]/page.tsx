@@ -14,7 +14,7 @@ export default async function ClientWorkflowInstanceDetailPage({
   if (!(await canUseCapability("canViewWorkflows"))) notFound();
   const canManage = await canUseCapability("canManageWorkflows");
 
-  const [instance, teamMembers] = await Promise.all([
+  const [instance, teamMembers, folders] = await Promise.all([
     prisma.workflowInstance.findFirst({
       where: { id: instanceId, clientId },
       include: {
@@ -31,6 +31,7 @@ export default async function ClientWorkflowInstanceDetailPage({
       },
     }),
     canManage ? prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    canManage ? prisma.workflowFolder.findMany({ where: { clientId }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
   if (!instance) notFound();
 
@@ -42,6 +43,7 @@ export default async function ClientWorkflowInstanceDetailPage({
       backLabel="Workflows"
       redirectOnDelete={`/clients/${clientId}/workflows`}
       teamMembers={teamMembers}
+      folders={folders}
     />
   );
 }
