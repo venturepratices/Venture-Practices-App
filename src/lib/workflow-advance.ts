@@ -14,7 +14,12 @@ function labelFor(instance: { name: string; client: { name: string } | null }): 
  * to trigger it) and from maybeAdvanceWorkflowStage below (for every stage
  * after the first).
  */
-export async function notifyWorkflowStageTasks(instanceId: string, stageNumber: number, actorId: string | null) {
+export async function notifyWorkflowStageTasks(
+  instanceId: string,
+  stageNumber: number,
+  actorId: string | null,
+  previousStageLabel?: string
+) {
   const instance = await prisma.workflowInstance.findUnique({
     where: { id: instanceId },
     select: { name: true, stagesSnapshot: true, clientId: true, client: { select: { name: true } } },
@@ -51,7 +56,9 @@ export async function notifyWorkflowStageTasks(instanceId: string, stageNumber: 
         entityType: "Task",
         entityId: task.id,
         entityLabel: task.title,
-        message: `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`,
+        message: previousStageLabel
+          ? `${a.teamMember.name} — the "${previousStageLabel}" stage just finished. Your task "${task.title}" is next in ${instanceLabel} (${stageLabel} stage)`
+          : `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`,
         linkPath,
       });
     }
@@ -118,6 +125,10 @@ export async function maybeAdvanceWorkflowStage(
     }
     if (instance.createdBy) recipients.set(instance.createdBy.id, instance.createdBy.name);
 
+    const taskCount = instance.tasks.length;
+    const daysElapsed = Math.max(1, Math.round((Date.now() - instance.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+    const summary = `all ${taskCount} task${taskCount === 1 ? "" : "s"} done, ${daysElapsed} day${daysElapsed === 1 ? "" : "s"} from start to finish`;
+
     const completedLinkPath = instance.client
       ? `/clients/${instance.client.id}/workflows/${instance.id}`
       : `/workflows/${instance.id}`;
@@ -129,7 +140,7 @@ export async function maybeAdvanceWorkflowStage(
         entityType: "WorkflowInstance",
         entityId: instance.id,
         entityLabel: instanceLabel,
-        message: `${name} — ${instanceLabel} is complete`,
+        message: `${name} — ${instanceLabel} is complete (${summary})`,
         linkPath: completedLinkPath,
       });
     }
@@ -147,10 +158,10 @@ export async function maybeAdvanceWorkflowStage(
     return { completed: true };
   }
 
-  await notifyWorkflowStageTasks(instance.id, nextStageNumber, actorId);
+  const currentStageLabel = snapshot.find((s) => s.sequenceNumber === currentStageNumber)?.name ?? `Stage ${currentStageNumber}`;
+  await notifyWorkflowStageTasks(instance.id, nextStageNumber, actorId, currentStageLabel);
 
   const newStageLabel = snapshot.find((s) => s.sequenceNumber === nextStageNumber)?.name ?? `Stage ${nextStageNumber}`;
-  const currentStageLabel = snapshot.find((s) => s.sequenceNumber === currentStageNumber)?.name ?? `Stage ${currentStageNumber}`;
   await logActivity({
     actorId: null,
     actorName: null,
