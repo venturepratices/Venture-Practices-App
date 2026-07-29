@@ -69,6 +69,7 @@ enum NotificationType {
   CAMPAIGN_TASK_ASSIGNED
   WORKFLOW_STAGE_STARTED
   WORKFLOW_COMPLETED
+  WORKFLOW_TASK_UP_NEXT
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -529,6 +530,12 @@ model Task {
   workflowInstance       WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   workflowStageNumber    Int?
   workflowTaskTemplateId String?
+  // 1-based order of this task within its stage — set from the task
+  // template's own sequenceNumber at spawn time, or appended (max + 1) for
+  // ad-hoc tasks added to a live instance. Powers the "you're up next"
+  // intra-stage FYI notification (see notifyNextTaskInStage); nullable and
+  // never enforced as a hard gate — tasks stay completable in any order.
+  workflowTaskOrder      Int?
 
   comments Comment[]
   links    TaskLink[]

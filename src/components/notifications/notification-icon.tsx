@@ -30,6 +30,7 @@ const ICON_FOR: Record<NotificationType, LucideIcon> = {
   CAMPAIGN_TASK_ASSIGNED: UserPlus,
   WORKFLOW_STAGE_STARTED: ArrowRightCircle,
   WORKFLOW_COMPLETED: Check,
+  WORKFLOW_TASK_UP_NEXT: ArrowRightCircle,
 };
 
 export function iconFor(type: NotificationType): LucideIcon {

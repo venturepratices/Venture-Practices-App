@@ -56,6 +56,18 @@ export async function POST(request: Request) {
 
   const assigneeIds = [...new Set(parsed.data.assigneeIds ?? [])];
 
+  // Ad-hoc tasks added to a live workflow stage get appended after whatever
+  // ordered tasks already exist there, so the intra-stage "you're up next"
+  // ping (see notifyNextTaskInStage) has something to chain onto.
+  let workflowTaskOrder: number | null = null;
+  if (parsed.data.workflowInstanceId && parsed.data.workflowStageNumber != null) {
+    const maxOrder = await prisma.task.aggregate({
+      where: { workflowInstanceId: parsed.data.workflowInstanceId, workflowStageNumber: parsed.data.workflowStageNumber },
+      _max: { workflowTaskOrder: true },
+    });
+    workflowTaskOrder = (maxOrder._max.workflowTaskOrder ?? 0) + 1;
+  }
+
   const task = await prisma.task.create({
     data: {
       title: parsed.data.title,
@@ -65,6 +77,7 @@ export async function POST(request: Request) {
       campaignStage: parsed.data.campaignStage ?? null,
       workflowInstanceId: parsed.data.workflowInstanceId ?? null,
       workflowStageNumber: parsed.data.workflowStageNumber ?? null,
+      workflowTaskOrder,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),

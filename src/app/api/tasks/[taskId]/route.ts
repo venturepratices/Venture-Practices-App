@@ -8,7 +8,7 @@ import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
-import { maybeAdvanceWorkflowStage } from "@/lib/workflow-advance";
+import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { updateTaskSchema } from "@/lib/validations/task";
 
@@ -210,7 +210,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         await maybeAdvanceCampaignStage(task.campaignId, session.user.id);
       }
 
-      if (task.workflowInstanceId) {
+      if (task.workflowInstanceId && task.workflowStageNumber != null) {
+        await notifyNextTaskInStage(
+          task.workflowInstanceId,
+          task.workflowStageNumber,
+          { id: task.id, title: task.title, workflowTaskOrder: task.workflowTaskOrder },
+          session.user.id,
+          session.user.name ?? "someone"
+        );
         await maybeAdvanceWorkflowStage(task.workflowInstanceId, session.user.id);
       }
     }

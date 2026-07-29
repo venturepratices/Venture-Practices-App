@@ -25,19 +25,36 @@ type NotifyParams = {
    * would spam the channel. Defaults to true (matches existing task behavior).
    */
   slack?: boolean;
+  /**
+   * Optional structured Slack formatting: a short bold headline plus bulleted
+   * detail lines, in place of the plain `message` sentence (which still
+   * powers the in-app row either way). Omit to keep the plain one-line Slack
+   * post — most call sites haven't been converted to this format yet.
+   */
+  slackTitle?: string;
+  slackLines?: string[];
 };
 
 /**
  * Best-effort post to the shared Slack channel; silently skipped if
  * unconfigured, never throws. `linkPath`, when given, renders as a clickable
- * "Open in app" line using Slack's `<url|label>` mrkdwn syntax.
+ * "Open in app" line using Slack's `<url|label>` mrkdwn syntax. When
+ * `title`+`lines` are given, renders as a bold headline + bullet list instead
+ * of the plain `message` sentence.
  */
-export async function postToSlack(message: string, linkPath?: string | null) {
+export async function postToSlack(
+  message: string,
+  linkPath?: string | null,
+  structured?: { title: string; lines: string[] }
+) {
   if (!process.env.SLACK_WEBHOOK_URL) {
     console.warn("SLACK_WEBHOOK_URL not set — Slack post skipped:", message);
     return;
   }
-  const text = linkPath ? `🔔 ${message}\n<${absoluteUrlFor(linkPath)}|Open in app>` : `🔔 ${message}`;
+  const body = structured
+    ? `*🔔 ${structured.title}*\n${structured.lines.map((l) => `• ${l}`).join("\n")}`
+    : `🔔 ${message}`;
+  const text = linkPath ? `${body}\n<${absoluteUrlFor(linkPath)}|Open in app>` : body;
   try {
     await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: "POST",
@@ -74,7 +91,11 @@ export async function notify(params: NotifyParams) {
     });
 
     if (params.slack ?? true) {
-      await postToSlack(params.message, params.linkPath);
+      await postToSlack(
+        params.message,
+        params.linkPath,
+        params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
+      );
     }
 
     return notification;

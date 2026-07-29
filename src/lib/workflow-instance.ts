@@ -47,6 +47,7 @@ export async function spawnWorkflowTasks(
       clientId: params.clientId,
       workflowInstanceId: params.instanceId,
       workflowStageNumber: task.stageNumber,
+      workflowTaskOrder: task.sequenceNumber,
     })),
   });
 

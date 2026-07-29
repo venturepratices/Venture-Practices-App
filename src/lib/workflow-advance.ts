@@ -1,10 +1,43 @@
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 
 function labelFor(instance: { name: string; client: { name: string } | null }): string {
   return instance.client ? `${instance.name} — ${instance.client.name}` : instance.name;
+}
+
+type TaskLineFields = {
+  title: string;
+  status: string;
+  deadline: Date | null;
+  assignees: { teamMember: { name: string } }[];
+};
+
+/**
+ * Standard "For / Task / Assigned / Status / Deadline / Workflow" bullet set
+ * shared by every task-level workflow notification, so a recipient can act on
+ * a Slack ping without opening the app. `whatLine` is the one thing that
+ * varies by notification type (why this task is being surfaced right now).
+ */
+function taskNotificationLines(params: {
+  recipientName: string;
+  whatLine: string;
+  task: TaskLineFields;
+  instanceLabel: string;
+  stageLabel: string;
+}): string[] {
+  const lines = [
+    `For: ${params.recipientName}`,
+    `What: ${params.whatLine}`,
+    `Task: ${params.task.title}`,
+    `Assigned to: ${params.task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned"}`,
+    `Status: ${TASK_STATUS_LABELS[params.task.status] ?? params.task.status}`,
+  ];
+  if (params.task.deadline) lines.push(`Deadline: ${params.task.deadline.toLocaleDateString()}`);
+  lines.push(`Workflow: ${params.instanceLabel} — ${params.stageLabel}`);
+  return lines;
 }
 
 /**
@@ -35,6 +68,8 @@ export async function notifyWorkflowStageTasks(
     select: {
       id: true,
       title: true,
+      status: true,
+      deadline: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
     },
   });
@@ -50,16 +85,106 @@ export async function notifyWorkflowStageTasks(
       : `/workflows/${instanceId}?taskId=${task.id}`;
     for (const a of task.assignees) {
       if (a.teamMemberId === actorId) continue;
+      const whatLine = previousStageLabel
+        ? `The "${previousStageLabel}" stage just finished — this task is next`
+        : "This workflow just started — this task is up first";
+      const message = previousStageLabel
+        ? `${a.teamMember.name} — the "${previousStageLabel}" stage just finished. Your task "${task.title}" is next in ${instanceLabel} (${stageLabel} stage)`
+        : `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`;
       await notify({
         recipientId: a.teamMemberId,
         type: "WORKFLOW_STAGE_STARTED",
         entityType: "Task",
         entityId: task.id,
         entityLabel: task.title,
-        message: previousStageLabel
-          ? `${a.teamMember.name} — the "${previousStageLabel}" stage just finished. Your task "${task.title}" is next in ${instanceLabel} (${stageLabel} stage)`
-          : `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`,
+        message,
         linkPath,
+        slackTitle: previousStageLabel ? "Your turn — new stage started" : "New workflow started — you're up",
+        slackLines: taskNotificationLines({
+          recipientName: a.teamMember.name,
+          whatLine,
+          task,
+          instanceLabel,
+          stageLabel,
+        }),
+      });
+    }
+  }
+}
+
+/**
+ * FYI-only intra-stage ping: when a task inside an active stage completes and
+ * another still-incomplete task in that SAME stage has a defined
+ * `workflowTaskOrder` immediately after it, notify that next task's
+ * assignees that they're likely up next. Purely a heads-up — tasks stay
+ * completable in any order, nothing is gated on this. No-ops when the
+ * completed task has no order set (ad-hoc tasks added before this field
+ * existed) or when it was the last ordered task in the stage (the full
+ * stage-complete handoff in maybeAdvanceWorkflowStage covers that case).
+ */
+export async function notifyNextTaskInStage(
+  instanceId: string,
+  stageNumber: number,
+  completedTask: { id: string; title: string; workflowTaskOrder: number | null },
+  actorId: string | null,
+  actorName: string
+) {
+  if (completedTask.workflowTaskOrder == null) return;
+
+  const instance = await prisma.workflowInstance.findUnique({
+    where: { id: instanceId },
+    select: { name: true, stagesSnapshot: true, clientId: true, client: { select: { name: true } } },
+  });
+  if (!instance) return;
+
+  const candidates = await prisma.task.findMany({
+    where: {
+      workflowInstanceId: instanceId,
+      workflowStageNumber: stageNumber,
+      status: { not: "COMPLETE" },
+      workflowTaskOrder: { gt: completedTask.workflowTaskOrder },
+    },
+    orderBy: { workflowTaskOrder: "asc" },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      deadline: true,
+      workflowTaskOrder: true,
+      assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+    },
+  });
+  if (candidates.length === 0) return;
+
+  const nextOrder = candidates[0].workflowTaskOrder;
+  const nextTasks = candidates.filter((t) => t.workflowTaskOrder === nextOrder);
+
+  const snapshot = instance.stagesSnapshot as StagesSnapshot;
+  const stageLabel = snapshot.find((s) => s.sequenceNumber === stageNumber)?.name ?? `Stage ${stageNumber}`;
+  const instanceLabel = labelFor(instance);
+
+  for (const task of nextTasks) {
+    const linkPath = instance.clientId
+      ? `/clients/${instance.clientId}/workflows/${instanceId}?taskId=${task.id}`
+      : `/workflows/${instanceId}?taskId=${task.id}`;
+    for (const a of task.assignees) {
+      if (a.teamMemberId === actorId) continue;
+      await notify({
+        recipientId: a.teamMemberId,
+        type: "WORKFLOW_TASK_UP_NEXT",
+        entityType: "Task",
+        entityId: task.id,
+        entityLabel: task.title,
+        message: `${a.teamMember.name} — you're up next on "${task.title}" in ${instanceLabel} (${stageLabel})`,
+        linkPath,
+        slackTitle: "You're up next",
+        slackLines: taskNotificationLines({
+          recipientName: a.teamMember.name,
+          whatLine: `"${completedTask.title}" was just completed by ${actorName} — this task is next in line`,
+          task,
+          instanceLabel,
+          stageLabel,
+        }),
       });
     }
   }
@@ -126,8 +251,7 @@ export async function maybeAdvanceWorkflowStage(
     if (instance.createdBy) recipients.set(instance.createdBy.id, instance.createdBy.name);
 
     const taskCount = instance.tasks.length;
-    const daysElapsed = Math.max(1, Math.round((Date.now() - instance.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
-    const summary = `all ${taskCount} task${taskCount === 1 ? "" : "s"} done, ${daysElapsed} day${daysElapsed === 1 ? "" : "s"} from start to finish`;
+    const summary = `all ${taskCount} task${taskCount === 1 ? "" : "s"} done`;
 
     const completedLinkPath = instance.client
       ? `/clients/${instance.client.id}/workflows/${instance.id}`
@@ -142,6 +266,8 @@ export async function maybeAdvanceWorkflowStage(
         entityLabel: instanceLabel,
         message: `${name} — ${instanceLabel} is complete (${summary})`,
         linkPath: completedLinkPath,
+        slackTitle: "Workflow complete 🎉",
+        slackLines: [`For: ${name}`, `What: Every stage of this workflow is done`, `Workflow: ${instanceLabel}`, `Tasks: ${taskCount} done`],
       });
     }
 

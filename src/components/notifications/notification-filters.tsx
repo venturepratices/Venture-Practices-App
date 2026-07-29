@@ -17,10 +17,17 @@ const TYPE_LABELS: Record<string, string> = {
   STATUS_CHANGED: "Status changed",
   DEADLINE_CHANGED: "Deadline changed",
   COMMENTED: "New comment",
+  ASSET_UPLOADED: "Asset uploaded",
+  ASSET_COMMENTED: "Asset commented",
+  ASSET_DECIDED: "Asset decision made",
+  ASSET_APPROVED: "Asset approved",
+  ASSET_CHANGES_REQUESTED: "Asset changes requested",
+  ASSET_DUE_SOON: "Asset due soon",
   CAMPAIGN_STAGE_ADVANCED: "Campaign stage advanced",
   CAMPAIGN_TASK_ASSIGNED: "New campaign task",
   WORKFLOW_STAGE_STARTED: "Workflow stage started",
   WORKFLOW_COMPLETED: "Workflow completed",
+  WORKFLOW_TASK_UP_NEXT: "You're up next",
 };
 
 const READ_LABELS: Record<string, string> = {
