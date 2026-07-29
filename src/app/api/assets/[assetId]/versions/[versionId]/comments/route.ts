@@ -124,6 +124,7 @@ export async function POST(
   await notifyAssetCommented({
     assetId,
     assetTitle: asset.title,
+    clientId: asset.clientId,
     ownerId: asset.createdById,
     commenterTeamMemberId: actor.actorId,
     commenterName: actor.actorName,

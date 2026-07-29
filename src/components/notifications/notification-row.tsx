@@ -17,7 +17,10 @@ export function NotificationRow({ notification }: { notification: Notification }
     if (isUnread) {
       fetch(`/api/notifications/${notification.id}`, { method: "PATCH" }).then(() => router.refresh());
     }
-    if (notification.entityType === "Task") {
+    if (notification.linkPath) {
+      router.push(notification.linkPath, { scroll: false });
+    } else if (notification.entityType === "Task") {
+      // Legacy fallback for notifications created before linkPath existed.
       const params = new URLSearchParams(searchParams.toString());
       params.set("taskId", notification.entityId);
       router.push(`${pathname}?${params.toString()}`, { scroll: false });

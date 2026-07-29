@@ -87,6 +87,7 @@ export async function POST(
   await notifyAssetDecided({
     assetId,
     assetTitle: asset.title,
+    clientId: asset.clientId,
     ownerId: asset.createdById,
     deciderTeamMemberId: actor.actorId,
     deciderName: actor.actorName,
@@ -96,6 +97,7 @@ export async function POST(
     await notifyAssetStatusChanged({
       assetId,
       assetTitle: asset.title,
+      clientId: asset.clientId,
       ownerId: asset.createdById,
       status,
       excludeTeamMemberId: actor.actorId,

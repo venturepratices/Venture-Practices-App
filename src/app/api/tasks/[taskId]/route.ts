@@ -91,6 +91,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     include: TASK_INCLUDE,
   });
 
+  const linkPath = task.workflowInstanceId
+    ? task.clientId
+      ? `/clients/${task.clientId}/workflows/${task.workflowInstanceId}?taskId=${task.id}`
+      : `/workflows/${task.workflowInstanceId}?taskId=${task.id}`
+    : task.clientId
+      ? `/clients/${task.clientId}/tasks?taskId=${task.id}`
+      : `/tasks?taskId=${task.id}`;
+
   if (before) {
     const changes: string[] = [];
     if (parsed.data.title !== undefined && parsed.data.title !== before.title) {
@@ -107,6 +115,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
+          linkPath,
         });
       }
     }
@@ -128,6 +137,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+          linkPath,
         });
       }
     }
@@ -152,6 +162,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityId: task.id,
             entityLabel: task.title,
             message: `${a.teamMember.name} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
+            linkPath,
           });
         }
       }
@@ -181,6 +192,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           action: "created",
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
+        const nextLinkPath = next.clientId ? `/clients/${next.clientId}/tasks?taskId=${next.id}` : `/tasks?taskId=${next.id}`;
         for (const a of next.assignees) {
           await notify({
             recipientId: a.teamMemberId,
@@ -189,6 +201,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityId: next.id,
             entityLabel: next.title,
             message: `${a.teamMember.name} — you have a new recurring task: "${next.title}"`,
+            linkPath: nextLinkPath,
           });
         }
       }

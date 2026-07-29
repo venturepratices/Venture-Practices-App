@@ -836,6 +836,12 @@ model Notification {
   entityId    String
   entityLabel String
   message     String
+  // App-relative path to the entity this notification is about (e.g.
+  // "/clients/<id>/workflows/<id>?taskId=<id>") — lets the in-app row and the
+  // Slack message both deep-link straight to the right place. Nullable so
+  // pre-migration rows degrade gracefully (Task-typed ones still fall back to
+  // the older ?taskId= behavior in notification-row.tsx).
+  linkPath    String?
   readAt      DateTime?
   createdAt   DateTime         @default(now())
 

@@ -17,7 +17,7 @@ function labelFor(instance: { name: string; client: { name: string } | null }): 
 export async function notifyWorkflowStageTasks(instanceId: string, stageNumber: number, actorId: string | null) {
   const instance = await prisma.workflowInstance.findUnique({
     where: { id: instanceId },
-    select: { name: true, stagesSnapshot: true, client: { select: { name: true } } },
+    select: { name: true, stagesSnapshot: true, clientId: true, client: { select: { name: true } } },
   });
   if (!instance) return;
 
@@ -40,6 +40,9 @@ export async function notifyWorkflowStageTasks(instanceId: string, stageNumber: 
   const instanceLabel = labelFor(instance);
 
   for (const task of tasks) {
+    const linkPath = instance.clientId
+      ? `/clients/${instance.clientId}/workflows/${instanceId}?taskId=${task.id}`
+      : `/workflows/${instanceId}?taskId=${task.id}`;
     for (const a of task.assignees) {
       if (a.teamMemberId === actorId) continue;
       await notify({
@@ -49,6 +52,7 @@ export async function notifyWorkflowStageTasks(instanceId: string, stageNumber: 
         entityId: task.id,
         entityLabel: task.title,
         message: `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`,
+        linkPath,
       });
     }
   }
@@ -114,6 +118,9 @@ export async function maybeAdvanceWorkflowStage(
     }
     if (instance.createdBy) recipients.set(instance.createdBy.id, instance.createdBy.name);
 
+    const completedLinkPath = instance.client
+      ? `/clients/${instance.client.id}/workflows/${instance.id}`
+      : `/workflows/${instance.id}`;
     for (const [teamMemberId, name] of recipients) {
       if (teamMemberId === actorId) continue;
       await notify({
@@ -123,6 +130,7 @@ export async function maybeAdvanceWorkflowStage(
         entityId: instance.id,
         entityLabel: instanceLabel,
         message: `${name} — ${instanceLabel} is complete`,
+        linkPath: completedLinkPath,
       });
     }
 

@@ -73,6 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ass
   await notifyAssetUploaded({
     assetId,
     assetTitle: asset.title,
+    clientId: asset.clientId,
     versionNumber: nextVersionNumber,
     uploaderId: session.user.id,
     uploaderName: session.user.name ?? null,

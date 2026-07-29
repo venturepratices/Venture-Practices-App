@@ -83,6 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   await notifyAssetDecided({
     assetId: access.link.assetId,
     assetTitle: asset.title,
+    clientId: asset.clientId,
     ownerId: asset.createdById,
     deciderTeamMemberId: null,
     deciderName: reviewer.guestName ?? "A guest reviewer",
@@ -92,6 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     await notifyAssetStatusChanged({
       assetId: access.link.assetId,
       assetTitle: asset.title,
+      clientId: asset.clientId,
       ownerId: asset.createdById,
       status,
       excludeTeamMemberId: null,

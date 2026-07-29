@@ -54,6 +54,8 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
   const campaignLabel = `${formatCampaignLabel(campaign)} — ${campaign.client.name}`;
   const newStageLabel = CAMPAIGN_STAGE_LABELS[newStage];
 
+  const campaignLinkPath = `/clients/${campaign.client.id}/campaigns/${campaign.id}`;
+
   const newStageAssigneeIds = new Set<string>();
   const newStageTasks = campaign.tasks.filter((t) => (t.campaignStage ?? "PLANNING") === newStage);
   for (const task of newStageTasks) {
@@ -67,6 +69,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
         entityId: task.id,
         entityLabel: task.title,
         message: `${a.teamMember.name} — "${task.title}" is now up in ${campaignLabel} (${newStageLabel})`,
+        linkPath: campaignLinkPath,
       });
     }
   }
@@ -86,6 +89,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
       entityId: campaign.id,
       entityLabel: campaignLabel,
       message: `${name} — ${campaignLabel} advanced to ${newStageLabel}`,
+      linkPath: campaignLinkPath,
     });
   }
 

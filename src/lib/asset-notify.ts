@@ -32,11 +32,13 @@ async function reviewerTeamMemberIds(assetId: string, exclude?: string | null): 
 export async function notifyAssetUploaded(params: {
   assetId: string;
   assetTitle: string;
+  clientId: string;
   versionNumber: number;
   uploaderId: string | null;
   uploaderName: string | null;
 }) {
   const recipientIds = await reviewerTeamMemberIds(params.assetId, params.uploaderId);
+  const linkPath = `/clients/${params.clientId}/assets/${params.assetId}`;
   await Promise.all(
     recipientIds.map((recipientId) =>
       notify({
@@ -46,6 +48,7 @@ export async function notifyAssetUploaded(params: {
         entityId: params.assetId,
         entityLabel: params.assetTitle,
         message: `${params.uploaderName ?? "Someone"} uploaded v${params.versionNumber} of "${params.assetTitle}" for your review`,
+        linkPath,
         slack: false,
       })
     )
@@ -55,12 +58,14 @@ export async function notifyAssetUploaded(params: {
 export async function notifyAssetCommented(params: {
   assetId: string;
   assetTitle: string;
+  clientId: string;
   ownerId: string | null;
   commenterTeamMemberId: string | null;
   commenterName: string | null;
 }) {
   const recipients = new Set(await reviewerTeamMemberIds(params.assetId, params.commenterTeamMemberId));
   if (params.ownerId && params.ownerId !== params.commenterTeamMemberId) recipients.add(params.ownerId);
+  const linkPath = `/clients/${params.clientId}/assets/${params.assetId}`;
 
   await Promise.all(
     [...recipients].map((recipientId) =>
@@ -71,6 +76,7 @@ export async function notifyAssetCommented(params: {
         entityId: params.assetId,
         entityLabel: params.assetTitle,
         message: `${params.commenterName ?? "Someone"} commented on "${params.assetTitle}"`,
+        linkPath,
         slack: false,
       })
     )
@@ -80,6 +86,7 @@ export async function notifyAssetCommented(params: {
 export async function notifyAssetDecided(params: {
   assetId: string;
   assetTitle: string;
+  clientId: string;
   ownerId: string | null;
   deciderTeamMemberId: string | null;
   deciderName: string | null;
@@ -93,6 +100,7 @@ export async function notifyAssetDecided(params: {
     entityId: params.assetId,
     entityLabel: params.assetTitle,
     message: `${params.deciderName ?? "Someone"} ${params.decisionLabel} "${params.assetTitle}"`,
+    linkPath: `/clients/${params.clientId}/assets/${params.assetId}`,
     slack: false,
   });
 }
@@ -106,6 +114,7 @@ export async function notifyAssetDecided(params: {
 export async function notifyAssetStatusChanged(params: {
   assetId: string;
   assetTitle: string;
+  clientId: string;
   ownerId: string | null;
   status: AssetStatus;
   excludeTeamMemberId?: string | null;
@@ -121,6 +130,7 @@ export async function notifyAssetStatusChanged(params: {
     params.status === "APPROVED"
       ? `"${params.assetTitle}" was approved by every reviewer`
       : `"${params.assetTitle}" needs changes — see the reviewer notes`;
+  const linkPath = `/clients/${params.clientId}/assets/${params.assetId}`;
 
   await Promise.all(
     [...recipients].map((recipientId) =>
@@ -131,9 +141,10 @@ export async function notifyAssetStatusChanged(params: {
         entityId: params.assetId,
         entityLabel: params.assetTitle,
         message,
+        linkPath,
         slack: false,
       })
     )
   );
-  await postToSlack(message);
+  await postToSlack(message, linkPath);
 }

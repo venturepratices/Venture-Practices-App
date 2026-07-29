@@ -29,12 +29,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     select: {
       title: true,
       clientId: true,
+      workflowInstanceId: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
     },
   });
   if (!task) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const linkPath = task.workflowInstanceId
+    ? task.clientId
+      ? `/clients/${task.clientId}/workflows/${task.workflowInstanceId}?taskId=${taskId}`
+      : `/workflows/${task.workflowInstanceId}?taskId=${taskId}`
+    : task.clientId
+      ? `/clients/${task.clientId}/tasks?taskId=${taskId}`
+      : `/tasks?taskId=${taskId}`;
   // Commenting on a client task requires access to that client, in addition
   // to the comment-on-tasks capability.
   try {
@@ -74,6 +82,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       entityId: taskId,
       entityLabel: task?.title ?? taskId,
       message: `${member.name} — ${session.user.name ?? "someone"} mentioned you in a comment on "${task?.title ?? "a task"}"`,
+      linkPath,
     });
   }
 
@@ -86,6 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       entityId: taskId,
       entityLabel: task!.title,
       message: `${a.teamMember.name} — ${session.user.name ?? "someone"} commented on "${task!.title}"`,
+      linkPath,
     });
   }
 

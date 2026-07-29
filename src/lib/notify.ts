@@ -1,3 +1,4 @@
+import { absoluteUrlFor } from "@/lib/notification-links";
 import { prisma } from "@/lib/prisma";
 import type { NotificationType } from "@/generated/prisma/client";
 
@@ -10,6 +11,14 @@ type NotifyParams = {
   /** Full sentence, already naming who it's for — used as-is for the Slack message. */
   message: string;
   /**
+   * App-relative path to the entity this is about (e.g.
+   * "/clients/<id>/tasks?taskId=<id>") — stored on the Notification row for
+   * the in-app row to navigate with, and appended to the Slack message as a
+   * clickable "Open in app" link. Omit when the caller has no clean deep
+   * link to offer (rare — most call sites have enough context).
+   */
+  linkPath?: string | null;
+  /**
    * Set false to skip the Slack post for this particular notification while
    * still creating the in-app row — used for high-volume asset events
    * (uploads/comments/decisions) where every recipient's own Slack post
@@ -18,17 +27,22 @@ type NotifyParams = {
   slack?: boolean;
 };
 
-/** Best-effort post to the shared Slack channel; silently skipped if unconfigured, never throws. */
-export async function postToSlack(message: string) {
+/**
+ * Best-effort post to the shared Slack channel; silently skipped if
+ * unconfigured, never throws. `linkPath`, when given, renders as a clickable
+ * "Open in app" line using Slack's `<url|label>` mrkdwn syntax.
+ */
+export async function postToSlack(message: string, linkPath?: string | null) {
   if (!process.env.SLACK_WEBHOOK_URL) {
     console.warn("SLACK_WEBHOOK_URL not set — Slack post skipped:", message);
     return;
   }
+  const text = linkPath ? `🔔 ${message}\n<${absoluteUrlFor(linkPath)}|Open in app>` : `🔔 ${message}`;
   try {
     await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: `🔔 ${message}` }),
+      body: JSON.stringify({ text }),
     });
   } catch (error) {
     console.warn("Slack post failed:", error);
@@ -55,11 +69,12 @@ export async function notify(params: NotifyParams) {
         entityId: params.entityId,
         entityLabel: params.entityLabel,
         message: params.message,
+        linkPath: params.linkPath ?? null,
       },
     });
 
     if (params.slack ?? true) {
-      await postToSlack(params.message);
+      await postToSlack(params.message, params.linkPath);
     }
 
     return notification;

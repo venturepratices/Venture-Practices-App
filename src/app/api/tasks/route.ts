@@ -83,6 +83,14 @@ export async function POST(request: Request) {
     description: `${session.user.name ?? "Someone"} created task "${task.title}"`,
   });
 
+  const linkPath = task.workflowInstanceId
+    ? task.clientId
+      ? `/clients/${task.clientId}/workflows/${task.workflowInstanceId}?taskId=${task.id}`
+      : `/workflows/${task.workflowInstanceId}?taskId=${task.id}`
+    : task.clientId
+      ? `/clients/${task.clientId}/tasks?taskId=${task.id}`
+      : `/tasks?taskId=${task.id}`;
+
   for (const a of task.assignees) {
     if (a.teamMemberId === session.user.id) continue;
     await notify({
@@ -92,6 +100,7 @@ export async function POST(request: Request) {
       entityId: task.id,
       entityLabel: task.title,
       message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+      linkPath,
     });
   }
 

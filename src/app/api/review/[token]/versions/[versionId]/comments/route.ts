@@ -90,7 +90,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     },
   });
 
-  const asset = await prisma.asset.findUnique({ where: { id: access.link.assetId }, select: { title: true, createdById: true } });
+  const asset = await prisma.asset.findUnique({ where: { id: access.link.assetId }, select: { title: true, createdById: true, clientId: true } });
   await logActivity({
     actorId: null,
     actorName: reviewer.guestName ?? "A guest reviewer",
@@ -103,6 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   await notifyAssetCommented({
     assetId: access.link.assetId,
     assetTitle: asset?.title ?? "Asset",
+    clientId: asset!.clientId,
     ownerId: asset?.createdById ?? null,
     commenterTeamMemberId: null,
     commenterName: reviewer.guestName ?? "A guest reviewer",

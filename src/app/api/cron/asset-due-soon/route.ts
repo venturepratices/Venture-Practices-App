@@ -64,6 +64,7 @@ export async function GET(request: Request) {
           entityId: asset.id,
           entityLabel: asset.title,
           message: `"${asset.title}" is due ${asset.dueDate!.toLocaleDateString()} and still needs review`,
+          linkPath: `/clients/${asset.clientId}/assets/${asset.id}`,
           slack: false,
         })
       )
