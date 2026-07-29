@@ -1,15 +1,14 @@
 import type { AssetStatus } from "@/generated/prisma/enums";
-import { notify, postToSlack } from "@/lib/notify";
+import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Asset Approval notification fan-out (Slice 5). Every in-app Notification
- * row here is written with `slack: false` — Slack posts for these
- * high-volume events (uploads/comments/decisions) are skipped entirely to
- * avoid spamming the channel; only a genuine headline moment (the asset's
- * overall status flipping to APPROVED or CHANGES_REQUESTED, via
- * notifyAssetStatusChanged) posts to Slack, and only ONCE per event — not
- * once per recipient — via a direct postToSlack() call.
+ * Asset Approval notification fan-out (Slice 5). Routine, high-volume events
+ * (uploads/comments/decisions) are written with `slack: false` — an in-app
+ * row only, since a Slack DM per one of these would still be noisy for that
+ * person even under personal-DM delivery. Only the genuine headline moment
+ * (the asset's overall status flipping to APPROVED or CHANGES_REQUESTED, via
+ * notifyAssetStatusChanged) DMs each recipient on Slack.
  *
  * Only TeamMember reviewers/owners can receive an in-app Notification
  * (Notification.recipientId has an FK to TeamMember); ClientUser and guest
@@ -142,9 +141,7 @@ export async function notifyAssetStatusChanged(params: {
         entityLabel: params.assetTitle,
         message,
         linkPath,
-        slack: false,
       })
     )
   );
-  await postToSlack(message, linkPath);
 }

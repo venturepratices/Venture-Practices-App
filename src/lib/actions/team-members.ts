@@ -56,6 +56,7 @@ export async function createTeamMemberAction(
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    slackUserId: formData.get("slackUserId"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -73,6 +74,7 @@ export async function createTeamMemberAction(
       name: parsed.data.name,
       email: parsed.data.email,
       passwordHash,
+      slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
       ...perms.caps,
@@ -110,6 +112,7 @@ export async function updateTeamMemberAction(
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    slackUserId: formData.get("slackUserId"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -143,6 +146,7 @@ export async function updateTeamMemberAction(
     data: {
       name: parsed.data.name,
       email: parsed.data.email,
+      slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
       ...perms.caps,

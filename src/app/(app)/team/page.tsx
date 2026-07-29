@@ -42,6 +42,7 @@ export default async function TeamPage() {
         id: true,
         name: true,
         email: true,
+        slackUserId: true,
         createdAt: true,
         isAdmin: true,
         allClientsAccess: true,
@@ -147,6 +148,7 @@ export default async function TeamPage() {
                     memberId={member.id}
                     defaultName={member.name}
                     defaultEmail={member.email}
+                    defaultSlackUserId={member.slackUserId}
                     defaultIsAdmin={member.isAdmin}
                     defaultAllClientsAccess={member.allClientsAccess}
                     defaultCaps={defaultCaps}

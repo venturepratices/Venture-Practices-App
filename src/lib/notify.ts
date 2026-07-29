@@ -1,5 +1,6 @@
 import { absoluteUrlFor } from "@/lib/notification-links";
 import { prisma } from "@/lib/prisma";
+import { postSlackDM, resolveSlackUserId } from "@/lib/slack";
 import type { NotificationType } from "@/generated/prisma/client";
 
 type NotifyParams = {
@@ -20,9 +21,10 @@ type NotifyParams = {
   linkPath?: string | null;
   /**
    * Set false to skip the Slack post for this particular notification while
-   * still creating the in-app row — used for high-volume asset events
-   * (uploads/comments/decisions) where every recipient's own Slack post
-   * would spam the channel. Defaults to true (matches existing task behavior).
+   * still creating the in-app row — used for high-volume events (asset
+   * uploads/comments/decisions) where a Slack DM per event would still be
+   * noisy for that person even though it's no longer a shared channel.
+   * Defaults to true.
    */
   slack?: boolean;
   /**
@@ -35,46 +37,24 @@ type NotifyParams = {
   slackLines?: string[];
 };
 
-/**
- * Best-effort post to the shared Slack channel; silently skipped if
- * unconfigured, never throws. `linkPath`, when given, renders as a clickable
- * "Open in app" line using Slack's `<url|label>` mrkdwn syntax. When
- * `title`+`lines` are given, renders as a bold headline + bullet list instead
- * of the plain `message` sentence.
- */
-export async function postToSlack(
-  message: string,
-  linkPath?: string | null,
-  structured?: { title: string; lines: string[] }
-) {
-  if (!process.env.SLACK_WEBHOOK_URL) {
-    console.warn("SLACK_WEBHOOK_URL not set — Slack post skipped:", message);
-    return;
-  }
+function buildSlackText(message: string, linkPath?: string | null, structured?: { title: string; lines: string[] }) {
   const body = structured
     ? `*🔔 ${structured.title}*\n${structured.lines.map((l) => `• ${l}`).join("\n")}`
     : `🔔 ${message}`;
-  const text = linkPath ? `${body}\n<${absoluteUrlFor(linkPath)}|Open in app>` : body;
-  try {
-    await fetch(process.env.SLACK_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-  } catch (error) {
-    console.warn("Slack post failed:", error);
-  }
+  return linkPath ? `${body}\n<${absoluteUrlFor(linkPath)}|Open in app>` : body;
 }
 
 /**
- * Fans out one notification: writes a Notification row (in-app), and
- * best-effort posts to a shared Slack channel if configured (unless
- * `slack: false`). Mirrors the "guarded by env var, warn-and-skip if absent"
- * pattern already used for Blob credentials in src/lib/archive.ts and
- * src/lib/backup.ts. The whole function swallows its own errors — a
- * notification is a side effect of a mutation that has already succeeded by
- * the time this is called, so a failure here (Slack down, a bad write) must
- * never bubble up and turn an otherwise-successful update into a 500.
+ * Fans out one notification: writes a Notification row (in-app), and —
+ * unless `slack: false` — best-effort DMs the recipient on Slack personally
+ * (see src/lib/slack.ts), so each person's own Slack DMs are their
+ * notification feed instead of one shared, ever-growing channel. Mirrors the
+ * "guarded by config, warn-and-skip if unresolvable" pattern already used for
+ * Blob credentials in src/lib/archive.ts and src/lib/backup.ts. The whole
+ * function swallows its own errors — a notification is a side effect of a
+ * mutation that has already succeeded by the time this is called, so a
+ * failure here (Slack down, no Slack mapping, a bad write) must never bubble
+ * up and turn an otherwise-successful update into a 500.
  */
 export async function notify(params: NotifyParams) {
   try {
@@ -91,11 +71,19 @@ export async function notify(params: NotifyParams) {
     });
 
     if (params.slack ?? true) {
-      await postToSlack(
-        params.message,
-        params.linkPath,
-        params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
-      );
+      const recipient = await prisma.teamMember.findUnique({
+        where: { id: params.recipientId },
+        select: { id: true, email: true, slackUserId: true },
+      });
+      const slackUserId = recipient ? await resolveSlackUserId(recipient) : null;
+      if (slackUserId) {
+        const text = buildSlackText(
+          params.message,
+          params.linkPath,
+          params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
+        );
+        await postSlackDM(slackUserId, text);
+      }
     }
 
     return notification;

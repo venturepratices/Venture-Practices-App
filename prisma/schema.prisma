@@ -128,6 +128,12 @@ model TeamMember {
   // next login before they can do anything else. Cleared once they set their
   // own new password.
   mustChangePassword Boolean @default(false)
+  // Slack Bot API user id for personal-DM notification delivery (see
+  // src/lib/slack.ts). Doubles as both a manual admin-set override (paste a
+  // specific Slack Member ID) AND the cache for the auto-resolved
+  // email-lookup result — whichever set it first, it's the source of truth
+  // for where this person's notifications get DMed.
+  slackUserId        String?
   role               Role    @default(AGENCY)
   // Access control. Admins bypass every check below (full access + team/
   // permission management + granting others admin/permissions). Members are

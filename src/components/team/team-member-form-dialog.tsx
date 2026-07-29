@@ -38,6 +38,7 @@ type EditDefaults = {
   defaultAllClientsAccess: boolean;
   defaultCaps: Record<Capability, boolean>;
   defaultClientIds: string[];
+  defaultSlackUserId: string | null;
 };
 
 type Props =
@@ -93,6 +94,19 @@ export function TeamMemberFormDialog(props: Props) {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required defaultValue={isEdit ? props.defaultEmail : undefined} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slackUserId">Slack member ID (optional)</Label>
+              <Input
+                id="slackUserId"
+                name="slackUserId"
+                placeholder="Auto-matched by email — only set this if that doesn't work"
+                defaultValue={isEdit ? (props.defaultSlackUserId ?? undefined) : undefined}
+              />
+              <p className="text-xs text-muted-foreground">
+                Notifications DM this person on Slack automatically by matching their email. If their Slack account uses a
+                different email, paste their Slack Member ID here (their Slack profile → &quot;...&quot; → &quot;Copy member ID&quot;).
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{props.mode === "create" ? "Temporary password" : "New password"}</Label>
