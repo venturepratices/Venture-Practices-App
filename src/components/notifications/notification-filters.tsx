@@ -28,6 +28,8 @@ const TYPE_LABELS: Record<string, string> = {
   WORKFLOW_STAGE_STARTED: "Workflow stage started",
   WORKFLOW_COMPLETED: "Workflow completed",
   WORKFLOW_TASK_UP_NEXT: "You're up next",
+  TASK_DUE_SOON: "Task due soon",
+  TASK_OVERDUE: "Task overdue",
 };
 
 const READ_LABELS: Record<string, string> = {

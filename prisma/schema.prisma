@@ -70,6 +70,8 @@ enum NotificationType {
   WORKFLOW_STAGE_STARTED
   WORKFLOW_COMPLETED
   WORKFLOW_TASK_UP_NEXT
+  TASK_DUE_SOON
+  TASK_OVERDUE
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
