@@ -298,6 +298,11 @@ model Client {
   website      String?
   address      String?
   about        String? @db.Text
+  // Private Slack channel for this client's headline notifications (workflow
+  // handoffs/completion, overdue tasks, asset approvals) — auto-created and
+  // cached here on first use, or manually set to point at an existing
+  // channel. See src/lib/slack.ts's ensureClientChannel.
+  slackChannelId String?
 
   tasks                Task[]
   notes                ClientNote[]

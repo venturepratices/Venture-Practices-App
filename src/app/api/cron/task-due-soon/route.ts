@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -112,6 +112,17 @@ export async function GET(request: Request) {
         })
       )
     );
+    await notifyChannel({
+      clientId: task.clientId,
+      message: `"${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
+      linkPath,
+      slackTitle: "Task overdue",
+      slackLines: [
+        `Task: ${task.title}`,
+        `Assigned to: ${task.assignees.map((a) => a.teamMember.name).join(", ")}`,
+        `Was due: ${task.deadline!.toLocaleDateString()}`,
+      ],
+    });
     overdueReminded++;
   }
 

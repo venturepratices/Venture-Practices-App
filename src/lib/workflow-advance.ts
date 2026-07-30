@@ -1,5 +1,5 @@
 import { logActivity } from "@/lib/activity-log";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
@@ -78,6 +78,10 @@ export async function notifyWorkflowStageTasks(
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const stageLabel = snapshot.find((s) => s.sequenceNumber === stageNumber)?.name ?? `Stage ${stageNumber}`;
   const instanceLabel = labelFor(instance);
+  const stageLinkPath = instance.clientId
+    ? `/clients/${instance.clientId}/workflows/${instanceId}`
+    : `/workflows/${instanceId}`;
+  const notifiedNames = new Set<string>();
 
   for (const task of tasks) {
     const linkPath = instance.clientId
@@ -85,6 +89,7 @@ export async function notifyWorkflowStageTasks(
       : `/workflows/${instanceId}?taskId=${task.id}`;
     for (const a of task.assignees) {
       if (a.teamMemberId === actorId) continue;
+      notifiedNames.add(a.teamMember.name);
       const whatLine = previousStageLabel
         ? `The "${previousStageLabel}" stage just finished — this task is next`
         : "This workflow just started — this task is up first";
@@ -109,6 +114,21 @@ export async function notifyWorkflowStageTasks(
         }),
       });
     }
+  }
+
+  if (notifiedNames.size > 0) {
+    await notifyChannel({
+      clientId: instance.clientId,
+      message: `${instanceLabel}: "${stageLabel}" stage is now up`,
+      linkPath: stageLinkPath,
+      slackTitle: previousStageLabel ? "New stage started" : "New workflow started",
+      slackLines: [
+        `Workflow: ${instanceLabel}`,
+        ...(previousStageLabel ? [`Previous stage: "${previousStageLabel}" ✅ complete`] : []),
+        `Now on: ${stageLabel}`,
+        `Assigned: ${[...notifiedNames].join(", ")}`,
+      ],
+    });
   }
 }
 
@@ -270,6 +290,14 @@ export async function maybeAdvanceWorkflowStage(
         slackLines: [`For: ${name}`, `What: Every stage of this workflow is done`, `Workflow: ${instanceLabel}`, `Tasks: ${taskCount} done`],
       });
     }
+
+    await notifyChannel({
+      clientId: instance.client?.id ?? null,
+      message: `${instanceLabel} is complete (${summary})`,
+      linkPath: completedLinkPath,
+      slackTitle: "Workflow complete 🎉",
+      slackLines: [`Workflow: ${instanceLabel}`, `Tasks: ${taskCount} done`],
+    });
 
     await logActivity({
       actorId: null,

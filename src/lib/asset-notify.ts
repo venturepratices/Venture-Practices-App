@@ -1,5 +1,5 @@
 import type { AssetStatus } from "@/generated/prisma/enums";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -144,4 +144,12 @@ export async function notifyAssetStatusChanged(params: {
       })
     )
   );
+
+  await notifyChannel({
+    clientId: params.clientId,
+    message,
+    linkPath,
+    slackTitle: params.status === "APPROVED" ? "Asset approved 🎉" : "Asset needs changes",
+    slackLines: [`Asset: ${params.assetTitle}`],
+  });
 }

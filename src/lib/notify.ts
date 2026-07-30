@@ -1,6 +1,6 @@
 import { absoluteUrlFor } from "@/lib/notification-links";
 import { prisma } from "@/lib/prisma";
-import { postSlackDM, resolveSlackUserId } from "@/lib/slack";
+import { postSlackChannel, postSlackDM, resolveSlackUserId } from "@/lib/slack";
 import type { NotificationType } from "@/generated/prisma/client";
 
 type NotifyParams = {
@@ -90,5 +90,45 @@ export async function notify(params: NotifyParams) {
   } catch (error) {
     console.warn("notify() failed, continuing without it:", error);
     return null;
+  }
+}
+
+type NotifyChannelParams = {
+  /** The client this event is about, if any — routes to that client's Slack channel. Null/omitted routes to the general SLACK_INTERNAL_CHANNEL_ID channel. */
+  clientId?: string | null;
+  message: string;
+  linkPath?: string | null;
+  slackTitle?: string;
+  slackLines?: string[];
+};
+
+/**
+ * Posts ONE team-facing summary of a headline event to the relevant Slack
+ * channel — a client's own private channel if `clientId` resolves to one, or
+ * the general internal channel otherwise. Deliberately separate from
+ * notify(), which fans out per-recipient (looping this into that per-
+ * recipient loop would post the same event to the channel once per person).
+ * Callers construct their own team-facing message text (not the same
+ * personalized "this is your task" text used for the DM) and call this
+ * exactly once per event. Never throws.
+ */
+export async function notifyChannel(params: NotifyChannelParams) {
+  try {
+    let channelId: string | null = null;
+    if (params.clientId) {
+      const client = await prisma.client.findUnique({ where: { id: params.clientId }, select: { slackChannelId: true } });
+      channelId = client?.slackChannelId ?? null;
+    }
+    if (!channelId) channelId = process.env.SLACK_INTERNAL_CHANNEL_ID ?? null;
+    if (!channelId) return;
+
+    const text = buildSlackText(
+      params.message,
+      params.linkPath,
+      params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
+    );
+    await postSlackChannel(channelId, text);
+  } catch (error) {
+    console.warn("notifyChannel() failed, continuing without it:", error);
   }
 }

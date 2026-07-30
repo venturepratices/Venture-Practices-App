@@ -18,6 +18,7 @@ type ClientCardData = {
   website: string | null;
   address: string | null;
   about: string | null;
+  slackChannelId: string | null;
 };
 
 export function ClientCard({ client }: { client: ClientCardData }) {
@@ -35,6 +36,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
           website={client.website}
           address={client.address}
           about={client.about}
+          slackChannelId={client.slackChannelId}
           trigger={
             <Button variant="ghost" size="icon" aria-label={`Edit ${client.name}`}>
               <Pencil className="size-4" />

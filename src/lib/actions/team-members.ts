@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity-log";
 import { CAPABILITIES } from "@/lib/permission-catalog";
 import { PermissionError, requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { removeTeamMemberFromAllClientChannels, syncTeamMemberClientChannels } from "@/lib/slack";
 import { createTeamMemberSchema, updateTeamMemberSchema } from "@/lib/validations/team-member";
 
 export type TeamMemberFormState = { error: string | null };
@@ -83,6 +84,7 @@ export async function createTeamMemberAction(
         : undefined,
     },
   });
+  await syncTeamMemberClientChannels(member.id);
 
   const session = await auth();
   await logActivity({
@@ -162,6 +164,7 @@ export async function updateTeamMemberAction(
       },
     },
   });
+  await syncTeamMemberClientChannels(member.id);
 
   const changes: string[] = [];
   if (before.name !== member.name) changes.push(`renamed to "${member.name}"`);
@@ -206,6 +209,7 @@ export async function deleteTeamMemberAction(memberId: string) {
     }
   }
 
+  await removeTeamMemberFromAllClientChannels(memberId);
   await prisma.teamMember.delete({ where: { id: memberId } });
 
   const session = await auth();

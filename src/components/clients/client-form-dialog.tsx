@@ -30,6 +30,7 @@ type ClientDefaults = {
   website: string | null;
   address: string | null;
   about: string | null;
+  slackChannelId: string | null;
 };
 
 type Props =
@@ -130,6 +131,20 @@ export function ClientFormDialog(props: Props) {
                 placeholder="Anything else worth knowing about this client..."
                 defaultValue={props.mode === "edit" ? props.about ?? "" : ""}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slackChannelId">Slack channel ID (optional)</Label>
+              <Input
+                id="slackChannelId"
+                name="slackChannelId"
+                placeholder="Auto-created — only set this to point at an existing channel"
+                defaultValue={props.mode === "edit" ? props.slackChannelId ?? "" : ""}
+              />
+              <p className="text-xs text-muted-foreground">
+                A private Slack channel for this client is created automatically. Only fill this in to point at an
+                existing channel instead, or to fix a failed auto-creation (find the ID via the channel&apos;s
+                &quot;...&quot; menu → &quot;View channel details&quot;).
+              </p>
             </div>
             {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
           </div>

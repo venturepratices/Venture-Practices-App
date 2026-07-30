@@ -32,6 +32,7 @@ export const clientSchema = z.object({
     .transform((value) => (value ? value : null)),
   address: optionalText(300),
   about: optionalText(4000),
+  slackChannelId: optionalText(20),
 });
 
 export type ClientInput = z.infer<typeof clientSchema>;

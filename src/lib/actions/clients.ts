@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { PermissionError, requireCapability, requireClientAccess, type Capability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { ensureClientChannel } from "@/lib/slack";
 import { clientSchema } from "@/lib/validations/client";
 
 export type ClientFormState = { error: string | null };
@@ -32,6 +33,7 @@ function readClientFormData(formData: FormData) {
     website: formData.get("website"),
     address: formData.get("address"),
     about: formData.get("about"),
+    slackChannelId: formData.get("slackChannelId"),
   };
 }
 
@@ -45,6 +47,7 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
   }
 
   const client = await prisma.client.create({ data: parsed.data });
+  await ensureClientChannel(client);
 
   const session = await auth();
   await logActivity({

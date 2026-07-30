@@ -98,6 +98,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
             website={client.website}
             address={client.address}
             about={client.about}
+            slackChannelId={client.slackChannelId}
             trigger={
               <Button variant="ghost" size="icon" aria-label="Edit client info">
                 <Pencil className="size-4" />

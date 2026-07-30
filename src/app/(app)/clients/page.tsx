@@ -74,6 +74,7 @@ export default async function ClientsPage() {
                 website: client.website,
                 address: client.address,
                 about: client.about,
+                slackChannelId: client.slackChannelId,
               }}
             />
           ))}
