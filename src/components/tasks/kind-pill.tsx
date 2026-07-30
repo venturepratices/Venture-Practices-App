@@ -8,6 +8,9 @@ const TASK_KIND_TONES: Record<string, StatusTone> = {
   OTHER: "slate",
 };
 
-export function KindPill({ kind, className }: { kind: string; className?: string }) {
-  return <StatusPillBase tone={TASK_KIND_TONES[kind] ?? "neutral"} label={TASK_KIND_LABELS[kind] ?? kind} className={className} />;
+// `label` overrides the generic kind name — used to show the specific
+// project a task is under (e.g. "Journey Smiles Onboarding") instead of just
+// the generic "Project" category, once one has been picked.
+export function KindPill({ kind, label, className }: { kind: string; label?: string | null; className?: string }) {
+  return <StatusPillBase tone={TASK_KIND_TONES[kind] ?? "neutral"} label={label ?? TASK_KIND_LABELS[kind] ?? kind} className={className} />;
 }

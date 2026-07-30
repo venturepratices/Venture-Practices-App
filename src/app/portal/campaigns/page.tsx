@@ -4,10 +4,11 @@ import Link from "next/link";
 import { getClientUserSession } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_STAGE_VALUES, campaignLabel, type CampaignStageValue } from "@/lib/campaign-stage";
+import { formatDate as formatDateInTz } from "@/lib/utils";
 import { CampaignStepper } from "@/components/programs/campaign-stepper";
 
 function formatDate(date: Date | null) {
-  return date ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Not set";
+  return date ? formatDateInTz(date, { month: "short", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 /**

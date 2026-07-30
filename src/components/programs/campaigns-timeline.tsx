@@ -8,6 +8,7 @@ import {
   campaignLabel,
   type CampaignStageValue,
 } from "@/lib/campaign-stage";
+import { formatDate as formatDateInTz } from "@/lib/utils";
 
 const MONTH_WIDTH = 96;
 const LABEL_WIDTH = 140;
@@ -28,11 +29,11 @@ function monthKey(date: Date) {
 }
 
 function monthLabel(date: Date) {
-  return date.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+  return formatDateInTz(date, { month: "short", year: "2-digit" });
 }
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return formatDateInTz(date, { month: "short", day: "numeric", year: "numeric" });
 }
 
 /**

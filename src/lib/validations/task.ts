@@ -63,6 +63,7 @@ export const updateTaskSchema = z.object({
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
+  workflowInstanceId: z.string().nullable().optional(),
   kind: z.enum(TASK_KIND_VALUES).optional(),
   isPrivate: z.boolean().optional(),
 });

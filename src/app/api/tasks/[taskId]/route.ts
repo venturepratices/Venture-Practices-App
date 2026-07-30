@@ -9,6 +9,7 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { mentionOrName } from "@/lib/slack";
+import { formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { updateTaskSchema } from "@/lib/validations/task";
@@ -183,7 +184,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       const newTime = deadline ? new Date(deadline).getTime() : null;
       const oldTime = before.deadline ? before.deadline.getTime() : null;
       if (newTime !== oldTime) {
-        const deadlineLabel = deadline ? new Date(deadline).toLocaleDateString() : "none";
+        const deadlineLabel = deadline ? formatDate(deadline) : "none";
         changes.push(`deadline changed to ${deadlineLabel}`);
         for (const a of task.assignees) {
           if (a.teamMemberId === session.user.id) continue;

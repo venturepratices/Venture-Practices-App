@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_OCCURRENCE_LABELS } from "@/lib/validations/task";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { archivedAssigneeNames, type ArchivedCommentSnapshot, type ArchivedLinkSnapshot, type ArchivedTaskDetail } from "@/types/task";
 
 export function ArchivedTaskDetailPanel() {
@@ -102,7 +102,7 @@ export function ArchivedTaskDetailPanel() {
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Deadline</p>
                 <p className="text-sm text-muted-foreground">
-                  {task.deadline ? new Date(task.deadline).toLocaleDateString() : "No deadline"}
+                  {task.deadline ? formatDate(task.deadline) : "No deadline"}
                 </p>
               </div>
             </div>

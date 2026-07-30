@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AssetStatus } from "@/generated/prisma/enums";
 import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { formatDate } from "@/lib/utils";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
           entityType: "Asset",
           entityId: asset.id,
           entityLabel: asset.title,
-          message: `"${asset.title}" is due ${asset.dueDate!.toLocaleDateString()} and still needs review`,
+          message: `"${asset.title}" is due ${formatDate(asset.dueDate!)} and still needs review`,
           linkPath: `/clients/${asset.clientId}/assets/${asset.id}`,
           slack: false,
         })

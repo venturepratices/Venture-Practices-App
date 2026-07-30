@@ -2,6 +2,7 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { formatDate } from "@/lib/utils";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 
@@ -45,7 +46,7 @@ async function taskNotificationLines(params: {
     `Assigned to: ${assigneeMentions.join(", ") || "Unassigned"}`,
     `Status: ${TASK_STATUS_LABELS[params.task.status] ?? params.task.status}`,
   ];
-  if (params.task.deadline) lines.push(`Deadline: ${params.task.deadline.toLocaleDateString()}`);
+  if (params.task.deadline) lines.push(`Deadline: ${formatDate(params.task.deadline)}`);
   lines.push(`Project: ${params.instanceLabel} — ${params.stageLabel}`);
   return lines;
 }

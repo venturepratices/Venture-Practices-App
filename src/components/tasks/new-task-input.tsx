@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Lock, Plus } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
@@ -46,6 +47,8 @@ export function NewTaskInput({
   const [status, setStatus] = useState("NEXT_UP");
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
   const [kind, setKind] = useState("TASK");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[] | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : []);
   const [client, setClient] = useState(clientId ?? NO_CLIENT);
@@ -59,11 +62,27 @@ export function NewTaskInput({
     setStatus("NEXT_UP");
     setOccurrence("NON_RECURRING");
     setKind("TASK");
+    setSelectedProjectId(null);
     setIsPrivate(false);
     setAssigneeIds(assigneeId ? [assigneeId] : []);
     setClient(clientId ?? NO_CLIENT);
     setDeadline("");
   }
+
+  // Loaded lazily, once, the first time Kind is set to "Project" — avoids a
+  // fetch for the common case where a quick-added task is never a project.
+  useEffect(() => {
+    if (kind !== "PROJECT" || projects !== null) return;
+    let cancelled = false;
+    fetch(`/api/workflows`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { id: string; name: string; client: { name: string } | null }[] | null) => {
+        if (!cancelled) setProjects(data ? data.map((w) => ({ id: w.id, name: w.name, clientName: w.client?.name ?? null })) : []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, projects]);
 
   async function submit() {
     const trimmed = title.trim();
@@ -84,7 +103,11 @@ export function NewTaskInput({
         deadline: deadline ? new Date(deadline).toISOString() : null,
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(campaignStage !== undefined ? { campaignStage } : {}),
-        ...(workflowInstanceId !== undefined ? { workflowInstanceId } : {}),
+        ...(workflowInstanceId !== undefined
+          ? { workflowInstanceId }
+          : kind === "PROJECT"
+            ? { workflowInstanceId: selectedProjectId }
+            : {}),
         ...(workflowStageNumber !== undefined ? { workflowStageNumber } : {}),
       }),
     });
@@ -205,22 +228,42 @@ export function NewTaskInput({
           />
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Related to</Label>
-          <Select value={kind} onValueChange={(value) => value && setKind(value)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue>{(value: string) => <KindPill kind={value} />}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_KIND_VALUES.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {TASK_KIND_LABELS[k]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {workflowInstanceId === undefined ? (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Related to</Label>
+            <Select
+              value={kind}
+              onValueChange={(value) => {
+                if (!value) return;
+                setKind(value);
+                if (value !== "PROJECT") setSelectedProjectId(null);
+              }}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue>{(value: string) => <KindPill kind={value} />}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TASK_KIND_VALUES.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {TASK_KIND_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </div>
+
+      {workflowInstanceId === undefined && kind === "PROJECT" ? (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Project</Label>
+          {projects ? (
+            <ProjectPicker projects={projects} value={selectedProjectId} onChange={setSelectedProjectId} />
+          ) : (
+            <p className="text-xs text-muted-foreground">Loading projects...</p>
+          )}
+        </div>
+      ) : null}
 
       <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-2.5 text-sm dark:border-blue-800 dark:bg-blue-950/30">
         <Checkbox

@@ -1,7 +1,7 @@
 import { AlertTriangle, Clock3, History } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 import type { WorkflowInstanceDetailData } from "@/components/workflows/workflow-instance-detail";
 
@@ -84,7 +84,7 @@ export function WorkflowSummaryCard({ instance, recentActivity }: { instance: Wo
             <ul className="mt-1 space-y-0.5">
               {overdue.slice(0, 4).map((t) => (
                 <li key={t.id} className="truncate text-sm text-status-danger-foreground">
-                  {t.title} <span className="opacity-70">— was due {t.deadline!.toLocaleDateString()}</span>
+                  {t.title} <span className="opacity-70">— was due {formatDate(t.deadline!)}</span>
                 </li>
               ))}
               {overdue.length > 4 ? <li className="text-xs text-status-danger-foreground opacity-70">+{overdue.length - 4} more</li> : null}
@@ -101,7 +101,7 @@ export function WorkflowSummaryCard({ instance, recentActivity }: { instance: Wo
             <ul className="mt-1 space-y-0.5">
               {dueSoon.slice(0, 4).map((t) => (
                 <li key={t.id} className="truncate text-sm">
-                  {t.title} <span className="text-muted-foreground">— due {t.deadline!.toLocaleDateString()}</span>
+                  {t.title} <span className="text-muted-foreground">— due {formatDate(t.deadline!)}</span>
                 </li>
               ))}
               {dueSoon.length > 4 ? <li className="text-xs text-muted-foreground">+{dueSoon.length - 4} more</li> : null}

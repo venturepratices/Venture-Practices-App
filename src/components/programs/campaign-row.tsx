@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { campaignLabel } from "@/lib/campaign-stage";
+import { formatDate as formatDateInTz } from "@/lib/utils";
 import { StageSelect } from "@/components/programs/stage-select";
 
 type CampaignRowData = {
@@ -16,7 +17,7 @@ type CampaignRowData = {
 };
 
 function formatDate(date: Date | string | null) {
-  return date ? new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Not set";
+  return date ? formatDateInTz(date, { month: "short", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 export function CampaignRow({

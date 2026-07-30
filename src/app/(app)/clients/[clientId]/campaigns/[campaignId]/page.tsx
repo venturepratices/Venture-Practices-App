@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { canUseCapability, loadPermissions, requireClientAccess, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
+import { formatDate as formatDateInTz } from "@/lib/utils";
 import { ApplyTemplateDialog } from "@/components/programs/apply-template-dialog";
 import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 import { CampaignStepper } from "@/components/programs/campaign-stepper";
@@ -16,7 +17,7 @@ import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 
 function formatDate(date: Date | null) {
-  return date ? date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
+  return date ? formatDateInTz(date, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 function formatCurrency(cents: number) {
@@ -50,6 +51,7 @@ export default async function CampaignDetailPage({
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
             client: { select: { id: true, name: true } },
             createdBy: { select: { id: true, name: true } },
+            workflowInstance: { select: { id: true, name: true } },
           },
           orderBy: { createdAt: "asc" },
         },

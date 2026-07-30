@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
@@ -43,6 +44,7 @@ type Draft = {
   campaignId: string;
   campaignStage: string;
   kind: string;
+  workflowInstanceId: string | null;
   isPrivate: boolean;
 };
 
@@ -58,6 +60,7 @@ function draftFromTask(task: TaskDetail): Draft {
     campaignId: task.campaignId ?? NO_CAMPAIGN,
     campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
     kind: task.kind,
+    workflowInstanceId: task.workflowInstanceId,
     isPrivate: task.isPrivate,
   };
 }
@@ -83,6 +86,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignOption[] | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[] | null>(null);
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -140,6 +144,26 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
     };
   }, [task?.clientId]);
 
+  // Every project the current user can see, for the "which specific project"
+  // search-picker — fetched once per opened task (not client-scoped, since a
+  // project can be internal or belong to any client). Silently empty for a
+  // member without canViewWorkflows, same pattern as the campaigns fetch.
+  useEffect(() => {
+    if (!taskId) {
+      setProjects(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/workflows`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { id: string; name: string; client: { name: string } | null }[] | null) => {
+        if (!cancelled) setProjects(data ? data.map((w) => ({ id: w.id, name: w.name, clientName: w.client?.name ?? null })) : []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
+
   function close() {
     if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
     const params = new URLSearchParams(searchParams.toString());
@@ -180,6 +204,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
       fields.campaignStage = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignStage;
     }
     if (draft.kind !== base.kind) fields.kind = draft.kind;
+    if (draft.workflowInstanceId !== base.workflowInstanceId) fields.workflowInstanceId = draft.workflowInstanceId;
     if (draft.isPrivate !== base.isPrivate) fields.isPrivate = draft.isPrivate;
     if (Object.keys(fields).length === 0) return;
 
@@ -309,7 +334,15 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
 
               <div className="space-y-1.5">
                 <Label>Related to</Label>
-                <Select value={draft.kind} onValueChange={(value) => value && setField("kind", value)}>
+                <Select
+                  value={draft.kind}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    setDraft((prev) =>
+                      prev ? { ...prev, kind: value, workflowInstanceId: value === "PROJECT" ? prev.workflowInstanceId : null } : prev
+                    );
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue>{(kind: string) => <KindPill kind={kind} />}</SelectValue>
                   </SelectTrigger>
@@ -322,6 +355,21 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
                   </SelectContent>
                 </Select>
               </div>
+
+              {draft.kind === "PROJECT" ? (
+                <div className="space-y-1.5">
+                  <Label>Project</Label>
+                  {projects ? (
+                    <ProjectPicker
+                      projects={projects}
+                      value={draft.workflowInstanceId}
+                      onChange={(id) => setField("workflowInstanceId", id)}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Loading projects...</p>
+                  )}
+                </div>
+              ) : null}
 
               {task.createdById === null || task.createdById === currentUserId ? (
                 <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">

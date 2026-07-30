@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { ConversationDetailThread, type ThreadMessage } from "@/components/clients/conversation-thread";
 import { SyncNowButton } from "@/components/clients/sync-now-button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -154,7 +154,7 @@ export default async function ConversationsPage({
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-medium">{c.contactName ?? "Unknown contact"}</span>
                       <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {new Date(c.lastTimestamp).toLocaleDateString()}
+                        {formatDate(c.lastTimestamp)}
                       </span>
                     </span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">

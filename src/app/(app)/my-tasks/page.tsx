@@ -31,6 +31,7 @@ const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  workflowInstance: { select: { id: true, name: true } },
 } as const;
 
 export default async function MyTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {

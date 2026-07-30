@@ -6,7 +6,7 @@ import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 type Props = {
   clientId: string;
@@ -36,7 +36,7 @@ export function MeetingNoteItem({ clientId, meetingNote }: Props) {
         <div className="flex items-baseline gap-2">
           <span className="font-medium">{meetingNote.title}</span>
           <span className="text-xs text-muted-foreground">
-            {new Date(meetingNote.meetingDate).toLocaleDateString()}
+            {formatDate(meetingNote.meetingDate)}
             {meetingNote.author?.name ? ` · added by ${meetingNote.author.name}` : ""}
           </span>
         </div>

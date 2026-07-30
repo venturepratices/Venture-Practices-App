@@ -4,7 +4,7 @@ import { AlertTriangle, File, FileText, Film, Globe, Image as ImageIcon } from "
 
 import { ASSET_ROW_GRID } from "@/components/assets/asset-row-grid";
 import { AssetStatusPill } from "@/components/assets/asset-status-pill";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 export type AssetRowData = {
   id: string;
@@ -85,7 +85,7 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
               : asset.reviewerCount > 0
                 ? `${asset.approvedCount}/${asset.reviewerCount} approved`
                 : null,
-            asset.dueDate ? `Due ${asset.dueDate.toLocaleDateString()}` : null,
+            asset.dueDate ? `Due ${formatDate(asset.dueDate)}` : null,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -117,7 +117,7 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
       </span>
 
       <span className="hidden justify-self-end text-right text-xs text-muted-foreground md:block">
-        {asset.dueDate ? `Due ${asset.dueDate.toLocaleDateString()}` : "—"}
+        {asset.dueDate ? `Due ${formatDate(asset.dueDate)}` : "—"}
       </span>
     </Link>
   );

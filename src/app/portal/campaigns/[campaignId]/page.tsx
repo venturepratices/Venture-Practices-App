@@ -5,10 +5,11 @@ import { ChevronLeft } from "lucide-react";
 import { getClientUserSession } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_STAGE_VALUES, campaignLabel, type CampaignStageValue } from "@/lib/campaign-stage";
+import { formatDate as formatDateInTz } from "@/lib/utils";
 import { CampaignStepper } from "@/components/programs/campaign-stepper";
 
 function formatDate(date: Date | null) {
-  return date ? date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
+  return date ? formatDateInTz(date, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 function formatCurrency(cents: number) {

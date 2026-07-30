@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { formatDate } from "@/lib/utils";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
@@ -78,8 +79,8 @@ export async function GET(request: Request) {
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — "${task.title}" is due ${task.deadline!.toLocaleDateString()} and isn't marked complete yet`,
-          slackMessage: `${mention} — "${task.title}" is due ${task.deadline!.toLocaleDateString()} and isn't marked complete yet`,
+          message: `${a.teamMember.name} — "${task.title}" is due ${formatDate(task.deadline!)} and isn't marked complete yet`,
+          slackMessage: `${mention} — "${task.title}" is due ${formatDate(task.deadline!)} and isn't marked complete yet`,
           linkPath,
         });
       })
@@ -111,8 +112,8 @@ export async function GET(request: Request) {
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — "${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
-          slackMessage: `${mention} — "${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
+          message: `${a.teamMember.name} — "${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
+          slackMessage: `${mention} — "${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
           linkPath,
         });
       })
@@ -128,13 +129,13 @@ export async function GET(request: Request) {
       );
       await notifyChannel({
         clientId: task.clientId,
-        message: `"${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
+        message: `"${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
         linkPath,
         slackTitle: "Task overdue",
         slackLines: [
           `Task: ${task.title}`,
           `Assigned to: ${assignedMentions.join(", ")}`,
-          `Was due: ${task.deadline!.toLocaleDateString()}`,
+          `Was due: ${formatDate(task.deadline!)}`,
         ],
       });
     }

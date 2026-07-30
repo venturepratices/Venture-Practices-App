@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill, TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { TASK_KIND_LABELS, TASK_STATUS_VALUES } from "@/lib/validations/task";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
 export function taskRowGridClass(showClient?: boolean) {
@@ -54,6 +54,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const assigneeNames = task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned";
+  const kindLabel = task.kind === "PROJECT" && task.workflowInstance ? task.workflowInstance.name : TASK_KIND_LABELS[task.kind] ?? task.kind;
 
   function openTask() {
     const params = new URLSearchParams(searchParams.toString());
@@ -107,9 +108,9 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
           {[
             showClient ? task.client?.name ?? null : null,
-            task.deadline ? `Due ${new Date(task.deadline).toLocaleDateString()}` : null,
+            task.deadline ? `Due ${formatDate(task.deadline)}` : null,
             assigneeNames,
-            TASK_KIND_LABELS[task.kind] ?? task.kind,
+            kindLabel,
             task.createdBy ? `Created by ${task.createdBy.name}` : null,
           ]
             .filter(Boolean)
@@ -123,7 +124,7 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
         {task.deadline ? (
           <>
             <CalendarIcon className="size-3.5" />
-            {new Date(task.deadline).toLocaleDateString()}
+            {formatDate(task.deadline)}
           </>
         ) : (
           "—"
@@ -131,11 +132,11 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
       </span>
       <span className="hidden truncate text-muted-foreground md:block">{assigneeNames}</span>
       <span className="hidden md:block">
-        <KindPill kind={task.kind} />
+        <KindPill kind={task.kind} label={task.kind === "PROJECT" ? task.workflowInstance?.name : undefined} />
       </span>
       <span className="hidden truncate text-muted-foreground md:block">{task.createdBy?.name ?? "—"}</span>
       <span className="hidden whitespace-nowrap text-muted-foreground md:block">
-        {new Date(task.createdAt).toLocaleDateString()}
+        {formatDate(task.createdAt)}
       </span>
       <span onClick={(e) => e.stopPropagation()} className="justify-self-end">
         <Select value={task.status} onValueChange={updateStatus}>
