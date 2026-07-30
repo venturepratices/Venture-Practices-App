@@ -27,9 +27,13 @@ type ClientDefaults = {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  secondaryContactName: string | null;
+  secondaryContactEmail: string | null;
+  secondaryContactPhone: string | null;
   website: string | null;
   address: string | null;
   about: string | null;
+  source: string | null;
   slackChannelId: string | null;
 };
 
@@ -41,6 +45,9 @@ export function ClientFormDialog(props: Props) {
   const [open, setOpen] = useState(false);
   const action = props.mode === "create" ? createClientAction : updateClientAction.bind(null, props.clientId);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const hasSecondaryContact =
+    props.mode === "edit" && Boolean(props.secondaryContactName || props.secondaryContactEmail || props.secondaryContactPhone);
+  const [showSecondaryContact, setShowSecondaryContact] = useState(hasSecondaryContact);
 
   return (
     <Dialog
@@ -90,25 +97,90 @@ export function ClientFormDialog(props: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="contactName">Contact name</Label>
-                <Input id="contactName" name="contactName" defaultValue={props.mode === "edit" ? props.contactName ?? "" : ""} />
+            <div className="space-y-3 rounded-lg border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary contact</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="contactName">Contact name</Label>
+                  <Input id="contactName" name="contactName" defaultValue={props.mode === "edit" ? props.contactName ?? "" : ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contactPhone">Contact phone</Label>
+                  <Input id="contactPhone" name="contactPhone" defaultValue={props.mode === "edit" ? props.contactPhone ?? "" : ""} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contactPhone">Contact phone</Label>
-                <Input id="contactPhone" name="contactPhone" defaultValue={props.mode === "edit" ? props.contactPhone ?? "" : ""} />
+                <Label htmlFor="contactEmail">Contact email</Label>
+                <Input
+                  id="contactEmail"
+                  name="contactEmail"
+                  type="email"
+                  defaultValue={props.mode === "edit" ? props.contactEmail ?? "" : ""}
+                />
               </div>
             </div>
+
+            {showSecondaryContact ? (
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Secondary contact</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowSecondaryContact(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="secondaryContactName">Contact name</Label>
+                    <Input
+                      id="secondaryContactName"
+                      name="secondaryContactName"
+                      defaultValue={props.mode === "edit" ? props.secondaryContactName ?? "" : ""}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="secondaryContactPhone">Contact phone</Label>
+                    <Input
+                      id="secondaryContactPhone"
+                      name="secondaryContactPhone"
+                      defaultValue={props.mode === "edit" ? props.secondaryContactPhone ?? "" : ""}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryContactEmail">Contact email</Label>
+                  <Input
+                    id="secondaryContactEmail"
+                    name="secondaryContactEmail"
+                    type="email"
+                    defaultValue={props.mode === "edit" ? props.secondaryContactEmail ?? "" : ""}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowSecondaryContact(true)}
+                className="text-sm text-primary underline-offset-4 hover:underline"
+              >
+                + Add secondary contact
+              </button>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="contactEmail">Contact email</Label>
+              <Label htmlFor="source">Source</Label>
               <Input
-                id="contactEmail"
-                name="contactEmail"
-                type="email"
-                defaultValue={props.mode === "edit" ? props.contactEmail ?? "" : ""}
+                id="source"
+                name="source"
+                placeholder="e.g. Referral — Dr. Smith, Google Ads, cold outreach..."
+                defaultValue={props.mode === "edit" ? props.source ?? "" : ""}
               />
+              <p className="text-xs text-muted-foreground">Where this client came from.</p>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="website">Website</Label>
               <Input

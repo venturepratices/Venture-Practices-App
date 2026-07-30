@@ -9,6 +9,7 @@ export type TaskWithRelations = Prisma.TaskGetPayload<{
   include: {
     assignees: { include: { teamMember: { select: { id: true; name: true } } } };
     client: { select: { id: true; name: true } };
+    createdBy: { select: { id: true; name: true } };
   };
 }>;
 
@@ -18,6 +19,7 @@ export type TaskDetail = Prisma.TaskGetPayload<{
   include: {
     assignees: { include: { teamMember: { select: { id: true; name: true } } } };
     client: { select: { id: true; name: true } };
+    createdBy: { select: { id: true; name: true } };
     comments: { include: { author: { select: { id: true; name: true } } } };
     links: true;
     campaign: { select: { id: true; sequenceNumber: true; currentStage: true } };

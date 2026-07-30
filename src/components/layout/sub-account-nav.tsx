@@ -5,16 +5,21 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
+// Order is deliberate, per Ben's 2026-07-31 request: Info/Tasks/Projects first
+// (the three most-used tabs), then the rest in their prior relative order.
+// This is a plain hardcoded array with no persisted ordering concept — a true
+// drag-and-drop "rearrange anytime" admin UI was considered and explicitly not
+// built (see plan file), so reordering again later means editing this array.
 const LOCAL_LINKS = [
   { segment: "", label: "Info" },
   { segment: "tasks", label: "Tasks" },
+  { segment: "workflows", label: "Projects", cap: "workflows" as const },
   { segment: "notes", label: "Notes" },
   { segment: "meetings", label: "Meeting Notes" },
   { segment: "conversations", label: "Conversations", cap: "conversations" as const },
   { segment: "calls", label: "Calls", cap: "conversations" as const },
   { segment: "assets", label: "Assets", cap: "assets" as const },
   { segment: "campaigns", label: "Direct Mail", cap: "directMail" as const },
-  { segment: "workflows", label: "Workflows", cap: "workflows" as const },
   { segment: "credentials", label: "Credentials", cap: "credentials" as const },
   { segment: "finance", label: "Finance", comingSoon: true },
 ];

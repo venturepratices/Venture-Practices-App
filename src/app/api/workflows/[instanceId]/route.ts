@@ -78,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ in
   let folderName: string | null = null;
   if (parsed.data.folderId) {
     if (!instance.clientId) {
-      return NextResponse.json({ error: "Internal workflows can't be filed into a folder." }, { status: 400 });
+      return NextResponse.json({ error: "Internal projects can't be filed into a folder." }, { status: 400 });
     }
     const folder = await prisma.workflowFolder.findUnique({ where: { id: parsed.data.folderId }, select: { clientId: true, name: true } });
     if (!folder || folder.clientId !== instance.clientId) {
@@ -155,7 +155,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityId: instanceId,
     entityLabel: instanceLabel,
     action: "workflow_deleted",
-    description: `${session.user.name ?? "Someone"} deleted workflow "${instanceLabel}" and archived its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
+    description: `${session.user.name ?? "Someone"} deleted project "${instanceLabel}" and archived its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
   });
 
   return NextResponse.json({ ok: true });

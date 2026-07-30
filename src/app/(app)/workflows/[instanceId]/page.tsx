@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 
-import { canUseCapability } from "@/lib/permissions";
+import { canUseCapability, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { WorkflowInstanceDetail } from "@/components/workflows/workflow-instance-detail";
 
 export default async function WorkflowInstanceDetailPage({ params }: { params: Promise<{ instanceId: string }> }) {
   if (!(await canUseCapability("canViewWorkflows"))) notFound();
   const canManage = await canUseCapability("canManageWorkflows");
+  const perms = await loadPermissions();
 
   const { instanceId } = await params;
   const [instance, teamMembers] = await Promise.all([
@@ -17,9 +18,11 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
         workflowTemplate: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
         tasks: {
+          where: taskVisibilityFilter(perms?.userId ?? null),
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
             client: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
           },
           orderBy: [{ workflowStageNumber: "asc" }, { createdAt: "asc" }],
         },
@@ -46,7 +49,7 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
       instance={instance}
       canManage={canManage}
       backHref="/workflows"
-      backLabel="Workflows"
+      backLabel="Projects"
       redirectOnDelete="/workflows"
       teamMembers={teamMembers}
       recentActivity={recentActivity}

@@ -5,6 +5,7 @@ import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 import { createTaskSchema } from "@/lib/validations/task";
 
 export async function POST(request: Request) {
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       select: { id: true, clientId: true },
     });
     if (!instance) {
-      return NextResponse.json({ error: "Workflow not found" }, { status: 400 });
+      return NextResponse.json({ error: "Project not found" }, { status: 400 });
     }
     if (instance.clientId) {
       try {
@@ -68,6 +69,10 @@ export async function POST(request: Request) {
     workflowTaskOrder = (maxOrder._max.workflowTaskOrder ?? 0) + 1;
   }
 
+  // Auto-set from the task's real link, but an explicit kind from the caller
+  // always wins (lets someone relabel it, e.g. via the task detail panel).
+  const defaultKind = parsed.data.workflowInstanceId ? "PROJECT" : parsed.data.campaignId ? "DIRECT_MAIL" : "TASK";
+
   const task = await prisma.task.create({
     data: {
       title: parsed.data.title,
@@ -78,12 +83,15 @@ export async function POST(request: Request) {
       workflowInstanceId: parsed.data.workflowInstanceId ?? null,
       workflowStageNumber: parsed.data.workflowStageNumber ?? null,
       workflowTaskOrder,
+      kind: parsed.data.kind ?? defaultKind,
+      isPrivate: parsed.data.isPrivate ?? false,
+      createdById: session.user.id,
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },
     },
-    include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
+    include: { assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } } },
   });
 
   await logActivity({
@@ -106,6 +114,7 @@ export async function POST(request: Request) {
 
   for (const a of task.assignees) {
     if (a.teamMemberId === session.user.id) continue;
+    const mention = await mentionOrName(a.teamMember, a.teamMember.name);
     await notify({
       recipientId: a.teamMemberId,
       type: "ASSIGNED",
@@ -113,6 +122,7 @@ export async function POST(request: Request) {
       entityId: task.id,
       entityLabel: task.title,
       message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+      slackMessage: `${mention} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
       linkPath,
     });
   }

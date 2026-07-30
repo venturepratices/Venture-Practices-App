@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Plus } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
-import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 const NO_CLIENT = "__none__";
 
@@ -43,6 +45,8 @@ export function NewTaskInput({
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("NEXT_UP");
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
+  const [kind, setKind] = useState("TASK");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : []);
   const [client, setClient] = useState(clientId ?? NO_CLIENT);
   const [deadline, setDeadline] = useState("");
@@ -54,6 +58,8 @@ export function NewTaskInput({
     setDescription("");
     setStatus("NEXT_UP");
     setOccurrence("NON_RECURRING");
+    setKind("TASK");
+    setIsPrivate(false);
     setAssigneeIds(assigneeId ? [assigneeId] : []);
     setClient(clientId ?? NO_CLIENT);
     setDeadline("");
@@ -73,6 +79,8 @@ export function NewTaskInput({
         assigneeIds,
         status,
         occurrence,
+        kind,
+        isPrivate,
         deadline: deadline ? new Date(deadline).toISOString() : null,
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(campaignStage !== undefined ? { campaignStage } : {}),
@@ -196,7 +204,33 @@ export function NewTaskInput({
             className="h-8 w-[150px]"
           />
         </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Related to</Label>
+          <Select value={kind} onValueChange={(value) => value && setKind(value)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue>{(value: string) => <KindPill kind={value} />}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {TASK_KIND_VALUES.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {TASK_KIND_LABELS[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-2.5 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+        <Checkbox
+          checked={isPrivate}
+          onCheckedChange={(checked) => setIsPrivate(checked === true)}
+          className="size-5 border-2 border-blue-500"
+        />
+        <Lock className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-medium">Private — only you can see this task</span>
+      </label>
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={cancel}>

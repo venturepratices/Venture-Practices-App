@@ -56,15 +56,15 @@ export default async function ClientWorkflowsPage({
     count: folderCounts.find((c) => c.folderId === f.id)?._count._all ?? 0,
   }));
 
-  const emptyMessage = folderId ? "No workflows in this folder yet." : "No workflows yet.";
+  const emptyMessage = folderId ? "No projects in this folder yet." : "No projects yet.";
 
   return (
     <div className="-m-6 flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
-          Workflows
+          Projects
           <InfoTip>
-            A running instance of a Workflow Template — a staged pipeline of tasks. As each stage's tasks all
+            A running instance of a Project Template — a staged pipeline of tasks. As each stage's tasks all
             complete, the next stage's assignees get notified it's their turn.
           </InfoTip>
         </h2>
@@ -75,7 +75,7 @@ export default async function ClientWorkflowsPage({
             trigger={
               <Button size="sm">
                 <Plus className="size-4" />
-                New workflow
+                New project
               </Button>
             }
           />

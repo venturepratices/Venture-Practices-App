@@ -2,20 +2,28 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2, Plus, Trash2, X } from "lucide-react";
+import { ExternalLink, Loader2, Lock, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
-import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import {
+  TASK_KIND_LABELS,
+  TASK_KIND_VALUES,
+  TASK_OCCURRENCE_LABELS,
+  TASK_OCCURRENCE_VALUES,
+  TASK_STATUS_VALUES,
+} from "@/lib/validations/task";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
@@ -34,6 +42,8 @@ type Draft = {
   deadline: string; // "YYYY-MM-DD" or ""
   campaignId: string;
   campaignStage: string;
+  kind: string;
+  isPrivate: boolean;
 };
 
 function draftFromTask(task: TaskDetail): Draft {
@@ -47,15 +57,18 @@ function draftFromTask(task: TaskDetail): Draft {
     deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
     campaignId: task.campaignId ?? NO_CAMPAIGN,
     campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
+    kind: task.kind,
+    isPrivate: task.isPrivate,
   };
 }
 
 type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
+  currentUserId: string | null;
 };
 
-export function TaskDetailPanel({ clients, teamMembers }: Props) {
+export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -166,6 +179,8 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
     if (draft.campaignId !== base.campaignId || draft.campaignStage !== base.campaignStage) {
       fields.campaignStage = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignStage;
     }
+    if (draft.kind !== base.kind) fields.kind = draft.kind;
+    if (draft.isPrivate !== base.isPrivate) fields.isPrivate = draft.isPrivate;
     if (Object.keys(fields).length === 0) return;
 
     setIsSaving(true);
@@ -291,6 +306,49 @@ export function TaskDetailPanel({ clients, teamMembers }: Props) {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-1.5">
+                <Label>Related to</Label>
+                <Select value={draft.kind} onValueChange={(value) => value && setField("kind", value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(kind: string) => <KindPill kind={kind} />}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_KIND_VALUES.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        {TASK_KIND_LABELS[kind]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {task.createdById === null || task.createdById === currentUserId ? (
+                <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+                  <Checkbox
+                    checked={draft.isPrivate}
+                    onCheckedChange={(checked) => setField("isPrivate", checked === true)}
+                    className="size-5 border-2 border-blue-500"
+                  />
+                  <Lock className="size-4 shrink-0 text-muted-foreground" />
+                  <span>
+                    <span className="font-semibold">Private</span>
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Only you can see this task — turn off to make it visible to everyone.
+                    </span>
+                  </span>
+                </label>
+              ) : draft.isPrivate ? (
+                <div className="flex items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+                  <Lock className="size-4 shrink-0 text-muted-foreground" />
+                  <span>
+                    <span className="font-semibold">Private</span>
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Only the task&apos;s creator can change this setting.
+                    </span>
+                  </span>
+                </div>
+              ) : null}
 
               <div className="space-y-1.5">
                 <Label>Assignees</Label>

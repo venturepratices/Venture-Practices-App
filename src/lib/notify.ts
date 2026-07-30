@@ -12,6 +12,15 @@ type NotifyParams = {
   /** Full sentence, already naming who it's for — used as-is for the Slack message. */
   message: string;
   /**
+   * Override just the Slack-bound version of `message` — typically the same
+   * sentence with a plain name swapped for a real `<@SLACK_ID>` mention via
+   * `mentionOrName()`, so Slack actually pings the person instead of showing
+   * inert text — while the in-app `message` keeps the plain name. Ignored
+   * when `slackTitle`/`slackLines` are given (those already build their own
+   * text, independent of `message`).
+   */
+  slackMessage?: string;
+  /**
    * App-relative path to the entity this is about (e.g.
    * "/clients/<id>/tasks?taskId=<id>") — stored on the Notification row for
    * the in-app row to navigate with, and appended to the Slack message as a
@@ -78,7 +87,7 @@ export async function notify(params: NotifyParams) {
       const slackUserId = recipient ? await resolveSlackUserId(recipient) : null;
       if (slackUserId) {
         const text = buildSlackText(
-          params.message,
+          params.slackMessage ?? params.message,
           params.linkPath,
           params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
         );

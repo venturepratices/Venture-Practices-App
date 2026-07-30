@@ -2,6 +2,9 @@ import { logActivity } from "@/lib/activity-log";
 import { CAMPAIGN_STAGE_LABELS, campaignLabel as formatCampaignLabel, nextCampaignStage, type CampaignStageValue } from "@/lib/campaign-stage";
 import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
+
+type AssigneeMember = { id: string; name: string; email: string; slackUserId: string | null };
 
 /**
  * Called after a task flips to COMPLETE. If that task belonged to a campaign
@@ -31,7 +34,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
           title: true,
           status: true,
           campaignStage: true,
-          assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true } } } },
+          assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
         },
       },
     },
@@ -62,6 +65,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
     for (const a of task.assignees) {
       newStageAssigneeIds.add(a.teamMemberId);
       if (a.teamMemberId === actorId) continue;
+      const mention = await mentionOrName(a.teamMember, a.teamMember.name);
       await notify({
         recipientId: a.teamMemberId,
         type: "CAMPAIGN_TASK_ASSIGNED",
@@ -69,26 +73,29 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
         entityId: task.id,
         entityLabel: task.title,
         message: `${a.teamMember.name} — "${task.title}" is now up in ${campaignLabel} (${newStageLabel})`,
+        slackMessage: `${mention} — "${task.title}" is now up in ${campaignLabel} (${newStageLabel})`,
         linkPath: campaignLinkPath,
       });
     }
   }
 
-  const related = new Map<string, string>();
+  const related = new Map<string, AssigneeMember>();
   for (const task of campaign.tasks) {
-    for (const a of task.assignees) related.set(a.teamMemberId, a.teamMember.name);
+    for (const a of task.assignees) related.set(a.teamMemberId, a.teamMember);
   }
 
-  for (const [teamMemberId, name] of related) {
+  for (const [teamMemberId, member] of related) {
     if (teamMemberId === actorId) continue;
     if (newStageAssigneeIds.has(teamMemberId)) continue; // already got the specific task notification above
+    const mention = await mentionOrName(member, member.name);
     await notify({
       recipientId: teamMemberId,
       type: "CAMPAIGN_STAGE_ADVANCED",
       entityType: "Campaign",
       entityId: campaign.id,
       entityLabel: campaignLabel,
-      message: `${name} — ${campaignLabel} advanced to ${newStageLabel}`,
+      message: `${member.name} — ${campaignLabel} advanced to ${newStageLabel}`,
+      slackMessage: `${mention} — ${campaignLabel} advanced to ${newStageLabel}`,
       linkPath: campaignLinkPath,
     });
   }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-import { canUseCapability, requireClientAccess } from "@/lib/permissions";
+import { canUseCapability, loadPermissions, requireClientAccess, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { ApplyTemplateDialog } from "@/components/programs/apply-template-dialog";
@@ -37,6 +37,7 @@ export default async function CampaignDetailPage({
   }
   if (!(await canUseCapability("canViewDirectMail"))) notFound();
   const canManage = await canUseCapability("canManageDirectMail");
+  const perms = await loadPermissions();
 
   const [campaign, teamMembers, templates, assets] = await Promise.all([
     prisma.campaign.findFirst({
@@ -44,9 +45,11 @@ export default async function CampaignDetailPage({
       include: {
         proofAsset: { select: { id: true, title: true, status: true } },
         tasks: {
+          where: taskVisibilityFilter(perms?.userId ?? null),
           include: {
             assignees: { include: { teamMember: { select: { id: true, name: true } } } },
             client: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
           },
           orderBy: { createdAt: "asc" },
         },

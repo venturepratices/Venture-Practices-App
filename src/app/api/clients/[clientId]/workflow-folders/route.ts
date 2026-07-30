@@ -60,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
     action: "workflow_folder_created",
-    description: `${session.user.name ?? "Someone"} created the workflow folder "${folder.name}" on "${client?.name ?? "a client"}"`,
+    description: `${session.user.name ?? "Someone"} created the project folder "${folder.name}" on "${client?.name ?? "a client"}"`,
   });
 
   return NextResponse.json(folder, { status: 201 });

@@ -23,6 +23,16 @@ export const clientSchema = z.object({
     .or(z.literal(""))
     .transform((value) => (value ? value : null)),
   contactPhone: optionalText(40),
+  secondaryContactName: optionalText(120),
+  secondaryContactEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email")
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => (value ? value : null)),
+  secondaryContactPhone: optionalText(40),
   website: z
     .string()
     .trim()
@@ -32,6 +42,7 @@ export const clientSchema = z.object({
     .transform((value) => (value ? value : null)),
   address: optionalText(300),
   about: optionalText(4000),
+  source: optionalText(120),
   slackChannelId: optionalText(20),
 });
 

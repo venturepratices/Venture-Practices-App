@@ -38,14 +38,14 @@ export default async function WorkflowTemplatesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            Workflow Templates
+            Project Templates
             <InfoTip>
               A reusable staged pipeline (e.g. Client Onboarding) — each stage carries its own task list with default
-              assignees. Editing a template never changes workflows already in flight; starting a workflow copies a
+              assignees. Editing a template never changes projects already in flight; starting a project copies a
               snapshot of the template at that moment.
             </InfoTip>
           </h1>
-          <p className="mt-1 text-muted-foreground">Reusable stage + task blueprints for starting new workflows.</p>
+          <p className="mt-1 text-muted-foreground">Reusable stage + task blueprints for starting new projects.</p>
         </div>
         <NewWorkflowTemplateDialog
           trigger={

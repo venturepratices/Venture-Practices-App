@@ -71,9 +71,13 @@ export default async function ClientsPage() {
                 contactName: client.contactName,
                 contactEmail: client.contactEmail,
                 contactPhone: client.contactPhone,
+                secondaryContactName: client.secondaryContactName,
+                secondaryContactEmail: client.secondaryContactEmail,
+                secondaryContactPhone: client.secondaryContactPhone,
                 website: client.website,
                 address: client.address,
                 about: client.about,
+                source: client.source,
                 slackChannelId: client.slackChannelId,
               }}
             />

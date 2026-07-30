@@ -86,10 +86,10 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
-    title: "Workflows",
+    title: "Projects",
     items: [
-      { key: "canViewWorkflows", label: "View workflows & templates" },
-      { key: "canManageWorkflows", label: "Create / edit workflows & templates" },
+      { key: "canViewWorkflows", label: "View projects & templates" },
+      { key: "canManageWorkflows", label: "Create / edit projects & templates" },
     ],
   },
 ] as const;

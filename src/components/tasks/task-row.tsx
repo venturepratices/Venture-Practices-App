@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Lock } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill, TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_KIND_LABELS, TASK_STATUS_VALUES } from "@/lib/validations/task";
 import { cn } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
@@ -14,8 +15,8 @@ export function taskRowGridClass(showClient?: boolean) {
   return cn(
     "grid grid-cols-[20px_minmax(0,1fr)_120px] items-center gap-3",
     showClient
-      ? "md:grid-cols-[20px_minmax(0,1fr)_110px_100px_110px_120px]"
-      : "md:grid-cols-[20px_minmax(0,1fr)_100px_110px_120px]"
+      ? "md:grid-cols-[20px_minmax(0,1fr)_110px_100px_110px_90px_100px_100px_120px]"
+      : "md:grid-cols-[20px_minmax(0,1fr)_100px_110px_90px_100px_100px_120px]"
   );
 }
 
@@ -32,6 +33,9 @@ export function TaskListHeader({ showClient }: { showClient?: boolean }) {
       {showClient ? <span className="hidden md:block">Client</span> : null}
       <span className="hidden md:block">Due</span>
       <span className="hidden md:block">Assignee</span>
+      <span className="hidden md:block">Related to</span>
+      <span className="hidden md:block">Created by</span>
+      <span className="hidden md:block">Date created</span>
       <span className="justify-self-end">Status</span>
     </div>
   );
@@ -93,7 +97,10 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
         ) : null}
       </span>
       <span className="min-w-0">
-        <span className="block truncate">{task.title}</span>
+        <span className="flex items-center gap-1.5 truncate">
+          {task.isPrivate ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="Private" /> : null}
+          <span className="truncate">{task.title}</span>
+        </span>
         {task.description ? (
           <span className="mt-0.5 block truncate text-xs text-muted-foreground">{task.description}</span>
         ) : null}
@@ -102,6 +109,8 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
             showClient ? task.client?.name ?? null : null,
             task.deadline ? `Due ${new Date(task.deadline).toLocaleDateString()}` : null,
             assigneeNames,
+            TASK_KIND_LABELS[task.kind] ?? task.kind,
+            task.createdBy ? `Created by ${task.createdBy.name}` : null,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -121,6 +130,13 @@ export function TaskRow({ task, showClient, selectable, selected, onToggleSelect
         )}
       </span>
       <span className="hidden truncate text-muted-foreground md:block">{assigneeNames}</span>
+      <span className="hidden md:block">
+        <KindPill kind={task.kind} />
+      </span>
+      <span className="hidden truncate text-muted-foreground md:block">{task.createdBy?.name ?? "—"}</span>
+      <span className="hidden whitespace-nowrap text-muted-foreground md:block">
+        {new Date(task.createdAt).toLocaleDateString()}
+      </span>
       <span onClick={(e) => e.stopPropagation()} className="justify-self-end">
         <Select value={task.status} onValueChange={updateStatus}>
           <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">

@@ -39,13 +39,13 @@ export default async function WorkflowsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            Workflows
+            Projects
             <InfoTip>
-              Workflows with no specific client — internal processes like new-hire onboarding. Client-tied workflows
-              now live on that client&apos;s own Workflows tab.
+              Projects with no specific client — internal processes like new-hire onboarding. Client-tied projects
+              now live on that client&apos;s own Projects tab.
             </InfoTip>
           </h1>
-          <p className="mt-1 text-muted-foreground">Internal, no-client workflows across the agency.</p>
+          <p className="mt-1 text-muted-foreground">Internal, no-client projects across the agency.</p>
         </div>
         {canManage ? (
           <NewWorkflowDialog
@@ -54,7 +54,7 @@ export default async function WorkflowsPage() {
             trigger={
               <Button size="sm">
                 <Plus className="size-4" />
-                New workflow
+                New project
               </Button>
             }
           />
@@ -64,7 +64,7 @@ export default async function WorkflowsPage() {
       <div className="mt-6 space-y-3">
         {instances.length === 0 ? (
           <div className="rounded-lg border">
-            <EmptyState icon={GitBranch} title="No internal workflows yet." description="Start one from a template to see it here." />
+            <EmptyState icon={GitBranch} title="No internal projects yet." description="Start one from a template to see it here." />
           </div>
         ) : (
           instances.map((instance) => (

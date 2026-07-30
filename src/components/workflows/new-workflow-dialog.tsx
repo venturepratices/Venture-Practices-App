@@ -64,7 +64,7 @@ export function NewWorkflowDialog({
       router.push(fixedClientId ? `/clients/${fixedClientId}/workflows/${created.id}` : `/workflows/${created.id}`);
     } else {
       const data = await response.json().catch(() => null);
-      setError(data?.error ?? "Couldn't start that workflow.");
+      setError(data?.error ?? "Couldn't start that project.");
     }
   }
 
@@ -79,7 +79,7 @@ export function NewWorkflowDialog({
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Start a workflow</DialogTitle>
+          <DialogTitle>Start a project</DialogTitle>
           <DialogDescription>
             {startBlank ? "Start with no stages — add them yourself once it's running." : "Spawns a real task per template task, grouped into stages."}
           </DialogDescription>
@@ -111,8 +111,8 @@ export function NewWorkflowDialog({
           {startBlank ? (
             <p className="text-sm text-muted-foreground">
               {templates.length === 0
-                ? "No templates yet — start blank and add stages/tasks yourself, or create a template in Settings → Workflow Templates first."
-                : "No stages to start — you'll add them from the workflow's own page once it's created."}
+                ? "No templates yet — start blank and add stages/tasks yourself, or create a template in Settings → Project Templates first."
+                : "No stages to start — you'll add them from the project's own page once it's created."}
             </p>
           ) : (
             <div className="space-y-2">
@@ -155,7 +155,7 @@ export function NewWorkflowDialog({
         <DialogFooter>
           <Button type="button" onClick={handleSubmit} disabled={isSaving || (!startBlank && !templateId) || !name.trim()}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-            {isSaving ? "Starting..." : "Start workflow"}
+            {isSaving ? "Starting..." : "Start project"}
           </Button>
         </DialogFooter>
       </DialogContent>

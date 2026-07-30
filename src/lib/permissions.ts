@@ -2,6 +2,7 @@ import { cache } from "react";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import type { Prisma } from "@/generated/prisma/client";
 import { CAPABILITIES, type Capability } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 
@@ -111,6 +112,18 @@ function hasCapability(p: Permissions, cap: Capability): boolean {
 
 function hasClientAccess(p: Permissions, clientId: string): boolean {
   return p.isAdmin || p.allClientsAccess || p.clientIds.has(clientId);
+}
+
+// A private Task is visible ONLY to its creator — never in a shared list for
+// anyone else, regardless of admin/allClientsAccess/capabilities (privacy
+// here is about who created it, not what someone is otherwise allowed to
+// see). AND this into every task-list query's existing `where` clause; the
+// caller supplies the current viewer's id (null = no session, matches
+// nothing private).
+export function taskVisibilityFilter(viewerId: string | null): Prisma.TaskWhereInput {
+  return viewerId
+    ? { OR: [{ isPrivate: false }, { isPrivate: true, createdById: viewerId }] }
+    : { isPrivate: false };
 }
 
 // --- Boolean variants: for server components / conditional UI. ---

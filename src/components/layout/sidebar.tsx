@@ -19,7 +19,7 @@ const AGENCY_LINKS = [
   { href: "/clients", label: "All Clients", icon: Building2 },
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
-  { href: "/workflows", label: "Workflows", icon: GitBranch, needs: "canViewWorkflows" as const },
+  { href: "/workflows", label: "Projects", icon: GitBranch, needs: "canViewWorkflows" as const },
   { href: "/team", label: "Team", icon: Users, adminOnly: true },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
@@ -31,7 +31,7 @@ const AGENCY_LINKS = [
   },
   {
     href: "/settings/workflow-templates",
-    label: "Workflow Templates",
+    label: "Project Templates",
     icon: GitBranch,
     needs: "canManageWorkflows" as const,
   },

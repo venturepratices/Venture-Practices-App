@@ -1,7 +1,7 @@
 import { ListChecks } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
+import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
@@ -13,10 +13,12 @@ import { TaskFilters } from "@/components/tasks/task-filters";
 
 type SearchParams = {
   view?: string;
+  q?: string;
   status?: string;
   clientId?: string;
   assigneeId?: string;
   occurrence?: string;
+  kind?: string;
   deadline?: string;
   deadlineFrom?: string;
   deadlineTo?: string;
@@ -27,12 +29,21 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
   const isBoard = params.view === "board";
 
   const where: Prisma.TaskWhereInput = {};
+  const searchClause: Prisma.TaskWhereInput | null = params.q
+    ? {
+        OR: [
+          { title: { contains: params.q, mode: "insensitive" } },
+          { description: { contains: params.q, mode: "insensitive" } },
+        ],
+      }
+    : null;
   if (params.status) where.status = params.status as Prisma.TaskWhereInput["status"];
   if (params.clientId === "NONE") where.clientId = null;
   else if (params.clientId) where.clientId = params.clientId;
   if (params.assigneeId === "UNASSIGNED") where.assignees = { none: {} };
   else if (params.assigneeId) where.assignees = { some: { teamMemberId: params.assigneeId } };
   if (params.occurrence) where.occurrence = params.occurrence as Prisma.TaskWhereInput["occurrence"];
+  if (params.kind) where.kind = params.kind as Prisma.TaskWhereInput["kind"];
 
   if (params.deadlineFrom || params.deadlineTo) {
     where.deadline = {
@@ -57,13 +68,17 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     where.OR = [{ clientId: { in: [...perms.clientIds] } }, { clientId: null }];
   }
   const clientWhere = await accessibleClientFilter("id");
+  const finalWhere: Prisma.TaskWhereInput = {
+    AND: [where, taskVisibilityFilter(perms?.userId ?? null), ...(searchClause ? [searchClause] : [])],
+  };
 
   const [tasks, clients, teamMembers] = await Promise.all([
     prisma.task.findMany({
-      where,
+      where: finalWhere,
       include: {
         assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     }),

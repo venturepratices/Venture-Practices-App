@@ -1,3 +1,4 @@
+import { loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { InfoTip } from "@/components/info-tip";
 import { TaskList } from "@/components/tasks/task-list";
@@ -15,12 +16,14 @@ export default async function ClientTasksPage({
   const { view } = await searchParams;
   const isBoard = view === "board";
 
+  const perms = await loadPermissions();
   const [tasks, teamMembers] = await Promise.all([
     prisma.task.findMany({
-      where: { clientId },
+      where: { AND: [{ clientId }, taskVisibilityFilter(perms?.userId ?? null)] },
       include: {
         assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     }),

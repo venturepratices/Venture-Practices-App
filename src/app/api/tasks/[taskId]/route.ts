@@ -8,6 +8,7 @@ import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
+import { mentionOrName } from "@/lib/slack";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { updateTaskSchema } from "@/lib/validations/task";
@@ -23,6 +24,7 @@ const OCCURRENCE_LABELS: Record<string, string> = {
 const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true } } } },
   client: { select: { id: true, name: true } },
+  createdBy: { select: { id: true, name: true } },
   comments: {
     include: { author: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" as const },
@@ -30,6 +32,19 @@ const TASK_INCLUDE = {
   links: { orderBy: { createdAt: "asc" as const } },
   campaign: { select: { id: true, sequenceNumber: true, currentStage: true } },
 } as const;
+
+// TASK_INCLUDE's teamMember selects only {id, name} since that shape feeds
+// the JSON API response — adding email/slackUserId there would leak team
+// members' emails into every task fetch. Mention resolution needs those
+// fields, so it's a small separate lookup, not a widening of TASK_INCLUDE.
+async function mentionInfoFor(teamMemberIds: string[]): Promise<Map<string, { id: string; email: string; slackUserId: string | null }>> {
+  if (teamMemberIds.length === 0) return new Map();
+  const members = await prisma.teamMember.findMany({
+    where: { id: { in: teamMemberIds } },
+    select: { id: true, email: true, slackUserId: true },
+  });
+  return new Map(members.map((m) => [m.id, m]));
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   const session = await auth();
@@ -39,7 +54,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tas
 
   const { taskId } = await params;
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: TASK_INCLUDE });
-  if (!task) {
+  // A private task 404s (not 403 — leak nothing) for anyone but its creator,
+  // including a stale notification link or a guessed URL.
+  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -63,7 +80,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     where: { id: taskId },
     include: { assignees: { select: { teamMemberId: true } }, client: { select: { name: true } } },
   });
-  if (!before) {
+  if (!before || (before.isPrivate && before.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
@@ -73,11 +90,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return toErrorResponse(error);
   }
 
-  const { deadline, assigneeIds, ...rest } = parsed.data;
+  const { deadline, assigneeIds, isPrivate, ...rest } = parsed.data;
+  // Only the task's creator may toggle Private — a non-creator's isPrivate
+  // value in the request body is silently ignored rather than rejected, so
+  // an otherwise-valid edit from a non-creator doesn't fail outright.
+  const canTogglePrivacy = before.createdById === null || before.createdById === session.user.id;
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
       ...rest,
+      ...(isPrivate !== undefined && canTogglePrivacy ? { isPrivate } : {}),
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
       ...(assigneeIds !== undefined
         ? {
@@ -100,6 +122,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       : `/tasks?taskId=${task.id}`;
 
   if (before) {
+    const mentionInfo = await mentionInfoFor(task.assignees.map((a) => a.teamMemberId));
+    const mentionFor = async (a: (typeof task.assignees)[number]) => {
+      const info = mentionInfo.get(a.teamMemberId);
+      return info ? mentionOrName(info, a.teamMember.name) : a.teamMember.name;
+    };
+
     const changes: string[] = [];
     if (parsed.data.title !== undefined && parsed.data.title !== before.title) {
       changes.push(`renamed to "${parsed.data.title}"`);
@@ -108,6 +136,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       changes.push(`status changed to ${TASK_STATUS_LABELS[parsed.data.status]}`);
       for (const a of task.assignees) {
         if (a.teamMemberId === session.user.id) continue;
+        const mention = await mentionFor(a);
         await notify({
           recipientId: a.teamMemberId,
           type: "STATUS_CHANGED",
@@ -115,6 +144,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
+          slackMessage: `${mention} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
           linkPath,
         });
       }
@@ -130,6 +160,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       }
       for (const a of added) {
         if (a.teamMemberId === session.user.id) continue;
+        const mention = await mentionFor(a);
         await notify({
           recipientId: a.teamMemberId,
           type: "ASSIGNED",
@@ -137,6 +168,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+          slackMessage: `${mention} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
           linkPath,
         });
       }
@@ -155,6 +187,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         changes.push(`deadline changed to ${deadlineLabel}`);
         for (const a of task.assignees) {
           if (a.teamMemberId === session.user.id) continue;
+          const mention = await mentionFor(a);
           await notify({
             recipientId: a.teamMemberId,
             type: "DEADLINE_CHANGED",
@@ -162,6 +195,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityId: task.id,
             entityLabel: task.title,
             message: `${a.teamMember.name} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
+            slackMessage: `${mention} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
             linkPath,
           });
         }
@@ -193,7 +227,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
         const nextLinkPath = next.clientId ? `/clients/${next.clientId}/tasks?taskId=${next.id}` : `/tasks?taskId=${next.id}`;
+        const nextMentionInfo = await mentionInfoFor(next.assignees.map((a) => a.teamMemberId));
         for (const a of next.assignees) {
+          const info = nextMentionInfo.get(a.teamMemberId);
+          const mention = info ? await mentionOrName(info, a.teamMember.name) : a.teamMember.name;
           await notify({
             recipientId: a.teamMemberId,
             type: "ASSIGNED",
@@ -201,6 +238,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityId: next.id,
             entityLabel: next.title,
             message: `${a.teamMember.name} — you have a new recurring task: "${next.title}"`,
+            slackMessage: `${mention} — you have a new recurring task: "${next.title}"`,
             linkPath: nextLinkPath,
           });
         }
@@ -234,7 +272,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   const { taskId } = await params;
   const task = await prisma.task.findUnique({ where: { id: taskId } });
-  if (!task) {
+  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {

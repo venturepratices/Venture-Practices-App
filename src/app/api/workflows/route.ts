@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Template not found" }, { status: 400 });
   }
   if (template.stageTemplates.length === 0) {
-    return NextResponse.json({ error: "That template has no stages yet — add at least one before starting a workflow." }, { status: 400 });
+    return NextResponse.json({ error: "That template has no stages yet — add at least one before starting a project." }, { status: 400 });
   }
 
   const stagesSnapshot: StagesSnapshot = template.stageTemplates.map((stage) => ({

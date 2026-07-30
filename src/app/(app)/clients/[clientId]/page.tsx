@@ -55,6 +55,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const canViewDirectMail = await canUseCapability("canViewDirectMail");
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
+  const hasSecondaryContact = client.secondaryContactName || client.secondaryContactEmail || client.secondaryContactPhone;
   const hasBusinessInfo = client.website || client.address;
 
   return (
@@ -63,10 +64,22 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
         <div className="space-y-4">
           {hasContactInfo ? (
             <div className="space-y-1.5">
-              <p className="text-sm font-medium">Contact</p>
+              <p className="text-sm font-medium">Primary contact</p>
               {client.contactName ? <p className="text-sm">{client.contactName}</p> : null}
               <InfoRow icon={Mail} value={client.contactEmail} href={client.contactEmail ? `mailto:${client.contactEmail}` : undefined} />
               <InfoRow icon={Phone} value={client.contactPhone} />
+            </div>
+          ) : null}
+          {hasSecondaryContact ? (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Secondary contact</p>
+              {client.secondaryContactName ? <p className="text-sm">{client.secondaryContactName}</p> : null}
+              <InfoRow
+                icon={Mail}
+                value={client.secondaryContactEmail}
+                href={client.secondaryContactEmail ? `mailto:${client.secondaryContactEmail}` : undefined}
+              />
+              <InfoRow icon={Phone} value={client.secondaryContactPhone} />
             </div>
           ) : null}
           {hasBusinessInfo ? (
@@ -76,13 +89,19 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
               <InfoRow icon={MapPin} value={client.address} />
             </div>
           ) : null}
+          {client.source ? (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Source</p>
+              <p className="text-sm text-muted-foreground">{client.source}</p>
+            </div>
+          ) : null}
           {client.about ? (
             <div className="space-y-1.5">
               <p className="text-sm font-medium">About</p>
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">{client.about}</p>
             </div>
           ) : null}
-          {!hasContactInfo && !hasBusinessInfo && !client.about ? (
+          {!hasContactInfo && !hasSecondaryContact && !hasBusinessInfo && !client.source && !client.about ? (
             <p className="text-sm text-muted-foreground">No client info added yet.</p>
           ) : null}
         </div>
@@ -95,9 +114,13 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
             contactName={client.contactName}
             contactEmail={client.contactEmail}
             contactPhone={client.contactPhone}
+            secondaryContactName={client.secondaryContactName}
+            secondaryContactEmail={client.secondaryContactEmail}
+            secondaryContactPhone={client.secondaryContactPhone}
             website={client.website}
             address={client.address}
             about={client.about}
+            source={client.source}
             slackChannelId={client.slackChannelId}
             trigger={
               <Button variant="ghost" size="icon" aria-label="Edit client info">

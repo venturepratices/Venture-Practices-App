@@ -101,7 +101,7 @@ export function WorkflowFolderSidebar({
   }
 
   async function deleteFolder(folder: FolderItem) {
-    if (!window.confirm(`Delete the "${folder.name}" folder? Its workflows will move to "All workflows" — nothing is deleted.`)) return;
+    if (!window.confirm(`Delete the "${folder.name}" folder? Its projects will move to "All projects" — nothing is deleted.`)) return;
     setBusy(true);
     try {
       await fetch(`/api/workflow-folders/${folder.id}`, { method: "DELETE" });
@@ -138,7 +138,7 @@ export function WorkflowFolderSidebar({
           )}
         >
           <GitBranch className="size-4 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate">All workflows</span>
+          <span className="min-w-0 flex-1 truncate">All projects</span>
           <span className="text-xs text-muted-foreground">{allCount}</span>
         </Link>
 

@@ -65,6 +65,18 @@ export async function resolveSlackUserId(teamMember: ResolvableTeamMember): Prom
 }
 
 /**
+ * Returns a real Slack @mention (`<@USERID>`) for this team member when
+ * their Slack account is resolved, so Slack actually pings/highlights them
+ * — including inside a channel post many people see — instead of rendering
+ * inert plain text. Falls back to `displayName` when unresolved, so an
+ * unmapped person's name still reads fine, just without the ping.
+ */
+export async function mentionOrName(teamMember: ResolvableTeamMember, displayName: string): Promise<string> {
+  const slackUserId = await resolveSlackUserId(teamMember);
+  return slackUserId ? `<@${slackUserId}>` : displayName;
+}
+
+/**
  * DMs a resolved Slack user id via chat.postMessage — passing a user id as
  * `channel` opens/uses that user's DM with the bot, no separate
  * conversations.open call needed.

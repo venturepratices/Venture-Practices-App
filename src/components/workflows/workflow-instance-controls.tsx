@@ -22,12 +22,12 @@ export function WorkflowInstanceControls({
   const [isDeleting, setIsDeleting] = useState(false);
 
   async function handleCancel() {
-    if (!window.confirm(`Cancel "${instanceName}"? Its tasks survive but become unattached from the workflow.`)) return;
+    if (!window.confirm(`Cancel "${instanceName}"? Its tasks survive but become unattached from the project.`)) return;
     setIsCancelling(true);
     const response = await fetch(`/api/workflows/${instanceId}/cancel`, { method: "POST" });
     setIsCancelling(false);
     if (response.ok) router.refresh();
-    else window.alert("Couldn't cancel that workflow.");
+    else window.alert("Couldn't cancel that project.");
   }
 
   async function handleDelete() {
@@ -39,7 +39,7 @@ export function WorkflowInstanceControls({
       router.refresh();
     } else {
       setIsDeleting(false);
-      window.alert("Couldn't delete that workflow.");
+      window.alert("Couldn't delete that project.");
     }
   }
 

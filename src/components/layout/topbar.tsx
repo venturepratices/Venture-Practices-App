@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { LogOut } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
 import { initialsOf } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
 import { MobileMenuButton } from "@/components/layout/mobile-menu-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
 
@@ -25,14 +25,18 @@ export function TopBar({
           <p className="truncate font-medium">{userName ?? "Team member"}</p>
           <p className="truncate text-muted-foreground">{userEmail}</p>
         </div>
-        <Link
-          href="/change-password"
-          aria-label="Change password"
-          title="Change password"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground transition-opacity hover:opacity-80"
-        >
-          {userName ? initialsOf(userName) : "?"}
-        </Link>
+        <ChangePasswordDialog
+          trigger={
+            <button
+              type="button"
+              aria-label="Change password"
+              title="Change password"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground transition-opacity hover:opacity-80"
+            >
+              {userName ? initialsOf(userName) : "?"}
+            </button>
+          }
+        />
         <form
           action={async () => {
             "use server";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Loader2, Wand2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Wand2 } from "lucide-react";
 
 import {
   createTeamMemberAction,
@@ -55,6 +55,7 @@ export function TeamMemberFormDialog(props: Props) {
   const [allClients, setAllClients] = useState(isEdit ? props.defaultAllClientsAccess : false);
   const [caps, setCaps] = useState<Record<Capability, boolean>>(isEdit ? props.defaultCaps : ALL_FALSE_CAPS);
   const defaultClientIds = isEdit ? props.defaultClientIds : [];
+  const [showPassword, setShowPassword] = useState(false);
 
   function toggleCap(key: Capability, checked: boolean) {
     setCaps((prev) => ({ ...prev, [key]: checked }));
@@ -109,14 +110,30 @@ export function TeamMemberFormDialog(props: Props) {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{props.mode === "create" ? "Temporary password" : "New password"}</Label>
-              <Input
-                id="password"
-                name="password"
-                type="text"
-                placeholder={isEdit ? "Leave blank to keep current password" : undefined}
-                required={props.mode === "create"}
-              />
+              <Label htmlFor="password">{props.mode === "create" ? "Temporary password" : "Temporary password (reset)"}</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={isEdit ? "Leave blank to keep current password" : undefined}
+                  required={props.mode === "create"}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+              {isEdit ? (
+                <p className="text-xs text-muted-foreground">
+                  Setting this forces them to choose their own new password on next login.
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-3 rounded-lg border p-3">

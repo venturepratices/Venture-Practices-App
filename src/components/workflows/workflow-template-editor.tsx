@@ -201,7 +201,7 @@ export function WorkflowTemplateEditor({
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Delete template "${template.name}"? This does not affect any in-flight workflows.`)) return;
+    if (!window.confirm(`Delete template "${template.name}"? This does not affect any in-flight projects.`)) return;
     setIsDeleting(true);
     const response = await fetch(`/api/workflow-templates/${template.id}`, { method: "DELETE" });
     setIsDeleting(false);

@@ -30,6 +30,17 @@ enum TaskOccurrence {
   NON_RECURRING
 }
 
+// What this task is related to — auto-set at creation from its real link
+// (spawned from a Project/workflow -> PROJECT, from a Direct Mail campaign ->
+// DIRECT_MAIL, otherwise TASK) but always manually overridable. A separate
+// axis from TaskOccurrence (recurrence cadence, unrelated concept).
+enum TaskKind {
+  PROJECT
+  DIRECT_MAIL
+  TASK
+  OTHER
+}
+
 enum TaskStatus {
   ACTIVE
   IN_PROGRESS
@@ -216,6 +227,7 @@ model TeamMember {
   accounts                     Account[]
   assignedTasks                Task[]                         @relation("TaskAssignee")
   taskAssignments              TaskAssignee[]
+  createdTasks                 Task[]                         @relation("TaskCreatedBy")
   archivedTasks                ArchivedTask[]                 @relation("ArchivedBy")
   comments                     Comment[]
   clientNotes                  ClientNote[]
@@ -292,12 +304,20 @@ model Client {
 
   // Contact + business basics. All optional — existing clients have none of
   // this yet, and it's filled in over time, not required up front.
-  contactName  String?
-  contactEmail String?
-  contactPhone String?
-  website      String?
-  address      String?
-  about        String? @db.Text
+  // contactName/Email/Phone is the PRIMARY contact; secondaryContact* is an
+  // optional second point of contact, shown behind a collapsed toggle in the
+  // form so most clients (who only need one contact) don't see extra clutter.
+  contactName           String?
+  contactEmail          String?
+  contactPhone          String?
+  secondaryContactName  String?
+  secondaryContactEmail String?
+  secondaryContactPhone String?
+  website               String?
+  address               String?
+  about                 String? @db.Text
+  // Free-text: where this client came from (referral, ad, cold outreach...).
+  source                String?
   // Private Slack channel for this client's headline notifications (workflow
   // handoffs/completion, overdue tasks, asset approvals) — auto-created and
   // cached here on first use, or manually set to point at an existing
@@ -550,6 +570,21 @@ model Task {
   // never enforced as a hard gate — tasks stay completable in any order.
   workflowTaskOrder      Int?
 
+  // At-a-glance category — auto-set from the task's real link at creation
+  // (Project/Direct Mail/plain Task) but always manually overridable via a
+  // dropdown, since not every "this belongs to a project" relationship is
+  // one of this app's own structural links (Workflow/Campaign).
+  kind TaskKind @default(TASK)
+
+  // Private tasks are visible ONLY to their creator — never in All Tasks, a
+  // client's Tasks tab, Board, or Dashboard rollups for anyone else, and 404
+  // (not 403 — leak nothing) if a non-creator hits the task's API URL
+  // directly. See src/lib/permissions.ts's taskVisibilityFilter, applied to
+  // every task list query app-wide.
+  isPrivate   Boolean     @default(false)
+  createdById String?
+  createdBy   TeamMember? @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   comments Comment[]
   links    TaskLink[]
 
@@ -558,6 +593,7 @@ model Task {
   @@index([status])
   @@index([campaignId, campaignStage])
   @@index([workflowInstanceId, workflowStageNumber])
+  @@index([createdById, isPrivate])
 }
 
 // Multi-assignee join (Slice 2) — replaces the single-assignee Task.assigneeId

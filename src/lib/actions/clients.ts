@@ -30,9 +30,13 @@ function readClientFormData(formData: FormData) {
     contactName: formData.get("contactName"),
     contactEmail: formData.get("contactEmail"),
     contactPhone: formData.get("contactPhone"),
+    secondaryContactName: formData.get("secondaryContactName"),
+    secondaryContactEmail: formData.get("secondaryContactEmail"),
+    secondaryContactPhone: formData.get("secondaryContactPhone"),
     website: formData.get("website"),
     address: formData.get("address"),
     about: formData.get("about"),
+    source: formData.get("source"),
     slackChannelId: formData.get("slackChannelId"),
   };
 }
@@ -84,9 +88,13 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
     if (before.contactName !== client.contactName) changes.push("contact name updated");
     if (before.contactEmail !== client.contactEmail) changes.push("contact email updated");
     if (before.contactPhone !== client.contactPhone) changes.push("contact phone updated");
+    if (before.secondaryContactName !== client.secondaryContactName) changes.push("secondary contact name updated");
+    if (before.secondaryContactEmail !== client.secondaryContactEmail) changes.push("secondary contact email updated");
+    if (before.secondaryContactPhone !== client.secondaryContactPhone) changes.push("secondary contact phone updated");
     if (before.website !== client.website) changes.push("website updated");
     if (before.address !== client.address) changes.push("address updated");
     if (before.about !== client.about) changes.push("about updated");
+    if (before.source !== client.source) changes.push("source updated");
     if (changes.length > 0) {
       const session = await auth();
       await logActivity({

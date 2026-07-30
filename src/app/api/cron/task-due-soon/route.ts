@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   const dedupeSince = new Date(now.getTime() - DEDUPE_WINDOW_HOURS * 60 * 60 * 1000);
 
   const taskInclude = {
-    assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+    assignees: { select: { teamMemberId: true, teamMember: { select: { name: true, email: true, slackUserId: true } } } },
   } as const;
 
   const dueSoonTasks = await prisma.task.findMany({
@@ -69,17 +70,19 @@ export async function GET(request: Request) {
 
     const linkPath = linkPathFor(task);
     await Promise.all(
-      task.assignees.map((a) =>
-        notify({
+      task.assignees.map(async (a) => {
+        const mention = await mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name);
+        return notify({
           recipientId: a.teamMemberId,
           type: "TASK_DUE_SOON",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — "${task.title}" is due ${task.deadline!.toLocaleDateString()} and isn't marked complete yet`,
+          slackMessage: `${mention} — "${task.title}" is due ${task.deadline!.toLocaleDateString()} and isn't marked complete yet`,
           linkPath,
-        })
-      )
+        });
+      })
     );
     dueSoonReminded++;
   }
@@ -100,29 +103,41 @@ export async function GET(request: Request) {
 
     const linkPath = linkPathFor(task);
     await Promise.all(
-      task.assignees.map((a) =>
-        notify({
+      task.assignees.map(async (a) => {
+        const mention = await mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name);
+        return notify({
           recipientId: a.teamMemberId,
           type: "TASK_OVERDUE",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
           message: `${a.teamMember.name} — "${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
+          slackMessage: `${mention} — "${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
           linkPath,
-        })
-      )
+        });
+      })
     );
-    await notifyChannel({
-      clientId: task.clientId,
-      message: `"${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
-      linkPath,
-      slackTitle: "Task overdue",
-      slackLines: [
-        `Task: ${task.title}`,
-        `Assigned to: ${task.assignees.map((a) => a.teamMember.name).join(", ")}`,
-        `Was due: ${task.deadline!.toLocaleDateString()}`,
-      ],
-    });
+    // Private tasks are visible only to their creator — a team-wide Slack
+    // channel post would leak their existence/title to everyone else with
+    // access to that channel, so this headline broadcast skips them
+    // entirely. The per-assignee DM above still fires (already 1:1, not a
+    // leak) since it only reaches people already an assignee.
+    if (!task.isPrivate) {
+      const assignedMentions = await Promise.all(
+        task.assignees.map((a) => mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name))
+      );
+      await notifyChannel({
+        clientId: task.clientId,
+        message: `"${task.title}" is overdue (was due ${task.deadline!.toLocaleDateString()})`,
+        linkPath,
+        slackTitle: "Task overdue",
+        slackLines: [
+          `Task: ${task.title}`,
+          `Assigned to: ${assignedMentions.join(", ")}`,
+          `Was due: ${task.deadline!.toLocaleDateString()}`,
+        ],
+      });
+    }
     overdueReminded++;
   }
 

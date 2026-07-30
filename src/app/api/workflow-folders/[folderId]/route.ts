@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ fo
     entityId: folder.clientId,
     entityLabel: folder.client.name,
     action: "workflow_folder_renamed",
-    description: `${session.user.name ?? "Someone"} renamed the workflow folder "${folder.name}" to "${updated.name}" on "${folder.client.name}"`,
+    description: `${session.user.name ?? "Someone"} renamed the project folder "${folder.name}" to "${updated.name}" on "${folder.client.name}"`,
   });
 
   return NextResponse.json(updated);
@@ -84,7 +84,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityId: folder.clientId,
     entityLabel: folder.client.name,
     action: "workflow_folder_deleted",
-    description: `${session.user.name ?? "Someone"} deleted the workflow folder "${folder.name}" on "${folder.client.name}"`,
+    description: `${session.user.name ?? "Someone"} deleted the project folder "${folder.name}" on "${folder.client.name}"`,
   });
 
   return NextResponse.json({ ok: true });

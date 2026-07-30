@@ -53,7 +53,7 @@ export function NewWorkflowTemplateDialog({ trigger }: { trigger: React.ReactEle
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New workflow template</DialogTitle>
+          <DialogTitle>New project template</DialogTitle>
           <DialogDescription>Starts with no stages yet — add stages and tasks after creating it.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">

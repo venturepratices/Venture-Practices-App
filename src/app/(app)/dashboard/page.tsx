@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarCheck } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
+import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
@@ -19,9 +19,10 @@ export default async function DashboardPage() {
   // Scope the rollup to the viewer's accessible clients (+ internal tasks).
   const perms = await loadPermissions();
   const scoped = !!perms && !perms.isAdmin && !perms.allClientsAccess;
-  const taskScope: Prisma.TaskWhereInput = scoped
+  const baseTaskScope: Prisma.TaskWhereInput = scoped
     ? { OR: [{ clientId: { in: [...perms!.clientIds] } }, { clientId: null }] }
     : {};
+  const taskScope: Prisma.TaskWhereInput = { AND: [baseTaskScope, taskVisibilityFilter(perms?.userId ?? null)] };
   const clientScope = await accessibleClientFilter("id");
 
   const [statusCounts, totalClients, activeClients, dueSoon] = await Promise.all([
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
       include: {
         assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
       orderBy: { deadline: "asc" },
       take: 8,

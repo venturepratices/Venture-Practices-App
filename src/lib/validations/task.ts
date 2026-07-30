@@ -28,6 +28,15 @@ export const TASK_OCCURRENCE_LABELS: Record<string, string> = {
   NON_RECURRING: "Non Recurring",
 };
 
+export const TASK_KIND_VALUES = ["PROJECT", "DIRECT_MAIL", "TASK", "OTHER"] as const;
+
+export const TASK_KIND_LABELS: Record<string, string> = {
+  PROJECT: "Project",
+  DIRECT_MAIL: "Direct Mail",
+  TASK: "Task",
+  OTHER: "Other",
+};
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().trim().max(4000).nullable().optional(),
@@ -40,6 +49,8 @@ export const createTaskSchema = z.object({
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
   workflowInstanceId: z.string().nullable().optional(),
   workflowStageNumber: z.number().int().nullable().optional(),
+  kind: z.enum(TASK_KIND_VALUES).optional(),
+  isPrivate: z.boolean().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -52,6 +63,8 @@ export const updateTaskSchema = z.object({
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
+  kind: z.enum(TASK_KIND_VALUES).optional(),
+  isPrivate: z.boolean().optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;

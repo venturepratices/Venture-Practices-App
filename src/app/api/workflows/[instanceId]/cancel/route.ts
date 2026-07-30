@@ -28,7 +28,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
   }
 
   if (instance.status !== "ACTIVE") {
-    return NextResponse.json({ error: "Only an active workflow can be cancelled." }, { status: 400 });
+    return NextResponse.json({ error: "Only an active project can be cancelled." }, { status: 400 });
   }
 
   // Cancelling detaches every task (workflowInstanceId/workflowStageNumber
@@ -51,7 +51,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
     entityId: instanceId,
     entityLabel: instanceLabel,
     action: "workflow_cancelled",
-    description: `${session.user.name ?? "Someone"} cancelled workflow "${instanceLabel}"`,
+    description: `${session.user.name ?? "Someone"} cancelled project "${instanceLabel}"`,
   });
 
   return NextResponse.json({ ok: true });

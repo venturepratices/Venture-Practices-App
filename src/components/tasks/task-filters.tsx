@@ -6,8 +6,10 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/date-range-filter";
+import { SearchInput } from "@/components/search-input";
+import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
-import { TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 const ALL = "ALL";
 const NO_CLIENT = "NONE";
@@ -24,6 +26,7 @@ export const TASK_FILTER_KEYS = [
   "clientId",
   "assigneeId",
   "occurrence",
+  "kind",
   "deadline",
   "deadlineFrom",
   "deadlineTo",
@@ -43,10 +46,11 @@ export function TaskFilters({ clients, teamMembers }: Props) {
   const clientId = searchParams.get("clientId") ?? ALL;
   const assigneeId = searchParams.get("assigneeId") ?? ALL;
   const occurrence = searchParams.get("occurrence") ?? ALL;
+  const kind = searchParams.get("kind") ?? ALL;
   const deadline = searchParams.get("deadline") ?? ALL;
 
   const activeFilterCount =
-    [status, clientId, assigneeId, occurrence, deadline].filter((v) => v !== ALL).length +
+    [status, clientId, assigneeId, occurrence, kind, deadline].filter((v) => v !== ALL).length +
     (searchParams.get("deadlineFrom") || searchParams.get("deadlineTo") ? 1 : 0);
 
   function setParam(key: string, value: string | null, clearKeys: string[] = []) {
@@ -70,6 +74,8 @@ export function TaskFilters({ clients, teamMembers }: Props) {
 
   return (
     <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+      <SearchInput placeholder="Search tasks..." className="w-full sm:w-64" />
+
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
         <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>{(value: string) => (value === ALL ? "All statuses" : <StatusPill status={value} />)}</SelectValue>
@@ -149,6 +155,20 @@ export function TaskFilters({ clients, teamMembers }: Props) {
           <SelectItem value="OVERDUE">Overdue</SelectItem>
           <SelectItem value="SOON">Due in 7 days</SelectItem>
           <SelectItem value="NONE">No deadline</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select value={kind} onValueChange={(value) => setParam("kind", value)}>
+        <SelectTrigger className="w-full sm:w-[150px]">
+          <SelectValue>{(value: string) => (value === ALL ? "Related to: All" : <KindPill kind={value} />)}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Related to: All</SelectItem>
+          {TASK_KIND_VALUES.map((k) => (
+            <SelectItem key={k} value={k}>
+              <KindPill kind={k} />
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

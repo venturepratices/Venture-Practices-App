@@ -29,7 +29,7 @@ export default async function PortalWorkflowsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-lg font-semibold">My workflows</h1>
+      <h1 className="text-lg font-semibold">My projects</h1>
       <p className="mt-1 text-sm text-muted-foreground">Where each in-progress process stands.</p>
 
       {instances.length === 0 ? (

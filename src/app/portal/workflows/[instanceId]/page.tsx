@@ -39,7 +39,7 @@ export default async function PortalWorkflowDetailPage({ params }: { params: Pro
     <div className="max-w-2xl p-6">
       <Link href="/portal/workflows" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" />
-        My workflows
+        My projects
       </Link>
 
       <div className="mt-2 flex items-center gap-2">

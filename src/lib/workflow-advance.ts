@@ -1,6 +1,7 @@
 import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 
@@ -8,11 +9,13 @@ function labelFor(instance: { name: string; client: { name: string } | null }): 
   return instance.client ? `${instance.name} — ${instance.client.name}` : instance.name;
 }
 
+type AssigneeFields = { teamMember: { id: string; name: string; email: string; slackUserId: string | null } };
+
 type TaskLineFields = {
   title: string;
   status: string;
   deadline: Date | null;
-  assignees: { teamMember: { name: string } }[];
+  assignees: AssigneeFields[];
 };
 
 /**
@@ -20,23 +23,30 @@ type TaskLineFields = {
  * shared by every task-level workflow notification, so a recipient can act on
  * a Slack ping without opening the app. `whatLine` is the one thing that
  * varies by notification type (why this task is being surfaced right now).
+ * Names are resolved to real Slack @mentions where possible, so both the
+ * recipient and the "Assigned to" list actually ping on Slack/mobile instead
+ * of rendering as inert text.
  */
-function taskNotificationLines(params: {
-  recipientName: string;
+async function taskNotificationLines(params: {
+  recipient: AssigneeFields["teamMember"];
   whatLine: string;
   task: TaskLineFields;
   instanceLabel: string;
   stageLabel: string;
-}): string[] {
+}): Promise<string[]> {
+  const recipientMention = await mentionOrName(params.recipient, params.recipient.name);
+  const assigneeMentions = await Promise.all(
+    params.task.assignees.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
+  );
   const lines = [
-    `For: ${params.recipientName}`,
+    `For: ${recipientMention}`,
     `What: ${params.whatLine}`,
     `Task: ${params.task.title}`,
-    `Assigned to: ${params.task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned"}`,
+    `Assigned to: ${assigneeMentions.join(", ") || "Unassigned"}`,
     `Status: ${TASK_STATUS_LABELS[params.task.status] ?? params.task.status}`,
   ];
   if (params.task.deadline) lines.push(`Deadline: ${params.task.deadline.toLocaleDateString()}`);
-  lines.push(`Workflow: ${params.instanceLabel} — ${params.stageLabel}`);
+  lines.push(`Project: ${params.instanceLabel} — ${params.stageLabel}`);
   return lines;
 }
 
@@ -70,7 +80,7 @@ export async function notifyWorkflowStageTasks(
       title: true,
       status: true,
       deadline: true,
-      assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+      assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
   });
   if (tasks.length === 0) return;
@@ -81,7 +91,7 @@ export async function notifyWorkflowStageTasks(
   const stageLinkPath = instance.clientId
     ? `/clients/${instance.clientId}/workflows/${instanceId}`
     : `/workflows/${instanceId}`;
-  const notifiedNames = new Set<string>();
+  const notifiedMembers = new Map<string, AssigneeFields["teamMember"]>();
 
   for (const task of tasks) {
     const linkPath = instance.clientId
@@ -89,10 +99,10 @@ export async function notifyWorkflowStageTasks(
       : `/workflows/${instanceId}?taskId=${task.id}`;
     for (const a of task.assignees) {
       if (a.teamMemberId === actorId) continue;
-      notifiedNames.add(a.teamMember.name);
+      notifiedMembers.set(a.teamMemberId, a.teamMember);
       const whatLine = previousStageLabel
         ? `The "${previousStageLabel}" stage just finished — this task is next`
-        : "This workflow just started — this task is up first";
+        : "This project just started — this task is up first";
       const message = previousStageLabel
         ? `${a.teamMember.name} — the "${previousStageLabel}" stage just finished. Your task "${task.title}" is next in ${instanceLabel} (${stageLabel} stage)`
         : `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`;
@@ -104,9 +114,9 @@ export async function notifyWorkflowStageTasks(
         entityLabel: task.title,
         message,
         linkPath,
-        slackTitle: previousStageLabel ? "Your turn — new stage started" : "New workflow started — you're up",
-        slackLines: taskNotificationLines({
-          recipientName: a.teamMember.name,
+        slackTitle: previousStageLabel ? "Your turn — new stage started" : "New project started — you're up",
+        slackLines: await taskNotificationLines({
+          recipient: a.teamMember,
           whatLine,
           task,
           instanceLabel,
@@ -116,17 +126,20 @@ export async function notifyWorkflowStageTasks(
     }
   }
 
-  if (notifiedNames.size > 0) {
+  if (notifiedMembers.size > 0) {
+    const assignedMentions = await Promise.all(
+      [...notifiedMembers.values()].map((m) => mentionOrName(m, m.name))
+    );
     await notifyChannel({
       clientId: instance.clientId,
       message: `${instanceLabel}: "${stageLabel}" stage is now up`,
       linkPath: stageLinkPath,
-      slackTitle: previousStageLabel ? "New stage started" : "New workflow started",
+      slackTitle: previousStageLabel ? "New stage started" : "New project started",
       slackLines: [
-        `Workflow: ${instanceLabel}`,
+        `Project: ${instanceLabel}`,
         ...(previousStageLabel ? [`Previous stage: "${previousStageLabel}" ✅ complete`] : []),
         `Now on: ${stageLabel}`,
-        `Assigned: ${[...notifiedNames].join(", ")}`,
+        `Assigned: ${assignedMentions.join(", ")}`,
       ],
     });
   }
@@ -171,7 +184,7 @@ export async function notifyNextTaskInStage(
       status: true,
       deadline: true,
       workflowTaskOrder: true,
-      assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+      assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
   });
   if (candidates.length === 0) return;
@@ -198,8 +211,8 @@ export async function notifyNextTaskInStage(
         message: `${a.teamMember.name} — you're up next on "${task.title}" in ${instanceLabel} (${stageLabel})`,
         linkPath,
         slackTitle: "You're up next",
-        slackLines: taskNotificationLines({
-          recipientName: a.teamMember.name,
+        slackLines: await taskNotificationLines({
+          recipient: a.teamMember,
           whatLine: `"${completedTask.title}" was just completed by ${actorName} — this task is next in line`,
           task,
           instanceLabel,
@@ -233,13 +246,13 @@ export async function maybeAdvanceWorkflowStage(
     where: { id: instanceId },
     include: {
       client: { select: { id: true, name: true } },
-      createdBy: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true, email: true, slackUserId: true } },
       tasks: {
         select: {
           id: true,
           status: true,
           workflowStageNumber: true,
-          assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true } } } },
+          assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
         },
       },
     },
@@ -264,11 +277,11 @@ export async function maybeAdvanceWorkflowStage(
   const instanceLabel = labelFor(instance);
 
   if (isFinalStage) {
-    const recipients = new Map<string, string>();
+    const recipients = new Map<string, AssigneeFields["teamMember"]>();
     for (const task of instance.tasks) {
-      for (const a of task.assignees) recipients.set(a.teamMemberId, a.teamMember.name);
+      for (const a of task.assignees) recipients.set(a.teamMemberId, a.teamMember);
     }
-    if (instance.createdBy) recipients.set(instance.createdBy.id, instance.createdBy.name);
+    if (instance.createdBy) recipients.set(instance.createdBy.id, instance.createdBy);
 
     const taskCount = instance.tasks.length;
     const summary = `all ${taskCount} task${taskCount === 1 ? "" : "s"} done`;
@@ -276,18 +289,19 @@ export async function maybeAdvanceWorkflowStage(
     const completedLinkPath = instance.client
       ? `/clients/${instance.client.id}/workflows/${instance.id}`
       : `/workflows/${instance.id}`;
-    for (const [teamMemberId, name] of recipients) {
+    for (const [teamMemberId, member] of recipients) {
       if (teamMemberId === actorId) continue;
+      const recipientMention = await mentionOrName(member, member.name);
       await notify({
         recipientId: teamMemberId,
         type: "WORKFLOW_COMPLETED",
         entityType: "WorkflowInstance",
         entityId: instance.id,
         entityLabel: instanceLabel,
-        message: `${name} — ${instanceLabel} is complete (${summary})`,
+        message: `${member.name} — ${instanceLabel} is complete (${summary})`,
         linkPath: completedLinkPath,
-        slackTitle: "Workflow complete 🎉",
-        slackLines: [`For: ${name}`, `What: Every stage of this workflow is done`, `Workflow: ${instanceLabel}`, `Tasks: ${taskCount} done`],
+        slackTitle: "Project complete 🎉",
+        slackLines: [`For: ${recipientMention}`, `What: Every stage of this project is done`, `Project: ${instanceLabel}`, `Tasks: ${taskCount} done`],
       });
     }
 
@@ -295,8 +309,8 @@ export async function maybeAdvanceWorkflowStage(
       clientId: instance.client?.id ?? null,
       message: `${instanceLabel} is complete (${summary})`,
       linkPath: completedLinkPath,
-      slackTitle: "Workflow complete 🎉",
-      slackLines: [`Workflow: ${instanceLabel}`, `Tasks: ${taskCount} done`],
+      slackTitle: "Project complete 🎉",
+      slackLines: [`Project: ${instanceLabel}`, `Tasks: ${taskCount} done`],
     });
 
     await logActivity({

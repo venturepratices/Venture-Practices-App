@@ -15,9 +15,13 @@ type ClientCardData = {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  secondaryContactName: string | null;
+  secondaryContactEmail: string | null;
+  secondaryContactPhone: string | null;
   website: string | null;
   address: string | null;
   about: string | null;
+  source: string | null;
   slackChannelId: string | null;
 };
 
@@ -33,9 +37,13 @@ export function ClientCard({ client }: { client: ClientCardData }) {
           contactName={client.contactName}
           contactEmail={client.contactEmail}
           contactPhone={client.contactPhone}
+          secondaryContactName={client.secondaryContactName}
+          secondaryContactEmail={client.secondaryContactEmail}
+          secondaryContactPhone={client.secondaryContactPhone}
           website={client.website}
           address={client.address}
           about={client.about}
+          source={client.source}
           slackChannelId={client.slackChannelId}
           trigger={
             <Button variant="ghost" size="icon" aria-label={`Edit ${client.name}`}>
