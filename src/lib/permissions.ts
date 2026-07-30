@@ -91,6 +91,8 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canManageDirectMail: true,
       canViewWorkflows: true,
       canManageWorkflows: true,
+      canViewPlanning: true,
+      canManagePlanning: true,
     },
   });
   if (!member) return null;

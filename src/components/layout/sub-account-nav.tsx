@@ -14,6 +14,7 @@ const LOCAL_LINKS = [
   { segment: "", label: "Info" },
   { segment: "tasks", label: "Tasks" },
   { segment: "workflows", label: "Projects", cap: "workflows" as const },
+  { segment: "planning", label: "Planning", cap: "planning" as const },
   { segment: "notes", label: "Notes" },
   { segment: "meetings", label: "Meeting Notes" },
   { segment: "conversations", label: "Conversations", cap: "conversations" as const },
@@ -31,6 +32,7 @@ export function SubAccountNav({
   canViewAssets = false,
   canViewDirectMail = false,
   canViewWorkflows = false,
+  canViewPlanning = false,
 }: {
   clientId: string;
   canViewCredentials?: boolean;
@@ -38,6 +40,7 @@ export function SubAccountNav({
   canViewAssets?: boolean;
   canViewDirectMail?: boolean;
   canViewWorkflows?: boolean;
+  canViewPlanning?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -47,6 +50,7 @@ export function SubAccountNav({
     if (link.cap === "assets") return canViewAssets;
     if (link.cap === "directMail") return canViewDirectMail;
     if (link.cap === "workflows") return canViewWorkflows;
+    if (link.cap === "planning") return canViewPlanning;
     return true;
   });
 

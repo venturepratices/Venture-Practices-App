@@ -92,6 +92,13 @@ export const PERMISSION_GROUPS = [
       { key: "canManageWorkflows", label: "Create / edit projects & templates" },
     ],
   },
+  {
+    title: "Planning",
+    items: [
+      { key: "canViewPlanning", label: "View the Planning tab" },
+      { key: "canManagePlanning", label: "Add / edit ideas and convert to tasks" },
+    ],
+  },
 ] as const;
 
 export const CAPABILITIES = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
@@ -127,4 +134,5 @@ export const BASIC_MEMBER_CAPABILITIES: Capability[] = [
   "canDecideOnAssets",
   "canViewDirectMail",
   "canViewWorkflows",
+  "canViewPlanning",
 ];

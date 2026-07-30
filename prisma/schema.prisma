@@ -220,6 +220,12 @@ model TeamMember {
   canViewWorkflows   Boolean @default(false)
   canManageWorkflows Boolean @default(false)
 
+  // Planning — per-client parking lot for half-formed ideas, kept separate
+  // from real Tasks until one is deliberately converted. View is the base;
+  // manage lets you add/edit/archive ideas and convert them to real tasks.
+  canViewPlanning   Boolean @default(false)
+  canManagePlanning Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -241,6 +247,7 @@ model TeamMember {
   createdAssetShareLinks       AssetShareLink[]               @relation("AssetShareLinkCreatedBy")
   workflowTaskTemplateDefaults WorkflowTaskTemplateAssignee[]
   createdWorkflowInstances     WorkflowInstance[]             @relation("WorkflowInstanceCreator")
+  planningItems                PlanningItem[]                 @relation("PlanningItemCreatedBy")
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -340,6 +347,7 @@ model Client {
   intake               ClientIntake?
   workflowInstances    WorkflowInstance[]
   workflowFolders      WorkflowFolder[]
+  planningItems        PlanningItem[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -482,6 +490,36 @@ model ClientNote {
   updatedAt DateTime    @updatedAt
 
   @@index([clientId])
+}
+
+enum PlanningStatus {
+  IDEA
+  STRATEGY
+  CONVERTED
+  ARCHIVED
+}
+
+// A per-client parking lot for half-formed ideas — deliberately a separate
+// model from Task, not a filtered view of it, so the isolation ("never shows
+// up anywhere else in the app") is guaranteed by construction rather than by
+// every current and future Task query remembering to exclude it. An idea
+// only becomes a real, visible Task once someone explicitly converts it
+// (see POST /api/planning-items/[id]/convert), at which point this row is
+// kept (status CONVERTED + convertedTaskId) for history, not deleted.
+model PlanningItem {
+  id            String         @id @default(cuid())
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?        @db.Text
+  status        PlanningStatus @default(IDEA)
+  createdById   String?
+  createdBy     TeamMember?    @relation("PlanningItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  convertedTaskId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([clientId, status])
 }
 
 // A structured, per-meeting record distinct from ClientNote's free-text log:
