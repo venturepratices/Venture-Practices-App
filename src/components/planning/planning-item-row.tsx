@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Folder, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialog";
-import { PlanningItemLinksSection } from "@/components/planning/planning-item-links-section";
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
 import { cn, formatDate } from "@/lib/utils";
 
 export function planningRowGridClass() {
-  return "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 md:grid-cols-[minmax(0,1fr)_140px_110px_auto] md:items-center";
+  return "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_140px_110px_auto]";
 }
 
 export function PlanningListHeader() {
@@ -32,8 +31,6 @@ export function PlanningListHeader() {
   );
 }
 
-type PlanningItemLink = { id: string; label: string; url: string };
-
 type PlanningItem = {
   id: string;
   title: string;
@@ -43,7 +40,6 @@ type PlanningItem = {
   convertedTaskId: string | null;
   createdAt: string | Date;
   createdBy: { name: string } | null;
-  links: PlanningItemLink[];
 };
 
 export function PlanningItemRow({
@@ -60,7 +56,15 @@ export function PlanningItemRow({
   folders?: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [showConvert, setShowConvert] = useState(false);
+
+  function openIdea() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("ideaId", item.id);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   async function setStatus(status: string) {
     await fetch(`/api/planning-items/${item.id}`, {
@@ -100,26 +104,29 @@ export function PlanningItemRow({
   }
 
   return (
-    <div className={cn(planningRowGridClass(), "w-full px-4 py-3 text-sm")}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={openIdea}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") openIdea();
+      }}
+      className={cn(planningRowGridClass(), "w-full cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-muted")}
+    >
       <div className="min-w-0">
-        <p className="font-medium">{item.title}</p>
-        {item.description ? <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{item.description}</p> : null}
+        <p className="truncate font-medium">{item.title}</p>
+        {item.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.description}</p> : null}
         <p className="mt-1 text-xs text-muted-foreground md:hidden">
           {[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {item.links.length > 0 || canManage ? (
-          <div className="mt-2">
-            <PlanningItemLinksSection itemId={item.id} links={item.links} canManage={canManage} />
-          </div>
-        ) : null}
       </div>
 
       <span className="hidden truncate text-muted-foreground md:block">{item.createdBy?.name ?? "—"}</span>
       <span className="hidden whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>
 
-      <div className="flex shrink-0 items-center gap-2 justify-self-end">
+      <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2 justify-self-end">
         {canManage && folders && folders.length > 0 ? (
           <Select value={item.folderId ?? "NONE"} onValueChange={(value) => setFolder(value === "NONE" ? null : value)}>
             <SelectTrigger className="w-[36px] justify-center px-0" aria-label="Move to folder">

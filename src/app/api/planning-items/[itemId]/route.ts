@@ -6,6 +6,30 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 import { updatePlanningItemSchema } from "@/lib/validations/planning";
 
+export async function GET(_request: Request, { params }: { params: Promise<{ itemId: string }> }) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { itemId } = await params;
+  const item = await prisma.planningItem.findUnique({
+    where: { id: itemId },
+    include: { createdBy: { select: { id: true, name: true } }, links: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!item) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    await requireClientAccess(item.clientId);
+    await requireCapability("canViewPlanning");
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  return NextResponse.json(item);
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ itemId: string }> }) {
   const session = await auth();
   if (!session?.user) {

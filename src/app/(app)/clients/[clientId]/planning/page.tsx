@@ -10,6 +10,7 @@ import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewPlanningItemForm } from "@/components/planning/new-planning-item-form";
 import { PlanningItemRow, PlanningListHeader } from "@/components/planning/planning-item-row";
+import { PlanningItemDetailPanel } from "@/components/planning/planning-item-detail-panel";
 import { PlanningFilters } from "@/components/planning/planning-filters";
 import { PlanningFolderSidebar } from "@/components/planning/planning-folder-sidebar";
 
@@ -67,7 +68,7 @@ export default async function PlanningPage({
   const [items, teamMembers, folders, allIdeasCount] = await Promise.all([
     prisma.planningItem.findMany({
       where,
-      include: { createdBy: { select: { id: true, name: true } }, links: { orderBy: { createdAt: "asc" } } },
+      include: { createdBy: { select: { id: true, name: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -146,6 +147,8 @@ export default async function PlanningPage({
           )}
         </div>
       </div>
+
+      <PlanningItemDetailPanel clientId={clientId} teamMembers={teamMembers} folders={folderItems} canManage={canManage} />
     </div>
   );
 }
