@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewPlanningItemForm } from "@/components/planning/new-planning-item-form";
-import { PlanningItemRow } from "@/components/planning/planning-item-row";
+import { PlanningItemRow, PlanningListHeader } from "@/components/planning/planning-item-row";
 import { PlanningFilters } from "@/components/planning/planning-filters";
 import { PlanningFolderSidebar } from "@/components/planning/planning-folder-sidebar";
 
@@ -67,7 +67,7 @@ export default async function PlanningPage({
   const [items, teamMembers, folders, allIdeasCount] = await Promise.all([
     prisma.planningItem.findMany({
       where,
-      include: { createdBy: { select: { id: true, name: true } } },
+      include: { createdBy: { select: { id: true, name: true } }, links: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -131,13 +131,18 @@ export default async function PlanningPage({
           <PlanningFolderSidebar clientId={clientId} folders={folderItems} allCount={allIdeasCount} canManage={canManage} />
         ) : null}
 
-        <div className="min-w-0 flex-1 rounded-lg border divide-y">
+        <div className="min-w-0 flex-1 rounded-lg border">
           {items.length === 0 ? (
             <EmptyState icon={tab === "archive" ? Archive : tab === "converted" ? CheckCircle2 : Lightbulb} title={emptyLabel} />
           ) : (
-            items.map((item) => (
-              <PlanningItemRow key={item.id} clientId={clientId} item={item} teamMembers={teamMembers} canManage={canManage} folders={folderItems} />
-            ))
+            <>
+              <PlanningListHeader />
+              <div className="divide-y">
+                {items.map((item) => (
+                  <PlanningItemRow key={item.id} clientId={clientId} item={item} teamMembers={teamMembers} canManage={canManage} folders={folderItems} />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

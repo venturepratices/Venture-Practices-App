@@ -522,8 +522,23 @@ model PlanningItem {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  links PlanningItemLink[]
+
   @@index([clientId, status])
   @@index([folderId])
+}
+
+// Mirrors TaskLink/ClientLink exactly — a short list of reference links
+// attached to a planning idea (e.g. a brief doc, a competitor example).
+model PlanningItemLink {
+  id             String       @id @default(cuid())
+  planningItemId String
+  planningItem   PlanningItem @relation(fields: [planningItemId], references: [id], onDelete: Cascade)
+  url            String
+  label          String
+  createdAt      DateTime     @default(now())
+
+  @@index([planningItemId])
 }
 
 // A lightweight, per-client grouping for planning ideas — same "detach, don't

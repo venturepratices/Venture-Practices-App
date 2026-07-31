@@ -9,13 +9,21 @@ export const PLANNING_STATUS_LABELS: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
+const planningLinkSchema = z.object({
+  label: z.string().trim().min(1, "Label is required").max(120),
+  url: z.string().trim().url("Enter a valid URL"),
+});
+
 export const createPlanningItemSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().trim().max(4000).nullable().optional(),
   // Only the two real starting points make sense at creation time — moving to
   // a task or archiving is a deliberate action taken later, not a way to add one.
   status: z.enum(["IDEA", "STRATEGY"]).optional(),
+  links: z.array(planningLinkSchema).max(20).optional(),
 });
+
+export const createPlanningItemLinkSchema = planningLinkSchema;
 
 export const updatePlanningItemSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),

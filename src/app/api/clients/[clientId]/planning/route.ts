@@ -33,8 +33,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       description: parsed.data.description ?? null,
       status: parsed.data.status ?? "IDEA",
       createdById: session.user.id,
+      links: parsed.data.links?.length ? { create: parsed.data.links } : undefined,
     },
-    include: { createdBy: { select: { id: true, name: true } } },
+    include: { createdBy: { select: { id: true, name: true } }, links: true },
   });
 
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } });

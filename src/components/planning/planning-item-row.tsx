@@ -8,8 +8,31 @@ import { ArrowRight, Folder, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialog";
+import { PlanningItemLinksSection } from "@/components/planning/planning-item-links-section";
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+
+export function planningRowGridClass() {
+  return "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 md:grid-cols-[minmax(0,1fr)_140px_110px_auto] md:items-center";
+}
+
+export function PlanningListHeader() {
+  return (
+    <div
+      className={cn(
+        planningRowGridClass(),
+        "w-full border-b px-4 py-2 text-xs font-medium tracking-wide text-muted-foreground"
+      )}
+    >
+      <span>Idea</span>
+      <span className="hidden md:block">Created by</span>
+      <span className="hidden md:block">Date created</span>
+      <span className="justify-self-end">Status</span>
+    </div>
+  );
+}
+
+type PlanningItemLink = { id: string; label: string; url: string };
 
 type PlanningItem = {
   id: string;
@@ -20,6 +43,7 @@ type PlanningItem = {
   convertedTaskId: string | null;
   createdAt: string | Date;
   createdBy: { name: string } | null;
+  links: PlanningItemLink[];
 };
 
 export function PlanningItemRow({
@@ -76,16 +100,26 @@ export function PlanningItemRow({
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
-      <div className="min-w-0 flex-1">
+    <div className={cn(planningRowGridClass(), "w-full px-4 py-3 text-sm")}>
+      <div className="min-w-0">
         <p className="font-medium">{item.title}</p>
         {item.description ? <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{item.description}</p> : null}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added"} · {formatDate(item.createdAt)}
+        <p className="mt-1 text-xs text-muted-foreground md:hidden">
+          {[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
+        {item.links.length > 0 || canManage ? (
+          <div className="mt-2">
+            <PlanningItemLinksSection itemId={item.id} links={item.links} canManage={canManage} />
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <span className="hidden truncate text-muted-foreground md:block">{item.createdBy?.name ?? "—"}</span>
+      <span className="hidden whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>
+
+      <div className="flex shrink-0 items-center gap-2 justify-self-end">
         {canManage && folders && folders.length > 0 ? (
           <Select value={item.folderId ?? "NONE"} onValueChange={(value) => setFolder(value === "NONE" ? null : value)}>
             <SelectTrigger className="w-[36px] justify-center px-0" aria-label="Move to folder">
