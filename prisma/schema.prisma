@@ -616,6 +616,12 @@ model ClientOrder {
   client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   type              ClientOrderType
   sequenceNumber    Int
+  // Groups documents into an independent "order line": null on the ORDER row
+  // that starts a line (that row IS the root — its own id is used as the
+  // grouping key), set to the line's root id on every CHANGE_ORDER that
+  // amends it. Multiple order lines can be simultaneously active per client —
+  // creating a brand-new Order never touches another line's root/rootOrderId.
+  rootOrderId       String?
   title             String?
   services          Json
   adBudgetCents     Int?
@@ -627,6 +633,7 @@ model ClientOrder {
 
   @@unique([clientId, sequenceNumber])
   @@index([clientId])
+  @@index([rootOrderId])
 }
 
 // A structured, per-meeting record distinct from ClientNote's free-text log:

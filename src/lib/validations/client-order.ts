@@ -14,6 +14,9 @@ export const createClientOrderSchema = z.object({
   services: z.array(serviceSchema).min(1, "Add at least one service"),
   adBudgetCents: z.number().int().min(0).optional().nullable(),
   notes: z.string().trim().max(4000).optional().nullable(),
+  // Present only when amending a specific existing order line (the Change
+  // Order flow) — absent means "start a brand-new, independent order line."
+  fromOrderId: z.string().trim().min(1).optional().nullable(),
   // Values only — the route resolves each against the CURRENT OrderTemplate
   // to build the frozen {key,label,type,value} snapshot server-side, so a
   // client can't spoof a field's label/type.

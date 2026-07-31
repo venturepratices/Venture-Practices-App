@@ -19,10 +19,25 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
     orderBy: { sequenceNumber: "desc" },
   });
 
-  const current = orders[0];
-  const currentServices = (current?.services as unknown as Service[]) ?? [];
-  const activeServices = currentServices.filter((s) => s.status === "ACTIVE");
+  // Group into independent order lines (a lineage's grouping key is its root
+  // document's id — either rootOrderId, or the row's own id when it IS the
+  // root). Orders is already sorted newest-first, so the first row seen per
+  // lineage is that lineage's currently-active document.
+  const lineages = new Map<string, typeof orders>();
+  for (const order of orders) {
+    const key = order.rootOrderId ?? order.id;
+    const bucket = lineages.get(key);
+    if (bucket) bucket.push(order);
+    else lineages.set(key, [order]);
+  }
+  const activeOrders = [...lineages.values()].map((docs) => docs[0]);
+  const previousOrders = [...lineages.values()]
+    .flatMap((docs) => docs.slice(1))
+    .sort((a, b) => b.sequenceNumber - a.sequenceNumber);
+
+  const activeServices = activeOrders.flatMap((o) => (o.services as unknown as Service[]) ?? []).filter((s) => s.status === "ACTIVE");
   const totalMonthlyCents = activeServices.reduce((sum, s) => sum + s.feeCents, 0);
+  const totalAdBudgetCents = activeOrders.reduce((sum, o) => sum + (o.adBudgetCents ?? 0), 0);
 
   return (
     <div>
@@ -40,7 +55,7 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
         ) : null}
       </div>
 
-      {current ? (
+      {activeOrders.length > 0 ? (
         <div className="mt-4 flex flex-wrap items-center gap-6 rounded-lg border bg-muted/30 px-4 py-3">
           <div>
             <p className="text-xs text-muted-foreground">Active services</p>
@@ -50,17 +65,33 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
             <p className="text-xs text-muted-foreground">Total monthly</p>
             <p className="text-xl font-semibold">{formatCurrency(totalMonthlyCents)}</p>
           </div>
-          {current.adBudgetCents != null ? (
+          {totalAdBudgetCents > 0 ? (
             <div>
               <p className="text-xs text-muted-foreground">Ad budget</p>
-              <p className="text-xl font-semibold">{formatCurrency(current.adBudgetCents)}</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalAdBudgetCents)}</p>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className="mt-4">
-        <OrderList clientId={clientId} orders={orders} />
+      <div className="mt-6">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Active orders</p>
+        <OrderList
+          clientId={clientId}
+          orders={activeOrders}
+          emptyTitle="No active orders yet."
+          emptyDescription="Create the first Order to record this client's services, fees, and ad budget."
+        />
+      </div>
+
+      <div className="mt-6">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Previous orders</p>
+        <OrderList
+          clientId={clientId}
+          orders={previousOrders}
+          emptyTitle="No previous orders."
+          emptyDescription="Superseded documents will show up here once an active order gets a Change Order."
+        />
       </div>
     </div>
   );

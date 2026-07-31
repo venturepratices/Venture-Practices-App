@@ -20,25 +20,22 @@ export default async function NewClientOrderPage({
   const { fromOrderId } = await searchParams;
   if (!(await canUseCapability("canManageOrders"))) notFound();
 
-  const [client, latest, template] = await Promise.all([
+  const [client, source, template] = await Promise.all([
     prisma.client.findUnique({ where: { id: clientId }, select: { id: true, name: true } }),
-    prisma.clientOrder.findFirst({ where: { clientId }, orderBy: { sequenceNumber: "desc" } }),
+    fromOrderId ? prisma.clientOrder.findFirst({ where: { id: fromOrderId, clientId } }) : Promise.resolve(null),
     getOrCreateOrderTemplate(),
   ]);
   if (!client) notFound();
-
-  // The document to pre-fill the form from — defaults to the latest, but can
-  // be any past document (e.g. clicking "Change Order" from that document's
-  // own detail page), so a Change Order can amend from any point in history,
-  // not just the current latest. Either way it always lands as the new
-  // highest sequenceNumber; nothing in history is overwritten.
-  const source = fromOrderId
-    ? await prisma.clientOrder.findFirst({ where: { id: fromOrderId, clientId } })
-    : latest;
+  // A fromOrderId was given but doesn't belong to this client — don't silently
+  // fall through to a blank "new order" form for the wrong intent.
+  if (fromOrderId && !source) notFound();
 
   const templateFields = template.customFields as unknown as OrderTemplateField[];
-  const isChangeOrder = !!latest;
-  const isFromPastDocument = !!source && source.id !== latest?.id;
+  // Whether this is a Change Order is decided purely by whether a specific
+  // source document was given — never by whether the client already has other
+  // orders. That's what lets "Add Order" always start a brand-new, independent
+  // order line instead of silently amending whatever's currently active.
+  const isChangeOrder = !!source;
 
   return (
     <div className="max-w-2xl">
@@ -49,15 +46,14 @@ export default async function NewClientOrderPage({
       <h2 className="mt-2 text-lg font-semibold">{isChangeOrder ? "New Change Order" : "New Order"}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {isChangeOrder
-          ? isFromPastDocument
-            ? `Amends the client's current order (No. ${latest?.sequenceNumber}) with a new full snapshot — pre-filled from order No. ${source?.sequenceNumber}, not the latest.`
-            : `Amends the client's current order (No. ${latest?.sequenceNumber}) with a new full snapshot — pre-filled from the latest document.`
-          : "The first Order document for this client — services, fees, ad budget, and notes."}
+          ? `Amends order No. ${source!.sequenceNumber} with a new full snapshot for that order line — other active orders for this client are unaffected.`
+          : "Creates a new, independent order for this client — any existing active orders are left exactly as they are."}
       </p>
 
       <div className="mt-6">
         <OrderForm
           clientId={clientId}
+          fromOrderId={fromOrderId ?? null}
           templateFields={templateFields}
           initialServices={(source?.services as unknown as Service[]) ?? []}
           initialAdBudgetCents={source?.adBudgetCents ?? null}

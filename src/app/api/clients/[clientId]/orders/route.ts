@@ -52,13 +52,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const latest = await prisma.clientOrder.findFirst({
+  // Whether this creates a brand-new, independent order line or amends an
+  // existing one is decided entirely by whether a source document was given —
+  // never by whether the client already has other orders. That's what lets
+  // multiple order lines stay simultaneously active: adding a new order never
+  // touches another line's root.
+  let type: "ORDER" | "CHANGE_ORDER";
+  let rootOrderId: string | null;
+  if (parsed.data.fromOrderId) {
+    const source = await prisma.clientOrder.findFirst({
+      where: { id: parsed.data.fromOrderId, clientId },
+      select: { id: true, rootOrderId: true },
+    });
+    if (!source) {
+      return NextResponse.json({ error: "The order being amended could not be found." }, { status: 400 });
+    }
+    type = "CHANGE_ORDER";
+    rootOrderId = source.rootOrderId ?? source.id;
+  } else {
+    type = "ORDER";
+    rootOrderId = null;
+  }
+
+  const latest = await prisma.clientOrder.aggregate({
     where: { clientId },
-    orderBy: { sequenceNumber: "desc" },
-    select: { sequenceNumber: true },
+    _max: { sequenceNumber: true },
   });
-  const type = latest ? "CHANGE_ORDER" : "ORDER";
-  const sequenceNumber = (latest?.sequenceNumber ?? 0) + 1;
+  const sequenceNumber = (latest._max.sequenceNumber ?? 0) + 1;
 
   // Never trust client-posted field labels/types — resolve each posted value
   // against the CURRENT template and freeze the whole {key,label,type,value}
@@ -79,6 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       clientId,
       type,
       sequenceNumber,
+      rootOrderId,
       title: parsed.data.title ?? null,
       services: parsed.data.services,
       adBudgetCents: parsed.data.adBudgetCents ?? null,
@@ -88,7 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     },
   });
 
-  const docLabel = type === "ORDER" ? `Order #${sequenceNumber}` : `Change Order #${sequenceNumber}`;
+  const docLabel = order.title ? `"${order.title}" (No. ${sequenceNumber})` : `order No. ${sequenceNumber}`;
   const linkPath = `/clients/${clientId}/orders/${order.id}`;
 
   await logActivity({
