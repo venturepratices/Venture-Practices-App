@@ -10,24 +10,62 @@ import { prisma } from "@/lib/prisma";
  * from the Neon Postgres DB, downloadable from the Vercel dashboard with no CLI.
  * If a bad migration/bug/manual tampering corrupts Neon, the latest snapshot is
  * untouched and restorable via scripts/restore-from-backup.ts.
+ *
+ * IMPORTANT: this list must cover every model in prisma/schema.prisma. When a
+ * migration adds a new model, add it here in the SAME session — this snapshot
+ * silently going stale (as it did once already, covering only 11 of 45 models
+ * for weeks) is exactly the kind of gap a backup exists to prevent.
  */
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 export const BACKUP_PREFIX = "backups/";
 
 type SnapshotTables = {
   teamMembers: unknown[];
-  clients: unknown[];
-  clientNotes: unknown[];
-  tasks: unknown[];
-  comments: unknown[];
-  taskLinks: unknown[];
-  activityLogs: unknown[];
-  archivedTasks: unknown[];
-  // Auth.js adapter tables — empty under the JWT strategy, included for completeness.
+  clientAccess: unknown[];
   accounts: unknown[];
   sessions: unknown[];
   verificationTokens: unknown[];
+  clients: unknown[];
+  clientIntakes: unknown[];
+  clientUsers: unknown[];
+  clientLinks: unknown[];
+  clientCredentials: unknown[];
+  clientHighLevelConnections: unknown[];
+  conversationMessages: unknown[];
+  clientNotes: unknown[];
+  planningFolders: unknown[];
+  planningItems: unknown[];
+  planningItemLinks: unknown[];
+  orderTemplates: unknown[];
+  clientOrders: unknown[];
+  meetingNotes: unknown[];
+  landingPages: unknown[];
+  assetFolders: unknown[];
+  assets: unknown[];
+  assetVersions: unknown[];
+  assetReviewers: unknown[];
+  assetDecisions: unknown[];
+  assetComments: unknown[];
+  assetShareLinks: unknown[];
+  programTemplates: unknown[];
+  stageTemplates: unknown[];
+  taskTemplates: unknown[];
+  campaigns: unknown[];
+  workflowTemplates: unknown[];
+  workflowStageTemplates: unknown[];
+  workflowTaskTemplates: unknown[];
+  workflowTaskTemplateLinks: unknown[];
+  workflowTaskTemplateAssignees: unknown[];
+  workflowFolders: unknown[];
+  workflowInstances: unknown[];
+  tasks: unknown[];
+  taskAssignees: unknown[];
+  comments: unknown[];
+  taskLinks: unknown[];
+  activityLogs: unknown[];
+  notifications: unknown[];
+  archivedTasks: unknown[];
 };
 
 export type DatabaseSnapshot = {
@@ -41,42 +79,144 @@ export type DatabaseSnapshot = {
 export async function createDatabaseSnapshot(now: Date = new Date()): Promise<DatabaseSnapshot> {
   const [
     teamMembers,
-    clients,
-    clientNotes,
-    tasks,
-    comments,
-    taskLinks,
-    activityLogs,
-    archivedTasks,
+    clientAccess,
     accounts,
     sessions,
     verificationTokens,
+    clients,
+    clientIntakes,
+    clientUsers,
+    clientLinks,
+    clientCredentials,
+    clientHighLevelConnections,
+    conversationMessages,
+    clientNotes,
+    planningFolders,
+    planningItems,
+    planningItemLinks,
+    orderTemplates,
+    clientOrders,
+    meetingNotes,
+    landingPages,
+    assetFolders,
+    assets,
+    assetVersions,
+    assetReviewers,
+    assetDecisions,
+    assetComments,
+    assetShareLinks,
+    programTemplates,
+    stageTemplates,
+    taskTemplates,
+    campaigns,
+    workflowTemplates,
+    workflowStageTemplates,
+    workflowTaskTemplates,
+    workflowTaskTemplateLinks,
+    workflowTaskTemplateAssignees,
+    workflowFolders,
+    workflowInstances,
+    tasks,
+    taskAssignees,
+    comments,
+    taskLinks,
+    activityLogs,
+    notifications,
+    archivedTasks,
   ] = await Promise.all([
     prisma.teamMember.findMany(),
-    prisma.client.findMany(),
-    prisma.clientNote.findMany(),
-    prisma.task.findMany(),
-    prisma.comment.findMany(),
-    prisma.taskLink.findMany(),
-    prisma.activityLog.findMany(),
-    prisma.archivedTask.findMany(),
+    prisma.clientAccess.findMany(),
     prisma.account.findMany(),
     prisma.session.findMany(),
     prisma.verificationToken.findMany(),
+    prisma.client.findMany(),
+    prisma.clientIntake.findMany(),
+    prisma.clientUser.findMany(),
+    prisma.clientLink.findMany(),
+    prisma.clientCredential.findMany(),
+    prisma.clientHighLevelConnection.findMany(),
+    prisma.conversationMessage.findMany(),
+    prisma.clientNote.findMany(),
+    prisma.planningFolder.findMany(),
+    prisma.planningItem.findMany(),
+    prisma.planningItemLink.findMany(),
+    prisma.orderTemplate.findMany(),
+    prisma.clientOrder.findMany(),
+    prisma.meetingNote.findMany(),
+    prisma.landingPage.findMany(),
+    prisma.assetFolder.findMany(),
+    prisma.asset.findMany(),
+    prisma.assetVersion.findMany(),
+    prisma.assetReviewer.findMany(),
+    prisma.assetDecision.findMany(),
+    prisma.assetComment.findMany(),
+    prisma.assetShareLink.findMany(),
+    prisma.programTemplate.findMany(),
+    prisma.stageTemplate.findMany(),
+    prisma.taskTemplate.findMany(),
+    prisma.campaign.findMany(),
+    prisma.workflowTemplate.findMany(),
+    prisma.workflowStageTemplate.findMany(),
+    prisma.workflowTaskTemplate.findMany(),
+    prisma.workflowTaskTemplateLink.findMany(),
+    prisma.workflowTaskTemplateAssignee.findMany(),
+    prisma.workflowFolder.findMany(),
+    prisma.workflowInstance.findMany(),
+    prisma.task.findMany(),
+    prisma.taskAssignee.findMany(),
+    prisma.comment.findMany(),
+    prisma.taskLink.findMany(),
+    prisma.activityLog.findMany(),
+    prisma.notification.findMany(),
+    prisma.archivedTask.findMany(),
   ]);
 
   const tables: SnapshotTables = {
     teamMembers,
-    clients,
-    clientNotes,
-    tasks,
-    comments,
-    taskLinks,
-    activityLogs,
-    archivedTasks,
+    clientAccess,
     accounts,
     sessions,
     verificationTokens,
+    clients,
+    clientIntakes,
+    clientUsers,
+    clientLinks,
+    clientCredentials,
+    clientHighLevelConnections,
+    conversationMessages,
+    clientNotes,
+    planningFolders,
+    planningItems,
+    planningItemLinks,
+    orderTemplates,
+    clientOrders,
+    meetingNotes,
+    landingPages,
+    assetFolders,
+    assets,
+    assetVersions,
+    assetReviewers,
+    assetDecisions,
+    assetComments,
+    assetShareLinks,
+    programTemplates,
+    stageTemplates,
+    taskTemplates,
+    campaigns,
+    workflowTemplates,
+    workflowStageTemplates,
+    workflowTaskTemplates,
+    workflowTaskTemplateLinks,
+    workflowTaskTemplateAssignees,
+    workflowFolders,
+    workflowInstances,
+    tasks,
+    taskAssignees,
+    comments,
+    taskLinks,
+    activityLogs,
+    notifications,
+    archivedTasks,
   };
 
   const counts = Object.fromEntries(
