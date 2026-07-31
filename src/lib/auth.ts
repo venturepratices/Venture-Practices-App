@@ -8,7 +8,7 @@ const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_SECONDS = THIRTY_DAYS_MS / 1000;
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   session: {
     // Credentials provider only supports JWT sessions (Auth.js throws
     // UnsupportedStrategy for "database" here). 30 days is the outer ceiling;
@@ -71,7 +71,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // Triggered by updateSession() (e.g. right after a successful password
+      // change) — patches the live token in place so the "must change
+      // password" gate clears immediately, instead of lingering until the
+      // next full sign-in the way isAdmin/role/etc. otherwise would.
+      const updatedMustChangePassword = (session as { user?: { mustChangePassword?: boolean } })?.user?.mustChangePassword;
+      if (trigger === "update" && typeof updatedMustChangePassword === "boolean") {
+        token.mustChangePassword = updatedMustChangePassword;
+        return token;
+      }
+
       if (user) {
         // Fresh sign-in: stamp the effective session lifetime based on "remember me".
         const remember = Boolean((user as { remember?: boolean }).remember);

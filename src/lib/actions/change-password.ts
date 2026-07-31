@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { auth } from "@/lib/auth";
+import { auth, updateSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 
@@ -54,6 +54,7 @@ export async function changePasswordAction(
       action: "password_changed",
       description: `${clientUser.name} changed their password`,
     });
+    await updateSession({ user: { mustChangePassword: false } });
     redirect("/portal");
   }
 
@@ -81,6 +82,8 @@ export async function changePasswordAction(
     action: "password_changed",
     description: `${member.name} changed their password`,
   });
+
+  await updateSession({ user: { mustChangePassword: false } });
 
   redirect("/dashboard");
 }
