@@ -47,10 +47,12 @@ export function PlanningListHeader({
   visibleColumns,
   widths,
   onResizeColumn,
+  showFolderColumn,
 }: {
   visibleColumns?: Set<string>;
   widths?: Record<string, number>;
   onResizeColumn?: (key: string, width: number, commit: boolean) => void;
+  showFolderColumn?: boolean;
 }) {
   const columns = OPTIONAL_COLUMNS.filter((c) => !visibleColumns || visibleColumns.has(c.key));
   const resolvedWidths = widths ?? defaultPlanningColumnWidths();
@@ -71,7 +73,18 @@ export function PlanningListHeader({
           ) : null}
         </span>
       ))}
-      <span className="min-w-0 justify-self-end">Status</span>
+      {/* Mirrors the row's actions layout (folder select + status + delete)
+          so each label lines up with its actual control, not just the
+          overall cell edge. */}
+      <div className="flex min-w-0 shrink-0 items-center gap-2 justify-self-end">
+        {showFolderColumn ? (
+          <span className="flex w-[36px] items-center justify-center" title="Folder" aria-label="Folder">
+            <Folder className="size-3.5 text-muted-foreground" />
+          </span>
+        ) : null}
+        <span className="w-[150px]">Status</span>
+        <span className="w-[28px]" />
+      </div>
     </div>
   );
 }

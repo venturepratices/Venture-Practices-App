@@ -58,7 +58,12 @@ export function PlanningIdeasList({
       <div className="flex items-center justify-end px-4 py-2">
         <ColumnVisibilityMenu columns={PLANNING_COLUMNS} visible={visibleColumns} onToggle={toggleColumn} onResetWidths={resetWidths} />
       </div>
-      <PlanningListHeader visibleColumns={visibleColumns} widths={columnWidths} onResizeColumn={setColumnWidth} />
+      <PlanningListHeader
+        visibleColumns={visibleColumns}
+        widths={columnWidths}
+        onResizeColumn={setColumnWidth}
+        showFolderColumn={canManage && folders.length > 0}
+      />
       <div className="divide-y">
         {items.map((item) => (
           <PlanningItemRow
