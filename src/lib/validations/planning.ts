@@ -23,6 +23,7 @@ export const updatePlanningItemSchema = z.object({
   // CONVERTED is never settable directly here — only the convert route can
   // move an item into that status, since it also has to create the real task.
   status: z.enum(["IDEA", "STRATEGY", "ARCHIVED"]).optional(),
+  folderId: z.string().nullable().optional(),
 });
 
 export const convertPlanningItemSchema = z.object({

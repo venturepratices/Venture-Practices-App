@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Trash2 } from "lucide-react";
+import { ArrowRight, Folder, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +16,7 @@ type PlanningItem = {
   title: string;
   description: string | null;
   status: string;
+  folderId: string | null;
   convertedTaskId: string | null;
   createdAt: string | Date;
   createdBy: { name: string } | null;
@@ -26,11 +27,13 @@ export function PlanningItemRow({
   item,
   teamMembers,
   canManage,
+  folders,
 }: {
   clientId: string;
   item: PlanningItem;
   teamMembers: { id: string; name: string }[];
   canManage: boolean;
+  folders?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [showConvert, setShowConvert] = useState(false);
@@ -40,6 +43,15 @@ export function PlanningItemRow({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
+    });
+    router.refresh();
+  }
+
+  async function setFolder(folderId: string | null) {
+    await fetch(`/api/planning-items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId }),
     });
     router.refresh();
   }
@@ -74,6 +86,21 @@ export function PlanningItemRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {canManage && folders && folders.length > 0 ? (
+          <Select value={item.folderId ?? "NONE"} onValueChange={(value) => setFolder(value === "NONE" ? null : value)}>
+            <SelectTrigger className="w-[36px] justify-center px-0" aria-label="Move to folder">
+              <Folder className="size-3.5 text-muted-foreground" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NONE">No folder</SelectItem>
+              {folders.map((folder) => (
+                <SelectItem key={folder.id} value={folder.id}>
+                  {folder.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         {item.status === "CONVERTED" ? (
           item.convertedTaskId ? (
             <Link

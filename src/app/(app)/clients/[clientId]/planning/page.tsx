@@ -1,15 +1,32 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Lightbulb } from "lucide-react";
+import { Archive, CheckCircle2, Lightbulb } from "lucide-react";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewPlanningItemForm } from "@/components/planning/new-planning-item-form";
 import { PlanningItemRow } from "@/components/planning/planning-item-row";
+import { PlanningFilters } from "@/components/planning/planning-filters";
+import { PlanningFolderSidebar } from "@/components/planning/planning-folder-sidebar";
 
-type SearchParams = { view?: string };
+type SearchParams = {
+  tab?: string;
+  folderId?: string;
+  q?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+};
+
+const TABS = [
+  { key: "ideas", label: "Ideas" },
+  { key: "archive", label: "Archive" },
+  { key: "converted", label: "Converted to task" },
+] as const;
 
 export default async function PlanningPage({
   params,
@@ -19,21 +36,54 @@ export default async function PlanningPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { clientId } = await params;
-  const { view } = await searchParams;
-  const showArchived = view === "archived";
+  const sp = await searchParams;
+  const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab! : "ideas";
 
   // Client-access is enforced by the layout; this adds the Planning capability.
   if (!(await canUseCapability("canViewPlanning"))) notFound();
   const canManage = await canUseCapability("canManagePlanning");
 
-  const [items, teamMembers] = await Promise.all([
+  const statusFilter: Prisma.PlanningItemWhereInput["status"] =
+    tab === "archive"
+      ? { in: ["ARCHIVED"] }
+      : tab === "converted"
+        ? { in: ["CONVERTED"] }
+        : sp.status === "IDEA" || sp.status === "STRATEGY"
+          ? { in: [sp.status] }
+          : { in: ["IDEA", "STRATEGY"] };
+
+  const where: Prisma.PlanningItemWhereInput = {
+    clientId,
+    status: statusFilter,
+    ...(tab === "ideas" && sp.folderId ? { folderId: sp.folderId } : {}),
+    ...(sp.q
+      ? { OR: [{ title: { contains: sp.q, mode: "insensitive" } }, { description: { contains: sp.q, mode: "insensitive" } }] }
+      : {}),
+    ...(sp.from || sp.to
+      ? { createdAt: { ...(sp.from ? { gte: new Date(sp.from) } : {}), ...(sp.to ? { lte: new Date(`${sp.to}T23:59:59`) } : {}) } }
+      : {}),
+  };
+
+  const [items, teamMembers, folders, allIdeasCount] = await Promise.all([
     prisma.planningItem.findMany({
-      where: showArchived ? { clientId, status: { in: ["ARCHIVED", "CONVERTED"] } } : { clientId, status: { in: ["IDEA", "STRATEGY"] } },
+      where,
       include: { createdBy: { select: { id: true, name: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    tab === "ideas"
+      ? prisma.planningFolder.findMany({
+          where: { clientId },
+          orderBy: { name: "asc" },
+          include: { _count: { select: { items: { where: { status: { in: ["IDEA", "STRATEGY"] } } } } } },
+        })
+      : Promise.resolve([]),
+    tab === "ideas" ? prisma.planningItem.count({ where: { clientId, status: { in: ["IDEA", "STRATEGY"] } } }) : Promise.resolve(0),
   ]);
+
+  const folderItems = folders.map((f) => ({ id: f.id, name: f.name, color: f.color, count: f._count.items }));
+  const emptyLabel =
+    tab === "archive" ? "Nothing archived yet." : tab === "converted" ? "Nothing converted to a task yet." : "No ideas yet — add one above.";
 
   return (
     <div>
@@ -46,26 +96,50 @@ export default async function PlanningPage({
             Archive" if it's not happening.
           </InfoTip>
         </h2>
-        <Link
-          href={showArchived ? `/clients/${clientId}/planning` : `/clients/${clientId}/planning?view=archived`}
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {showArchived ? "Back to active ideas" : "Archived / converted"}
-        </Link>
       </div>
 
-      {canManage && !showArchived ? (
+      <div className="mt-4 flex gap-1 border-b">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={t.key === "ideas" ? `/clients/${clientId}/planning` : `/clients/${clientId}/planning?tab=${t.key}`}
+            className={cn(
+              "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.key === "archive" ? <Archive className="size-3.5" /> : t.key === "converted" ? <CheckCircle2 className="size-3.5" /> : null}
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {canManage && tab === "ideas" ? (
         <div className="mt-4">
           <NewPlanningItemForm clientId={clientId} />
         </div>
       ) : null}
 
-      <div className="mt-4 rounded-lg border divide-y">
-        {items.length === 0 ? (
-          <EmptyState icon={Lightbulb} title={showArchived ? "Nothing archived or converted yet." : "No ideas yet — add one above."} />
-        ) : (
-          items.map((item) => <PlanningItemRow key={item.id} clientId={clientId} item={item} teamMembers={teamMembers} canManage={canManage} />)
-        )}
+      {tab === "ideas" ? (
+        <div className="mt-4">
+          <PlanningFilters />
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-col gap-4 md:flex-row">
+        {tab === "ideas" ? (
+          <PlanningFolderSidebar clientId={clientId} folders={folderItems} allCount={allIdeasCount} canManage={canManage} />
+        ) : null}
+
+        <div className="min-w-0 flex-1 rounded-lg border divide-y">
+          {items.length === 0 ? (
+            <EmptyState icon={tab === "archive" ? Archive : tab === "converted" ? CheckCircle2 : Lightbulb} title={emptyLabel} />
+          ) : (
+            items.map((item) => (
+              <PlanningItemRow key={item.id} clientId={clientId} item={item} teamMembers={teamMembers} canManage={canManage} folders={folderItems} />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

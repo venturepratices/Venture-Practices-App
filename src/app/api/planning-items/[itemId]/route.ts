@@ -31,7 +31,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ it
   }
   // A converted idea's status is owned by the convert route (it also has to
   // create the real task) — block flipping it back via this generic PATCH.
-  if (item.status === "CONVERTED") {
+  // Other fields (e.g. moving it between folders) stay editable regardless.
+  if (item.status === "CONVERTED" && parsed.data.status) {
     return NextResponse.json({ error: "This idea has already been converted to a task." }, { status: 400 });
   }
 

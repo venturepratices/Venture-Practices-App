@@ -348,6 +348,7 @@ model Client {
   workflowInstances    WorkflowInstance[]
   workflowFolders      WorkflowFolder[]
   planningItems        PlanningItem[]
+  planningFolders      PlanningFolder[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -513,6 +514,8 @@ model PlanningItem {
   title         String
   description   String?        @db.Text
   status        PlanningStatus @default(IDEA)
+  folderId      String?
+  folder        PlanningFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdById   String?
   createdBy     TeamMember?    @relation("PlanningItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   convertedTaskId String?
@@ -520,6 +523,23 @@ model PlanningItem {
   updatedAt     DateTime       @updatedAt
 
   @@index([clientId, status])
+  @@index([folderId])
+}
+
+// A lightweight, per-client grouping for planning ideas — same "detach, don't
+// cascade-delete" shape as AssetFolder/WorkflowFolder (onDelete: SetNull on
+// PlanningItem.folderId, so deleting a folder never deletes its ideas).
+model PlanningFolder {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  items PlanningItem[]
+
+  @@index([clientId])
 }
 
 // A structured, per-meeting record distinct from ClientNote's free-text log:
