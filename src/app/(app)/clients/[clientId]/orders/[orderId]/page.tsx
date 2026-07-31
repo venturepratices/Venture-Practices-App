@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Download } from "lucide-react";
+import { ChevronLeft, Download, FilePlus2 } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +19,7 @@ export default async function ClientOrderDetailPage({
 }) {
   const { clientId, orderId } = await params;
   if (!(await canUseCapability("canViewOrders"))) notFound();
+  const canManage = await canUseCapability("canManageOrders");
 
   const order = await prisma.clientOrder.findFirst({
     where: { id: orderId, clientId },
@@ -45,15 +46,27 @@ export default async function ClientOrderDetailPage({
             <p className="text-sm text-muted-foreground">{order.client.name}</p>
             {order.title ? <p className="mt-1 text-sm font-medium">{order.title}</p> : null}
           </div>
-          <Button
-            variant="outline"
-            render={
-              <a href={`/api/client-orders/${order.id}/pdf`} download>
-                <Download className="size-4" />
-                Download PDF
-              </a>
-            }
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              render={
+                <a href={`/api/client-orders/${order.id}/pdf`} download>
+                  <Download className="size-4" />
+                  Download PDF
+                </a>
+              }
+            />
+            {canManage ? (
+              <Button
+                render={
+                  <Link href={`/clients/${clientId}/orders/new?fromOrderId=${order.id}`}>
+                    <FilePlus2 className="size-4" />
+                    Change Order
+                  </Link>
+                }
+              />
+            ) : null}
+          </div>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           {formatDateTime(order.createdAt)}
