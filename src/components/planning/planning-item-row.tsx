@@ -6,41 +6,61 @@ import { useState } from "react";
 import { ArrowRight, Folder, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialog";
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
 import { cn, formatDate } from "@/lib/utils";
 
-const OPTIONAL_COLUMNS: { key: string; label: string; width: string }[] = [
-  { key: "createdBy", label: "Created by", width: "140px" },
-  { key: "dateCreated", label: "Date created", width: "110px" },
+const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number }[] = [
+  { key: "createdBy", label: "Created by", defaultWidth: 150 },
+  { key: "dateCreated", label: "Date created", defaultWidth: 120 },
 ];
 
 export const PLANNING_COLUMN_KEYS = OPTIONAL_COLUMNS.map((c) => c.key);
 export const PLANNING_COLUMNS = OPTIONAL_COLUMNS;
 
+export function defaultPlanningColumnWidths() {
+  return Object.fromEntries(OPTIONAL_COLUMNS.map((c) => [c.key, c.defaultWidth]));
+}
+
 // Same "grid template via CSS variable" trick as task-row.tsx — column
-// visibility is a runtime (localStorage) preference, so Tailwind can't have
-// pre-generated a class for every combination at build time.
-function gridTemplateVar(visible?: Set<string>) {
+// visibility/width are both runtime (localStorage) preferences, so Tailwind
+// can't have pre-generated a class for every combination at build time.
+function gridTemplateVar(visible: Set<string> | undefined, widths: Record<string, number>) {
   const cols = OPTIONAL_COLUMNS.filter((c) => !visible || visible.has(c.key));
-  const template = ["minmax(0,1fr)", ...cols.map((c) => c.width), "auto"].join(" ");
+  const template = ["minmax(0,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), "auto"].join(" ");
   return { "--planning-grid-cols": template } as React.CSSProperties;
 }
 
 const GRID_CLASS = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:[grid-template-columns:var(--planning-grid-cols)]";
 
-export function PlanningListHeader({ visibleColumns }: { visibleColumns?: Set<string> }) {
+export function PlanningListHeader({
+  visibleColumns,
+  widths,
+  onResizeColumn,
+}: {
+  visibleColumns?: Set<string>;
+  widths?: Record<string, number>;
+  onResizeColumn?: (key: string, width: number, commit: boolean) => void;
+}) {
   const columns = OPTIONAL_COLUMNS.filter((c) => !visibleColumns || visibleColumns.has(c.key));
+  const resolvedWidths = widths ?? defaultPlanningColumnWidths();
   return (
     <div
-      style={gridTemplateVar(visibleColumns)}
+      style={gridTemplateVar(visibleColumns, resolvedWidths)}
       className={cn(GRID_CLASS, "w-full min-w-0 border-b px-4 py-2.5 text-xs font-bold tracking-wide text-foreground")}
     >
       <span className="min-w-0">Idea title</span>
       {columns.map((col) => (
-        <span key={col.key} className="hidden min-w-0 truncate md:block">
+        <span key={col.key} className="relative hidden min-w-0 truncate md:block">
           {col.label}
+          {onResizeColumn ? (
+            <ColumnResizeHandle
+              width={resolvedWidths[col.key] ?? col.defaultWidth}
+              onResize={(width, commit) => onResizeColumn(col.key, width, commit)}
+            />
+          ) : null}
         </span>
       ))}
       <span className="min-w-0 justify-self-end">Status</span>
@@ -66,6 +86,7 @@ export function PlanningItemRow({
   canManage,
   folders,
   visibleColumns,
+  widths,
 }: {
   clientId: string;
   item: PlanningItem;
@@ -73,12 +94,14 @@ export function PlanningItemRow({
   canManage: boolean;
   folders?: { id: string; name: string }[];
   visibleColumns?: Set<string>;
+  widths?: Record<string, number>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [showConvert, setShowConvert] = useState(false);
   const isVisible = (key: string) => !visibleColumns || visibleColumns.has(key);
+  const resolvedWidths = widths ?? defaultPlanningColumnWidths();
 
   function openIdea() {
     const params = new URLSearchParams(searchParams.toString());
@@ -131,12 +154,18 @@ export function PlanningItemRow({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") openIdea();
       }}
-      style={gridTemplateVar(visibleColumns)}
+      style={gridTemplateVar(visibleColumns, resolvedWidths)}
       className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-muted")}
     >
       <div className="min-w-0">
-        <p className="truncate font-medium">{item.title}</p>
-        {item.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.description}</p> : null}
+        <p className="truncate font-medium" title={item.title}>
+          {item.title}
+        </p>
+        {item.description ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={item.description}>
+            {item.description}
+          </p>
+        ) : null}
         <p className="mt-1 truncate text-xs text-muted-foreground md:hidden">
           {[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
             .filter(Boolean)
@@ -145,7 +174,9 @@ export function PlanningItemRow({
       </div>
 
       {isVisible("createdBy") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{item.createdBy?.name ?? "—"}</span>
+        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={item.createdBy?.name ?? undefined}>
+          {item.createdBy?.name ?? "—"}
+        </span>
       ) : null}
       {isVisible("dateCreated") ? (
         <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>

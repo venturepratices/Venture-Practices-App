@@ -4,8 +4,15 @@ import { Archive, CheckCircle2, Lightbulb } from "lucide-react";
 
 import { ColumnVisibilityMenu } from "@/components/ui/column-visibility-menu";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PlanningItemRow, PlanningListHeader, PLANNING_COLUMNS, PLANNING_COLUMN_KEYS } from "@/components/planning/planning-item-row";
+import {
+  PlanningItemRow,
+  PlanningListHeader,
+  PLANNING_COLUMNS,
+  PLANNING_COLUMN_KEYS,
+  defaultPlanningColumnWidths,
+} from "@/components/planning/planning-item-row";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
+import { useColumnWidths } from "@/lib/use-column-widths";
 
 type PlanningItem = {
   id: string;
@@ -36,6 +43,10 @@ export function PlanningIdeasList({
   emptyLabel: string;
 }) {
   const { visible: visibleColumns, toggle: toggleColumn } = useColumnVisibility("planningIdeasColumns", PLANNING_COLUMN_KEYS);
+  const { widths: columnWidths, setWidth: setColumnWidth, resetWidths } = useColumnWidths(
+    "planningIdeasColumnWidths",
+    defaultPlanningColumnWidths()
+  );
   const emptyIcon = tab === "archive" ? Archive : tab === "converted" ? CheckCircle2 : Lightbulb;
 
   if (items.length === 0) {
@@ -45,9 +56,9 @@ export function PlanningIdeasList({
   return (
     <>
       <div className="flex items-center justify-end px-4 py-2">
-        <ColumnVisibilityMenu columns={PLANNING_COLUMNS} visible={visibleColumns} onToggle={toggleColumn} />
+        <ColumnVisibilityMenu columns={PLANNING_COLUMNS} visible={visibleColumns} onToggle={toggleColumn} onResetWidths={resetWidths} />
       </div>
-      <PlanningListHeader visibleColumns={visibleColumns} />
+      <PlanningListHeader visibleColumns={visibleColumns} widths={columnWidths} onResizeColumn={setColumnWidth} />
       <div className="divide-y">
         {items.map((item) => (
           <PlanningItemRow
@@ -58,6 +69,7 @@ export function PlanningIdeasList({
             canManage={canManage}
             folders={folders}
             visibleColumns={visibleColumns}
+            widths={columnWidths}
           />
         ))}
       </div>

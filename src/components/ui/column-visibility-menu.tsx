@@ -1,12 +1,13 @@
 "use client";
 
-import { Columns3 } from "lucide-react";
+import { Columns3, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -17,10 +18,12 @@ export function ColumnVisibilityMenu({
   columns,
   visible,
   onToggle,
+  onResetWidths,
 }: {
   columns: ColumnOption[];
   visible: Set<string>;
   onToggle: (key: string) => void;
+  onResetWidths?: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -45,6 +48,15 @@ export function ColumnVisibilityMenu({
             {col.label}
           </DropdownMenuCheckboxItem>
         ))}
+        {onResetWidths ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onResetWidths}>
+              <RotateCcw className="size-3.5" />
+              Reset column widths
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

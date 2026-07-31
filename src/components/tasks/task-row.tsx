@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarIcon, Lock } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill, TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
@@ -14,13 +15,15 @@ import type { TaskWithRelations } from "@/types/task";
 // Column widths keyed by the same column keys used by the visibility menu —
 // order here defines column order in the grid. "Client" is only included
 // when showClient is on (the per-client Tasks tab never shows its own name).
-const OPTIONAL_COLUMNS: { key: string; label: string; width: string; clientOnly?: boolean }[] = [
-  { key: "client", label: "Client", width: "110px", clientOnly: true },
-  { key: "due", label: "Due", width: "100px" },
-  { key: "assignee", label: "Assignee", width: "110px" },
-  { key: "relatedTo", label: "Related to", width: "90px" },
-  { key: "createdBy", label: "Created by", width: "100px" },
-  { key: "dateCreated", label: "Date created", width: "100px" },
+// defaultWidth is a starting point only — the user can drag each column
+// wider (or narrower) and that preference persists (see useColumnWidths).
+const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number; clientOnly?: boolean }[] = [
+  { key: "client", label: "Client", defaultWidth: 120, clientOnly: true },
+  { key: "due", label: "Due", defaultWidth: 110 },
+  { key: "assignee", label: "Assignee", defaultWidth: 130 },
+  { key: "relatedTo", label: "Related to", defaultWidth: 150 },
+  { key: "createdBy", label: "Created by", defaultWidth: 120 },
+  { key: "dateCreated", label: "Date created", defaultWidth: 110 },
 ];
 
 export const TASK_COLUMN_KEYS = OPTIONAL_COLUMNS.map((c) => c.key);
@@ -29,30 +32,51 @@ export function taskColumnsFor(showClient?: boolean) {
   return OPTIONAL_COLUMNS.filter((c) => !c.clientOnly || showClient);
 }
 
-// Grid template is computed at runtime (which columns are visible is a
-// user preference, not knowable at build time) and passed through a CSS
-// variable rather than a Tailwind arbitrary-value class, since Tailwind
-// can't generate a class for a value it never saw in the source.
-function gridTemplateVar(showClient?: boolean, visible?: Set<string>) {
+export function defaultTaskColumnWidths(showClient?: boolean) {
+  return Object.fromEntries(taskColumnsFor(showClient).map((c) => [c.key, c.defaultWidth]));
+}
+
+// Grid template is computed at runtime (which columns are visible/how wide
+// each is are both user preferences, not knowable at build time) and passed
+// through a CSS variable rather than a Tailwind arbitrary-value class, since
+// Tailwind can't generate a class for a value it never saw in the source.
+function gridTemplateVar(showClient: boolean | undefined, visible: Set<string> | undefined, widths: Record<string, number>) {
   const cols = taskColumnsFor(showClient).filter((c) => !visible || visible.has(c.key));
-  const template = ["20px", "minmax(0,1fr)", ...cols.map((c) => c.width), "120px"].join(" ");
+  const template = ["20px", "minmax(0,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), "120px"].join(" ");
   return { "--task-grid-cols": template } as React.CSSProperties;
 }
 
 const GRID_CLASS = "grid grid-cols-[20px_minmax(0,1fr)_120px] items-center gap-3 md:[grid-template-columns:var(--task-grid-cols)]";
 
-export function TaskListHeader({ showClient, visibleColumns }: { showClient?: boolean; visibleColumns?: Set<string> }) {
+export function TaskListHeader({
+  showClient,
+  visibleColumns,
+  widths,
+  onResizeColumn,
+}: {
+  showClient?: boolean;
+  visibleColumns?: Set<string>;
+  widths?: Record<string, number>;
+  onResizeColumn?: (key: string, width: number, commit: boolean) => void;
+}) {
   const columns = taskColumnsFor(showClient).filter((c) => !visibleColumns || visibleColumns.has(c.key));
+  const resolvedWidths = widths ?? defaultTaskColumnWidths(showClient);
   return (
     <div
-      style={gridTemplateVar(showClient, visibleColumns)}
+      style={gridTemplateVar(showClient, visibleColumns, resolvedWidths)}
       className={cn(GRID_CLASS, "w-full min-w-0 border-b px-1.5 py-2.5 text-xs font-bold tracking-wide text-foreground")}
     >
       <span />
       <span className="min-w-0">Task title</span>
       {columns.map((col) => (
-        <span key={col.key} className="hidden min-w-0 truncate md:block">
+        <span key={col.key} className="relative hidden min-w-0 truncate md:block">
           {col.label}
+          {onResizeColumn ? (
+            <ColumnResizeHandle
+              width={resolvedWidths[col.key] ?? col.defaultWidth}
+              onResize={(width, commit) => onResizeColumn(col.key, width, commit)}
+            />
+          ) : null}
         </span>
       ))}
       <span className="min-w-0 justify-self-end">Status</span>
@@ -64,12 +88,13 @@ type Props = {
   task: TaskWithRelations;
   showClient?: boolean;
   visibleColumns?: Set<string>;
+  widths?: Record<string, number>;
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: (taskId: string) => void;
 };
 
-export function TaskRow({ task, showClient, visibleColumns, selectable, selected, onToggleSelect }: Props) {
+export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -77,6 +102,7 @@ export function TaskRow({ task, showClient, visibleColumns, selectable, selected
   const kindLabel = task.kind === "PROJECT" && task.workflowInstance ? task.workflowInstance.name : TASK_KIND_LABELS[task.kind] ?? task.kind;
   const columns = taskColumnsFor(showClient).filter((c) => !visibleColumns || visibleColumns.has(c.key));
   const isVisible = (key: string) => columns.some((c) => c.key === key);
+  const resolvedWidths = widths ?? defaultTaskColumnWidths(showClient);
 
   function openTask() {
     const params = new URLSearchParams(searchParams.toString());
@@ -105,7 +131,7 @@ export function TaskRow({ task, showClient, visibleColumns, selectable, selected
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") openTask();
       }}
-      style={gridTemplateVar(showClient, visibleColumns)}
+      style={gridTemplateVar(showClient, visibleColumns, resolvedWidths)}
       className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer animate-in rounded-md px-1.5 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted")}
     >
       <span onClick={(e) => e.stopPropagation()} className="flex size-4 items-center">
@@ -118,12 +144,14 @@ export function TaskRow({ task, showClient, visibleColumns, selectable, selected
         ) : null}
       </span>
       <span className="min-w-0">
-        <span className="flex items-center gap-1.5 truncate">
+        <span className="flex items-center gap-1.5 truncate" title={task.title}>
           {task.isPrivate ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="Private" /> : null}
           <span className="truncate">{task.title}</span>
         </span>
         {task.description ? (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{task.description}</span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={task.description}>
+            {task.description}
+          </span>
         ) : null}
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
           {[
@@ -138,7 +166,9 @@ export function TaskRow({ task, showClient, visibleColumns, selectable, selected
         </span>
       </span>
       {isVisible("client") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{task.client?.name ?? "—"}</span>
+        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={task.client?.name ?? undefined}>
+          {task.client?.name ?? "—"}
+        </span>
       ) : null}
       {isVisible("due") ? (
         <span className="hidden min-w-0 items-center gap-1 truncate whitespace-nowrap text-muted-foreground md:flex">
@@ -153,15 +183,19 @@ export function TaskRow({ task, showClient, visibleColumns, selectable, selected
         </span>
       ) : null}
       {isVisible("assignee") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{assigneeNames}</span>
+        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={assigneeNames}>
+          {assigneeNames}
+        </span>
       ) : null}
       {isVisible("relatedTo") ? (
-        <span className="hidden min-w-0 truncate md:block">
+        <span className="hidden min-w-0 truncate md:block" title={kindLabel}>
           <KindPill kind={task.kind} label={task.kind === "PROJECT" ? task.workflowInstance?.name : undefined} />
         </span>
       ) : null}
       {isVisible("createdBy") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{task.createdBy?.name ?? "—"}</span>
+        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={task.createdBy?.name ?? undefined}>
+          {task.createdBy?.name ?? "—"}
+        </span>
       ) : null}
       {isVisible("dateCreated") ? (
         <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">

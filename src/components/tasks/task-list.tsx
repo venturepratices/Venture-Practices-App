@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ColumnVisibilityMenu } from "@/components/ui/column-visibility-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
-import { TaskListHeader, TaskRow, taskColumnsFor } from "@/components/tasks/task-row";
+import { TaskListHeader, TaskRow, taskColumnsFor, defaultTaskColumnWidths } from "@/components/tasks/task-row";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
+import { useColumnWidths } from "@/lib/use-column-widths";
 import type { TaskWithRelations } from "@/types/task";
 
 type Props = {
@@ -29,6 +30,10 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
   const { visible: visibleColumns, toggle: toggleColumn } = useColumnVisibility(
     "taskListColumns",
     columns.map((c) => c.key)
+  );
+  const { widths: columnWidths, setWidth: setColumnWidth, resetWidths } = useColumnWidths(
+    "taskListColumnWidths",
+    defaultTaskColumnWidths(showClientColumn)
   );
 
   function toggleSelect(taskId: string) {
@@ -64,7 +69,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
             teamMembers={teamMembers}
           />
         </div>
-        <ColumnVisibilityMenu columns={columns} visible={visibleColumns} onToggle={toggleColumn} />
+        <ColumnVisibilityMenu columns={columns} visible={visibleColumns} onToggle={toggleColumn} onResetWidths={resetWidths} />
       </div>
 
       {selected.size > 0 ? (
@@ -86,13 +91,19 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
         <EmptyState icon={ListChecks} title="No tasks yet." className="py-6" />
       ) : (
         <div className="divide-y">
-          <TaskListHeader showClient={showClientColumn} visibleColumns={visibleColumns} />
+          <TaskListHeader
+            showClient={showClientColumn}
+            visibleColumns={visibleColumns}
+            widths={columnWidths}
+            onResizeColumn={setColumnWidth}
+          />
           {tasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
               showClient={showClientColumn}
               visibleColumns={visibleColumns}
+              widths={columnWidths}
               selectable
               selected={selected.has(task.id)}
               onToggleSelect={toggleSelect}
