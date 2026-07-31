@@ -27,13 +27,21 @@ export function defaultPlanningColumnWidths() {
 // Same "grid template via CSS variable" trick as task-row.tsx — column
 // visibility/width are both runtime (localStorage) preferences, so Tailwind
 // can't have pre-generated a class for every combination at build time.
+// The trailing actions cell (folder select + status select/pill + delete
+// button) must be a fixed width, not "auto" — each row is its own CSS Grid
+// container, so an "auto" track resolves to that row's own content width
+// and never lines up with the header or with other rows.
+const ACTIONS_WIDTH = 230;
+
 function gridTemplateVar(visible: Set<string> | undefined, widths: Record<string, number>) {
   const cols = OPTIONAL_COLUMNS.filter((c) => !visible || visible.has(c.key));
-  const template = ["minmax(0,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), "auto"].join(" ");
+  const template = ["minmax(0,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), `${ACTIONS_WIDTH}px`].join(" ");
   return { "--planning-grid-cols": template } as React.CSSProperties;
 }
 
-const GRID_CLASS = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:[grid-template-columns:var(--planning-grid-cols)]";
+// Tailwind's JIT scanner needs the literal class string, not an interpolated
+// one, so ACTIONS_WIDTH's value (230) is hardcoded here to match the constant.
+const GRID_CLASS = "grid grid-cols-[minmax(0,1fr)_230px] items-center gap-3 md:[grid-template-columns:var(--planning-grid-cols)]";
 
 export function PlanningListHeader({
   visibleColumns,
