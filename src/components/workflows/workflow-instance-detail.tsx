@@ -68,7 +68,7 @@ export function WorkflowInstanceDetail({
   }, {});
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" />
         {backLabel}
