@@ -22,6 +22,10 @@ export function formatDateTime(date: Date | string) {
   return `${formatDate(d)} at ${time}`;
 }
 
+export function formatCurrency(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
 // Computes how far the wall-clock time in `timeZone` leads UTC at `date` —
 // i.e. Date.UTC(<wall-clock parts>) - date.getTime(). Needed because a fixed
 // UTC offset can't represent a timezone with DST across the year.

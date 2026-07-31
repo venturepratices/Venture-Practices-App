@@ -37,6 +37,7 @@ export default async function ClientLayout({
         canViewDirectMail={!!(perms?.isAdmin || perms?.caps.canViewDirectMail)}
         canViewWorkflows={!!(perms?.isAdmin || perms?.caps.canViewWorkflows)}
         canViewPlanning={!!(perms?.isAdmin || perms?.caps.canViewPlanning)}
+        canViewOrders={!!(perms?.isAdmin || perms?.caps.canViewOrders)}
       />
       <div className="flex-1 overflow-y-auto p-6">{children}</div>
     </div>

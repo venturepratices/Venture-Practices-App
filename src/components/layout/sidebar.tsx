@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, GitBranch, LayoutDashboard, LayoutList, ListChecks, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -35,6 +35,12 @@ const AGENCY_LINKS = [
     icon: GitBranch,
     needs: "canManageWorkflows" as const,
   },
+  {
+    href: "/settings/order-template",
+    label: "Order Template",
+    icon: DollarSign,
+    needs: "canManageOrders" as const,
+  },
 ];
 
 export function Sidebar({
@@ -45,6 +51,7 @@ export function Sidebar({
   canManageDirectMail = false,
   canViewWorkflows = false,
   canManageWorkflows = false,
+  canManageOrders = false,
 }: {
   clients: SidebarClient[];
   isAdmin?: boolean;
@@ -53,6 +60,7 @@ export function Sidebar({
   canManageDirectMail?: boolean;
   canViewWorkflows?: boolean;
   canManageWorkflows?: boolean;
+  canManageOrders?: boolean;
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
@@ -68,6 +76,7 @@ export function Sidebar({
     if ("needs" in link && link.needs === "canManageDirectMail") return isAdmin || canManageDirectMail;
     if ("needs" in link && link.needs === "canViewWorkflows") return isAdmin || canViewWorkflows || canManageWorkflows;
     if ("needs" in link && link.needs === "canManageWorkflows") return isAdmin || canManageWorkflows;
+    if ("needs" in link && link.needs === "canManageOrders") return isAdmin || canManageOrders;
     return true;
   });
 

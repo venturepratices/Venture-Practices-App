@@ -30,6 +30,8 @@ const TYPE_LABELS: Record<string, string> = {
   WORKFLOW_TASK_UP_NEXT: "You're up next",
   TASK_DUE_SOON: "Task due soon",
   TASK_OVERDUE: "Task overdue",
+  ORDER_ADDED: "Order added",
+  ORDER_CHANGED: "Change order added",
 };
 
 const READ_LABELS: Record<string, string> = {

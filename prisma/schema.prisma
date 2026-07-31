@@ -64,6 +64,24 @@ enum MeetingNoteSource {
   FATHOM_WEBHOOK // reserved for when Fathom API/webhook access is confirmed; not wired up yet
 }
 
+enum OrderFieldType {
+  TEXT
+  NUMBER
+  DATE
+  LONGTEXT
+}
+
+enum ClientOrderType {
+  ORDER
+  CHANGE_ORDER
+}
+
+enum ServiceStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
 enum NotificationType {
   ASSIGNED
   MENTIONED
@@ -83,6 +101,8 @@ enum NotificationType {
   WORKFLOW_TASK_UP_NEXT
   TASK_DUE_SOON
   TASK_OVERDUE
+  ORDER_ADDED
+  ORDER_CHANGED
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -226,6 +246,14 @@ model TeamMember {
   canViewPlanning   Boolean @default(false)
   canManagePlanning Boolean @default(false)
 
+  // Orders — per-client Order/Change Order documents (services, fees, ad
+  // budget). Real billing data, so — like Credentials/Conversations — NOT
+  // auto-granted by the "Full member access" preset. View is the base;
+  // manage lets you create new Orders/Change Orders and edit the shared
+  // Order Template's custom fields.
+  canViewOrders   Boolean @default(false)
+  canManageOrders Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -248,6 +276,7 @@ model TeamMember {
   workflowTaskTemplateDefaults WorkflowTaskTemplateAssignee[]
   createdWorkflowInstances     WorkflowInstance[]             @relation("WorkflowInstanceCreator")
   planningItems                PlanningItem[]                 @relation("PlanningItemCreatedBy")
+  clientOrders                 ClientOrder[]
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -349,6 +378,7 @@ model Client {
   workflowFolders      WorkflowFolder[]
   planningItems        PlanningItem[]
   planningFolders      PlanningFolder[]
+  orders               ClientOrder[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -554,6 +584,48 @@ model PlanningFolder {
 
   items PlanningItem[]
 
+  @@index([clientId])
+}
+
+// Single shared row (agency-wide, not per-client) — the admin-editable list
+// of extra fields layered on top of the fixed built-in ones every Order
+// carries (services, ad budget, notes). Stored as a JSON array rather than
+// child rows: fields are flat key/label/type triples with no children of
+// their own, so a relational sub-table would add join overhead for no
+// benefit. `customFields` shape (TS, not enforced by Prisma):
+//   { key: string; label: string; type: OrderFieldType; required: boolean }[]
+model OrderTemplate {
+  id           String   @id @default(cuid())
+  customFields Json     @default("[]")
+  updatedAt    DateTime @updatedAt
+}
+
+// One immutable, dated document per client: either the first "Order" or a
+// later "Change Order" amending it. Every Change Order is a full new
+// snapshot (not a diff) and all of them are kept as permanent history — no
+// PATCH/DELETE route exists for this model. `services`/`customFieldValues`
+// shapes (TS, not enforced by Prisma):
+//   services: { name: string; feeCents: number; status: ServiceStatus }[]
+//   customFieldValues: { key: string; label: string; type: OrderFieldType; value: string | null }[]
+//     (freezes the template's field definitions AT CREATION TIME, alongside
+//     their values, so an old document still renders its original field
+//     labels/types even after the shared OrderTemplate changes later.)
+model ClientOrder {
+  id                String          @id @default(cuid())
+  clientId          String
+  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type              ClientOrderType
+  sequenceNumber    Int
+  title             String?
+  services          Json
+  adBudgetCents     Int?
+  notes             String?         @db.Text
+  customFieldValues Json            @default("[]")
+  createdById       String?
+  createdBy         TeamMember?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime        @default(now())
+
+  @@unique([clientId, sequenceNumber])
   @@index([clientId])
 }
 

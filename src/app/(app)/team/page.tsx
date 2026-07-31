@@ -83,6 +83,8 @@ export default async function TeamPage() {
         canManageWorkflows: true,
         canViewPlanning: true,
         canManagePlanning: true,
+        canViewOrders: true,
+        canManageOrders: true,
       },
       orderBy: { name: "asc" },
     }),

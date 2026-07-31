@@ -4,6 +4,7 @@ import {
   AtSign,
   Check,
   Clock,
+  DollarSign,
   MessageSquarePlus,
   RefreshCw,
   Upload,
@@ -34,6 +35,8 @@ const ICON_FOR: Record<NotificationType, LucideIcon> = {
   WORKFLOW_TASK_UP_NEXT: ArrowRightCircle,
   TASK_DUE_SOON: Clock,
   TASK_OVERDUE: AlertTriangle,
+  ORDER_ADDED: DollarSign,
+  ORDER_CHANGED: DollarSign,
 };
 
 export function iconFor(type: NotificationType): LucideIcon {
