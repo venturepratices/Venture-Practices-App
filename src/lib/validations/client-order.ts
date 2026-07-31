@@ -17,8 +17,13 @@ export const createClientOrderSchema = z.object({
   // Present only when amending a specific existing order line (the Change
   // Order flow) — absent means "start a brand-new, independent order line."
   fromOrderId: z.string().trim().min(1).optional().nullable(),
-  // Values only — the route resolves each against the CURRENT OrderTemplate
-  // to build the frozen {key,label,type,value} snapshot server-side, so a
+  // Which OrderTemplate to start a brand-new order line from — ignored when
+  // fromOrderId is set (a Change Order continues its own line's existing
+  // fields instead). Absent/null means "start blank," no custom fields.
+  templateId: z.string().trim().min(1).optional().nullable(),
+  // Values only — the route resolves each against the chosen template (or
+  // the source document being amended) to build the frozen
+  // {key,label,type,value} snapshot server-side, so a
   // client can't spoof a field's label/type.
   customFieldValues: z
     .array(z.object({ key: z.string(), value: z.string().trim().max(4000).nullable() }))

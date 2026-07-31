@@ -36,8 +36,8 @@ const AGENCY_LINKS = [
     needs: "canManageWorkflows" as const,
   },
   {
-    href: "/settings/order-template",
-    label: "Order Template",
+    href: "/settings/order-templates",
+    label: "Order Templates",
     icon: DollarSign,
     needs: "canManageOrders" as const,
   },

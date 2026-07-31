@@ -587,16 +587,19 @@ model PlanningFolder {
   @@index([clientId])
 }
 
-// Single shared row (agency-wide, not per-client) — the admin-editable list
-// of extra fields layered on top of the fixed built-in ones every Order
-// carries (services, ad budget, notes). Stored as a JSON array rather than
-// child rows: fields are flat key/label/type triples with no children of
-// their own, so a relational sub-table would add join overhead for no
-// benefit. `customFields` shape (TS, not enforced by Prisma):
-//   { key: string; label: string; type: OrderFieldType; required: boolean }[]
+// One of possibly many named, agency-wide templates (mirrors WorkflowTemplate's
+// shape: a reusable named blueprint, picked at creation time rather than a
+// single shared default). `customFields` layers extra fields on top of the
+// fixed built-in ones every Order carries (services, ad budget, notes).
+// Stored as a JSON array rather than child rows: fields are flat
+// key/label/type triples with no children of their own, so a relational
+// sub-table would add join overhead for no benefit. `customFields` shape
+// (TS, not enforced by Prisma): { key, label, type: OrderFieldType, required }[]
 model OrderTemplate {
   id           String   @id @default(cuid())
+  name         String   @unique
   customFields Json     @default("[]")
+  createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
@@ -634,6 +637,11 @@ model ClientOrder {
   adBudgetCents     Int?
   notes             String?         @db.Text
   customFieldValues Json            @default("[]")
+  // Denormalized name of the OrderTemplate this document was started from —
+  // null when started blank, or when it's a Change Order continuing a line
+  // that was itself started blank. A bare string (no relation) so it stays
+  // meaningful even if the template is later renamed or deleted.
+  sourceTemplateName String?
   createdById       String?
   createdBy         TeamMember?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt         DateTime        @default(now())

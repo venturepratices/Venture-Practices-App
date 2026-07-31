@@ -88,6 +88,7 @@ export default async function ClientOrderDetailPage({
         <p className="mt-1 text-xs text-muted-foreground">
           {formatDateTime(order.createdAt)}
           {order.createdBy ? ` · Created by ${order.createdBy.name}` : ""}
+          {order.sourceTemplateName ? ` · Started from "${order.sourceTemplateName}" template` : ""}
         </p>
 
         <div className="mt-6">

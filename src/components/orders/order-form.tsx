@@ -28,6 +28,7 @@ function toCents(dollars: string): number {
 export function OrderForm({
   clientId,
   fromOrderId,
+  templateId,
   templateFields,
   initialServices,
   initialAdBudgetCents,
@@ -36,6 +37,7 @@ export function OrderForm({
 }: {
   clientId: string;
   fromOrderId?: string | null;
+  templateId?: string | null;
   templateFields: OrderTemplateField[];
   initialServices: Service[];
   initialAdBudgetCents: number | null;
@@ -84,6 +86,7 @@ export function OrderForm({
       body: JSON.stringify({
         title: title.trim() || null,
         fromOrderId: fromOrderId ?? null,
+        templateId: templateId ?? null,
         services: cleanedServices.map((s) => ({ name: s.name.trim(), feeCents: toCents(s.fee), status: s.status })),
         adBudgetCents: adBudget.trim() ? toCents(adBudget) : null,
         notes: notes.trim() || null,

@@ -6,7 +6,6 @@ import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createClientOrderSchema } from "@/lib/validations/client-order";
-import { getOrCreateOrderTemplate } from "@/app/api/order-template/route";
 import type { OrderTemplateField } from "@/lib/validations/order-template";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ clientId: string }> }) {
@@ -60,10 +59,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   let type: "ORDER" | "CHANGE_ORDER";
   let rootOrderId: string | null;
   let parentOrderId: string | null;
+  // The set of custom fields this document carries — either continuing the
+  // line being amended, or freshly resolved from the chosen template (or
+  // empty, for a blank start). Never trusts client-posted labels/types.
+  let templateFields: { key: string; label: string; type: OrderTemplateField["type"] }[];
+  let sourceTemplateName: string | null;
+
   if (parsed.data.fromOrderId) {
     const source = await prisma.clientOrder.findFirst({
       where: { id: parsed.data.fromOrderId, clientId },
-      select: { id: true, rootOrderId: true },
+      select: { id: true, rootOrderId: true, customFieldValues: true, sourceTemplateName: true },
     });
     if (!source) {
       return NextResponse.json({ error: "The order being amended could not be found." }, { status: 400 });
@@ -71,10 +76,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     type = "CHANGE_ORDER";
     rootOrderId = source.rootOrderId ?? source.id;
     parentOrderId = source.id;
+    // A Change Order continues its own line's existing field set — it
+    // doesn't re-pick a template, so renaming/editing other templates never
+    // affects an in-flight line.
+    templateFields = (source.customFieldValues as unknown as { key: string; label: string; type: OrderTemplateField["type"] }[]) ?? [];
+    sourceTemplateName = source.sourceTemplateName;
   } else {
     type = "ORDER";
     rootOrderId = null;
     parentOrderId = null;
+    if (parsed.data.templateId) {
+      const template = await prisma.orderTemplate.findUnique({ where: { id: parsed.data.templateId } });
+      if (!template) {
+        return NextResponse.json({ error: "That template could not be found." }, { status: 400 });
+      }
+      templateFields = template.customFields as unknown as OrderTemplateField[];
+      sourceTemplateName = template.name;
+    } else {
+      templateFields = [];
+      sourceTemplateName = null;
+    }
   }
 
   const latest = await prisma.clientOrder.aggregate({
@@ -83,12 +104,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   });
   const sequenceNumber = (latest._max.sequenceNumber ?? 0) + 1;
 
-  // Never trust client-posted field labels/types — resolve each posted value
-  // against the CURRENT template and freeze the whole {key,label,type,value}
-  // triple onto the document, so it renders correctly even after the shared
-  // template changes later.
-  const template = await getOrCreateOrderTemplate();
-  const templateFields = template.customFields as unknown as OrderTemplateField[];
   const postedValues = new Map((parsed.data.customFieldValues ?? []).map((v) => [v.key, v.value]));
   const customFieldValues = templateFields.map((field) => ({
     key: field.key,
@@ -109,6 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       adBudgetCents: parsed.data.adBudgetCents ?? null,
       notes: parsed.data.notes ?? null,
       customFieldValues,
+      sourceTemplateName,
       createdById: session.user.id,
     },
   });

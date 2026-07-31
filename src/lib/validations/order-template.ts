@@ -10,6 +10,10 @@ export const orderTemplateFieldSchema = z.object({
   required: z.boolean(),
 });
 
+export const createOrderTemplateSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80),
+});
+
 export const updateOrderTemplateSchema = z.object({
   customFields: z.array(orderTemplateFieldSchema).max(20),
 });

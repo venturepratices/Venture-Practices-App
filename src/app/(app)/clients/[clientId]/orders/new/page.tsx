@@ -4,8 +4,8 @@ import { ChevronLeft } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateOrderTemplate } from "@/app/api/order-template/route";
 import { OrderForm } from "@/components/orders/order-form";
+import { NewOrderStart } from "@/components/orders/new-order-start";
 import type { OrderTemplateField } from "@/lib/validations/order-template";
 import type { Service } from "@/lib/validations/client-order";
 
@@ -20,17 +20,16 @@ export default async function NewClientOrderPage({
   const { fromOrderId } = await searchParams;
   if (!(await canUseCapability("canManageOrders"))) notFound();
 
-  const [client, source, template] = await Promise.all([
+  const [client, source, templates] = await Promise.all([
     prisma.client.findUnique({ where: { id: clientId }, select: { id: true, name: true } }),
     fromOrderId ? prisma.clientOrder.findFirst({ where: { id: fromOrderId, clientId } }) : Promise.resolve(null),
-    getOrCreateOrderTemplate(),
+    fromOrderId ? Promise.resolve([]) : prisma.orderTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
   if (!client) notFound();
   // A fromOrderId was given but doesn't belong to this client — don't silently
   // fall through to a blank "new order" form for the wrong intent.
   if (fromOrderId && !source) notFound();
 
-  const templateFields = template.customFields as unknown as OrderTemplateField[];
   // Whether this is a Change Order is decided purely by whether a specific
   // source document was given — never by whether the client already has other
   // orders. That's what lets "Add Order" always start a brand-new, independent
@@ -51,17 +50,28 @@ export default async function NewClientOrderPage({
       </p>
 
       <div className="mt-6">
-        <OrderForm
-          clientId={clientId}
-          fromOrderId={fromOrderId ?? null}
-          templateFields={templateFields}
-          initialServices={(source?.services as unknown as Service[]) ?? []}
-          initialAdBudgetCents={source?.adBudgetCents ?? null}
-          initialNotes={source?.notes ?? ""}
-          initialCustomFieldValues={
-            (source?.customFieldValues as unknown as { key: string; value: string | null }[] | undefined) ?? []
-          }
-        />
+        {isChangeOrder ? (
+          <OrderForm
+            clientId={clientId}
+            fromOrderId={fromOrderId ?? null}
+            templateFields={(source!.customFieldValues as unknown as OrderTemplateField[] | undefined) ?? []}
+            initialServices={(source?.services as unknown as Service[]) ?? []}
+            initialAdBudgetCents={source?.adBudgetCents ?? null}
+            initialNotes={source?.notes ?? ""}
+            initialCustomFieldValues={
+              (source?.customFieldValues as unknown as { key: string; value: string | null }[] | undefined) ?? []
+            }
+          />
+        ) : (
+          <NewOrderStart
+            clientId={clientId}
+            templates={templates.map((t) => ({
+              id: t.id,
+              name: t.name,
+              customFields: t.customFields as unknown as OrderTemplateField[],
+            }))}
+          />
+        )}
       </div>
     </div>
   );
