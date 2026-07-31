@@ -23,21 +23,30 @@ async function assertCapabilityOrError(cap: Capability, clientId?: string): Prom
   }
 }
 
+// FormData.get() returns null for a field that isn't present in the DOM at
+// submit time (e.g. the collapsed "secondary contact" inputs) — Zod's
+// .optional() only accepts undefined, not null, so every optional field is
+// normalized here to avoid a false "expected string, received null" error.
+function text(formData: FormData, key: string): string | undefined {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : undefined;
+}
+
 function readClientFormData(formData: FormData) {
   return {
-    name: formData.get("name"),
-    status: formData.get("status"),
-    contactName: formData.get("contactName"),
-    contactEmail: formData.get("contactEmail"),
-    contactPhone: formData.get("contactPhone"),
-    secondaryContactName: formData.get("secondaryContactName"),
-    secondaryContactEmail: formData.get("secondaryContactEmail"),
-    secondaryContactPhone: formData.get("secondaryContactPhone"),
-    website: formData.get("website"),
-    address: formData.get("address"),
-    about: formData.get("about"),
-    source: formData.get("source"),
-    slackChannelId: formData.get("slackChannelId"),
+    name: text(formData, "name"),
+    status: text(formData, "status"),
+    contactName: text(formData, "contactName"),
+    contactEmail: text(formData, "contactEmail"),
+    contactPhone: text(formData, "contactPhone"),
+    secondaryContactName: text(formData, "secondaryContactName"),
+    secondaryContactEmail: text(formData, "secondaryContactEmail"),
+    secondaryContactPhone: text(formData, "secondaryContactPhone"),
+    website: text(formData, "website"),
+    address: text(formData, "address"),
+    about: text(formData, "about"),
+    source: text(formData, "source"),
+    slackChannelId: text(formData, "slackChannelId"),
   };
 }
 
