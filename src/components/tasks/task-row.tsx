@@ -79,7 +79,7 @@ export function TaskListHeader({
           ) : null}
         </span>
       ))}
-      <span className="min-w-0 justify-self-end">Status</span>
+      <span className="min-w-0 justify-self-start">Status</span>
     </div>
   );
 }
@@ -202,7 +202,7 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
           {formatDate(task.createdAt)}
         </span>
       ) : null}
-      <span onClick={(e) => e.stopPropagation()} className="min-w-0 justify-self-end">
+      <span onClick={(e) => e.stopPropagation()} className="min-w-0 justify-self-start">
         <Select value={task.status} onValueChange={updateStatus}>
           <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">
             <SelectValue>{(status: string) => <StatusPill status={status} />}</SelectValue>
