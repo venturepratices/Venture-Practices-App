@@ -30,7 +30,6 @@ export default async function ClientOrderDetailPage({
   const services = order.services as unknown as Service[];
   const customFieldValues = order.customFieldValues as unknown as { key: string; label: string; value: string | null }[];
   const activeTotalCents = services.filter((s) => s.status === "ACTIVE").reduce((sum, s) => sum + s.feeCents, 0);
-  const docLabel = order.type === "ORDER" ? `Order #${order.sequenceNumber}` : `Change Order #${order.sequenceNumber}`;
 
   return (
     <div className="max-w-2xl">
@@ -42,9 +41,10 @@ export default async function ClientOrderDetailPage({
       <div className="mt-4 rounded-lg border p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">{docLabel}</h2>
-            <p className="text-sm text-muted-foreground">{order.client.name}</p>
-            {order.title ? <p className="mt-1 text-sm font-medium">{order.title}</p> : null}
+            <h2 className="text-xl font-semibold">{order.title || "Untitled order"}</h2>
+            <p className="text-sm text-muted-foreground">
+              {order.client.name} · Order No. {order.sequenceNumber}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button

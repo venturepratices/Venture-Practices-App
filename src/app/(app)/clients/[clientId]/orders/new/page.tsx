@@ -50,8 +50,8 @@ export default async function NewClientOrderPage({
       <p className="mt-1 text-sm text-muted-foreground">
         {isChangeOrder
           ? isFromPastDocument
-            ? `Amends the client's current Order #${latest?.sequenceNumber} with a new full snapshot — pre-filled from Order #${source?.sequenceNumber}, not the latest.`
-            : `Amends the client's current Order #${latest?.sequenceNumber} with a new full snapshot — pre-filled from the latest document.`
+            ? `Amends the client's current order (No. ${latest?.sequenceNumber}) with a new full snapshot — pre-filled from order No. ${source?.sequenceNumber}, not the latest.`
+            : `Amends the client's current order (No. ${latest?.sequenceNumber}) with a new full snapshot — pre-filled from the latest document.`
           : "The first Order document for this client — services, fees, ad budget, and notes."}
       </p>
 
