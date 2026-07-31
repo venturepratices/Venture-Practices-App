@@ -60,6 +60,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tas
   if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  // Same client-access check PATCH/DELETE already have — without it, a
+  // Member scoped to specific clients could read any task's full detail by
+  // id, including for a client they have no access to.
+  if (task.clientId) {
+    try {
+      await requireClientAccess(task.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  }
 
   return NextResponse.json(task);
 }
