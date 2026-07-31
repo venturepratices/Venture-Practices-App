@@ -12,6 +12,9 @@ export const PLANNING_STATUS_LABELS: Record<string, string> = {
 export const createPlanningItemSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().trim().max(4000).nullable().optional(),
+  // Only the two real starting points make sense at creation time — moving to
+  // a task or archiving is a deliberate action taken later, not a way to add one.
+  status: z.enum(["IDEA", "STRATEGY"]).optional(),
 });
 
 export const updatePlanningItemSchema = z.object({

@@ -31,6 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       clientId,
       title: parsed.data.title,
       description: parsed.data.description ?? null,
+      status: parsed.data.status ?? "IDEA",
       createdById: session.user.id,
     },
     include: { createdBy: { select: { id: true, name: true } } },

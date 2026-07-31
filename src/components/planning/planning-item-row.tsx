@@ -8,7 +8,7 @@ import { ArrowRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialog";
-import { PLANNING_STATUS_LABELS } from "@/lib/validations/planning";
+import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
 import { formatDate } from "@/lib/utils";
 
 type PlanningItem = {
@@ -89,7 +89,7 @@ export function PlanningItemRow({
           <>
             <Select value={item.status} onValueChange={handleSelect}>
               <SelectTrigger className="w-[150px]">
-                <SelectValue>{(value: string) => PLANNING_STATUS_LABELS[value] ?? value}</SelectValue>
+                <SelectValue>{(value: string) => <PlanningStatusPill status={value} />}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="IDEA">Idea</SelectItem>
@@ -103,7 +103,7 @@ export function PlanningItemRow({
             </Button>
           </>
         ) : (
-          <span className="text-xs font-medium text-muted-foreground">{PLANNING_STATUS_LABELS[item.status] ?? item.status}</span>
+          <PlanningStatusPill status={item.status} />
         )}
       </div>
 
