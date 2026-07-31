@@ -271,7 +271,7 @@ export async function writeBackupToBlob(
  * forever. No-op (returns 0) when the Blob token is absent.
  */
 export async function pruneOldBackups(
-  retentionDays = 30,
+  retentionDays = 365,
   now: Date = new Date(),
 ): Promise<number> {
   if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {

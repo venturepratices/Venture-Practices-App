@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   try {
     const snapshot = await createDatabaseSnapshot(now);
     const { written, pathname } = await writeBackupToBlob(snapshot, dateKey);
-    const pruned = await pruneOldBackups(30, now);
+    const pruned = await pruneOldBackups(365, now);
 
     return NextResponse.json({
       ok: true,

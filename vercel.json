@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/task-due-soon",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/storage-check",
+      "schedule": "0 5 1 * *"
     }
   ]
 }
