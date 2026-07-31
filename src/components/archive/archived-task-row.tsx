@@ -34,7 +34,7 @@ export function ArchivedTaskRow({ task }: Props) {
       }}
       className={cn(
         ARCHIVE_GRID,
-        "w-full cursor-pointer animate-in items-center px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
+        "w-full min-w-0 cursor-pointer animate-in items-center px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
       )}
     >
       <span className="min-w-0">
@@ -43,10 +43,10 @@ export function ArchivedTaskRow({ task }: Props) {
           {[task.clientName ?? "Internal", assigneeNames].join(" · ")}
         </span>
       </span>
-      <span className="hidden truncate text-muted-foreground md:block">{task.clientName ?? "Internal"}</span>
-      <span className="hidden truncate text-muted-foreground md:block">{assigneeNames}</span>
-      <StatusPill status={task.status} className="justify-self-start" />
-      <span className="hidden justify-self-end text-right text-xs text-muted-foreground md:block">
+      <span className="hidden min-w-0 truncate text-muted-foreground md:block">{task.clientName ?? "Internal"}</span>
+      <span className="hidden min-w-0 truncate text-muted-foreground md:block">{assigneeNames}</span>
+      <StatusPill status={task.status} className="min-w-0 justify-self-start" />
+      <span className="hidden min-w-0 justify-self-end truncate text-right text-xs text-muted-foreground md:block">
         Deleted {formatDateTime(task.deletedAt)}
         {task.deletedBy ? ` by ${task.deletedBy.name}` : ""}
       </span>

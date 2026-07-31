@@ -60,7 +60,7 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
       href={`/clients/${clientId}/assets/${asset.id}`}
       className={cn(
         ASSET_ROW_GRID,
-        "w-full animate-in items-center px-3 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
+        "w-full min-w-0 animate-in items-center px-3 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
       )}
     >
       <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
@@ -92,20 +92,20 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
         </p>
       </div>
 
-      <AssetStatusPill status={asset.status} className="justify-self-start" />
+      <AssetStatusPill status={asset.status} className="min-w-0 justify-self-start" />
 
-      <span className="hidden truncate text-xs text-muted-foreground md:block">{KIND_LABELS[kind]}</span>
+      <span className="hidden min-w-0 truncate text-xs text-muted-foreground md:block">{KIND_LABELS[kind]}</span>
 
-      <span className="hidden truncate text-xs text-muted-foreground md:block">
+      <span className="hidden min-w-0 truncate text-xs text-muted-foreground md:block">
         v{asset.currentVersion?.versionNumber ?? 1}
         {asset.versionCount > 1 ? ` (${asset.versionCount})` : ""}
       </span>
 
-      <span className="hidden text-xs md:block">
+      <span className="hidden min-w-0 truncate text-xs md:block">
         {asset.changesRequested ? (
           <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400">
-            <AlertTriangle className="size-3.5" />
-            Changes requested
+            <AlertTriangle className="size-3.5 shrink-0" />
+            <span className="truncate">Changes requested</span>
           </span>
         ) : asset.reviewerCount > 0 ? (
           <span className="text-muted-foreground">
@@ -116,7 +116,7 @@ export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRo
         )}
       </span>
 
-      <span className="hidden justify-self-end text-right text-xs text-muted-foreground md:block">
+      <span className="hidden min-w-0 justify-self-end truncate text-right text-xs text-muted-foreground md:block">
         {asset.dueDate ? `Due ${formatDate(asset.dueDate)}` : "—"}
       </span>
     </Link>

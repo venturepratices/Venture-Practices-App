@@ -1,15 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Archive, CheckCircle2, Lightbulb } from "lucide-react";
+import { Archive, CheckCircle2 } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
-import { EmptyState } from "@/components/ui/empty-state";
 import { NewPlanningItemForm } from "@/components/planning/new-planning-item-form";
-import { PlanningItemRow, PlanningListHeader } from "@/components/planning/planning-item-row";
+import { PlanningIdeasList } from "@/components/planning/planning-ideas-list";
 import { PlanningItemDetailPanel } from "@/components/planning/planning-item-detail-panel";
 import { PlanningFilters } from "@/components/planning/planning-filters";
 import { PlanningFolderSidebar } from "@/components/planning/planning-folder-sidebar";
@@ -133,18 +132,15 @@ export default async function PlanningPage({
         ) : null}
 
         <div className="min-w-0 flex-1 rounded-lg border">
-          {items.length === 0 ? (
-            <EmptyState icon={tab === "archive" ? Archive : tab === "converted" ? CheckCircle2 : Lightbulb} title={emptyLabel} />
-          ) : (
-            <>
-              <PlanningListHeader />
-              <div className="divide-y">
-                {items.map((item) => (
-                  <PlanningItemRow key={item.id} clientId={clientId} item={item} teamMembers={teamMembers} canManage={canManage} folders={folderItems} />
-                ))}
-              </div>
-            </>
-          )}
+          <PlanningIdeasList
+            clientId={clientId}
+            items={items}
+            teamMembers={teamMembers}
+            canManage={canManage}
+            folders={folderItems}
+            tab={tab}
+            emptyLabel={emptyLabel}
+          />
         </div>
       </div>
 

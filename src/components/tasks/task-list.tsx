@@ -5,9 +5,11 @@ import { useState } from "react";
 import { ListChecks, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ColumnVisibilityMenu } from "@/components/ui/column-visibility-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
-import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
+import { TaskListHeader, TaskRow, taskColumnsFor } from "@/components/tasks/task-row";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import type { TaskWithRelations } from "@/types/task";
 
 type Props = {
@@ -23,6 +25,11 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isArchiving, setIsArchiving] = useState(false);
+  const columns = taskColumnsFor(showClientColumn);
+  const { visible: visibleColumns, toggle: toggleColumn } = useColumnVisibility(
+    "taskListColumns",
+    columns.map((c) => c.key)
+  );
 
   function toggleSelect(taskId: string) {
     setSelected((prev) => {
@@ -47,14 +54,17 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
 
   return (
     <div className="rounded-lg border">
-      <div className="border-b px-3 py-2.5">
-        <NewTaskInput
-          clientId={newTaskDefaults.clientId}
-          assigneeId={newTaskDefaults.assigneeId}
-          lockClient={lockClient}
-          clients={clients}
-          teamMembers={teamMembers}
-        />
+      <div className="flex items-start justify-between gap-3 border-b px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <NewTaskInput
+            clientId={newTaskDefaults.clientId}
+            assigneeId={newTaskDefaults.assigneeId}
+            lockClient={lockClient}
+            clients={clients}
+            teamMembers={teamMembers}
+          />
+        </div>
+        <ColumnVisibilityMenu columns={columns} visible={visibleColumns} onToggle={toggleColumn} />
       </div>
 
       {selected.size > 0 ? (
@@ -76,12 +86,13 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
         <EmptyState icon={ListChecks} title="No tasks yet." className="py-6" />
       ) : (
         <div className="divide-y">
-          <TaskListHeader showClient={showClientColumn} />
+          <TaskListHeader showClient={showClientColumn} visibleColumns={visibleColumns} />
           {tasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
               showClient={showClientColumn}
+              visibleColumns={visibleColumns}
               selectable
               selected={selected.has(task.id)}
               onToggleSelect={toggleSelect}

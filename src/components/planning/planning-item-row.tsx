@@ -11,22 +11,39 @@ import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialo
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
 import { cn, formatDate } from "@/lib/utils";
 
-export function planningRowGridClass() {
-  return "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_140px_110px_auto]";
+const OPTIONAL_COLUMNS: { key: string; label: string; width: string }[] = [
+  { key: "createdBy", label: "Created by", width: "140px" },
+  { key: "dateCreated", label: "Date created", width: "110px" },
+];
+
+export const PLANNING_COLUMN_KEYS = OPTIONAL_COLUMNS.map((c) => c.key);
+export const PLANNING_COLUMNS = OPTIONAL_COLUMNS;
+
+// Same "grid template via CSS variable" trick as task-row.tsx — column
+// visibility is a runtime (localStorage) preference, so Tailwind can't have
+// pre-generated a class for every combination at build time.
+function gridTemplateVar(visible?: Set<string>) {
+  const cols = OPTIONAL_COLUMNS.filter((c) => !visible || visible.has(c.key));
+  const template = ["minmax(0,1fr)", ...cols.map((c) => c.width), "auto"].join(" ");
+  return { "--planning-grid-cols": template } as React.CSSProperties;
 }
 
-export function PlanningListHeader() {
+const GRID_CLASS = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:[grid-template-columns:var(--planning-grid-cols)]";
+
+export function PlanningListHeader({ visibleColumns }: { visibleColumns?: Set<string> }) {
+  const columns = OPTIONAL_COLUMNS.filter((c) => !visibleColumns || visibleColumns.has(c.key));
   return (
     <div
-      className={cn(
-        planningRowGridClass(),
-        "w-full border-b px-4 py-2 text-xs font-medium tracking-wide text-muted-foreground"
-      )}
+      style={gridTemplateVar(visibleColumns)}
+      className={cn(GRID_CLASS, "w-full min-w-0 border-b px-4 py-2.5 text-xs font-bold tracking-wide text-foreground")}
     >
-      <span>Idea</span>
-      <span className="hidden md:block">Created by</span>
-      <span className="hidden md:block">Date created</span>
-      <span className="justify-self-end">Status</span>
+      <span className="min-w-0">Idea title</span>
+      {columns.map((col) => (
+        <span key={col.key} className="hidden min-w-0 truncate md:block">
+          {col.label}
+        </span>
+      ))}
+      <span className="min-w-0 justify-self-end">Status</span>
     </div>
   );
 }
@@ -48,17 +65,20 @@ export function PlanningItemRow({
   teamMembers,
   canManage,
   folders,
+  visibleColumns,
 }: {
   clientId: string;
   item: PlanningItem;
   teamMembers: { id: string; name: string }[];
   canManage: boolean;
   folders?: { id: string; name: string }[];
+  visibleColumns?: Set<string>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [showConvert, setShowConvert] = useState(false);
+  const isVisible = (key: string) => !visibleColumns || visibleColumns.has(key);
 
   function openIdea() {
     const params = new URLSearchParams(searchParams.toString());
@@ -111,22 +131,27 @@ export function PlanningItemRow({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") openIdea();
       }}
-      className={cn(planningRowGridClass(), "w-full cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-muted")}
+      style={gridTemplateVar(visibleColumns)}
+      className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-muted")}
     >
       <div className="min-w-0">
         <p className="truncate font-medium">{item.title}</p>
         {item.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.description}</p> : null}
-        <p className="mt-1 text-xs text-muted-foreground md:hidden">
+        <p className="mt-1 truncate text-xs text-muted-foreground md:hidden">
           {[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
             .filter(Boolean)
             .join(" · ")}
         </p>
       </div>
 
-      <span className="hidden truncate text-muted-foreground md:block">{item.createdBy?.name ?? "—"}</span>
-      <span className="hidden whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>
+      {isVisible("createdBy") ? (
+        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{item.createdBy?.name ?? "—"}</span>
+      ) : null}
+      {isVisible("dateCreated") ? (
+        <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>
+      ) : null}
 
-      <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2 justify-self-end">
+      <div onClick={(e) => e.stopPropagation()} className="flex min-w-0 shrink-0 items-center gap-2 justify-self-end">
         {canManage && folders && folders.length > 0 ? (
           <Select value={item.folderId ?? "NONE"} onValueChange={(value) => setFolder(value === "NONE" ? null : value)}>
             <SelectTrigger className="w-[36px] justify-center px-0" aria-label="Move to folder">
