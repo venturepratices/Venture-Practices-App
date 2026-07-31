@@ -622,6 +622,13 @@ model ClientOrder {
   // amends it. Multiple order lines can be simultaneously active per client —
   // creating a brand-new Order never touches another line's root/rootOrderId.
   rootOrderId       String?
+  // The exact document this one was created FROM (the Change Order flow's
+  // fromOrderId) — null on the root. Distinct from rootOrderId: a Change
+  // Order can be based on any past document in its line, not only the
+  // latest, so the immediate parent isn't always the same as the root.
+  // Lets the UI show "amended from X" and walk the version chain, without
+  // relying on a user-facing sequence number that jumps between order lines.
+  parentOrderId     String?
   title             String?
   services          Json
   adBudgetCents     Int?
@@ -634,6 +641,7 @@ model ClientOrder {
   @@unique([clientId, sequenceNumber])
   @@index([clientId])
   @@index([rootOrderId])
+  @@index([parentOrderId])
 }
 
 // A structured, per-meeting record distinct from ClientNote's free-text log:

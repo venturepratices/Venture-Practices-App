@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DollarSign, FileText } from "lucide-react";
+import { CornerDownRight, DollarSign, FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -8,7 +8,8 @@ import type { Service } from "@/lib/validations/client-order";
 type OrderListItem = {
   id: string;
   type: "ORDER" | "CHANGE_ORDER";
-  sequenceNumber: number;
+  parentOrderId: string | null;
+  parentTitle: string | null;
   title: string | null;
   services: unknown;
   adBudgetCents: number | null;
@@ -20,7 +21,7 @@ function totalActiveCents(services: unknown) {
   return list.filter((s) => s.status === "ACTIVE").reduce((sum, s) => sum + s.feeCents, 0);
 }
 
-const GRID = "grid grid-cols-[minmax(0,1fr)_60px] items-center gap-3 md:grid-cols-[minmax(0,1fr)_60px_130px_130px_130px_120px]";
+const GRID = "grid grid-cols-[minmax(0,1fr)_140px] items-center gap-3 md:grid-cols-[minmax(0,1fr)_160px_130px_130px_130px_120px]";
 
 export function OrderList({
   clientId,
@@ -41,7 +42,7 @@ export function OrderList({
     <div className="rounded-lg border">
       <div className={`${GRID} border-b px-3 py-2.5 text-xs font-bold tracking-wide text-foreground`}>
         <span>Title</span>
-        <span>No.</span>
+        <span>Parent order</span>
         <span className="hidden md:block">Date created</span>
         <span className="hidden md:block">Date changed</span>
         <span className="hidden md:block">Total amount</span>
@@ -65,6 +66,7 @@ export function OrderList({
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
                   {[
+                    order.parentTitle ? `From "${order.parentTitle}"` : null,
                     order.type === "ORDER" ? `Created ${formatDate(order.createdAt)}` : `Changed ${formatDate(order.createdAt)}`,
                     `${formatCurrency(totalCents)}/mo`,
                     order.adBudgetCents != null ? `Ad budget ${formatCurrency(order.adBudgetCents)}` : null,
@@ -73,7 +75,16 @@ export function OrderList({
                     .join(" · ")}
                 </span>
               </span>
-              <span className="text-muted-foreground">#{order.sequenceNumber}</span>
+              <span className="min-w-0 truncate text-muted-foreground">
+                {order.parentTitle ? (
+                  <span className="flex items-center gap-1" title={order.parentTitle}>
+                    <CornerDownRight className="size-3.5 shrink-0" />
+                    <span className="truncate">{order.parentTitle}</span>
+                  </span>
+                ) : (
+                  "Original"
+                )}
+              </span>
               <span className="hidden truncate text-muted-foreground md:block">
                 {order.type === "ORDER" ? formatDate(order.createdAt) : "—"}
               </span>

@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Download, FilePlus2 } from "lucide-react";
+import { ChevronLeft, CornerDownRight, Download, FilePlus2 } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import type { Service } from "@/lib/validations/client-order";
@@ -27,6 +27,16 @@ export default async function ClientOrderDetailPage({
   });
   if (!order) notFound();
 
+  // Every document that shares this order's lineage (the root plus every
+  // Change Order made against it), so the whole version history can be
+  // walked from any point in the chain — not just forward from the root.
+  const rootId = order.rootOrderId ?? order.id;
+  const history = await prisma.clientOrder.findMany({
+    where: { clientId, OR: [{ id: rootId }, { rootOrderId: rootId }] },
+    orderBy: { sequenceNumber: "asc" },
+  });
+  const parent = order.parentOrderId ? history.find((h) => h.id === order.parentOrderId) : null;
+
   const services = order.services as unknown as Service[];
   const customFieldValues = order.customFieldValues as unknown as { key: string; label: string; value: string | null }[];
   const activeTotalCents = services.filter((s) => s.status === "ACTIVE").reduce((sum, s) => sum + s.feeCents, 0);
@@ -42,9 +52,16 @@ export default async function ClientOrderDetailPage({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{order.title || "Untitled order"}</h2>
-            <p className="text-sm text-muted-foreground">
-              {order.client.name} · Order No. {order.sequenceNumber}
-            </p>
+            <p className="text-sm text-muted-foreground">{order.client.name}</p>
+            {parent ? (
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <CornerDownRight className="size-3 shrink-0" />
+                Amended from{" "}
+                <Link href={`/clients/${clientId}/orders/${parent.id}`} className="text-primary underline-offset-4 hover:underline">
+                  {parent.title || "Untitled order"}
+                </Link>
+              </p>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
@@ -114,6 +131,41 @@ export default async function ClientOrderDetailPage({
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Notes</p>
             <p className="mt-1 whitespace-pre-wrap text-sm">{order.notes}</p>
+          </div>
+        ) : null}
+
+        {history.length > 1 ? (
+          <div className="mt-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Version history</p>
+            <div className="mt-2 divide-y rounded-lg border">
+              {history.map((doc, i) => {
+                const isCurrentView = doc.id === order.id;
+                const isLatest = i === history.length - 1;
+                return (
+                  <Link
+                    key={doc.id}
+                    href={`/clients/${clientId}/orders/${doc.id}`}
+                    className={cn(
+                      "flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors hover:bg-muted",
+                      isCurrentView && "bg-muted/60"
+                    )}
+                  >
+                    <span className="min-w-0 truncate">
+                      {doc.title || "Untitled order"}
+                      {isCurrentView ? <span className="ml-2 text-xs text-muted-foreground">(viewing)</span> : null}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isLatest ? (
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                          Current
+                        </span>
+                      ) : null}
+                      <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(doc.createdAt)}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         ) : null}
       </div>

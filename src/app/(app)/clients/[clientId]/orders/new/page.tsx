@@ -46,7 +46,7 @@ export default async function NewClientOrderPage({
       <h2 className="mt-2 text-lg font-semibold">{isChangeOrder ? "New Change Order" : "New Order"}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {isChangeOrder
-          ? `Amends order No. ${source!.sequenceNumber} with a new full snapshot for that order line — other active orders for this client are unaffected.`
+          ? `Amends "${source!.title || "Untitled order"}" with a new full snapshot for that order line — other active orders for this client are unaffected.`
           : "Creates a new, independent order for this client — any existing active orders are left exactly as they are."}
       </p>
 

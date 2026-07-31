@@ -59,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   // touches another line's root.
   let type: "ORDER" | "CHANGE_ORDER";
   let rootOrderId: string | null;
+  let parentOrderId: string | null;
   if (parsed.data.fromOrderId) {
     const source = await prisma.clientOrder.findFirst({
       where: { id: parsed.data.fromOrderId, clientId },
@@ -69,9 +70,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     }
     type = "CHANGE_ORDER";
     rootOrderId = source.rootOrderId ?? source.id;
+    parentOrderId = source.id;
   } else {
     type = "ORDER";
     rootOrderId = null;
+    parentOrderId = null;
   }
 
   const latest = await prisma.clientOrder.aggregate({
@@ -100,6 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       type,
       sequenceNumber,
       rootOrderId,
+      parentOrderId,
       title: parsed.data.title ?? null,
       services: parsed.data.services,
       adBudgetCents: parsed.data.adBudgetCents ?? null,
@@ -109,7 +113,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     },
   });
 
-  const docLabel = order.title ? `"${order.title}" (No. ${sequenceNumber})` : `order No. ${sequenceNumber}`;
+  const docLabel = order.title ? `"${order.title}"` : type === "ORDER" ? "a new order" : "a change order";
   const linkPath = `/clients/${clientId}/orders/${order.id}`;
 
   await logActivity({

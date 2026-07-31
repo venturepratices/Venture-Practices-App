@@ -35,6 +35,16 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
     .flatMap((docs) => docs.slice(1))
     .sort((a, b) => b.sequenceNumber - a.sequenceNumber);
 
+  // Resolve each document's parent (the exact document it was amended from)
+  // to a title so the list can show "amended from X" instead of a sequence
+  // number, which jumps around once a client has more than one order line.
+  const titleById = new Map(orders.map((o) => [o.id, o.title]));
+  const withParentTitle = (docs: typeof orders) =>
+    docs.map((o) => ({
+      ...o,
+      parentTitle: o.parentOrderId ? titleById.get(o.parentOrderId) ?? "Untitled order" : null,
+    }));
+
   const activeServices = activeOrders.flatMap((o) => (o.services as unknown as Service[]) ?? []).filter((s) => s.status === "ACTIVE");
   const totalMonthlyCents = activeServices.reduce((sum, s) => sum + s.feeCents, 0);
   const totalAdBudgetCents = activeOrders.reduce((sum, o) => sum + (o.adBudgetCents ?? 0), 0);
@@ -78,7 +88,7 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Active orders</p>
         <OrderList
           clientId={clientId}
-          orders={activeOrders}
+          orders={withParentTitle(activeOrders)}
           emptyTitle="No active orders yet."
           emptyDescription="Create the first Order to record this client's services, fees, and ad budget."
         />
@@ -88,7 +98,7 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Previous orders</p>
         <OrderList
           clientId={clientId}
-          orders={previousOrders}
+          orders={withParentTitle(previousOrders)}
           emptyTitle="No previous orders."
           emptyDescription="Superseded documents will show up here once an active order gets a Change Order."
         />
