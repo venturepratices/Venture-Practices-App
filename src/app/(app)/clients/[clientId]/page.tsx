@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
+import { DeleteClientDialog } from "@/components/clients/delete-client-dialog";
 import { ClientUsersSection } from "@/components/clients/client-users-section";
 import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
 
@@ -53,6 +54,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const canManageHighLevel = await canUseCapability("canManageHighLevel");
   const canManageClientUsers = await canUseCapability("canManageClientUsers");
   const canViewDirectMail = await canUseCapability("canViewDirectMail");
+  const canDeleteClient = await canUseCapability("canDeleteClients");
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasSecondaryContact = client.secondaryContactName || client.secondaryContactEmail || client.secondaryContactPhone;
@@ -164,6 +166,18 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
               : null
           }
         />
+      ) : null}
+
+      {canDeleteClient ? (
+        <div className="space-y-3 rounded-lg border border-destructive/30 p-4">
+          <div>
+            <p className="text-sm font-medium text-destructive">Danger zone</p>
+            <p className="text-sm text-muted-foreground">
+              Permanently delete this client and everything attached to it. This cannot be undone from the app.
+            </p>
+          </div>
+          <DeleteClientDialog clientId={client.id} clientName={client.name} />
+        </div>
       ) : null}
     </div>
   );
