@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { History } from "lucide-react";
+import { ChevronLeft, ChevronRight, History } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { canUseCapability } from "@/lib/permissions";
@@ -7,7 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
 import { InfoTip } from "@/components/info-tip";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+
+const PAGE_SIZE = 100;
 
 type SearchParams = {
   q?: string;
@@ -16,6 +20,7 @@ type SearchParams = {
   range?: string;
   from?: string;
   to?: string;
+  page?: string;
 };
 
 function rangeStart(range?: string): Date | null {
@@ -55,14 +60,35 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     if (start) where.createdAt = { gte: start };
   }
 
-  const [entries, teamMembers] = await Promise.all([
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+
+  const [entries, totalCount, teamMembers] = await Promise.all([
     prisma.activityLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: 150,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.activityLog.count({ where }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const rangeStartIndex = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEndIndex = Math.min(page * PAGE_SIZE, totalCount);
+
+  function pageHref(targetPage: number): string {
+    const query = new URLSearchParams();
+    if (params.q) query.set("q", params.q);
+    if (params.actorId) query.set("actorId", params.actorId);
+    if (params.entityType) query.set("entityType", params.entityType);
+    if (params.range) query.set("range", params.range);
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    if (targetPage > 1) query.set("page", String(targetPage));
+    const qs = query.toString();
+    return qs ? `/activity?${qs}` : "/activity";
+  }
 
   const hasFilters = Boolean(params.q || params.actorId || params.entityType || params.range || params.from || params.to);
 
@@ -97,6 +123,32 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
           ))
         )}
       </div>
+
+      {totalCount > 0 ? (
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">
+            Showing {rangeStartIndex}–{rangeEndIndex} of {totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} render={<Link href={pageHref(page - 1)} scroll={false} />}>
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              render={<Link href={pageHref(page + 1)} scroll={false} />}
+            >
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

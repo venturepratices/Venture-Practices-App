@@ -43,6 +43,7 @@ export function ActivityFilters({ teamMembers }: Props) {
     if (!value || value === ALL) params.delete(key);
     else params.set(key, value);
     for (const clearKey of clearKeys) params.delete(clearKey);
+    params.delete("page"); // any filter change invalidates the current page position
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }

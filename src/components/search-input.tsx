@@ -41,6 +41,7 @@ export function SearchInput({ placeholder, className }: Props) {
     const params = new URLSearchParams(searchParams.toString());
     if (next.trim()) params.set("q", next.trim());
     else params.delete("q");
+    params.delete("page"); // a new search invalidates the current page position
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }

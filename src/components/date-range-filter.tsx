@@ -29,6 +29,7 @@ export function DateRangeFilter({ label, fromKey, toKey, clearKeys = [] }: Props
     if (!value) params.delete(key);
     else params.set(key, value);
     for (const clearKey of clearKeys) params.delete(clearKey);
+    params.delete("page"); // a new date range invalidates the current page position
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
