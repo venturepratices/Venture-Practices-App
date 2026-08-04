@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       entityType: "WorkflowInstance",
       entityId: instance.id,
       entityLabel: instanceLabel,
+      clientId,
       action: "workflow_started",
       description: `${session.user.name ?? "Someone"} started "${instanceLabel}" from scratch (no template)`,
     });
@@ -160,6 +161,7 @@ export async function POST(request: Request) {
     entityType: "WorkflowInstance",
     entityId: instance.id,
     entityLabel: instanceLabel,
+    clientId,
     action: "workflow_started",
     description: `${session.user.name ?? "Someone"} started "${instanceLabel}" from template "${template.name}" — ${stagesSnapshot.length} stages, ${taskCount} tasks`,
   });

@@ -61,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cr
     entityType: "Client",
     entityId: existing.clientId,
     entityLabel: existing.client.name,
+    clientId: existing.clientId,
     action: "credential_updated",
     description: `${session.user.name ?? "Someone"} updated the credential "${credential.label}" for "${existing.client.name}"${parsed.data.password ? " (password rotated)" : ""}`,
   });
@@ -99,6 +100,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       entityType: "Client",
       entityId: existing.clientId,
       entityLabel: existing.client.name,
+      clientId: existing.clientId,
       action: "credential_removed",
       description: `${session.user.name ?? "Someone"} removed the credential "${existing.label}" from "${existing.client.name}"`,
     });

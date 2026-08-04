@@ -118,6 +118,7 @@ export async function POST(
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
+    clientId: asset.clientId,
     action: "asset_commented",
     description: `${actor.actorName ?? "Someone"} commented on asset "${asset.title}"`,
   });

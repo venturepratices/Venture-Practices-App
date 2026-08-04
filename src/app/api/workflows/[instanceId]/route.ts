@@ -95,6 +95,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ in
     entityType: "WorkflowInstance",
     entityId: instanceId,
     entityLabel: instance.name,
+    clientId: instance.clientId,
     action: "moved_to_folder",
     description: folderName
       ? `${session.user.name ?? "Someone"} moved "${instance.name}" to the "${folderName}" folder`
@@ -113,7 +114,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { instanceId } = await params;
   const instance = await prisma.workflowInstance.findUnique({
     where: { id: instanceId },
-    include: { client: { select: { name: true } }, tasks: { select: { id: true, title: true } } },
+    include: { client: { select: { name: true } }, tasks: { select: { id: true, title: true, clientId: true } } },
   });
   if (!instance) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -140,6 +141,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       entityType: "Task",
       entityId: task.id,
       entityLabel: task.title,
+      clientId: task.clientId,
       action: "archived",
       description: `${session.user.name ?? "Someone"} archived task "${task.title}"`,
     });
@@ -154,6 +156,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "WorkflowInstance",
     entityId: instanceId,
     entityLabel: instanceLabel,
+    clientId: instance.clientId,
     action: "workflow_deleted",
     description: `${session.user.name ?? "Someone"} deleted project "${instanceLabel}" and archived its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
   });

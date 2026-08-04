@@ -220,6 +220,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         entityType: "Task",
         entityId: task.id,
         entityLabel: task.title,
+        clientId: task.clientId,
         action: "updated",
         description: `${session.user.name ?? "Someone"} updated "${task.title}": ${changes.join(", ")}`,
       });
@@ -234,6 +235,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityType: "Task",
           entityId: next.id,
           entityLabel: next.title,
+          clientId: next.clientId,
           action: "created",
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
@@ -301,6 +303,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       entityType: "Task",
       entityId: taskId,
       entityLabel: task.title,
+      clientId: task.clientId,
       action: "deleted",
       description: `${session.user.name ?? "Someone"} archived task "${task.title}"`,
     });

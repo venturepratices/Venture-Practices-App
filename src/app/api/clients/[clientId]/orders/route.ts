@@ -138,6 +138,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client.name,
+    clientId,
     action: type === "ORDER" ? "order_added" : "order_changed",
     description: `${session.user.name ?? "Someone"} created ${docLabel} for "${client.name}"`,
   });

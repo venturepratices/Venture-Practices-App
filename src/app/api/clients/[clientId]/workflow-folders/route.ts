@@ -59,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "workflow_folder_created",
     description: `${session.user.name ?? "Someone"} created the project folder "${folder.name}" on "${client?.name ?? "a client"}"`,
   });

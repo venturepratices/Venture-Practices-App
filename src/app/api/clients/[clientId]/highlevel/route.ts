@@ -94,6 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "highlevel_connected",
     description: `${session.user.name ?? "Someone"} connected HighLevel for "${client?.name ?? "a client"}"`,
   });
@@ -132,6 +133,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "highlevel_disconnected",
     description: `${session.user.name ?? "Someone"} disconnected HighLevel for "${client?.name ?? "a client"}"`,
   });

@@ -52,6 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ as
       entityType: "Asset",
       entityId: assetId,
       entityLabel: asset.title,
+      clientId: asset.clientId,
       action: parsed.data.action === "archive" ? "archived" : "reopened",
       description: `${session.user.name ?? "Someone"} ${parsed.data.action === "archive" ? "archived" : "reopened"} "${asset.title}"`,
     });
@@ -78,6 +79,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ as
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
+    clientId: asset.clientId,
     action: "moved_to_folder",
     description: folderName
       ? `${session.user.name ?? "Someone"} moved "${asset.title}" to the "${folderName}" folder`

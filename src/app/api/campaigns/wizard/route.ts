@@ -112,6 +112,7 @@ export async function POST(request: Request) {
     entityType: "Campaign",
     entityId: result.campaigns[0]?.id ?? input.clientId,
     entityLabel: client?.name ?? "a client",
+    clientId: input.clientId,
     action: "campaign_created",
     description: `${session.user.name ?? "Someone"} ran the Campaign Generator wizard for "${client?.name ?? "a client"}" — ${result.campaignCount} campaigns, ${result.taskCount} tasks`,
   });

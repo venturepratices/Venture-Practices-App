@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight, History } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { canUseCapability } from "@/lib/permissions";
+import { accessibleClientFilter, canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
@@ -20,6 +20,7 @@ type SearchParams = {
   range?: string;
   from?: string;
   to?: string;
+  clientId?: string;
   page?: string;
 };
 
@@ -50,6 +51,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   if (params.q) where.description = { contains: params.q, mode: "insensitive" };
   if (params.actorId) where.actorId = params.actorId;
   if (params.entityType) where.entityType = params.entityType;
+  if (params.clientId) where.clientId = params.clientId;
   if (params.from || params.to) {
     where.createdAt = {
       ...(params.from ? { gte: new Date(params.from) } : {}),
@@ -62,7 +64,9 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
 
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const [entries, totalCount, teamMembers] = await Promise.all([
+  const clientWhere = await accessibleClientFilter("id");
+
+  const [entries, totalCount, teamMembers, clients] = await Promise.all([
     prisma.activityLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -71,6 +75,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     }),
     prisma.activityLog.count({ where }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -85,12 +90,15 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     if (params.range) query.set("range", params.range);
     if (params.from) query.set("from", params.from);
     if (params.to) query.set("to", params.to);
+    if (params.clientId) query.set("clientId", params.clientId);
     if (targetPage > 1) query.set("page", String(targetPage));
     const qs = query.toString();
     return qs ? `/activity?${qs}` : "/activity";
   }
 
-  const hasFilters = Boolean(params.q || params.actorId || params.entityType || params.range || params.from || params.to);
+  const hasFilters = Boolean(
+    params.q || params.actorId || params.entityType || params.range || params.from || params.to || params.clientId,
+  );
 
   return (
     <div>
@@ -106,7 +114,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-4">
-        <ActivityFilters teamMembers={teamMembers} />
+        <ActivityFilters teamMembers={teamMembers} clients={clients} />
       </div>
 
       <div className="mt-4 rounded-lg border divide-y">

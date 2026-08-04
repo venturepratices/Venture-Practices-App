@@ -1031,6 +1031,11 @@ model TaskLink {
 // record the action happened to (Task, Client, TeamMember, ...). No FK to
 // those tables since one log spans several unrelated models; entityLabel is
 // denormalized so an entry still reads sensibly after the entity is deleted.
+// clientId is likewise a denormalized (not FK'd) snapshot of which client
+// this action belongs to, written at log-time by whichever caller has that
+// context in scope — lets the Activity page filter by client without an
+// expensive runtime join across every possible entity type. Null for
+// actions with no client (internal tasks, TeamMember management, etc.).
 model ActivityLog {
   id          String      @id @default(cuid())
   actorId     String?
@@ -1039,12 +1044,14 @@ model ActivityLog {
   entityType  String
   entityId    String
   entityLabel String
+  clientId    String?
   action      String
   description String
   createdAt   DateTime    @default(now())
 
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([clientId])
 }
 
 // Per-recipient notification, fanned out from the same mutations ActivityLog

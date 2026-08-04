@@ -35,6 +35,7 @@ export async function DELETE(
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "meeting_note_deleted",
     description: `${session.user.name ?? "Someone"} deleted a meeting note from "${client?.name ?? "a client"}"`,
   });

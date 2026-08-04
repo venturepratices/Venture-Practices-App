@@ -35,6 +35,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Asset",
     entityId: link.asset.id,
     entityLabel: link.asset.title,
+    clientId: link.asset.clientId,
     action: "share_link_revoked",
     description: `${session.user.name ?? "Someone"} revoked a share link for "${link.asset.title}"`,
   });

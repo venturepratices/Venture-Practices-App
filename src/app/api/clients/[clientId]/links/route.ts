@@ -42,6 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "link_added",
     description: `${session.user.name ?? "Someone"} added the link "${parsed.data.label}" to "${client?.name ?? "a client"}"`,
   });

@@ -34,6 +34,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
     entityType: "Task",
     entityId: task.id,
     entityLabel: task.title,
+    clientId: task.clientId,
     action: "restored",
     description: `${session.user.name ?? "Someone"} restored task "${task.title}" from the archive`,
   });

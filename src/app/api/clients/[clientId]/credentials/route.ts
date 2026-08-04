@@ -52,6 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "credential_added",
     description: `${session.user.name ?? "Someone"} added a credential ("${parsed.data.label}") for "${client?.name ?? "a client"}"`,
   });

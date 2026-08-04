@@ -97,6 +97,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     entityType: "Asset",
     entityId: access.link.assetId,
     entityLabel: asset?.title ?? "Asset",
+    clientId: asset?.clientId ?? null,
     action: "asset_commented",
     description: `${reviewer.guestName ?? "A guest"} commented on asset "${asset?.title ?? ""}" via a share link`,
   });

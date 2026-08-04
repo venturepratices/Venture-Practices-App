@@ -49,6 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cl
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "note_edited",
     description: `${session.user.name ?? "Someone"} edited a note on "${client?.name ?? "a client"}"`,
   });
@@ -83,6 +84,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "note_deleted",
     description: `${session.user.name ?? "Someone"} deleted a note from "${client?.name ?? "a client"}"`,
   });

@@ -100,6 +100,7 @@ export async function POST(request: Request) {
     entityType: "Task",
     entityId: task.id,
     entityLabel: task.title,
+    clientId: task.clientId,
     action: "created",
     description: `${session.user.name ?? "Someone"} created task "${task.title}"`,
   });

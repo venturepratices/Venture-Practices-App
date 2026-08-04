@@ -39,6 +39,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Asset",
     entityId: reviewer.asset.id,
     entityLabel: reviewer.asset.title,
+    clientId: reviewer.asset.clientId,
     action: "reviewer_removed",
     description: `${session.user.name ?? "Someone"} removed ${reviewerName} from "${reviewer.asset.title}"`,
   });

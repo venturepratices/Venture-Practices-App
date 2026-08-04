@@ -61,6 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ass
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
+    clientId: asset.clientId,
     action: "reviewer_added",
     description: `${session.user.name ?? "Someone"} added ${reviewerName} as a reviewer on "${asset.title}"`,
   });

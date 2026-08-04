@@ -45,6 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "planning_item_added",
     description: `${session.user.name ?? "Someone"} added a planning idea "${item.title}" for "${client?.name ?? "a client"}"`,
   });

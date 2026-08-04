@@ -34,6 +34,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       entityType: "Task",
       entityId: link.taskId,
       entityLabel: link.task.title,
+      clientId: link.task.clientId,
       action: "link_removed",
       description: `${session.user.name ?? "Someone"} removed the link "${link.label}" from "${link.task.title}"`,
     });

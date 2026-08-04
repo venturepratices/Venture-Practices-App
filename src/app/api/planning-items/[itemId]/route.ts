@@ -74,6 +74,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ it
       entityType: "Client",
       entityId: item.clientId,
       entityLabel: client?.name ?? item.clientId,
+      clientId: item.clientId,
       action: "planning_item_updated",
       description: `${session.user.name ?? "Someone"} moved planning idea "${updated.title}" to ${parsed.data.status}`,
     });

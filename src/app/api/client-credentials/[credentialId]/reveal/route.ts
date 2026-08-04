@@ -56,6 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cre
       entityType: "Client",
       entityId: credential.clientId,
       entityLabel: credential.client.name,
+      clientId: credential.clientId,
       action: "credential_reveal_denied",
       description: `${session.user.name ?? "Someone"} entered the wrong password trying to view the credential "${credential.label}" on "${credential.client.name}"`,
     });
@@ -68,6 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cre
     entityType: "Client",
     entityId: credential.clientId,
     entityLabel: credential.client.name,
+    clientId: credential.clientId,
     action: "credential_revealed",
     description: `${session.user.name ?? "Someone"} viewed the password for "${credential.label}" on "${credential.client.name}"`,
   });

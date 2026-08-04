@@ -89,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ass
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
+    clientId: asset.clientId,
     action: "share_link_created",
     description: `${session.user.name ?? "Someone"} created a share link for "${asset.title}"`,
   });

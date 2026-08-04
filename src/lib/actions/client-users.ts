@@ -61,6 +61,7 @@ export async function createClientUserAction(
     entityType: "ClientUser",
     entityId: clientUser.id,
     entityLabel: clientUser.name,
+    clientId,
     action: "created",
     description: `${session?.user?.name ?? "Someone"} created a login for "${clientUser.name}" on ${client?.name ?? "a client"}`,
   });
@@ -122,6 +123,7 @@ export async function updateClientUserAction(
       entityType: "ClientUser",
       entityId: clientUser.id,
       entityLabel: clientUser.name,
+      clientId: clientUser.clientId,
       action: "updated",
       description: `${session?.user?.name ?? "Someone"} updated client login "${clientUser.name}": ${changes.join(", ")}`,
     });
@@ -147,6 +149,7 @@ export async function deleteClientUserAction(clientUserId: string) {
     entityType: "ClientUser",
     entityId: clientUserId,
     entityLabel: clientUser.name,
+    clientId: clientUser.clientId,
     action: "deleted",
     description: `${session?.user?.name ?? "Someone"} removed client login "${clientUser.name}"`,
   });

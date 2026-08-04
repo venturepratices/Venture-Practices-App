@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ClientFilterCombobox } from "@/components/activity/client-filter-combobox";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { SearchInput } from "@/components/search-input";
 
@@ -24,9 +25,10 @@ const RANGE_LABELS: Record<string, string> = {
 
 type Props = {
   teamMembers: { id: string; name: string }[];
+  clients: { id: string; name: string }[];
 };
 
-export function ActivityFilters({ teamMembers }: Props) {
+export function ActivityFilters({ teamMembers, clients }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -34,9 +36,10 @@ export function ActivityFilters({ teamMembers }: Props) {
   const actorId = searchParams.get("actorId") ?? ALL;
   const entityType = searchParams.get("entityType") ?? ALL;
   const range = searchParams.get("range") ?? ALL;
+  const clientId = searchParams.get("clientId");
   const hasFilters =
     [actorId, entityType, range].some((v) => v !== ALL) ||
-    Boolean(searchParams.get("q") || searchParams.get("from") || searchParams.get("to"));
+    Boolean(clientId || searchParams.get("q") || searchParams.get("from") || searchParams.get("to"));
 
   function setParam(key: string, value: string | null, clearKeys: string[] = []) {
     const params = new URLSearchParams(searchParams.toString());
@@ -85,6 +88,12 @@ export function ActivityFilters({ teamMembers }: Props) {
           ))}
         </SelectContent>
       </Select>
+
+      <ClientFilterCombobox
+        clients={clients}
+        value={clientId}
+        onChange={(id) => setParam("clientId", id)}
+      />
 
       <Select value={range} onValueChange={(value) => setParam("range", value, ["from", "to"])}>
         <SelectTrigger className="w-full sm:w-[150px]">

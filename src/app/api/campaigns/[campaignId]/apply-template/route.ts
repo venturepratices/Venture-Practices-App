@@ -87,6 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
     entityType: "Campaign",
     entityId: campaign.id,
     entityLabel: `${campaignLabel(campaign)} — ${campaign.client.name}`,
+    clientId: campaign.clientId,
     action: "template_applied",
     description: `${session.user.name ?? "Someone"} applied the "${template.name}" template to ${campaignLabel(campaign)} (${campaign.client.name})`,
   });

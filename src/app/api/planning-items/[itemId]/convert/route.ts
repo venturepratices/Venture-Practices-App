@@ -81,6 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ite
     entityType: "Client",
     entityId: item.clientId,
     entityLabel: client?.name ?? item.clientId,
+    clientId: item.clientId,
     action: "planning_item_converted",
     description: `${session.user.name ?? "Someone"} converted planning idea "${item.title}" into a task`,
   });

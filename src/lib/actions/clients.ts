@@ -69,6 +69,7 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
     entityType: "Client",
     entityId: client.id,
     entityLabel: client.name,
+    clientId: client.id,
     action: "created",
     description: `${session?.user?.name ?? "Someone"} added client "${client.name}"`,
   });
@@ -112,6 +113,7 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
         entityType: "Client",
         entityId: client.id,
         entityLabel: client.name,
+        clientId: client.id,
         action: "updated",
         description: `${session?.user?.name ?? "Someone"} updated client "${client.name}": ${changes.join(", ")}`,
       });

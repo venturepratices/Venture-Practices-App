@@ -59,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "asset_folder_created",
     description: `${session.user.name ?? "Someone"} created the asset folder "${folder.name}" on "${client?.name ?? "a client"}"`,
   });

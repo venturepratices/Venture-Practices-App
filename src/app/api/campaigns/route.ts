@@ -89,6 +89,7 @@ export async function POST(request: Request) {
     entityType: "Campaign",
     entityId: campaign.id,
     entityLabel: `${campaignLabel(campaign)} — ${client?.name ?? "a client"}`,
+    clientId,
     action: "campaign_created",
     description: `${session.user.name ?? "Someone"} added ${campaignLabel(campaign)} for "${client?.name ?? "a client"}"`,
   });

@@ -6,8 +6,9 @@ export async function logActivity(params: {
   entityType: string;
   entityId: string;
   entityLabel: string;
+  clientId?: string | null;
   action: string;
   description: string;
 }) {
-  return prisma.activityLog.create({ data: params });
+  return prisma.activityLog.create({ data: { ...params, clientId: params.clientId ?? null } });
 }

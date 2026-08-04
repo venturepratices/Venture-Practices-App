@@ -320,6 +320,7 @@ export async function maybeAdvanceWorkflowStage(
       entityType: "WorkflowInstance",
       entityId: instance.id,
       entityLabel: instanceLabel,
+      clientId: instance.client?.id ?? null,
       action: "workflow_completed",
       description: `${instanceLabel} completed all stages`,
     });
@@ -337,6 +338,7 @@ export async function maybeAdvanceWorkflowStage(
     entityType: "WorkflowInstance",
     entityId: instance.id,
     entityLabel: instanceLabel,
+    clientId: instance.client?.id ?? null,
     action: "stage_advanced",
     description: `${instanceLabel} automatically advanced from ${currentStageLabel} to ${newStageLabel}`,
   });

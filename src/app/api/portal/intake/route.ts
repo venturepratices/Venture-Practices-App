@@ -57,6 +57,7 @@ export async function PATCH(request: Request) {
     entityType: "Client",
     entityId: clientUser.clientId,
     entityLabel: client.name,
+    clientId: clientUser.clientId,
     action: "intake_updated",
     description: `${clientUser.name ?? "The client"} updated business info for "${client.name}"`,
   });

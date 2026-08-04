@@ -81,6 +81,7 @@ export async function POST(
     entityType: "Asset",
     entityId: assetId,
     entityLabel: asset.title,
+    clientId: asset.clientId,
     action: "decision_made",
     description: `${actor.actorName ?? "Someone"} ${decisionLabel(parsed.data.decision).toLowerCase()} "${asset.title}"`,
   });

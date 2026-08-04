@@ -87,6 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Asset",
     entityId: asset.id,
     entityLabel: asset.title,
+    clientId,
     action: "uploaded",
     description: `${session.user.name ?? "Someone"} uploaded asset "${asset.title}" for ${client?.name ?? "a client"}`,
   });

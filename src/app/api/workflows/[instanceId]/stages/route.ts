@@ -75,6 +75,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ in
       entityType: "WorkflowInstance",
       entityId: instanceId,
       entityLabel: instanceLabel,
+      clientId: instance.clientId,
       action: "updated",
       description: `${session.user.name ?? "Someone"} added ${addedCount} stage${addedCount === 1 ? "" : "s"} to "${instanceLabel}"`,
     });

@@ -51,6 +51,7 @@ export async function changePasswordAction(
       entityType: "ClientUser",
       entityId: clientUser.id,
       entityLabel: clientUser.name,
+      clientId: clientUser.clientId,
       action: "password_changed",
       description: `${clientUser.name} changed their password`,
     });
@@ -79,6 +80,7 @@ export async function changePasswordAction(
     entityType: "TeamMember",
     entityId: member.id,
     entityLabel: member.name,
+    clientId: null,
     action: "password_changed",
     description: `${member.name} changed their password`,
   });

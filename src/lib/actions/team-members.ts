@@ -93,6 +93,7 @@ export async function createTeamMemberAction(
     entityType: "TeamMember",
     entityId: member.id,
     entityLabel: member.name,
+    clientId: null,
     action: "created",
     description: `${session?.user?.name ?? "Someone"} added team member "${member.name}"${perms.isAdmin ? " (admin)" : ""}`,
   });
@@ -185,6 +186,7 @@ export async function updateTeamMemberAction(
       entityType: "TeamMember",
       entityId: member.id,
       entityLabel: member.name,
+      clientId: null,
       action: "updated",
       description: `${session?.user?.name ?? "Someone"} updated team member "${member.name}": ${changes.join(", ")}`,
     });
@@ -219,6 +221,7 @@ export async function deleteTeamMemberAction(memberId: string) {
     entityType: "TeamMember",
     entityId: memberId,
     entityLabel: member.name,
+    clientId: null,
     action: "deleted",
     description: `${session?.user?.name ?? "Someone"} removed team member "${member.name}"`,
   });

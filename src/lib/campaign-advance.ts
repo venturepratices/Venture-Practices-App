@@ -106,6 +106,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
     entityType: "Campaign",
     entityId: campaign.id,
     entityLabel: campaignLabel,
+    clientId: campaign.client.id,
     action: "stage_advanced",
     description: `${campaignLabel} automatically advanced from ${CAMPAIGN_STAGE_LABELS[currentStage]} to ${newStageLabel}`,
   });
@@ -132,7 +133,7 @@ export async function maybeCompleteApprovalTasksForProofAsset(assetId: string, a
 
   const incomplete = await prisma.task.findMany({
     where: { campaignId: campaign.id, campaignStage: "APPROVAL", status: { not: "COMPLETE" } },
-    select: { id: true, title: true },
+    select: { id: true, title: true, clientId: true },
   });
   if (incomplete.length === 0) return;
 
@@ -148,6 +149,7 @@ export async function maybeCompleteApprovalTasksForProofAsset(assetId: string, a
       entityType: "Task",
       entityId: task.id,
       entityLabel: task.title,
+      clientId: task.clientId,
       action: "status_changed",
       description: `"${task.title}" auto-completed — proof asset approved`,
     });

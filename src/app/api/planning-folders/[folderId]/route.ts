@@ -46,6 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ fo
     entityType: "Client",
     entityId: folder.clientId,
     entityLabel: folder.client.name,
+    clientId: folder.clientId,
     action: "planning_folder_renamed",
     description: `${session.user.name ?? "Someone"} renamed the planning folder "${folder.name}" to "${updated.name}" on "${folder.client.name}"`,
   });
@@ -82,6 +83,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Client",
     entityId: folder.clientId,
     entityLabel: folder.client.name,
+    clientId: folder.clientId,
     action: "planning_folder_deleted",
     description: `${session.user.name ?? "Someone"} deleted the planning folder "${folder.name}" on "${folder.client.name}"`,
   });

@@ -63,6 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     entityType: "Task",
     entityId: taskId,
     entityLabel: task?.title ?? taskId,
+    clientId: task.clientId,
     action: "commented",
     description: `${session.user.name ?? "Someone"} commented on "${task?.title ?? "a task"}"`,
   });

@@ -42,6 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     entityType: "Client",
     entityId: clientId,
     entityLabel: client?.name ?? clientId,
+    clientId,
     action: "noted",
     description: `${session.user.name ?? "Someone"} added a note to "${client?.name ?? "a client"}"`,
   });

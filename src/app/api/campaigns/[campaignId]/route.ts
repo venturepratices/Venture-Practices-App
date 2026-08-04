@@ -123,6 +123,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     entityType: "Campaign",
     entityId: campaign.id,
     entityLabel: `${campaignLabel(updated)} — ${campaign.client.name}`,
+    clientId: campaign.clientId,
     action: "campaign_updated",
     description:
       parsed.data.currentStage !== undefined
@@ -167,6 +168,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityType: "Campaign",
     entityId: campaign.id,
     entityLabel: `${campaignLabel(campaign)} — ${campaign.client.name}`,
+    clientId: campaign.clientId,
     action: "campaign_deleted",
     description: `${session.user.name ?? "Someone"} deleted ${campaignLabel(campaign)} for "${campaign.client.name}"`,
   });
