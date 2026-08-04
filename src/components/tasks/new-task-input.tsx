@@ -14,7 +14,9 @@ import { KindPill } from "@/components/tasks/kind-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
-import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { resolveStatusOption } from "@/lib/task-status-utils";
 
 const NO_CLIENT = "__none__";
 
@@ -28,6 +30,7 @@ type Props = {
   campaignStage?: string | null;
   workflowInstanceId?: string | null;
   workflowStageNumber?: number | null;
+  statusOptions?: StatusOptionLite[];
 };
 
 export function NewTaskInput({
@@ -40,6 +43,7 @@ export function NewTaskInput({
   campaignStage,
   workflowInstanceId,
   workflowStageNumber,
+  statusOptions = [],
 }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -164,12 +168,12 @@ export function NewTaskInput({
           <Label className="text-xs text-muted-foreground">Status</Label>
           <Select value={status} onValueChange={(value) => value && setStatus(value)}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue>{(value: string) => <StatusPill status={value} />}</SelectValue>
+              <SelectValue>{(value: string) => <StatusPill option={resolveStatusOption(statusOptions, value)} />}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {TASK_STATUS_VALUES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  <StatusPill status={s} />
+              {statusOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  <StatusPill option={option} />
                 </SelectItem>
               ))}
             </SelectContent>

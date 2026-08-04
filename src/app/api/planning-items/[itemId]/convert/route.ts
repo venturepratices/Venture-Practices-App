@@ -46,7 +46,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ ite
       description: item.description,
       clientId: item.clientId,
       kind: "TASK",
-      status: "NEXT_UP",
       statusId: "NEXT_UP",
       createdById: session.user.id,
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },

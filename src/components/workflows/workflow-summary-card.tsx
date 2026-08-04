@@ -24,20 +24,20 @@ export function WorkflowSummaryCard({ instance, recentActivity }: { instance: Wo
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const currentStage = snapshot.find((s) => s.sequenceNumber === instance.currentStageNumber);
   const currentStageTasks = instance.tasks.filter((t) => t.workflowStageNumber === instance.currentStageNumber);
-  const completeInStage = currentStageTasks.filter((t) => t.status === "COMPLETE").length;
+  const completeInStage = currentStageTasks.filter((t) => t.statusOption.isComplete).length;
   const progressPct = currentStageTasks.length > 0 ? Math.round((completeInStage / currentStageTasks.length) * 100) : 0;
 
   const whoseTurn = currentStageTasks
-    .filter((t) => t.status !== "COMPLETE")
+    .filter((t) => !t.statusOption.isComplete)
     .sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
 
   const overdue = instance.tasks
-    .filter((t) => t.status !== "COMPLETE" && t.deadline && t.deadline.getTime() < now.getTime())
+    .filter((t) => !t.statusOption.isComplete && t.deadline && t.deadline.getTime() < now.getTime())
     .sort((a, b) => a.deadline!.getTime() - b.deadline!.getTime());
 
   const dueSoonCutoff = now.getTime() + 3 * MS_PER_DAY;
   const dueSoon = instance.tasks
-    .filter((t) => t.status !== "COMPLETE" && t.deadline && t.deadline.getTime() >= now.getTime() && t.deadline.getTime() <= dueSoonCutoff)
+    .filter((t) => !t.statusOption.isComplete && t.deadline && t.deadline.getTime() >= now.getTime() && t.deadline.getTime() <= dueSoonCutoff)
     .sort((a, b) => a.deadline!.getTime() - b.deadline!.getTime());
 
   function assigneeNames(task: WorkflowInstanceDetailData["tasks"][number]) {

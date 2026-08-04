@@ -10,16 +10,6 @@ export const TASK_OCCURRENCE_VALUES = [
   "NON_RECURRING",
 ] as const;
 
-export const TASK_STATUS_VALUES = [
-  "ACTIVE",
-  "IN_PROGRESS",
-  "PRIORITY",
-  "NEXT_UP",
-  "WAITING_ON_CLIENT",
-  "ON_HOLD",
-  "COMPLETE",
-] as const;
-
 export const TASK_OCCURRENCE_LABELS: Record<string, string> = {
   RECURRING_WEEKLY: "Recurring Weekly",
   RECURRING_MONTHLY: "Recurring Monthly",
@@ -42,7 +32,9 @@ export const createTaskSchema = z.object({
   description: z.string().trim().max(4000).nullable().optional(),
   clientId: z.string().nullable().optional(),
   assigneeIds: z.array(z.string()).optional(),
-  status: z.enum(TASK_STATUS_VALUES).optional(),
+  // Validated against the live TaskStatusOption table inside the route
+  // handler, not a fixed enum — admins can add/rename statuses at runtime.
+  status: z.string().trim().min(1).optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
@@ -59,7 +51,7 @@ export const updateTaskSchema = z.object({
   assigneeIds: z.array(z.string()).optional(),
   clientId: z.string().nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
-  status: z.enum(TASK_STATUS_VALUES).optional(),
+  status: z.string().trim().min(1).optional(),
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),

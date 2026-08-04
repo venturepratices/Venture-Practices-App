@@ -3,6 +3,7 @@ import { ListChecks } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -37,7 +38,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
         ],
       }
     : null;
-  if (params.status) where.status = params.status as Prisma.TaskWhereInput["status"];
+  if (params.status) where.statusId = params.status;
   if (params.clientId === "NONE") where.clientId = null;
   else if (params.clientId) where.clientId = params.clientId;
   if (params.assigneeId === "UNASSIGNED") where.assignees = { none: {} };
@@ -72,7 +73,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     AND: [where, taskVisibilityFilter(perms?.userId ?? null), ...(searchClause ? [searchClause] : [])],
   };
 
-  const [tasks, clients, teamMembers] = await Promise.all([
+  const [tasks, clients, teamMembers, statusOptions] = await Promise.all([
     prisma.task.findMany({
       where: finalWhere,
       include: {
@@ -80,11 +81,13 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
         client: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
         workflowInstance: { select: { id: true, name: true } },
+        statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getTaskStatusOptions(),
   ]);
 
   return (
@@ -104,7 +107,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-4">
-        <TaskFilters clients={clients} teamMembers={teamMembers} />
+        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
       </div>
 
       <div className="mt-4">
@@ -119,17 +122,17 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
                 <EmptyState icon={ListChecks} title="No tasks match these filters." />
               </div>
             ) : (
-              <TaskBoard tasks={tasks} showClientOnCards />
+              <TaskBoard tasks={tasks} showClientOnCards statusOptions={statusOptions} />
             )
           ) : (
             // TaskList always renders (even with zero tasks) so its own "Add task" box
             // stays visible — it already handles its own empty state internally.
-            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
+            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
           )}
         </div>
         {isBoard ? (
           <div className="md:hidden">
-            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} />
+            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
           </div>
         ) : null}
       </div>

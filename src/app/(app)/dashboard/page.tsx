@@ -4,13 +4,14 @@ import { CalendarCheck } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBar } from "@/components/dashboard/status-bar";
-import { StatusPill, TASK_STATUS_TONES } from "@/components/tasks/status-pill";
+import { StatusPill } from "@/components/tasks/status-pill";
+import type { StatusTone } from "@/components/ui/status-pill";
 import { TaskRow } from "@/components/tasks/task-row";
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 export default async function DashboardPage() {
   const sevenDaysFromNow = new Date();
@@ -25,28 +26,31 @@ export default async function DashboardPage() {
   const taskScope: Prisma.TaskWhereInput = { AND: [baseTaskScope, taskVisibilityFilter(perms?.userId ?? null)] };
   const clientScope = await accessibleClientFilter("id");
 
+  const statusOptions = await getTaskStatusOptions();
+  const completeStatusId = statusOptions.find((o) => o.isComplete)!.id;
+
   const [statusCounts, totalClients, activeClients, dueSoon] = await Promise.all([
-    prisma.task.groupBy({ by: ["status"], where: taskScope, _count: { _all: true } }),
+    prisma.task.groupBy({ by: ["statusId"], where: taskScope, _count: { _all: true } }),
     prisma.client.count({ where: clientScope }),
     prisma.client.count({ where: { ...clientScope, status: "ACTIVE" } }),
     prisma.task.findMany({
-      where: { ...taskScope, status: { not: "COMPLETE" }, deadline: { lte: sevenDaysFromNow } },
+      where: { ...taskScope, statusId: { not: completeStatusId }, deadline: { lte: sevenDaysFromNow } },
       include: {
         assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
         workflowInstance: { select: { id: true, name: true } },
+        statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
       },
       orderBy: { deadline: "asc" },
       take: 8,
     }),
   ]);
 
-  const countByStatus = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
-  const openTasks = TASK_STATUS_VALUES.filter((s) => s !== "COMPLETE").reduce(
-    (sum, status) => sum + (countByStatus[status] ?? 0),
-    0
-  );
+  const countByStatus = Object.fromEntries(statusCounts.map((row) => [row.statusId, row._count._all]));
+  const openTasks = statusOptions
+    .filter((o) => !o.isComplete)
+    .reduce((sum, o) => sum + (countByStatus[o.id] ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -96,20 +100,20 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <StatusBar
-            segments={TASK_STATUS_VALUES.map((status) => ({
-              tone: TASK_STATUS_TONES[status],
-              count: countByStatus[status] ?? 0,
+            segments={statusOptions.map((option) => ({
+              tone: option.tone as StatusTone,
+              count: countByStatus[option.id] ?? 0,
             }))}
           />
           <div className="flex flex-wrap gap-3">
-          {TASK_STATUS_VALUES.map((status) => (
+          {statusOptions.map((option) => (
             <Link
-              key={status}
-              href={`/tasks?status=${status}`}
+              key={option.id}
+              href={`/tasks?status=${option.id}`}
               className="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-muted"
             >
-              <StatusPill status={status} />
-              <span className="text-sm text-muted-foreground">{countByStatus[status] ?? 0}</span>
+              <StatusPill option={option} />
+              <span className="text-sm text-muted-foreground">{countByStatus[option.id] ?? 0}</span>
             </Link>
           ))}
           </div>
@@ -126,7 +130,7 @@ export default async function DashboardPage() {
           ) : (
             <div className="divide-y">
               {dueSoon.map((task) => (
-                <TaskRow key={task.id} task={task} showClient />
+                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
               ))}
             </div>
           )}

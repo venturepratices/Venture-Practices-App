@@ -6,12 +6,25 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/date-range-filter";
-import { StatusPill } from "@/components/tasks/status-pill";
 import { SearchInput } from "@/components/search-input";
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
 
 const ALL = "ALL";
 const INTERNAL = "INTERNAL";
+
+// ArchivedTask.status is a frozen snapshot of the OLD fixed TaskStatus enum
+// at archive time (see prisma/schema.prisma) — it never grows new values, so
+// unlike the live task-status system this filter deliberately stays a fixed
+// list rather than reading from the admin-editable TaskStatusOption table.
+const LEGACY_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  IN_PROGRESS: "In Progress",
+  PRIORITY: "Priority",
+  NEXT_UP: "Next-Up",
+  WAITING_ON_CLIENT: "Waiting on Client",
+  ON_HOLD: "On Hold",
+  COMPLETE: "Complete",
+};
+const LEGACY_STATUS_VALUES = Object.keys(LEGACY_STATUS_LABELS);
 
 type Props = {
   clientNames: string[];
@@ -48,13 +61,13 @@ export function ArchiveFilters({ clientNames, teamMembers }: Props) {
 
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
         <SelectTrigger className="w-full sm:w-[150px]">
-          <SelectValue>{(value: string) => (value === ALL ? "All statuses" : <StatusPill status={value} />)}</SelectValue>
+          <SelectValue>{(value: string) => (value === ALL ? "All statuses" : LEGACY_STATUS_LABELS[value] ?? value)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All statuses</SelectItem>
-          {TASK_STATUS_VALUES.map((s) => (
+          {LEGACY_STATUS_VALUES.map((s) => (
             <SelectItem key={s} value={s}>
-              <StatusPill status={s} />
+              {LEGACY_STATUS_LABELS[s]}
             </SelectItem>
           ))}
         </SelectContent>

@@ -7,7 +7,7 @@ import { ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { StatusPill } from "@/components/tasks/status-pill";
+import { StatusPillBase } from "@/components/ui/status-pill";
 import { TASK_OCCURRENCE_LABELS } from "@/lib/validations/task";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { archivedAssigneeNames, type ArchivedCommentSnapshot, type ArchivedLinkSnapshot, type ArchivedTaskDetail } from "@/types/task";
@@ -81,7 +81,7 @@ export function ArchivedTaskDetailPanel() {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Status</p>
-                <StatusPill status={task.status} />
+                <StatusPillBase tone="slate" label={task.statusLabel ?? task.status} />
               </div>
 
               <div className="space-y-1.5">

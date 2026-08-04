@@ -1,5 +1,6 @@
 import { loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { InfoTip } from "@/components/info-tip";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
@@ -17,7 +18,7 @@ export default async function ClientTasksPage({
   const isBoard = view === "board";
 
   const perms = await loadPermissions();
-  const [tasks, teamMembers] = await Promise.all([
+  const [tasks, teamMembers, statusOptions] = await Promise.all([
     prisma.task.findMany({
       where: { AND: [{ clientId }, taskVisibilityFilter(perms?.userId ?? null)] },
       include: {
@@ -25,10 +26,12 @@ export default async function ClientTasksPage({
         client: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
         workflowInstance: { select: { id: true, name: true } },
+        statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getTaskStatusOptions(),
   ]);
 
   return (
@@ -48,14 +51,14 @@ export default async function ClientTasksPage({
             src/app/(app)/tasks/page.tsx for the full rationale. */}
         <div className={isBoard ? "hidden md:block" : undefined}>
           {isBoard ? (
-            <TaskBoard tasks={tasks} />
+            <TaskBoard tasks={tasks} statusOptions={statusOptions} />
           ) : (
-            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
+            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} statusOptions={statusOptions} />
           )}
         </div>
         {isBoard ? (
           <div className="md:hidden">
-            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} />
+            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} statusOptions={statusOptions} />
           </div>
         ) : null}
       </div>

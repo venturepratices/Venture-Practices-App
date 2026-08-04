@@ -3,6 +3,7 @@ import { GitBranch, Plus } from "lucide-react";
 
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,7 +13,7 @@ import { WorkflowTemplateEditor, type WorkflowTemplateWithStages } from "@/compo
 export default async function WorkflowTemplatesPage() {
   if (!(await canUseCapability("canManageWorkflows"))) notFound();
 
-  const [templates, teamMembers] = await Promise.all([
+  const [templates, teamMembers, statusOptions] = await Promise.all([
     prisma.workflowTemplate.findMany({
       include: {
         stageTemplates: {
@@ -31,6 +32,7 @@ export default async function WorkflowTemplatesPage() {
       orderBy: { name: "asc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getTaskStatusOptions(),
   ]);
 
   return (
@@ -64,7 +66,12 @@ export default async function WorkflowTemplatesPage() {
           </div>
         ) : (
           templates.map((template) => (
-            <WorkflowTemplateEditor key={template.id} template={template as WorkflowTemplateWithStages} teamMembers={teamMembers} />
+            <WorkflowTemplateEditor
+              key={template.id}
+              template={template as WorkflowTemplateWithStages}
+              teamMembers={teamMembers}
+              statusOptions={statusOptions}
+            />
           ))
         )}
       </div>

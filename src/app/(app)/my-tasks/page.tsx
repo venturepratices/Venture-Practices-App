@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { endOfDay } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
@@ -32,6 +33,7 @@ const TASK_INCLUDE = {
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   workflowInstance: { select: { id: true, name: true } },
+  statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
 } as const;
 
 export default async function MyTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -52,7 +54,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       ],
     });
   }
-  if (params.status) filterClauses.push({ status: params.status as Prisma.TaskWhereInput["status"] });
+  if (params.status) filterClauses.push({ statusId: params.status });
   if (params.clientId === "NONE") filterClauses.push({ clientId: null });
   else if (params.clientId) filterClauses.push({ clientId: params.clientId });
   if (params.assigneeId === "UNASSIGNED") filterClauses.push({ assignees: { none: {} } });
@@ -76,7 +78,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     filterClauses.push({ deadline: null });
   }
 
-  const [allAssignedTasks, filteredTasks, privateTasks, clients, teamMembers] = await Promise.all([
+  const [allAssignedTasks, filteredTasks, privateTasks, clients, teamMembers, statusOptions] = await Promise.all([
     // Unfiltered — used only to derive "My Day", which is always the true
     // today's-focus list regardless of whatever filters are set below.
     userId
@@ -105,12 +107,13 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       : Promise.resolve([]),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getTaskStatusOptions(),
   ]);
 
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
   const myDayTasks = allAssignedTasks
-    .filter((task) => task.status !== "COMPLETE" && task.deadline && new Date(task.deadline) <= endOfToday)
+    .filter((task) => !task.statusOption.isComplete && task.deadline && new Date(task.deadline) <= endOfToday)
     .sort((a, b) => (a.deadline && b.deadline ? +new Date(a.deadline) - +new Date(b.deadline) : 0));
 
   return (
@@ -145,7 +148,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           ) : (
             <div className="divide-y">
               {myDayTasks.map((task) => (
-                <TaskRow key={task.id} task={task} showClient />
+                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
               ))}
             </div>
           )}
@@ -167,7 +170,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           <CardContent className="p-0">
             <div className="divide-y">
               {privateTasks.map((task) => (
-                <TaskRow key={task.id} task={task} showClient />
+                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
               ))}
             </div>
           </CardContent>
@@ -175,7 +178,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       ) : null}
 
       <div className="mt-6">
-        <TaskFilters clients={clients} teamMembers={teamMembers} />
+        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
       </div>
 
       <div className="mt-4">
@@ -188,7 +191,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                 <EmptyState icon={CalendarCheck} title="No tasks match these filters." />
               </div>
             ) : (
-              <TaskBoard tasks={filteredTasks} />
+              <TaskBoard tasks={filteredTasks} statusOptions={statusOptions} />
             )
           ) : (
             <TaskList
@@ -197,6 +200,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               newTaskDefaults={{ assigneeId: session?.user?.id }}
               clients={clients}
               teamMembers={teamMembers}
+              statusOptions={statusOptions}
             />
           )}
         </div>
@@ -208,6 +212,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               newTaskDefaults={{ assigneeId: session?.user?.id }}
               clients={clients}
               teamMembers={teamMembers}
+              statusOptions={statusOptions}
             />
           </div>
         ) : null}

@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 
 import { canUseCapability, loadPermissions, requireClientAccess, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { formatDate as formatDateInTz } from "@/lib/utils";
 import { ApplyTemplateDialog } from "@/components/programs/apply-template-dialog";
@@ -40,7 +41,7 @@ export default async function CampaignDetailPage({
   const canManage = await canUseCapability("canManageDirectMail");
   const perms = await loadPermissions();
 
-  const [campaign, teamMembers, templates, assets] = await Promise.all([
+  const [campaign, teamMembers, templates, assets, statusOptions] = await Promise.all([
     prisma.campaign.findFirst({
       where: { id: campaignId, clientId },
       include: {
@@ -52,6 +53,7 @@ export default async function CampaignDetailPage({
             client: { select: { id: true, name: true } },
             createdBy: { select: { id: true, name: true } },
             workflowInstance: { select: { id: true, name: true } },
+            statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -64,6 +66,7 @@ export default async function CampaignDetailPage({
       select: { id: true, title: true, status: true },
       orderBy: { title: "asc" },
     }),
+    getTaskStatusOptions(),
   ]);
   if (!campaign) notFound();
 
@@ -75,7 +78,7 @@ export default async function CampaignDetailPage({
 
   const taskCounts = CAMPAIGN_STAGE_VALUES.reduce<Record<string, { total: number; complete: number }>>((acc, stage) => {
     const stageTasks = tasksByStage[stage] ?? [];
-    acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
     return acc;
   }, {});
 
@@ -197,7 +200,7 @@ export default async function CampaignDetailPage({
                       <TaskListHeader />
                       <div className="divide-y px-1.5">
                         {stageTasks.map((task) => (
-                          <TaskRow key={task.id} task={task} />
+                          <TaskRow key={task.id} task={task} statusOptions={statusOptions} />
                         ))}
                       </div>
                     </>
@@ -212,6 +215,7 @@ export default async function CampaignDetailPage({
                         teamMembers={teamMembers}
                         campaignId={campaign.id}
                         campaignStage={stage}
+                        statusOptions={statusOptions}
                       />
                     </div>
                   ) : null}

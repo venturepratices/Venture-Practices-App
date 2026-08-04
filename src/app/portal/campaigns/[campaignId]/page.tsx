@@ -31,14 +31,14 @@ export default async function PortalCampaignDetailPage({ params }: { params: Pro
     where: { id: campaignId, clientId: clientUser.clientId },
     include: {
       proofAsset: { select: { id: true, status: true } },
-      tasks: { select: { status: true, campaignStage: true } },
+      tasks: { select: { statusOption: { select: { isComplete: true } }, campaignStage: true } },
     },
   });
   if (!campaign) notFound();
 
   const taskCounts = CAMPAIGN_STAGE_VALUES.reduce<Record<string, { total: number; complete: number }>>((acc, stage) => {
     const stageTasks = campaign.tasks.filter((t) => (t.campaignStage ?? "PLANNING") === stage);
-    acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
     return acc;
   }, {});
 

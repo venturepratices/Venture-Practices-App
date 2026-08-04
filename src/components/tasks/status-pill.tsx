@@ -1,31 +1,15 @@
 import { StatusPillBase, type StatusTone } from "@/components/ui/status-pill";
 
-export const TASK_STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Active",
-  IN_PROGRESS: "In Progress",
-  PRIORITY: "Priority",
-  NEXT_UP: "Next-Up",
-  WAITING_ON_CLIENT: "Waiting on Client",
-  ON_HOLD: "On Hold",
-  COMPLETE: "Complete",
-};
-
-export const TASK_STATUS_TONES: Record<string, StatusTone> = {
-  ACTIVE: "success",
-  IN_PROGRESS: "blue",
-  PRIORITY: "danger",
-  NEXT_UP: "violet",
-  WAITING_ON_CLIENT: "warning",
-  ON_HOLD: "neutral",
-  COMPLETE: "teal",
-};
-
-export function StatusPill({ status, className }: { status: string; className?: string }) {
-  return (
-    <StatusPillBase
-      tone={TASK_STATUS_TONES[status]}
-      label={TASK_STATUS_LABELS[status] ?? status}
-      className={className}
-    />
-  );
+// Renders from a resolved TaskStatusOption (or an equivalent {label, tone}
+// shape) instead of looking a status key up in a static map — the set of
+// statuses is now admin-editable (see TaskStatusOption in prisma/schema.prisma
+// and src/lib/task-status.ts), so there's no fixed key set left to map from.
+export function StatusPill({
+  option,
+  className,
+}: {
+  option: { label: string; tone: string };
+  className?: string;
+}) {
+  return <StatusPillBase tone={option.tone as StatusTone} label={option.label} className={className} />;
 }

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { canUseCapability, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { WorkflowInstanceDetail } from "@/components/workflows/workflow-instance-detail";
 
 export default async function ClientWorkflowInstanceDetailPage({
@@ -15,7 +16,7 @@ export default async function ClientWorkflowInstanceDetailPage({
   const canManage = await canUseCapability("canManageWorkflows");
   const perms = await loadPermissions();
 
-  const [instance, teamMembers, folders] = await Promise.all([
+  const [instance, teamMembers, folders, statusOptions] = await Promise.all([
     prisma.workflowInstance.findFirst({
       where: { id: instanceId, clientId },
       include: {
@@ -29,6 +30,7 @@ export default async function ClientWorkflowInstanceDetailPage({
             client: { select: { id: true, name: true } },
             createdBy: { select: { id: true, name: true } },
             workflowInstance: { select: { id: true, name: true } },
+            statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
           },
           orderBy: [{ workflowStageNumber: "asc" }, { createdAt: "asc" }],
         },
@@ -36,6 +38,7 @@ export default async function ClientWorkflowInstanceDetailPage({
     }),
     canManage ? prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
     canManage ? prisma.workflowFolder.findMany({ where: { clientId }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    getTaskStatusOptions(),
   ]);
   if (!instance) notFound();
 
@@ -61,6 +64,7 @@ export default async function ClientWorkflowInstanceDetailPage({
       teamMembers={teamMembers}
       folders={folders}
       recentActivity={recentActivity}
+      statusOptions={statusOptions}
     />
   );
 }

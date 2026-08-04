@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { getCompleteStatusId } from "@/lib/task-status";
 import { formatDate } from "@/lib/utils";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -55,8 +56,9 @@ export async function GET(request: Request) {
     assignees: { select: { teamMemberId: true, teamMember: { select: { name: true, email: true, slackUserId: true } } } },
   } as const;
 
+  const completeId = await getCompleteStatusId();
   const dueSoonTasks = await prisma.task.findMany({
-    where: { deadline: { gte: now, lte: windowEnd }, status: { not: "COMPLETE" } },
+    where: { deadline: { gte: now, lte: windowEnd }, statusId: { not: completeId } },
     include: taskInclude,
   });
 
@@ -89,7 +91,7 @@ export async function GET(request: Request) {
   }
 
   const overdueTasks = await prisma.task.findMany({
-    where: { deadline: { lt: now }, status: { not: "COMPLETE" } },
+    where: { deadline: { lt: now }, statusId: { not: completeId } },
     include: taskInclude,
   });
 

@@ -10,6 +10,7 @@ import { WorkflowSummaryCard } from "@/components/workflows/workflow-summary-car
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import { StatusPillBase } from "@/components/ui/status-pill";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -24,6 +25,7 @@ export type WorkflowInstanceDetailData = Prisma.WorkflowInstanceGetPayload<{
         client: { select: { id: true; name: true } };
         createdBy: { select: { id: true; name: true } };
         workflowInstance: { select: { id: true; name: true } };
+        statusOption: { select: { id: true; label: true; tone: true; isComplete: true } };
       };
     };
   };
@@ -44,6 +46,7 @@ export function WorkflowInstanceDetail({
   teamMembers = [],
   folders = [],
   recentActivity = [],
+  statusOptions = [],
 }: {
   instance: WorkflowInstanceDetailData;
   canManage: boolean;
@@ -53,6 +56,7 @@ export function WorkflowInstanceDetail({
   teamMembers?: { id: string; name: string }[];
   folders?: { id: string; name: string }[];
   recentActivity?: { id: string; description: string; createdAt: Date }[];
+  statusOptions?: StatusOptionLite[];
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const tasksByStage = instance.tasks.reduce<Record<number, typeof instance.tasks>>((acc, task) => {
@@ -63,7 +67,7 @@ export function WorkflowInstanceDetail({
 
   const taskCounts = snapshot.reduce<Record<number, { total: number; complete: number }>>((acc, stage) => {
     const stageTasks = tasksByStage[stage.sequenceNumber] ?? [];
-    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
     return acc;
   }, {});
 
@@ -131,7 +135,7 @@ export function WorkflowInstanceDetail({
                       <TaskListHeader />
                       <div className="divide-y px-1.5">
                         {stageTasks.map((task) => (
-                          <TaskRow key={task.id} task={task} />
+                          <TaskRow key={task.id} task={task} statusOptions={statusOptions} />
                         ))}
                       </div>
                     </>
@@ -147,6 +151,7 @@ export function WorkflowInstanceDetail({
                       teamMembers={teamMembers}
                       workflowInstanceId={instance.id}
                       workflowStageNumber={stage.sequenceNumber}
+                      statusOptions={statusOptions}
                     />
                   </div>
                 ) : null}

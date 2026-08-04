@@ -27,3 +27,8 @@ export const getCompleteStatusId = cache(async function getCompleteStatusId(): P
 export async function isCompleteStatusId(statusId: string): Promise<boolean> {
   return statusId === (await getCompleteStatusId());
 }
+
+export async function isValidStatusId(statusId: string): Promise<boolean> {
+  const options = await getTaskStatusOptions();
+  return options.some((o) => o.id === statusId);
+}

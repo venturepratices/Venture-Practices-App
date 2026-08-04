@@ -18,13 +18,9 @@ import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
-import {
-  TASK_KIND_LABELS,
-  TASK_KIND_VALUES,
-  TASK_OCCURRENCE_LABELS,
-  TASK_OCCURRENCE_VALUES,
-  TASK_STATUS_VALUES,
-} from "@/lib/validations/task";
+import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { resolveStatusOption } from "@/lib/task-status-utils";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
@@ -52,7 +48,7 @@ function draftFromTask(task: TaskDetail): Draft {
   return {
     title: task.title,
     description: task.description ?? "",
-    status: task.status,
+    status: task.statusId,
     assigneeIds: task.assignees.map((a) => a.teamMemberId).sort(),
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
@@ -69,9 +65,10 @@ type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
   currentUserId: string | null;
+  statusOptions?: StatusOptionLite[];
 };
 
-export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) {
+export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOptions = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -320,12 +317,12 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId }: Props) 
                 <Label>Status</Label>
                 <Select value={draft.status} onValueChange={(value) => value && setField("status", value)}>
                   <SelectTrigger className="w-full">
-                    <SelectValue>{(status: string) => <StatusPill status={status} />}</SelectValue>
+                    <SelectValue>{(value: string) => <StatusPill option={resolveStatusOption(statusOptions, value)} />}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {TASK_STATUS_VALUES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        <StatusPill status={status} />
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        <StatusPill option={option} />
                       </SelectItem>
                     ))}
                   </SelectContent>

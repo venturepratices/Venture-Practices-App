@@ -2,8 +2,9 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
+import { statusLabelMap } from "@/lib/task-status-utils";
 import { formatDate } from "@/lib/utils";
-import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 
 function labelFor(instance: { name: string; client: { name: string } | null }): string {
@@ -14,7 +15,7 @@ type AssigneeFields = { teamMember: { id: string; name: string; email: string; s
 
 type TaskLineFields = {
   title: string;
-  status: string;
+  statusId: string;
   deadline: Date | null;
   assignees: AssigneeFields[];
 };
@@ -39,12 +40,13 @@ async function taskNotificationLines(params: {
   const assigneeMentions = await Promise.all(
     params.task.assignees.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
   );
+  const statusLabels = statusLabelMap(await getTaskStatusOptions());
   const lines = [
     `For: ${recipientMention}`,
     `What: ${params.whatLine}`,
     `Task: ${params.task.title}`,
     `Assigned to: ${assigneeMentions.join(", ") || "Unassigned"}`,
-    `Status: ${TASK_STATUS_LABELS[params.task.status] ?? params.task.status}`,
+    `Status: ${statusLabels[params.task.statusId] ?? params.task.statusId}`,
   ];
   if (params.task.deadline) lines.push(`Deadline: ${formatDate(params.task.deadline)}`);
   lines.push(`Project: ${params.instanceLabel} — ${params.stageLabel}`);
@@ -74,12 +76,13 @@ export async function notifyWorkflowStageTasks(
   // work early (before stage N wrapped) already knows they're done; sending
   // "it's your turn" for something they've already handled would just be
   // noise, not the assembly-line signal this notification exists to give.
+  const completeId = await getCompleteStatusId();
   const tasks = await prisma.task.findMany({
-    where: { workflowInstanceId: instanceId, workflowStageNumber: stageNumber, status: { not: "COMPLETE" } },
+    where: { workflowInstanceId: instanceId, workflowStageNumber: stageNumber, statusId: { not: completeId } },
     select: {
       id: true,
       title: true,
-      status: true,
+      statusId: true,
       deadline: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
@@ -171,18 +174,19 @@ export async function notifyNextTaskInStage(
   });
   if (!instance) return;
 
+  const completeId = await getCompleteStatusId();
   const candidates = await prisma.task.findMany({
     where: {
       workflowInstanceId: instanceId,
       workflowStageNumber: stageNumber,
-      status: { not: "COMPLETE" },
+      statusId: { not: completeId },
       workflowTaskOrder: { gt: completedTask.workflowTaskOrder },
     },
     orderBy: { workflowTaskOrder: "asc" },
     select: {
       id: true,
       title: true,
-      status: true,
+      statusId: true,
       deadline: true,
       workflowTaskOrder: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
@@ -251,7 +255,7 @@ export async function maybeAdvanceWorkflowStage(
       tasks: {
         select: {
           id: true,
-          status: true,
+          statusId: true,
           workflowStageNumber: true,
           assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
         },
@@ -262,7 +266,8 @@ export async function maybeAdvanceWorkflowStage(
 
   const currentStageNumber = instance.currentStageNumber;
   const stageTasks = instance.tasks.filter((t) => t.workflowStageNumber === currentStageNumber);
-  if (stageTasks.length === 0 || !stageTasks.every((t) => t.status === "COMPLETE")) return null;
+  const completeId = await getCompleteStatusId();
+  if (stageTasks.length === 0 || !stageTasks.every((t) => t.statusId === completeId)) return null;
 
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const maxStage = Math.max(...snapshot.map((s) => s.sequenceNumber));

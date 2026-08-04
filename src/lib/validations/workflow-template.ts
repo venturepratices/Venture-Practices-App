@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
-
 const taskTemplateLinkSchema = z.object({
   url: z.string().trim().min(1, "URL is required").max(2000),
   label: z.string().trim().min(1, "Label is required").max(120),
@@ -10,7 +8,8 @@ const taskTemplateLinkSchema = z.object({
 const taskTemplateSchema = z.object({
   title: z.string().trim().min(1, "Task title is required").max(300),
   description: z.string().trim().max(2000).nullable().optional(),
-  defaultStatus: z.enum(TASK_STATUS_VALUES),
+  // A TaskStatusOption id, validated against the live list in the route handler.
+  defaultStatus: z.string().trim().min(1),
   defaultAssigneeIds: z.array(z.string()).default([]),
   links: z.array(taskTemplateLinkSchema).default([]),
 });

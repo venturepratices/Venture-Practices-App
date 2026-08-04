@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlignLeft, ChevronDown, ChevronUp, Link2, Loader2, Plus, Trash2, X } from "lucide-react";
 
-import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { resolveStatusOption, statusLabelMap } from "@/lib/task-status-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,14 +17,13 @@ import { cn } from "@/lib/utils";
 
 type ComposerField = "description" | "link";
 
-type TaskStatusValue = (typeof TASK_STATUS_VALUES)[number];
 type TeamMemberOption = { id: string; name: string };
 type TemplateTaskLinkDraft = { url: string; label: string };
 
 type TemplateTaskDraft = {
   title: string;
   description: string | null;
-  defaultStatus: TaskStatusValue;
+  defaultStatus: string;
   defaultAssigneeIds: string[];
   links: TemplateTaskLinkDraft[];
 };
@@ -46,7 +45,7 @@ export type WorkflowTemplateWithStages = {
     taskTemplates: {
       title: string;
       description: string | null;
-      defaultStatus: TaskStatusValue;
+      defaultStatus: string;
       defaultAssignees: { teamMember: { id: string; name: string } }[];
       links: { url: string; label: string }[];
     }[];
@@ -73,9 +72,11 @@ const EMPTY_NEW_LINK: TemplateTaskLinkDraft = { url: "", label: "" };
 export function WorkflowTemplateEditor({
   template,
   teamMembers,
+  statusOptions = [],
 }: {
   template: WorkflowTemplateWithStages;
   teamMembers: TeamMemberOption[];
+  statusOptions?: StatusOptionLite[];
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -304,7 +305,7 @@ export function WorkflowTemplateEditor({
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="min-w-0 flex-1 truncate font-medium">{task.title}</span>
                                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                      {TASK_STATUS_LABELS[task.defaultStatus]}
+                                      {statusLabelMap(statusOptions)[task.defaultStatus] ?? task.defaultStatus}
                                     </span>
                                     <span className="shrink-0 text-xs text-muted-foreground">
                                       {task.defaultAssigneeIds.length > 0
@@ -358,16 +359,16 @@ export function WorkflowTemplateEditor({
                               value={draftFor(stageIndex).defaultStatus}
                               onValueChange={(value) =>
                                 value &&
-                                setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value as TaskStatusValue } }))
+                                setNewTaskByStage((prev) => ({ ...prev, [stageIndex]: { ...draftFor(stageIndex), defaultStatus: value } }))
                               }
                             >
                               <SelectTrigger className="h-8 w-[140px] text-sm">
-                                <SelectValue>{(value: string) => TASK_STATUS_LABELS[value] ?? value}</SelectValue>
+                                <SelectValue>{(value: string) => resolveStatusOption(statusOptions, value).label}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
-                                {TASK_STATUS_VALUES.map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {TASK_STATUS_LABELS[value]}
+                                {statusOptions.map((option) => (
+                                  <SelectItem key={option.id} value={option.id}>
+                                    {option.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

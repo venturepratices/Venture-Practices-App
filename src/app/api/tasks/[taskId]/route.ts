@@ -11,7 +11,8 @@ import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { mentionOrName } from "@/lib/slack";
 import { formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
-import { TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
+import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
+import { statusLabelMap } from "@/lib/task-status-utils";
 import { updateTaskSchema } from "@/lib/validations/task";
 
 const OCCURRENCE_LABELS: Record<string, string> = {
@@ -26,6 +27,7 @@ const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
   comments: {
     include: { author: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" as const },
@@ -101,7 +103,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return toErrorResponse(error);
   }
 
-  const { deadline, assigneeIds, isPrivate, ...rest } = parsed.data;
+  if (parsed.data.status && !(await isValidStatusId(parsed.data.status))) {
+    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  }
+
+  const { deadline, assigneeIds, isPrivate, status, ...rest } = parsed.data;
   // Only the task's creator may toggle Private — a non-creator's isPrivate
   // value in the request body is silently ignored rather than rejected, so
   // an otherwise-valid edit from a non-creator doesn't fail outright.
@@ -110,7 +116,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     where: { id: taskId },
     data: {
       ...rest,
-      ...(rest.status ? { statusId: rest.status } : {}),
+      ...(status ? { statusId: status } : {}),
       ...(isPrivate !== undefined && canTogglePrivacy ? { isPrivate } : {}),
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
       ...(assigneeIds !== undefined
@@ -144,8 +150,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     if (parsed.data.title !== undefined && parsed.data.title !== before.title) {
       changes.push(`renamed to "${parsed.data.title}"`);
     }
-    if (parsed.data.status !== undefined && parsed.data.status !== before.status) {
-      changes.push(`status changed to ${TASK_STATUS_LABELS[parsed.data.status]}`);
+    if (status !== undefined && status !== before.statusId) {
+      const statusLabels = statusLabelMap(await getTaskStatusOptions());
+      const newStatusLabel = statusLabels[status] ?? status;
+      changes.push(`status changed to ${newStatusLabel}`);
       for (const a of task.assignees) {
         if (a.teamMemberId === session.user.id) continue;
         const mention = await mentionFor(a);
@@ -155,8 +163,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
-          slackMessage: `${mention} — the status of "${task.title}" changed to ${TASK_STATUS_LABELS[parsed.data.status]} (by ${session.user.name ?? "someone"})`,
+          message: `${a.teamMember.name} — the status of "${task.title}" changed to ${newStatusLabel} (by ${session.user.name ?? "someone"})`,
+          slackMessage: `${mention} — the status of "${task.title}" changed to ${newStatusLabel} (by ${session.user.name ?? "someone"})`,
           linkPath,
         });
       }
@@ -227,7 +235,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       });
     }
 
-    if (before.status !== "COMPLETE" && task.status === "COMPLETE") {
+    if (!(await isCompleteStatusId(before.statusId)) && (await isCompleteStatusId(task.statusId))) {
       const next = await maybeCreateNextOccurrence(task);
       if (next) {
         await logActivity({

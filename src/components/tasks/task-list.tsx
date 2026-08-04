@@ -9,6 +9,7 @@ import { ColumnVisibilityMenu } from "@/components/ui/column-visibility-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow, taskColumnsFor, defaultTaskColumnWidths } from "@/components/tasks/task-row";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { useColumnWidths } from "@/lib/use-column-widths";
 import type { TaskWithRelations } from "@/types/task";
@@ -20,9 +21,10 @@ type Props = {
   lockClient?: boolean;
   clients?: { id: string; name: string }[];
   teamMembers?: { id: string; name: string }[];
+  statusOptions?: StatusOptionLite[];
 };
 
-export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient, clients, teamMembers }: Props) {
+export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient, clients, teamMembers, statusOptions = [] }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isArchiving, setIsArchiving] = useState(false);
@@ -67,6 +69,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
             lockClient={lockClient}
             clients={clients}
             teamMembers={teamMembers}
+            statusOptions={statusOptions}
           />
         </div>
         <ColumnVisibilityMenu columns={columns} visible={visibleColumns} onToggle={toggleColumn} onResetWidths={resetWidths} />
@@ -107,6 +110,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
               selectable
               selected={selected.has(task.id)}
               onToggleSelect={toggleSelect}
+              statusOptions={statusOptions}
             />
           ))}
         </div>

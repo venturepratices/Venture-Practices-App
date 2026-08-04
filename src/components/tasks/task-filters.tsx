@@ -9,7 +9,9 @@ import { DateRangeFilter } from "@/components/date-range-filter";
 import { SearchInput } from "@/components/search-input";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
-import { TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { resolveStatusOption } from "@/lib/task-status-utils";
 
 const ALL = "ALL";
 const NO_CLIENT = "NONE";
@@ -35,9 +37,10 @@ export const TASK_FILTER_KEYS = [
 type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
+  statusOptions?: StatusOptionLite[];
 };
 
-export function TaskFilters({ clients, teamMembers }: Props) {
+export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -78,13 +81,15 @@ export function TaskFilters({ clients, teamMembers }: Props) {
 
       <Select value={status} onValueChange={(value) => setParam("status", value)}>
         <SelectTrigger className="w-full sm:w-[150px]">
-          <SelectValue>{(value: string) => (value === ALL ? "All statuses" : <StatusPill status={value} />)}</SelectValue>
+          <SelectValue>
+            {(value: string) => (value === ALL ? "All statuses" : <StatusPill option={resolveStatusOption(statusOptions, value)} />)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All statuses</SelectItem>
-          {TASK_STATUS_VALUES.map((s) => (
-            <SelectItem key={s} value={s}>
-              <StatusPill status={s} />
+          {statusOptions.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              <StatusPill option={option} />
             </SelectItem>
           ))}
         </SelectContent>

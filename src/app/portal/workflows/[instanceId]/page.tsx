@@ -24,14 +24,14 @@ export default async function PortalWorkflowDetailPage({ params }: { params: Pro
   const { instanceId } = await params;
   const instance = await prisma.workflowInstance.findFirst({
     where: { id: instanceId, clientId: clientUser.clientId, status: { not: "CANCELLED" } },
-    include: { tasks: { select: { status: true, workflowStageNumber: true } } },
+    include: { tasks: { select: { statusOption: { select: { isComplete: true } }, workflowStageNumber: true } } },
   });
   if (!instance) notFound();
 
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const taskCounts = snapshot.reduce<Record<number, { total: number; complete: number }>>((acc, stage) => {
     const stageTasks = instance.tasks.filter((t) => t.workflowStageNumber === stage.sequenceNumber);
-    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
     return acc;
   }, {});
 

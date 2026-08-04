@@ -20,7 +20,7 @@ export default async function WorkflowsPage() {
         client: { select: { id: true, name: true } },
         tasks: {
           select: {
-            status: true,
+            statusOption: { select: { isComplete: true } },
             workflowStageNumber: true,
             deadline: true,
             assignees: { include: { teamMember: { select: { name: true } } } },

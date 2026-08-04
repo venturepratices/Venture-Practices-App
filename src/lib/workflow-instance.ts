@@ -1,14 +1,12 @@
 import type { Prisma } from "@/generated/prisma/client";
-import type { TASK_STATUS_VALUES } from "@/lib/validations/task";
-
-export type TaskStatusValue = (typeof TASK_STATUS_VALUES)[number];
 
 export type StageSnapshotTaskLink = { url: string; label: string };
 
 export type StageSnapshotTask = {
   title: string;
   description: string | null;
-  defaultStatus: TaskStatusValue;
+  // A TaskStatusOption id, not a fixed enum value — see TaskStatusOption.
+  defaultStatus: string;
   sequenceNumber: number;
   defaultAssigneeIds: string[];
   links: StageSnapshotTaskLink[];
@@ -43,7 +41,6 @@ export async function spawnWorkflowTasks(
     data: flatTasks.map((task) => ({
       title: task.title,
       description: task.description,
-      status: task.defaultStatus,
       statusId: task.defaultStatus,
       clientId: params.clientId,
       workflowInstanceId: params.instanceId,

@@ -14,7 +14,7 @@ export type WorkflowInstanceCardData = Prisma.WorkflowInstanceGetPayload<{
     client: { select: { id: true; name: true } };
     tasks: {
       select: {
-        status: true;
+        statusOption: { select: { isComplete: true } };
         workflowStageNumber: true;
         deadline: true;
         assignees: { include: { teamMember: { select: { name: true } } } };
@@ -43,11 +43,11 @@ export function WorkflowInstanceCard({
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const taskCounts = snapshot.reduce<Record<number, { total: number; complete: number }>>((acc, stage) => {
     const stageTasks = instance.tasks.filter((t) => t.workflowStageNumber === stage.sequenceNumber);
-    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+    acc[stage.sequenceNumber] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
     return acc;
   }, {});
   const totalTasks = instance.tasks.length;
-  const completeTasks = instance.tasks.filter((t) => t.status === "COMPLETE").length;
+  const completeTasks = instance.tasks.filter((t) => t.statusOption.isComplete).length;
 
   const metaParts: string[] = [];
   if (!hideClientLabel) metaParts.push(instance.client ? instance.client.name : "Internal");
@@ -55,9 +55,9 @@ export function WorkflowInstanceCard({
   metaParts.push(`started ${daysSince(instance.createdAt)}d ago`);
 
   const currentStageName = snapshot.find((s) => s.sequenceNumber === instance.currentStageNumber)?.name;
-  const currentStageTasks = instance.tasks.filter((t) => t.workflowStageNumber === instance.currentStageNumber && t.status !== "COMPLETE");
+  const currentStageTasks = instance.tasks.filter((t) => t.workflowStageNumber === instance.currentStageNumber && !t.statusOption.isComplete);
   const assigneeNames = [...new Set(currentStageTasks.flatMap((t) => t.assignees.map((a) => a.teamMember.name)))];
-  const overdueCount = instance.tasks.filter((t) => t.status !== "COMPLETE" && t.deadline && t.deadline.getTime() < Date.now()).length;
+  const overdueCount = instance.tasks.filter((t) => !t.statusOption.isComplete && t.deadline && t.deadline.getTime() < Date.now()).length;
 
   const turnLabel =
     assigneeNames.length === 0

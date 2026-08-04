@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
@@ -12,13 +13,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   const perms = await loadPermissions();
   const clientWhere = await accessibleClientFilter("id");
-  const [clients, teamMembers, unreadCount] = await Promise.all([
+  const [clients, teamMembers, unreadCount, statusOptions] = await Promise.all([
     // Sidebar client list scoped to what this user may access.
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     session?.user?.id
       ? prisma.notification.count({ where: { recipientId: session.user.id, readAt: null } })
       : Promise.resolve(0),
+    getTaskStatusOptions(),
   ]);
 
   return (
@@ -39,7 +41,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
         <Suspense fallback={null}>
-          <TaskDetailPanel clients={clients} teamMembers={teamMembers} currentUserId={session?.user?.id ?? null} />
+          <TaskDetailPanel
+            clients={clients}
+            teamMembers={teamMembers}
+            currentUserId={session?.user?.id ?? null}
+            statusOptions={statusOptions}
+          />
         </Suspense>
       </div>
     </MobileSidebarProvider>

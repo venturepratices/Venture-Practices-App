@@ -23,7 +23,7 @@ export default async function PortalCampaignsPage() {
 
   const campaigns = await prisma.campaign.findMany({
     where: { clientId: clientUser.clientId },
-    include: { tasks: { select: { status: true, campaignStage: true } } },
+    include: { tasks: { select: { statusOption: { select: { isComplete: true } }, campaignStage: true } } },
     orderBy: { sequenceNumber: "asc" },
   });
 
@@ -41,7 +41,7 @@ export default async function PortalCampaignsPage() {
           {campaigns.map((campaign) => {
             const taskCounts = CAMPAIGN_STAGE_VALUES.reduce<Record<string, { total: number; complete: number }>>((acc, stage) => {
               const stageTasks = campaign.tasks.filter((t) => (t.campaignStage ?? "PLANNING") === stage);
-              acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.status === "COMPLETE").length };
+              acc[stage] = { total: stageTasks.length, complete: stageTasks.filter((t) => t.statusOption.isComplete).length };
               return acc;
             }, {});
 

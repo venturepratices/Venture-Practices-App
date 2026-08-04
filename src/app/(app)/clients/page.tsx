@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 
 import { accessibleClientFilter, canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getCompleteStatusId } from "@/lib/task-status";
 import { Button } from "@/components/ui/button";
 import { ClientCard } from "@/components/clients/client-card";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
@@ -10,19 +11,20 @@ import { InfoTip } from "@/components/info-tip";
 export default async function ClientsPage() {
   const clientWhere = await accessibleClientFilter("id");
   const canCreate = await canUseCapability("canCreateClients");
+  const completeStatusId = await getCompleteStatusId();
   const [clients, overdueByClient] = await Promise.all([
     prisma.client.findMany({
       where: clientWhere,
       orderBy: { name: "asc" },
       include: {
         _count: {
-          select: { tasks: { where: { status: { not: "COMPLETE" } } } },
+          select: { tasks: { where: { statusId: { not: completeStatusId } } } },
         },
       },
     }),
     prisma.task.groupBy({
       by: ["clientId"],
-      where: { status: { not: "COMPLETE" }, deadline: { lt: new Date() }, clientId: { not: null } },
+      where: { statusId: { not: completeStatusId }, deadline: { lt: new Date() }, clientId: { not: null } },
       _count: { _all: true },
     }),
   ]);

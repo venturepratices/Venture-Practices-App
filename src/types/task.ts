@@ -11,6 +11,7 @@ export type TaskWithRelations = Prisma.TaskGetPayload<{
     client: { select: { id: true; name: true } };
     createdBy: { select: { id: true; name: true } };
     workflowInstance: { select: { id: true; name: true } };
+    statusOption: { select: { id: true; label: true; tone: true; isComplete: true } };
   };
 }>;
 
@@ -24,6 +25,7 @@ export type TaskDetail = Prisma.TaskGetPayload<{
     comments: { include: { author: { select: { id: true; name: true } } } };
     links: true;
     campaign: { select: { id: true; sequenceNumber: true; currentStage: true } };
+    statusOption: { select: { id: true; label: true; tone: true; isComplete: true } };
   };
 }>;
 

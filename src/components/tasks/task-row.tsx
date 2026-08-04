@@ -7,8 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KindPill } from "@/components/tasks/kind-pill";
-import { StatusPill, TASK_STATUS_LABELS } from "@/components/tasks/status-pill";
-import { TASK_KIND_LABELS, TASK_STATUS_VALUES } from "@/lib/validations/task";
+import { StatusPill } from "@/components/tasks/status-pill";
+import { TASK_KIND_LABELS } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { resolveStatusOption } from "@/lib/task-status-utils";
 import { cn, formatDate } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
@@ -92,9 +94,14 @@ type Props = {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: (taskId: string) => void;
+  // Full live status list, needed only for the inline status-change dropdown
+  // (the pill itself renders straight from task.statusOption). Optional so
+  // callers that never let a task's status be changed inline can omit it —
+  // the dropdown just won't render a full set of choices in that case.
+  statusOptions?: StatusOptionLite[];
 };
 
-export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect }: Props) {
+export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect, statusOptions = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -111,9 +118,9 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
   }
 
   async function updateStatus(status: string | null) {
-    if (!status || status === task.status) return;
-    const fromLabel = TASK_STATUS_LABELS[task.status] ?? task.status;
-    const toLabel = TASK_STATUS_LABELS[status] ?? status;
+    if (!status || status === task.statusId) return;
+    const fromLabel = task.statusOption.label;
+    const toLabel = resolveStatusOption(statusOptions, status).label;
     if (!window.confirm(`Change status of "${task.title}" from ${fromLabel} to ${toLabel}?`)) return;
     await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
@@ -203,14 +210,14 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
         </span>
       ) : null}
       <span onClick={(e) => e.stopPropagation()} className="min-w-0 justify-self-start">
-        <Select value={task.status} onValueChange={updateStatus}>
+        <Select value={task.statusId} onValueChange={updateStatus}>
           <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">
-            <SelectValue>{(status: string) => <StatusPill status={status} />}</SelectValue>
+            <SelectValue>{() => <StatusPill option={task.statusOption} />}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {TASK_STATUS_VALUES.map((status) => (
-              <SelectItem key={status} value={status}>
-                <StatusPill status={status} />
+            {statusOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                <StatusPill option={option} />
               </SelectItem>
             ))}
           </SelectContent>

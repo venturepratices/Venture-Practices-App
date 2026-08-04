@@ -6,21 +6,21 @@ import { DndContext, PointerSensor, useDroppable, useSensor, useSensors, type Dr
 
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskCard } from "@/components/tasks/task-card";
-import { TASK_STATUS_VALUES } from "@/lib/validations/task";
+import type { StatusOptionLite } from "@/lib/task-status-utils";
 import type { TaskWithRelations } from "@/types/task";
 
 function Column({
-  status,
+  option,
   tasks,
   onOpenTask,
   showClient,
 }: {
-  status: string;
+  option: StatusOptionLite;
   tasks: TaskWithRelations[];
   onOpenTask: (taskId: string) => void;
   showClient?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: option.id });
 
   return (
     <div
@@ -28,7 +28,7 @@ function Column({
       className={`flex w-72 shrink-0 snap-start flex-col rounded-lg border bg-muted/20 transition-colors ${isOver ? "bg-muted/50" : ""}`}
     >
       <div className="flex items-center justify-between border-b p-3">
-        <StatusPill status={status} />
+        <StatusPill option={option} />
         <span className="text-xs text-muted-foreground">{tasks.length}</span>
       </div>
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2">
@@ -40,7 +40,15 @@ function Column({
   );
 }
 
-export function TaskBoard({ tasks, showClientOnCards }: { tasks: TaskWithRelations[]; showClientOnCards?: boolean }) {
+export function TaskBoard({
+  tasks,
+  showClientOnCards,
+  statusOptions = [],
+}: {
+  tasks: TaskWithRelations[];
+  showClientOnCards?: boolean;
+  statusOptions?: StatusOptionLite[];
+}) {
   const [localTasks, setLocalTasks] = useState(tasks);
   const router = useRouter();
   const pathname = usePathname();
@@ -60,34 +68,40 @@ export function TaskBoard({ tasks, showClientOnCards }: { tasks: TaskWithRelatio
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
-    const newStatus = String(over.id);
+    const newStatusId = String(over.id);
     const taskId = String(active.id);
     const current = localTasks.find((t) => t.id === taskId);
-    if (!current || current.status === newStatus) return;
+    if (!current || current.statusId === newStatusId) return;
+    const newOption = statusOptions.find((o) => o.id === newStatusId);
+    if (!newOption) return;
 
-    setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus as typeof t.status } : t)));
+    setLocalTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, statusId: newStatusId, statusOption: newOption } : t))
+    );
 
     const response = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
+      body: JSON.stringify({ status: newStatusId }),
     });
     if (response.ok) {
       router.refresh();
     } else {
       // Revert on failure
-      setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: current.status } : t)));
+      setLocalTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, statusId: current.statusId, statusOption: current.statusOption } : t))
+      );
     }
   }
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
-        {TASK_STATUS_VALUES.map((status) => (
+        {statusOptions.map((option) => (
           <Column
-            key={status}
-            status={status}
-            tasks={localTasks.filter((task) => task.status === status)}
+            key={option.id}
+            option={option}
+            tasks={localTasks.filter((task) => task.statusId === option.id)}
             onOpenTask={openTask}
             showClient={showClientOnCards}
           />

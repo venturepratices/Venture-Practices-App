@@ -3,6 +3,7 @@ import { CAMPAIGN_STAGE_LABELS, campaignLabel as formatCampaignLabel, nextCampai
 import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { getCompleteStatusId } from "@/lib/task-status";
 
 type AssigneeMember = { id: string; name: string; email: string; slackUserId: string | null };
 
@@ -32,7 +33,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
         select: {
           id: true,
           title: true,
-          status: true,
+          statusId: true,
           campaignStage: true,
           assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
         },
@@ -43,7 +44,8 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
 
   const currentStage = campaign.currentStage as CampaignStageValue;
   const stageTasks = campaign.tasks.filter((t) => (t.campaignStage ?? "PLANNING") === currentStage);
-  if (stageTasks.length === 0 || !stageTasks.every((t) => t.status === "COMPLETE")) return null;
+  const completeId = await getCompleteStatusId();
+  if (stageTasks.length === 0 || !stageTasks.every((t) => t.statusId === completeId)) return null;
 
   const newStage = nextCampaignStage(currentStage);
   if (!newStage) return null;
@@ -131,15 +133,16 @@ export async function maybeCompleteApprovalTasksForProofAsset(assetId: string, a
   const campaign = await prisma.campaign.findFirst({ where: { proofAssetId: assetId }, select: { id: true } });
   if (!campaign) return;
 
+  const completeId = await getCompleteStatusId();
   const incomplete = await prisma.task.findMany({
-    where: { campaignId: campaign.id, campaignStage: "APPROVAL", status: { not: "COMPLETE" } },
+    where: { campaignId: campaign.id, campaignStage: "APPROVAL", statusId: { not: completeId } },
     select: { id: true, title: true, clientId: true },
   });
   if (incomplete.length === 0) return;
 
   await prisma.task.updateMany({
     where: { id: { in: incomplete.map((t) => t.id) } },
-    data: { status: "COMPLETE" },
+    data: { statusId: completeId },
   });
 
   for (const task of incomplete) {

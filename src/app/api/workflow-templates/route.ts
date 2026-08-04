@@ -74,7 +74,6 @@ export async function POST(request: Request) {
             create: stage.taskTemplates.map((task, taskIndex) => ({
               title: task.title,
               description: task.description ?? null,
-              defaultStatus: task.defaultStatus,
               defaultStatusId: task.defaultStatus,
               sequenceNumber: taskIndex + 1,
               defaultAssignees: {

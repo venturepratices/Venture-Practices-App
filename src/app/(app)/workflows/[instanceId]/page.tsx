@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { canUseCapability, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTaskStatusOptions } from "@/lib/task-status";
 import { WorkflowInstanceDetail } from "@/components/workflows/workflow-instance-detail";
 
 export default async function WorkflowInstanceDetailPage({ params }: { params: Promise<{ instanceId: string }> }) {
@@ -10,7 +11,7 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
   const perms = await loadPermissions();
 
   const { instanceId } = await params;
-  const [instance, teamMembers] = await Promise.all([
+  const [instance, teamMembers, statusOptions] = await Promise.all([
     prisma.workflowInstance.findFirst({
       where: { id: instanceId, clientId: null },
       include: {
@@ -24,12 +25,14 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
             client: { select: { id: true, name: true } },
             createdBy: { select: { id: true, name: true } },
             workflowInstance: { select: { id: true, name: true } },
+            statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
           },
           orderBy: [{ workflowStageNumber: "asc" }, { createdAt: "asc" }],
         },
       },
     }),
     canManage ? prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    getTaskStatusOptions(),
   ]);
   if (!instance) notFound();
 
@@ -54,6 +57,7 @@ export default async function WorkflowInstanceDetailPage({ params }: { params: P
       redirectOnDelete="/workflows"
       teamMembers={teamMembers}
       recentActivity={recentActivity}
+      statusOptions={statusOptions}
     />
   );
 }

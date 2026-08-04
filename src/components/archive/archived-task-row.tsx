@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { StatusPill } from "@/components/tasks/status-pill";
+import { StatusPillBase } from "@/components/ui/status-pill";
 import { cn, formatDateTime } from "@/lib/utils";
 import { ARCHIVE_GRID } from "@/components/archive/archive-grid";
 import { archivedAssigneeNames } from "@/types/task";
@@ -45,7 +45,7 @@ export function ArchivedTaskRow({ task }: Props) {
       </span>
       <span className="hidden min-w-0 truncate text-muted-foreground md:block">{task.clientName ?? "Internal"}</span>
       <span className="hidden min-w-0 truncate text-muted-foreground md:block">{assigneeNames}</span>
-      <StatusPill status={task.status} className="min-w-0 justify-self-start" />
+      <StatusPillBase tone="slate" label={task.statusLabel ?? task.status} className="min-w-0 justify-self-start" />
       <span className="hidden min-w-0 justify-self-end truncate text-right text-xs text-muted-foreground md:block">
         Deleted {formatDateTime(task.deletedAt)}
         {task.deletedBy ? ` by ${task.deletedBy.name}` : ""}
