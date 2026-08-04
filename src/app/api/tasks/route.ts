@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       kind: parsed.data.kind ?? defaultKind,
       isPrivate: parsed.data.isPrivate ?? false,
       createdById: session.user.id,
-      ...(parsed.data.status ? { status: parsed.data.status } : {}),
+      ...(parsed.data.status ? { status: parsed.data.status, statusId: parsed.data.status } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },

@@ -75,6 +75,7 @@ export async function POST(request: Request) {
               title: task.title,
               description: task.description ?? null,
               defaultStatus: task.defaultStatus,
+              defaultStatusId: task.defaultStatus,
               sequenceNumber: taskIndex + 1,
               defaultAssignees: {
                 create: task.defaultAssigneeIds.map((teamMemberId) => ({ teamMemberId })),

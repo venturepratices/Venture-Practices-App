@@ -44,6 +44,7 @@ export async function spawnWorkflowTasks(
       title: task.title,
       description: task.description,
       status: task.defaultStatus,
+      statusId: task.defaultStatus,
       clientId: params.clientId,
       workflowInstanceId: params.instanceId,
       workflowStageNumber: task.stageNumber,

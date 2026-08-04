@@ -22,6 +22,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
         client: true,
         comments: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
         links: { orderBy: { createdAt: "asc" } },
+        statusOption: { select: { label: true } },
       },
     });
 
@@ -42,6 +43,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
         clientName: task.client?.name ?? null,
         occurrence: task.occurrence,
         status: task.status,
+        statusLabel: task.statusOption.label,
         deadline: task.deadline,
         taskCreatedAt: task.createdAt,
         taskUpdatedAt: task.updatedAt,
@@ -109,6 +111,19 @@ export async function restoreArchivedTask(archivedTaskId: string) {
     ]);
     const existingIds = new Set(existingAssignees.map((a) => a.id));
 
+    // Resolve a live statusId for the restored task: prefer matching the
+    // frozen label text (robust even if the original status option was
+    // later renamed to something else with a different id), fall back to
+    // the enum key string (valid unless that exact option was deleted), and
+    // fall back again to whatever status sorts first if neither matches —
+    // better than a hard crash on a rare, already-unusual restore path.
+    const labelMatch = archived.statusLabel
+      ? await tx.taskStatusOption.findFirst({ where: { label: archived.statusLabel }, select: { id: true } })
+      : null;
+    const keyMatch = labelMatch ? null : await tx.taskStatusOption.findUnique({ where: { id: archived.status }, select: { id: true } });
+    const fallback = labelMatch ?? keyMatch ? null : await tx.taskStatusOption.findFirst({ orderBy: { sequenceNumber: "asc" }, select: { id: true } });
+    const resolvedStatusId = labelMatch?.id ?? keyMatch?.id ?? fallback?.id ?? archived.status;
+
     const task = await tx.task.create({
       data: {
         title: archived.title,
@@ -116,6 +131,7 @@ export async function restoreArchivedTask(archivedTaskId: string) {
         clientId: client ? archived.clientId : null,
         occurrence: archived.occurrence,
         status: archived.status,
+        statusId: resolvedStatusId,
         deadline: archived.deadline,
         assignees: { create: snapshotAssignees.filter((a) => existingIds.has(a.id)).map((a) => ({ teamMemberId: a.id })) },
       },

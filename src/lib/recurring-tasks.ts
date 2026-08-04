@@ -31,6 +31,7 @@ export async function maybeCreateNextOccurrence(task: Task) {
       clientId: task.clientId,
       occurrence: task.occurrence,
       status: "NEXT_UP",
+      statusId: "NEXT_UP",
       deadline: computeNextDeadline(task.deadline, task.occurrence),
       assignees: { create: currentAssignees.map((a) => ({ teamMemberId: a.teamMemberId })) },
     },

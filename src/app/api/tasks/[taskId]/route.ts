@@ -110,6 +110,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     where: { id: taskId },
     data: {
       ...rest,
+      ...(rest.status ? { statusId: rest.status } : {}),
       ...(isPrivate !== undefined && canTogglePrivacy ? { isPrivate } : {}),
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
       ...(assigneeIds !== undefined

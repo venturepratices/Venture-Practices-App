@@ -81,6 +81,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
                 title: task.title,
                 description: task.description ?? null,
                 defaultStatus: task.defaultStatus,
+                defaultStatusId: task.defaultStatus,
                 sequenceNumber: taskIndex + 1,
                 defaultAssignees: {
                   create: task.defaultAssigneeIds.map((teamMemberId) => ({ teamMemberId })),

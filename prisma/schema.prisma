@@ -692,6 +692,31 @@ model LandingPage {
   @@index([clientId])
 }
 
+// Admin-configurable replacement for the old fixed TaskStatus enum — a real
+// table with a stable id, so renaming a status is just editing a row (every
+// task referencing it shows the new label immediately, no cascade needed)
+// instead of the old enum's fixed vocabulary. Seed rows reuse the original
+// enum's key strings as their id (e.g. "NEXT_UP", "COMPLETE") specifically so
+// every existing `status: "X"` write site can dual-write `statusId: "X"`
+// verbatim during the migration — see Task.status below. `isComplete` marks
+// the one protected "this means done" status the workflow auto-advance
+// engine and recurring-task regeneration key off; confirmed with the user
+// that exactly one status ever holds this flag and it's not user-editable.
+model TaskStatusOption {
+  id             String   @id @default(cuid())
+  label          String
+  tone           String // one of the tone keys in src/components/ui/status-pill.tsx's cva variants
+  sequenceNumber Int // display/board-column order
+  isComplete     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tasks                        Task[]
+  workflowTaskTemplateDefaults WorkflowTaskTemplate[]
+
+  @@index([sequenceNumber])
+}
+
 model Task {
   id          String         @id @default(cuid())
   title       String
@@ -706,7 +731,13 @@ model Task {
   clientId   String? // null = internal/agency task, not tied to a client
   client     Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   occurrence TaskOccurrence @default(NON_RECURRING)
-  status     TaskStatus     @default(NEXT_UP)
+  // Deprecated shadow column from the fixed-enum era — see TaskStatusOption
+  // above. Dual-written alongside statusId during the migration; reads
+  // should go through statusId/TaskStatusOption once every consumer has
+  // switched over, then this column and the TaskStatus enum type get dropped.
+  status     TaskStatus       @default(NEXT_UP)
+  statusId   String           @default("NEXT_UP")
+  statusOption TaskStatusOption @relation(fields: [statusId], references: [id], onDelete: Restrict)
   deadline   DateTime?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
@@ -759,6 +790,7 @@ model Task {
   @@index([clientId])
   @@index([assigneeId])
   @@index([status])
+  @@index([statusId])
   @@index([campaignId, campaignStage])
   @@index([workflowInstanceId, workflowStageNumber])
   @@index([createdById, isPrivate])
@@ -909,12 +941,19 @@ model WorkflowTaskTemplate {
   sequenceNumber          Int // order within the stage; display-only, no intra-stage advance logic
   title                   String
   description             String?
+  // Deprecated shadow column — see TaskStatusOption / Task.status.
   defaultStatus           TaskStatus            @default(NEXT_UP)
+  // Nullable + SetNull: a template default is a starting suggestion, not a
+  // live obligation, so deleting a status option just clears it rather than
+  // blocking (unlike Task.statusId, which requires picking a replacement).
+  defaultStatusId         String?
+  defaultStatusOption     TaskStatusOption?     @relation(fields: [defaultStatusId], references: [id], onDelete: SetNull)
 
   defaultAssignees WorkflowTaskTemplateAssignee[]
   links            WorkflowTaskTemplateLink[]
 
   @@index([workflowStageTemplateId])
+  @@index([defaultStatusId])
 }
 
 // Reference links attached to a template task (e.g. a brief doc, a style
@@ -1100,7 +1139,14 @@ model ArchivedTask {
   clientId       String?
   clientName     String?
   occurrence     TaskOccurrence
+  // Deprecated shadow column — see TaskStatusOption / Task.status.
   status         TaskStatus
+  // Denormalized label text (not a live FK), frozen at archive time — matches
+  // this model's existing philosophy (assigneeName/clientName are frozen
+  // strings too), so an archived task keeps showing whatever the status was
+  // called *at the time it was archived*, unaffected by later renames.
+  // Nullable on pre-migration rows.
+  statusLabel    String?
   deadline       DateTime?
   taskCreatedAt  DateTime
   taskUpdatedAt  DateTime
