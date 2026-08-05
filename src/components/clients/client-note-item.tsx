@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Loader2, Pencil, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SimpleMarkdown } from "@/components/ui/simple-markdown";
@@ -21,8 +22,19 @@ type Props = {
   };
 };
 
+// A one-line row preview — strips the leading "## "/"- " markers so the list
+// reads as plain text, matching how Task rows preview their title.
+function previewOf(body: string) {
+  const line = body
+    .split("\n")
+    .map((segment) => segment.trim())
+    .find((segment) => segment.length > 0);
+  return line ? line.replace(/^#{1,2}\s+/, "").replace(/^[-*]\s+/, "") : "";
+}
+
 export function ClientNoteItem({ clientId, note }: Props) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(note.body);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,72 +75,98 @@ export function ClientNoteItem({ clientId, note }: Props) {
   async function remove() {
     if (!window.confirm("Delete this note? This can't be undone.")) return;
     const response = await fetch(`/api/clients/${clientId}/notes/${note.id}`, { method: "DELETE" });
-    if (response.ok) router.refresh();
+    if (response.ok) {
+      setOpen(false);
+      router.refresh();
+    }
   }
 
   return (
-    <div className="px-4 py-3 text-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-2">
-          <span className="font-medium">{note.author?.name ?? "Former team member"}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatDateTime(note.createdAt)}
-            {wasEdited ? " (edited)" : ""}
-          </span>
-        </div>
-        {!isEditing ? (
-          <div className="flex shrink-0 items-center gap-1">
-            <TooltipProvider delay={300}>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button variant="ghost" size="icon-sm" aria-label="Edit note" onClick={startEdit}>
-                      <Pencil className="size-3.5" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>Edit note</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button variant="ghost" size="icon-sm" aria-label="Delete note" onClick={remove}>
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>Delete note</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        ) : null}
-      </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50"
+      >
+        <span className="w-32 shrink-0 truncate font-medium">{note.author?.name ?? "Former team member"}</span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">{previewOf(note.body)}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatDateTime(note.createdAt)}
+          {wasEdited ? " (edited)" : ""}
+        </span>
+      </button>
 
-      {isEditing ? (
-        <div className="mt-1.5 space-y-2">
-          <Textarea
-            autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") cancelEdit();
-            }}
-            className="min-h-20 text-sm"
-          />
-          <div className="flex items-center gap-2">
-            <Button size="sm" disabled={isSaving || !draft.trim()} onClick={save}>
-              {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={cancelEdit}>
-              <X className="size-3.5" />
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <SimpleMarkdown text={note.body} className="mt-0.5 space-y-1 text-muted-foreground" />
-      )}
-    </div>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setIsEditing(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle>{note.author?.name ?? "Former team member"}</DialogTitle>
+              {!isEditing ? (
+                <div className="mr-6 flex shrink-0 items-center gap-1">
+                  <TooltipProvider delay={300}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button variant="ghost" size="icon-sm" aria-label="Edit note" onClick={startEdit} />
+                        }
+                      >
+                        <Pencil className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>Edit note</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button variant="ghost" size="icon-sm" aria-label="Delete note" onClick={remove} />
+                        }
+                      >
+                        <Trash2 className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>Delete note</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              ) : null}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {formatDateTime(note.createdAt)}
+              {wasEdited ? " (edited)" : ""}
+            </p>
+          </DialogHeader>
+
+          {isEditing ? (
+            <div className="space-y-2">
+              <Textarea
+                autoFocus
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") cancelEdit();
+                }}
+                className="min-h-32 text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <Button size="sm" disabled={isSaving || !draft.trim()} onClick={save}>
+                  {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                  <X className="size-3.5" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <SimpleMarkdown text={note.body} className="space-y-1 text-muted-foreground" />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
