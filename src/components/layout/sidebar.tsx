@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, ListTodo, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, CalendarClock, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, ListTodo, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -21,6 +21,7 @@ const AGENCY_LINKS = [
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
   { href: "/workflows", label: "Projects", icon: GitBranch, needs: "canViewWorkflows" as const },
   { href: "/team", label: "Team", icon: Users, adminOnly: true },
+  { href: "/team/availability", label: "Team Availability", icon: CalendarClock },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
   {

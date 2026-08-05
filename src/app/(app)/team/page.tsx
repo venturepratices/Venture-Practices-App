@@ -175,6 +175,10 @@ export default async function TeamPage() {
         <Link href="/archive" className="text-primary underline-offset-4 hover:underline">
           View deleted tasks in the archive
         </Link>
+        {" · "}
+        <Link href="/team/availability" className="text-primary underline-offset-4 hover:underline">
+          View team availability
+        </Link>
       </p>
     </div>
   );

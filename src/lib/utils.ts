@@ -60,6 +60,19 @@ export function endOfDay(dateString: string): Date {
   return new Date(wallClockAsUtc.getTime() - lead);
 }
 
+/**
+ * A wall-clock date + time (e.g. "2026-08-05", "14:30") interpreted in the
+ * given IANA timezone (defaults to the app's Charlotte, NC zone), converted
+ * to the correct UTC instant — same technique as endOfDay(). Used by the Team
+ * Availability picker, which lets the viewer pick their own zone (e.g. "2pm
+ * Pacific") rather than always assuming Charlotte, NC.
+ */
+export function zonedDateTime(dateString: string, timeString: string, timeZone: string = APP_TIME_ZONE): Date {
+  const wallClockAsUtc = new Date(`${dateString}T${timeString}:00.000Z`);
+  const lead = tzLeadMs(wallClockAsUtc, timeZone);
+  return new Date(wallClockAsUtc.getTime() - lead);
+}
+
 export function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/);
   return parts
