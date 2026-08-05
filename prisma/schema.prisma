@@ -688,7 +688,7 @@ model MeetingNote {
   title       String
   meetingDate DateTime
   transcript  String            @db.Text
-  summary     String            @db.Text
+  summary     String?           @db.Text
   source      MeetingNoteSource @default(MANUAL)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt

@@ -11,6 +11,7 @@ const createMeetingNoteSchema = z.object({
   title: z.string().trim().min(1, "Title can't be empty").max(200),
   meetingDate: z.coerce.date(),
   transcript: z.string().trim().min(1, "Transcript can't be empty").max(100000),
+  summarize: z.boolean().optional().default(false),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
@@ -33,12 +34,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  let summary: string;
-  try {
-    summary = await summarizeMeetingTranscript(parsed.data.transcript);
-  } catch (error) {
-    console.error("Meeting transcript summarization failed:", error);
-    return NextResponse.json({ error: "Failed to summarize transcript" }, { status: 502 });
+  let summary: string | null = null;
+  if (parsed.data.summarize) {
+    try {
+      summary = await summarizeMeetingTranscript(parsed.data.transcript);
+    } catch (error) {
+      console.error("Meeting transcript summarization failed:", error);
+      return NextResponse.json({ error: "Failed to summarize transcript" }, { status: 502 });
+    }
   }
 
   const meetingNote = await prisma.meetingNote.create({

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function NewMeetingNoteForm({ clientId }: { clientId: string }) {
   const router = useRouter();
@@ -17,14 +18,14 @@ export function NewMeetingNoteForm({ clientId }: { clientId: string }) {
 
   const canSubmit = title.trim() && meetingDate && transcript.trim() && !isPosting;
 
-  async function submit() {
+  async function submit(summarize: boolean) {
     if (!canSubmit) return;
     setIsPosting(true);
     setError(null);
     const response = await fetch(`/api/clients/${clientId}/meetings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), meetingDate, transcript: transcript.trim() }),
+      body: JSON.stringify({ title: title.trim(), meetingDate, transcript: transcript.trim(), summarize }),
     });
     setIsPosting(false);
     if (response.ok) {
@@ -60,9 +61,23 @@ export function NewMeetingNoteForm({ clientId }: { clientId: string }) {
         className="min-h-32 text-sm"
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button size="sm" disabled={!canSubmit} onClick={submit}>
-        {isPosting ? "Summarizing..." : "Summarize & save"}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button size="sm" disabled={!canSubmit} onClick={() => submit(false)}>
+          {isPosting ? "Saving..." : "Save"}
+        </Button>
+        <TooltipProvider delay={150}>
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-block" tabIndex={0} />}>
+              <Button size="sm" variant="outline" disabled>
+                Summarize & save
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              AI summarization is coming soon — for now, use Save to store the transcript as-is.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ type Props = {
     title: string;
     meetingDate: string | Date;
     transcript: string;
-    summary: string;
+    summary: string | null;
     author: { name: string } | null;
   };
 };
@@ -82,20 +82,30 @@ export function MeetingNoteItem({ clientId, meetingNote }: Props) {
             </p>
           </DialogHeader>
 
-          <SimpleMarkdown text={meetingNote.summary} className="space-y-1 text-muted-foreground" />
-
-          <button
-            type="button"
-            onClick={() => setShowTranscript((value) => !value)}
-            className="mt-2 text-left text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          >
-            {showTranscript ? "Hide transcript" : "Show full transcript"}
-          </button>
-          {showTranscript ? (
-            <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-              {meetingNote.transcript}
-            </p>
-          ) : null}
+          {meetingNote.summary ? (
+            <>
+              <SimpleMarkdown text={meetingNote.summary} className="space-y-1 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => setShowTranscript((value) => !value)}
+                className="mt-2 text-left text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {showTranscript ? "Hide transcript" : "Show full transcript"}
+              </button>
+              {showTranscript ? (
+                <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                  {meetingNote.transcript}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground/70 italic">No AI summary — showing the saved transcript.</p>
+              <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                {meetingNote.transcript}
+              </p>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>
