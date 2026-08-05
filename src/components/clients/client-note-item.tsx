@@ -7,6 +7,7 @@ import { Loader2, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 import { formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -126,7 +127,7 @@ export function ClientNoteItem({ clientId, note }: Props) {
           </div>
         </div>
       ) : (
-        <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{note.body}</p>
+        <SimpleMarkdown text={note.body} className="mt-0.5 space-y-1 text-muted-foreground" />
       )}
     </div>
   );

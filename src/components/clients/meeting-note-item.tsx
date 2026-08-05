@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -54,7 +55,7 @@ export function MeetingNoteItem({ clientId, meetingNote }: Props) {
         </TooltipProvider>
       </div>
 
-      <div className="mt-1.5 whitespace-pre-wrap text-muted-foreground">{meetingNote.summary}</div>
+      <SimpleMarkdown text={meetingNote.summary} className="mt-1.5 space-y-1 text-muted-foreground" />
 
       <button
         type="button"
