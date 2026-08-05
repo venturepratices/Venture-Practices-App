@@ -142,3 +142,22 @@ export async function syncTeamMemberCalendar(teamMemberId: string): Promise<{ ok
     return { ok: false, error: message };
   }
 }
+
+/**
+ * Re-syncs every connected member's calendar — used by the daily cron so
+ * stale caches get refreshed even for members nobody's viewed availability
+ * for recently (sync-on-view only refreshes connections someone actually
+ * looked at). Never throws; each member's failure is recorded on their own
+ * connection via syncTeamMemberCalendar and doesn't block the others.
+ */
+export async function syncAllConnectedCalendars(): Promise<{ synced: number; failed: number }> {
+  const connections = await prisma.teamMemberCalendarConnection.findMany({ select: { teamMemberId: true } });
+  let synced = 0;
+  let failed = 0;
+  for (const connection of connections) {
+    const result = await syncTeamMemberCalendar(connection.teamMemberId);
+    if (result.ok) synced++;
+    else failed++;
+  }
+  return { synced, failed };
+}

@@ -4,6 +4,7 @@ import { CalendarClock, Pencil, Plus, Users } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { computeFreeSlots, dayBoundsInTz, formatTimeInTz, type Interval } from "@/lib/availability";
+import { syncTeamMemberCalendar } from "@/lib/google-calendar";
 import { CAPABILITIES, type Capability } from "@/lib/permission-catalog";
 import { isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -237,9 +238,23 @@ async function AvailabilityTab({
   currentUserId: string | null;
 }) {
   const members = await prisma.teamMember.findMany({
-    select: { id: true, name: true, calendarConnection: { select: { connectedAt: true } } },
+    select: { id: true, name: true, calendarConnection: { select: { connectedAt: true, lastSyncAt: true } } },
     orderBy: { name: "asc" },
   });
+
+  // Sync-on-view, throttled — whoever opens this tab triggers a refresh for
+  // any connection that hasn't synced in the last minute, so the data stays
+  // current without hammering Google on every render. The daily cron in
+  // src/app/api/cron/calendar-sync/route.ts is the belt-and-suspenders sweep
+  // for connections nobody happens to view.
+  const SYNC_THROTTLE_MS = 60_000;
+  const now = Date.now();
+  const staleMemberIds = members
+    .filter((m) => m.calendarConnection && (!m.calendarConnection.lastSyncAt || now - m.calendarConnection.lastSyncAt.getTime() > SYNC_THROTTLE_MS))
+    .map((m) => m.id);
+  if (staleMemberIds.length > 0) {
+    await Promise.all(staleMemberIds.map((id) => syncTeamMemberCalendar(id)));
+  }
 
   const hasDate = !!params.date;
   const tz = params.tz || "America/New_York";
