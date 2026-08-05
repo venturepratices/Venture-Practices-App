@@ -277,6 +277,8 @@ model TeamMember {
   createdWorkflowInstances     WorkflowInstance[]             @relation("WorkflowInstanceCreator")
   planningItems                PlanningItem[]                 @relation("PlanningItemCreatedBy")
   clientOrders                 ClientOrder[]
+  calendarConnection           TeamMemberCalendarConnection?
+  busyBlocks                   TeamMemberBusyBlock[]
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
@@ -1336,4 +1338,42 @@ model AssetShareLink {
   createdAt              DateTime    @default(now())
 
   @@index([assetId])
+}
+
+// Self-service Google Calendar connection for free/busy sync (Team
+// Availability feature). One per TeamMember, connected by that person
+// themselves at /settings/calendar — never set up on their behalf by an
+// admin, unlike every other TeamMember-scoped config in this app. Tokens are
+// encrypted at rest via src/lib/credential-crypto.ts, same as the Client
+// Credentials vault. Deliberately stores no event content — only enough to
+// run a freebusy.query and refresh the access token.
+model TeamMemberCalendarConnection {
+  id                    String     @id @default(cuid())
+  teamMemberId          String     @unique
+  teamMember            TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  googleEmail           String?
+  encryptedAccessToken  String
+  encryptedRefreshToken String
+  accessTokenExpiresAt  DateTime
+  calendarId            String     @default("primary")
+  connectedAt           DateTime   @default(now())
+  lastSyncAt            DateTime?
+  lastSyncError         String?
+  updatedAt             DateTime   @updatedAt
+}
+
+// Cached free/busy intervals for a team member's connected calendar — a
+// rolling ~30-day window, full-replaced on every sync (see
+// syncTeamMemberCalendar in src/lib/google-calendar.ts). Deliberately stores
+// ONLY start/end times, never event titles/attendees/locations — a
+// privacy-respecting choice, not just a lean-cache one.
+model TeamMemberBusyBlock {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  startTime    DateTime
+  endTime      DateTime
+  lastSyncAt   DateTime   @default(now())
+
+  @@index([teamMemberId, startTime, endTime])
 }

@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, LogOut } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
 import { initialsOf } from "@/lib/utils";
@@ -25,6 +26,15 @@ export function TopBar({
           <p className="truncate font-medium">{userName ?? "Team member"}</p>
           <p className="truncate text-muted-foreground">{userEmail}</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Calendar settings"
+          title="Connect Google Calendar"
+          render={<Link href="/settings/calendar" />}
+        >
+          <CalendarDays className="size-4" />
+        </Button>
         <ChangePasswordDialog
           trigger={
             <button
