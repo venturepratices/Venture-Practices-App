@@ -335,6 +335,25 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// Login brute-force lockout — DB-persisted (not in-memory) since serverless
+// functions don't hold state across invocations, same reasoning already
+// proven for AssetShareLink's password lockout (see src/lib/share-link.ts).
+// Scoped to (email, ip) rather than email alone: an attacker repeatedly
+// guessing one account's password from one IP gets locked out, without a
+// malicious actor being able to lock a real user out just by failing their
+// login from an unrelated IP.
+model LoginAttempt {
+  id          String    @id @default(cuid())
+  email       String
+  ip          String
+  attempts    Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([email, ip])
+  @@index([email])
+}
+
 model Client {
   id        String       @id @default(cuid())
   name      String
