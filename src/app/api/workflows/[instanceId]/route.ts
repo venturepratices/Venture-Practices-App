@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { archiveTask } from "@/lib/archive";
+import { archiveWorkflowInstance } from "@/lib/archive";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
@@ -129,12 +129,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   // Unlike Cancel (which detaches tasks and leaves them live), Delete follows
   // this app's universal "delete = archive" convention — every task the
-  // workflow spawned is archived via the same archiveTask() the single-task
-  // delete route uses, recoverable from /archive. Sequential, not
-  // Promise.all: archiveTask does a write transaction per task, and the
-  // Prisma client here is a single shared connection.
+  // workflow spawned is archived via archiveTask() (same as the single-task
+  // delete route), and now the instance row itself is archived too, instead
+  // of being a permanent hard delete. Both recoverable from /archive.
+  await archiveWorkflowInstance(instanceId, session.user.id);
   for (const task of instance.tasks) {
-    await archiveTask(task.id, session.user.id);
     await logActivity({
       actorId: session.user.id,
       actorName: session.user.name ?? null,
@@ -147,8 +146,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     });
   }
 
-  await prisma.workflowInstance.delete({ where: { id: instanceId } });
-
   const instanceLabel = instance.client ? `${instance.name} — ${instance.client.name}` : instance.name;
   await logActivity({
     actorId: session.user.id,
@@ -158,7 +155,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityLabel: instanceLabel,
     clientId: instance.clientId,
     action: "workflow_deleted",
-    description: `${session.user.name ?? "Someone"} deleted project "${instanceLabel}" and archived its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
+    description: `${session.user.name ?? "Someone"} archived project "${instanceLabel}" and its ${instance.tasks.length} task${instance.tasks.length === 1 ? "" : "s"}`,
   });
 
   return NextResponse.json({ ok: true });

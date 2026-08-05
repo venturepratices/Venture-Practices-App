@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { archiveCampaign } from "@/lib/archive";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { campaignLabel } from "@/lib/campaign-stage";
@@ -156,11 +157,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return toErrorResponse(error);
   }
 
-  // Tasks survive the campaign's deletion (Task.campaignId is nullable) —
-  // explicitly clear campaignId/campaignStage rather than relying on the
-  // DB's ON DELETE SET NULL, since that wouldn't also clear campaignStage.
-  await prisma.task.updateMany({ where: { campaignId }, data: { campaignId: null, campaignStage: null } });
-  await prisma.campaign.delete({ where: { id: campaignId } });
+  // Tasks survive the campaign's deletion, unattached but live (Task.campaignId
+  // is nullable — archiveCampaign clears campaignId/campaignStage on them).
+  // The campaign row itself is archived, not hard-deleted — recoverable from
+  // /archive like every other delete in this app.
+  await archiveCampaign(campaignId, session.user.id);
 
   await logActivity({
     actorId: session.user.id,
@@ -170,7 +171,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     entityLabel: `${campaignLabel(campaign)} — ${campaign.client.name}`,
     clientId: campaign.clientId,
     action: "campaign_deleted",
-    description: `${session.user.name ?? "Someone"} deleted ${campaignLabel(campaign)} for "${campaign.client.name}"`,
+    description: `${session.user.name ?? "Someone"} archived ${campaignLabel(campaign)} for "${campaign.client.name}"`,
   });
 
   return NextResponse.json({ ok: true });

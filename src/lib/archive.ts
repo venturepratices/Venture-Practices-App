@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot } from "@/types/task";
 
@@ -165,5 +166,176 @@ export async function restoreArchivedTask(archivedTaskId: string) {
     await tx.archivedTask.delete({ where: { id: archivedTaskId } });
 
     return task;
+  });
+}
+
+/**
+ * Deletes a live Campaign and writes a full denormalized snapshot to
+ * ArchivedCampaign in the same transaction — mirrors archiveTask's
+ * philosophy exactly. Campaign's tasks are NOT archived here (they already
+ * survive detached, unattached but live — that's the existing, documented
+ * behavior for Campaign delete); this only makes the Campaign row itself
+ * recoverable instead of a permanent hard delete.
+ */
+export async function archiveCampaign(campaignId: string, deletedById: string | null) {
+  return prisma.$transaction(async (tx) => {
+    const campaign = await tx.campaign.findUniqueOrThrow({
+      where: { id: campaignId },
+      include: { client: { select: { name: true } } },
+    });
+
+    await tx.task.updateMany({ where: { campaignId }, data: { campaignId: null, campaignStage: null } });
+
+    const archived = await tx.archivedCampaign.create({
+      data: {
+        originalCampaignId: campaign.id,
+        clientId: campaign.clientId,
+        clientName: campaign.client.name,
+        name: campaign.name,
+        sequenceNumber: campaign.sequenceNumber,
+        mailDate: campaign.mailDate,
+        creativeDueDate: campaign.creativeDueDate,
+        approvalDueDate: campaign.approvalDueDate,
+        printDueDate: campaign.printDueDate,
+        currentStage: campaign.currentStage,
+        quantity: campaign.quantity,
+        geography: campaign.geography,
+        budgetCents: campaign.budgetCents,
+        offer: campaign.offer,
+        cta: campaign.cta,
+        stagesSnapshot: campaign.stagesSnapshot ?? undefined,
+        campaignCreatedAt: campaign.createdAt,
+        campaignUpdatedAt: campaign.updatedAt,
+        ...(deletedById ? { deletedBy: { connect: { id: deletedById } } } : {}),
+      },
+    });
+
+    await tx.campaign.delete({ where: { id: campaignId } });
+
+    return archived;
+  });
+}
+
+/**
+ * Reverses archiveCampaign: recreates a live Campaign from an
+ * ArchivedCampaign snapshot, then removes the archive record. If the
+ * original client no longer exists, restoring is refused (a campaign with no
+ * client isn't a meaningful record — unlike Task, which can be internal by
+ * design). sequenceNumber is recomputed rather than reused, since another
+ * campaign may have since taken that slot for this client.
+ */
+export async function restoreArchivedCampaign(archivedCampaignId: string) {
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedCampaign.findUniqueOrThrow({ where: { id: archivedCampaignId } });
+
+    if (!archived.clientId) {
+      throw new Error("This campaign's client no longer exists — it can't be restored.");
+    }
+    const client = await tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } });
+    if (!client) {
+      throw new Error("This campaign's client no longer exists — it can't be restored.");
+    }
+
+    const lastSequence = await tx.campaign.findFirst({
+      where: { clientId: archived.clientId },
+      orderBy: { sequenceNumber: "desc" },
+      select: { sequenceNumber: true },
+    });
+
+    const campaign = await tx.campaign.create({
+      data: {
+        clientId: archived.clientId,
+        sequenceNumber: (lastSequence?.sequenceNumber ?? 0) + 1,
+        name: archived.name,
+        mailDate: archived.mailDate,
+        creativeDueDate: archived.creativeDueDate,
+        approvalDueDate: archived.approvalDueDate,
+        printDueDate: archived.printDueDate,
+        currentStage: archived.currentStage,
+        quantity: archived.quantity,
+        geography: archived.geography,
+        budgetCents: archived.budgetCents,
+        offer: archived.offer,
+        cta: archived.cta,
+        stagesSnapshot: archived.stagesSnapshot ?? undefined,
+      },
+    });
+
+    await tx.archivedCampaign.delete({ where: { id: archivedCampaignId } });
+
+    return campaign;
+  });
+}
+
+/**
+ * Deletes a live WorkflowInstance and writes a full denormalized snapshot to
+ * ArchivedWorkflowInstance, on top of the existing task-archiving behavior
+ * (unchanged — every task in the instance is still archived individually via
+ * archiveTask). Closes the gap where the instance row itself was previously
+ * a plain hard delete with no recovery path.
+ */
+export async function archiveWorkflowInstance(instanceId: string, deletedById: string | null) {
+  const instance = await prisma.workflowInstance.findUniqueOrThrow({
+    where: { id: instanceId },
+    include: { client: { select: { name: true } }, tasks: { select: { id: true, title: true, clientId: true } } },
+  });
+
+  for (const task of instance.tasks) {
+    await archiveTask(task.id, deletedById);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedWorkflowInstance.create({
+      data: {
+        originalInstanceId: instance.id,
+        name: instance.name,
+        clientId: instance.clientId,
+        clientName: instance.client?.name ?? null,
+        status: instance.status,
+        stagesSnapshot: instance.stagesSnapshot as Prisma.InputJsonValue,
+        currentStageNumber: instance.currentStageNumber,
+        archivedTaskCount: instance.tasks.length,
+        instanceCreatedAt: instance.createdAt,
+        instanceUpdatedAt: instance.updatedAt,
+        instanceCompletedAt: instance.completedAt,
+        ...(deletedById ? { deletedBy: { connect: { id: deletedById } } } : {}),
+      },
+    });
+
+    await tx.workflowInstance.delete({ where: { id: instanceId } });
+
+    return archived;
+  });
+}
+
+/**
+ * Reverses archiveWorkflowInstance: recreates a live WorkflowInstance from an
+ * ArchivedWorkflowInstance snapshot, then removes the archive record. This
+ * only restores the instance's own metadata (name/status/stage progress) —
+ * its tasks were archived separately as ArchivedTask rows and are restored
+ * independently from the Tasks archive tab, same as any other archived task.
+ * If the original client no longer exists, the instance is restored as
+ * internal (clientId null) rather than refused, matching Task's own fallback.
+ */
+export async function restoreArchivedWorkflowInstance(archivedInstanceId: string) {
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedWorkflowInstance.findUniqueOrThrow({ where: { id: archivedInstanceId } });
+
+    const client = archived.clientId ? await tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } }) : null;
+
+    const instance = await tx.workflowInstance.create({
+      data: {
+        name: archived.name,
+        clientId: client ? archived.clientId : null,
+        status: archived.status,
+        stagesSnapshot: archived.stagesSnapshot as Prisma.InputJsonValue,
+        currentStageNumber: archived.currentStageNumber,
+        completedAt: archived.instanceCompletedAt,
+      },
+    });
+
+    await tx.archivedWorkflowInstance.delete({ where: { id: archivedInstanceId } });
+
+    return instance;
   });
 }

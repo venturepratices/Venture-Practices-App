@@ -263,6 +263,8 @@ model TeamMember {
   taskAssignments              TaskAssignee[]
   createdTasks                 Task[]                         @relation("TaskCreatedBy")
   archivedTasks                ArchivedTask[]                 @relation("ArchivedBy")
+  archivedCampaigns            ArchivedCampaign[]             @relation("ArchivedCampaignBy")
+  archivedWorkflowInstances    ArchivedWorkflowInstance[]     @relation("ArchivedWorkflowInstanceBy")
   comments                     Comment[]
   clientNotes                  ClientNote[]
   meetingNotes                 MeetingNote[]
@@ -1163,6 +1165,67 @@ model ArchivedTask {
   links    Json?
 
   @@index([originalTaskId])
+}
+
+// Full snapshot of a Campaign at delete time — mirrors ArchivedTask's
+// denormalized-snapshot philosophy exactly (clientName as a plain string, not
+// just an FK, so the record stays meaningful even if the client is later
+// renamed/deleted). Deleting a campaign already detaches its tasks (they
+// survive live, unattached — see the DELETE route); this is what makes the
+// campaign row itself recoverable instead of a permanent hard delete.
+model ArchivedCampaign {
+  id                String        @id @default(cuid())
+  originalCampaignId String
+  clientId          String?
+  clientName        String?
+  name              String?
+  sequenceNumber    Int
+  mailDate          DateTime?
+  creativeDueDate   DateTime?
+  approvalDueDate   DateTime?
+  printDueDate      DateTime?
+  currentStage      CampaignStage
+  quantity          Int?
+  geography         String?
+  budgetCents       Int?
+  offer             String?
+  cta               String?
+  stagesSnapshot    Json?
+  campaignCreatedAt DateTime
+  campaignUpdatedAt DateTime
+  deletedAt         DateTime      @default(now())
+  deletedById       String?
+  deletedBy         TeamMember?   @relation("ArchivedCampaignBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  @@index([originalCampaignId])
+  @@index([clientId])
+}
+
+// Full snapshot of a WorkflowInstance at delete time, same philosophy as
+// ArchivedCampaign/ArchivedTask. The instance's own tasks are separately
+// archived as ArchivedTask rows (unchanged from before this model existed) —
+// archivedTaskCount just records how many, for display; restoring this
+// record does not auto-restore those tasks, they're restored individually
+// from the Tasks archive tab like any other archived task.
+model ArchivedWorkflowInstance {
+  id                  String                 @id @default(cuid())
+  originalInstanceId  String
+  name                String
+  clientId            String?
+  clientName          String?
+  status              WorkflowInstanceStatus
+  stagesSnapshot      Json
+  currentStageNumber  Int
+  archivedTaskCount   Int                    @default(0)
+  instanceCreatedAt   DateTime
+  instanceUpdatedAt   DateTime
+  instanceCompletedAt DateTime?
+  deletedAt           DateTime               @default(now())
+  deletedById         String?
+  deletedBy           TeamMember?            @relation("ArchivedWorkflowInstanceBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  @@index([originalInstanceId])
+  @@index([clientId])
 }
 
 // ---------------------------------------------------------------------------

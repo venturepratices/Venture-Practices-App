@@ -19,7 +19,7 @@ export function DeleteCampaignButton({
   const [isDeleting, setIsDeleting] = useState(false);
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${campaignLabel}"? Its tasks will survive but become unattached.`)) return;
+    if (!window.confirm(`Delete "${campaignLabel}"? Its tasks will survive but become unattached — the campaign itself will be archived, recoverable from Archive.`)) return;
     setIsDeleting(true);
     const response = await fetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
     if (response.ok) {

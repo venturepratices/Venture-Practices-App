@@ -31,7 +31,7 @@ export function WorkflowInstanceControls({
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${instanceName}"? Its tasks will be archived (recoverable from Archive), not permanently erased.`)) return;
+    if (!window.confirm(`Delete "${instanceName}"? It and its tasks will be archived (recoverable from Archive), not permanently erased.`)) return;
     setIsDeleting(true);
     const response = await fetch(`/api/workflows/${instanceId}`, { method: "DELETE" });
     if (response.ok) {
