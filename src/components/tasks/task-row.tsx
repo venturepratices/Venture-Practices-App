@@ -99,9 +99,12 @@ type Props = {
   // callers that never let a task's status be changed inline can omit it —
   // the dropdown just won't render a full set of choices in that case.
   statusOptions?: StatusOptionLite[];
+  // Stagger delay for the entrance animation, in ms — callers rendering a
+  // list pass index * 40 (capped) for a quick top-to-bottom ripple.
+  delayMs?: number;
 };
 
-export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect, statusOptions = [] }: Props) {
+export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect, statusOptions = [], delayMs }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -138,7 +141,7 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") openTask();
       }}
-      style={gridTemplateVar(showClient, visibleColumns, resolvedWidths)}
+      style={{ ...gridTemplateVar(showClient, visibleColumns, resolvedWidths), animationDelay: delayMs ? `${delayMs}ms` : undefined }}
       className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer animate-in rounded-md px-1.5 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted")}
     >
       <span onClick={(e) => e.stopPropagation()} className="flex size-4 items-center">

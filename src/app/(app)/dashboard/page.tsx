@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, CalendarClock, ListTodo, Users } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBar } from "@/components/dashboard/status-bar";
 import { StatusPill } from "@/components/tasks/status-pill";
 import type { StatusTone } from "@/components/ui/status-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { TaskRow } from "@/components/tasks/task-row";
 
 export default async function DashboardPage() {
@@ -65,33 +66,36 @@ export default async function DashboardPage() {
         <p className="mt-1 text-muted-foreground">A rollup across every client.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Link href="/tasks">
-          <Card className="transition-shadow hover:shadow-md">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Open tasks</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold">{openTasks}</CardContent>
-          </Card>
-        </Link>
-        <Link href="/clients">
-          <Card className="transition-shadow hover:shadow-md">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active clients</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold">
-              {activeClients} <span className="text-base font-normal text-muted-foreground">/ {totalClients} total</span>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/tasks?deadline=SOON">
-          <Card className="transition-shadow hover:shadow-md">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Due in next 7 days</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold">{dueSoon.length}</CardContent>
-          </Card>
-        </Link>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Open tasks"
+          value={openTasks}
+          href="/tasks"
+          icon={ListTodo}
+          tone="primary"
+          delayMs={0}
+        />
+        <StatCard
+          label="Active clients"
+          value={
+            <>
+              {activeClients}
+              <span className="whitespace-nowrap text-lg font-medium text-muted-foreground"> / {totalClients} total</span>
+            </>
+          }
+          href="/clients"
+          icon={Users}
+          tone="primary"
+          delayMs={60}
+        />
+        <StatCard
+          label="Due in next 7 days"
+          value={dueSoon.length}
+          href="/tasks?deadline=SOON"
+          icon={CalendarClock}
+          tone="accent"
+          delayMs={120}
+        />
       </div>
 
       <Card>
@@ -106,11 +110,12 @@ export default async function DashboardPage() {
             }))}
           />
           <div className="flex flex-wrap gap-3">
-          {statusOptions.map((option) => (
+          {statusOptions.map((option, i) => (
             <Link
               key={option.id}
               href={`/tasks?status=${option.id}`}
-              className="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-muted"
+              style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+              className="flex items-center gap-2 rounded-md p-1 animate-in fade-in slide-in-from-bottom-1 duration-300 transition-colors hover:bg-muted"
             >
               <StatusPill option={option} />
               <span className="text-sm text-muted-foreground">{countByStatus[option.id] ?? 0}</span>
@@ -129,8 +134,14 @@ export default async function DashboardPage() {
             <EmptyState icon={CalendarCheck} title="Nothing due in the next 7 days." />
           ) : (
             <div className="divide-y">
-              {dueSoon.map((task) => (
-                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
+              {dueSoon.map((task, i) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  showClient
+                  statusOptions={statusOptions}
+                  delayMs={Math.min(i * 40, 400)}
+                />
               ))}
             </div>
           )}

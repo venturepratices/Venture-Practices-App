@@ -59,6 +59,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   --animate-pill-pop: pill-pop 200ms ease-out;
+  --animate-skeleton-shimmer: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
 @keyframes pill-pop {
@@ -70,6 +71,15 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
   }
 }
 
@@ -125,6 +135,10 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #2d94c0;
+  --shadow-glow-ring: 0 0 0 1px color-mix(in oklch, var(--primary) 35%, transparent),
+    0 8px 20px -6px color-mix(in oklch, var(--primary) 30%, transparent);
+  --shadow-glow-ring-accent: 0 0 0 1px color-mix(in oklch, var(--secondary-accent) 35%, transparent),
+    0 8px 20px -6px color-mix(in oklch, var(--secondary-accent) 30%, transparent);
 }
 
 .dark {
@@ -169,6 +183,10 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #2d94c0;
+  --shadow-glow-ring: 0 0 0 1px color-mix(in oklch, var(--primary) 45%, transparent),
+    0 8px 22px -6px color-mix(in oklch, var(--primary) 40%, transparent);
+  --shadow-glow-ring-accent: 0 0 0 1px color-mix(in oklch, var(--secondary-accent) 45%, transparent),
+    0 8px 22px -6px color-mix(in oklch, var(--secondary-accent) 40%, transparent);
 }
 
 @layer base {
@@ -185,5 +203,16 @@
   h2,
   h3 {
     @apply font-heading;
+  }
+}
+
+@layer utilities {
+  /* Scoped to StatCard for now — a natural next candidate for the other
+     liftable-card family (client-card/task-card/asset-card) later. */
+  .hover-glow-ring {
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .hover-glow-ring:hover {
+    box-shadow: var(--shadow-glow-ring);
   }
 }
