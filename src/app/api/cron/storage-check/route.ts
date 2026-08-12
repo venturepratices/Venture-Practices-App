@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         `Database size: ${mb(dbBytes)} MB`,
         `Backup storage: ${mb(backupBytes)} MB across ${backupList.blobs.length} daily snapshots${oldestBackup ? ` (oldest: ${oldestBackup.toISOString().slice(0, 10)})` : ""}`,
         `Total Blob storage (backups + uploaded assets): ${mb(blobBytes)} MB`,
+        `Sentry error monitoring: ${process.env.NEXT_PUBLIC_SENTRY_DSN ? "configured ✅" : "NOT configured ⚠️ — set NEXT_PUBLIC_SENTRY_DSN"}`,
         "Worth a quick look: is retention still long enough, and are we still comfortably under free-tier limits?",
       ],
     });
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
       totalBlobMb: mb(blobBytes),
       backupCount: backupList.blobs.length,
       oldestBackup: oldestBackup?.toISOString() ?? null,
+      sentryConfigured: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
     });
   } catch (error) {
     console.error("Storage check failed:", error);
