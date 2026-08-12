@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -23,10 +25,14 @@ async function slackApi<T>(method: string, body: Record<string, unknown>): Promi
       body: JSON.stringify(body),
     });
     const data = (await res.json()) as T & { ok: boolean; error?: string };
-    if (!data.ok) console.warn(`Slack API ${method} failed:`, data.error);
+    if (!data.ok) {
+      console.warn(`Slack API ${method} failed:`, data.error);
+      Sentry.captureMessage(`Slack API ${method} failed: ${data.error}`, "warning");
+    }
     return data;
   } catch (error) {
     console.warn(`Slack API ${method} failed:`, error);
+    Sentry.captureException(error, { extra: { slackMethod: method } });
     return null;
   }
 }
@@ -60,6 +66,7 @@ export async function resolveSlackUserId(teamMember: ResolvableTeamMember): Prom
     return data.user.id;
   } catch (error) {
     console.warn("Slack email lookup failed:", error);
+    Sentry.captureException(error, { extra: { teamMemberId: teamMember.id } });
     return null;
   }
 }
