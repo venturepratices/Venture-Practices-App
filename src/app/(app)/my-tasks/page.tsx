@@ -1,4 +1,5 @@
-import { CalendarCheck, Lock } from "lucide-react";
+import Link from "next/link";
+import { CalendarCheck, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
@@ -6,6 +7,7 @@ import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
 import { endOfDay } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,6 +16,14 @@ import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskFilters } from "@/components/tasks/task-filters";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
+
+// Same rationale as src/app/(app)/tasks/page.tsx: Board needs every matching
+// task per column, so it gets a high safety ceiling instead of real
+// pagination; List gets real pagination. My Day and Private Tasks are
+// naturally small per-person lists — a ceiling with no page UI is enough.
+const LIST_PAGE_SIZE = 100;
+const BOARD_TAKE_CEILING = 500;
+const FIXED_SECTION_CEILING = 200;
 
 type SearchParams = {
   view?: string;
@@ -26,6 +36,7 @@ type SearchParams = {
   deadline?: string;
   deadlineFrom?: string;
   deadlineTo?: string;
+  page?: string;
 };
 
 const TASK_INCLUDE = {
@@ -78,7 +89,12 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     filterClauses.push({ deadline: null });
   }
 
-  const [allAssignedTasks, filteredTasks, privateTasks, clients, teamMembers, statusOptions] = await Promise.all([
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const filteredWhere: Prisma.TaskWhereInput = {
+    AND: [{ assignees: { some: { teamMemberId: userId ?? "" } } }, taskVisibilityFilter(userId), ...filterClauses],
+  };
+
+  const [allAssignedTasks, filteredTasks, filteredCount, privateTasks, clients, teamMembers, statusOptions] = await Promise.all([
     // Unfiltered — used only to derive "My Day", which is always the true
     // today's-focus list regardless of whatever filters are set below.
     userId
@@ -86,15 +102,21 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           where: { AND: [{ assignees: { some: { teamMemberId: userId } } }, taskVisibilityFilter(userId)] },
           include: TASK_INCLUDE,
           orderBy: { createdAt: "desc" },
+          take: FIXED_SECTION_CEILING,
         })
       : Promise.resolve([]),
     userId
-      ? prisma.task.findMany({
-          where: { AND: [{ assignees: { some: { teamMemberId: userId } } }, taskVisibilityFilter(userId), ...filterClauses] },
-          include: TASK_INCLUDE,
-          orderBy: { createdAt: "desc" },
-        })
+      ? isBoard
+        ? prisma.task.findMany({ where: filteredWhere, include: TASK_INCLUDE, orderBy: { createdAt: "desc" }, take: BOARD_TAKE_CEILING })
+        : prisma.task.findMany({
+            where: filteredWhere,
+            include: TASK_INCLUDE,
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * LIST_PAGE_SIZE,
+            take: LIST_PAGE_SIZE,
+          })
       : Promise.resolve([]),
+    userId && !isBoard ? prisma.task.count({ where: filteredWhere }) : Promise.resolve(0),
     // Fetched independently from the assignee-scoped list above — a private
     // task might not be assigned to anyone at all (a quick personal note),
     // so it wouldn't otherwise show up anywhere for its own creator.
@@ -103,12 +125,34 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           where: { createdById: userId, isPrivate: true },
           include: TASK_INCLUDE,
           orderBy: { createdAt: "desc" },
+          take: FIXED_SECTION_CEILING,
         })
       : Promise.resolve([]),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getTaskStatusOptions(),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCount / LIST_PAGE_SIZE));
+  const rangeStartIndex = filteredCount === 0 ? 0 : (page - 1) * LIST_PAGE_SIZE + 1;
+  const rangeEndIndex = Math.min(page * LIST_PAGE_SIZE, filteredCount);
+
+  function pageHref(targetPage: number): string {
+    const query = new URLSearchParams();
+    if (params.view) query.set("view", params.view);
+    if (params.q) query.set("q", params.q);
+    if (params.status) query.set("status", params.status);
+    if (params.clientId) query.set("clientId", params.clientId);
+    if (params.assigneeId) query.set("assigneeId", params.assigneeId);
+    if (params.occurrence) query.set("occurrence", params.occurrence);
+    if (params.kind) query.set("kind", params.kind);
+    if (params.deadline) query.set("deadline", params.deadline);
+    if (params.deadlineFrom) query.set("deadlineFrom", params.deadlineFrom);
+    if (params.deadlineTo) query.set("deadlineTo", params.deadlineTo);
+    if (targetPage > 1) query.set("page", String(targetPage));
+    const qs = query.toString();
+    return qs ? `/my-tasks?${qs}` : "/my-tasks";
+  }
 
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
@@ -229,6 +273,32 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           </div>
         ) : null}
       </div>
+
+      {!isBoard && filteredCount > 0 ? (
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">
+            Showing {rangeStartIndex}–{rangeEndIndex} of {filteredCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} render={<Link href={pageHref(page - 1)} scroll={false} />}>
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              render={<Link href={pageHref(page + 1)} scroll={false} />}
+            >
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

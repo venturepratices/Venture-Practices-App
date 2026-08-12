@@ -1,4 +1,5 @@
-import { ListChecks } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
@@ -6,11 +7,19 @@ import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
 import { endOfDay } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { TaskFilters } from "@/components/tasks/task-filters";
+
+// Board view must show every matching task in each column (a paginated column
+// would silently hide cards and misreport counts), so it gets a high safety
+// ceiling instead of real pagination — the same "cap, don't paginate" choice
+// already used for the Archive page's tabs. List view gets real pagination.
+const LIST_PAGE_SIZE = 100;
+const BOARD_TAKE_CEILING = 500;
 
 type SearchParams = {
   view?: string;
@@ -23,6 +32,7 @@ type SearchParams = {
   deadline?: string;
   deadlineFrom?: string;
   deadlineTo?: string;
+  page?: string;
 };
 
 export default async function AllTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -73,22 +83,51 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     AND: [where, taskVisibilityFilter(perms?.userId ?? null), ...(searchClause ? [searchClause] : [])],
   };
 
-  const [tasks, clients, teamMembers, statusOptions] = await Promise.all([
-    prisma.task.findMany({
-      where: finalWhere,
-      include: {
-        assignees: { include: { teamMember: { select: { id: true, name: true } } } },
-        client: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
-        workflowInstance: { select: { id: true, name: true } },
-        statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const taskInclude = {
+    assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+    client: { select: { id: true, name: true } },
+    createdBy: { select: { id: true, name: true } },
+    workflowInstance: { select: { id: true, name: true } },
+    statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+  } as const;
+
+  const [tasks, totalCount, clients, teamMembers, statusOptions] = await Promise.all([
+    isBoard
+      ? prisma.task.findMany({ where: finalWhere, include: taskInclude, orderBy: { createdAt: "desc" }, take: BOARD_TAKE_CEILING })
+      : prisma.task.findMany({
+          where: finalWhere,
+          include: taskInclude,
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * LIST_PAGE_SIZE,
+          take: LIST_PAGE_SIZE,
+        }),
+    isBoard ? Promise.resolve(0) : prisma.task.count({ where: finalWhere }),
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getTaskStatusOptions(),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / LIST_PAGE_SIZE));
+  const rangeStartIndex = totalCount === 0 ? 0 : (page - 1) * LIST_PAGE_SIZE + 1;
+  const rangeEndIndex = Math.min(page * LIST_PAGE_SIZE, totalCount);
+
+  function pageHref(targetPage: number): string {
+    const query = new URLSearchParams();
+    if (params.view) query.set("view", params.view);
+    if (params.q) query.set("q", params.q);
+    if (params.status) query.set("status", params.status);
+    if (params.clientId) query.set("clientId", params.clientId);
+    if (params.assigneeId) query.set("assigneeId", params.assigneeId);
+    if (params.occurrence) query.set("occurrence", params.occurrence);
+    if (params.kind) query.set("kind", params.kind);
+    if (params.deadline) query.set("deadline", params.deadline);
+    if (params.deadlineFrom) query.set("deadlineFrom", params.deadlineFrom);
+    if (params.deadlineTo) query.set("deadlineTo", params.deadlineTo);
+    if (targetPage > 1) query.set("page", String(targetPage));
+    const qs = query.toString();
+    return qs ? `/tasks?${qs}` : "/tasks";
+  }
 
   return (
     <div>
@@ -136,6 +175,32 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
           </div>
         ) : null}
       </div>
+
+      {!isBoard && totalCount > 0 ? (
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">
+            Showing {rangeStartIndex}–{rangeEndIndex} of {totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} render={<Link href={pageHref(page - 1)} scroll={false} />}>
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              render={<Link href={pageHref(page + 1)} scroll={false} />}
+            >
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
