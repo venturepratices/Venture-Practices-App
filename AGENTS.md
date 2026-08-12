@@ -4,6 +4,10 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Docs map
+
+[`README.md`](./README.md) — setup, running, and deploying this app. [`ARCHITECTURE.md`](./ARCHITECTURE.md) — the load-bearing patterns (permissions, soft-delete, notifications, multi-tenancy) worth understanding before making non-trivial changes. This file is the running log of *why* things were built the way they were, feature by feature, plus what's still planned — read it when you need the history behind a decision.
+
 # Notifications
 
 `src/lib/notify.ts`'s `notify()` writes an in-app `Notification` row and — unless `slack: false` — DMs the recipient personally on Slack via `src/lib/slack.ts`, which needs `SLACK_BOT_TOKEN` (a Slack App's Bot Token, scopes `chat:write` + `users:read.email` + `groups:write` + `chat:write.public`). Each `TeamMember`'s Slack account is resolved by matching their email, or from a manually-set `TeamMember.slackUserId` (editable in the Team admin UI) which always wins and also caches the auto-resolved result. Unmapped recipients or an unset `SLACK_BOT_TOKEN` mean in-app-only, no error.
