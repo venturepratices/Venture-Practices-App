@@ -6,7 +6,10 @@ import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { mentionOrName } from "@/lib/slack";
+
+function excerpt(text: string, max = 80): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
 
 const createCommentSchema = z.object({
   body: z.string().trim().min(1, "Comment can't be empty").max(4000),
@@ -70,37 +73,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
 
   // Plain-text @Full Name matching — no mention autocomplete UI exists yet,
   // so this is a simple substring scan against team member names.
-  const teamMembers = await prisma.teamMember.findMany({ select: { id: true, name: true, email: true, slackUserId: true } });
+  const teamMembers = await prisma.teamMember.findMany({ select: { id: true, name: true } });
   const mentionedIds = new Set<string>();
   const lowerBody = parsed.data.body.toLowerCase();
   for (const member of teamMembers) {
     if (member.id === session.user.id) continue;
     if (!lowerBody.includes(`@${member.name.toLowerCase()}`)) continue;
     mentionedIds.add(member.id);
-    const mention = await mentionOrName(member, member.name);
     await notify({
       recipientId: member.id,
       type: "MENTIONED",
       entityType: "Task",
       entityId: taskId,
       entityLabel: task?.title ?? taskId,
-      message: `${member.name} — ${session.user.name ?? "someone"} mentioned you in a comment on "${task?.title ?? "a task"}"`,
-      slackMessage: `${mention} — ${session.user.name ?? "someone"} mentioned you in a comment on "${task?.title ?? "a task"}"`,
+      title: `You were mentioned: "${task?.title ?? "a task"}"`,
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
       linkPath,
     });
   }
 
   for (const a of task?.assignees ?? []) {
     if (a.teamMemberId === session.user.id || mentionedIds.has(a.teamMemberId)) continue;
-    const mention = await mentionOrName(a.teamMember, a.teamMember.name);
     await notify({
       recipientId: a.teamMemberId,
       type: "COMMENTED",
       entityType: "Task",
       entityId: taskId,
       entityLabel: task!.title,
-      message: `${a.teamMember.name} — ${session.user.name ?? "someone"} commented on "${task!.title}"`,
-      slackMessage: `${mention} — ${session.user.name ?? "someone"} commented on "${task!.title}"`,
+      title: `New comment: "${task!.title}"`,
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
       linkPath,
     });
   }

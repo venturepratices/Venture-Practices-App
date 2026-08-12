@@ -18,9 +18,8 @@ const DEDUPE_WINDOW_HOURS = 20;
 /**
  * Daily due-date reminder for assets still awaiting review. Triggered by the
  * Vercel Cron job in vercel.json, authenticated by CRON_SECRET like the
- * other cron routes (backup, highlevel-prune). In-app only (slack: false) —
- * per the plan, Slack posts are reserved for the APPROVED/CHANGES_REQUESTED
- * headline moments, not routine reminders.
+ * other cron routes (backup, highlevel-prune). Ambient tier — reaches Slack
+ * like every other notification type now, just lightly formatted.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -64,9 +63,9 @@ export async function GET(request: Request) {
           entityType: "Asset",
           entityId: asset.id,
           entityLabel: asset.title,
-          message: `"${asset.title}" is due ${formatDate(asset.dueDate!)} and still needs review`,
+          title: `Due soon: "${asset.title}"`,
+          lines: [`Due ${formatDate(asset.dueDate!)} — still needs review`],
           linkPath: `/clients/${asset.clientId}/assets/${asset.id}`,
-          slack: false,
         })
       )
     );

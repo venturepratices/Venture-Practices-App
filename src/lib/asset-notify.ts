@@ -3,12 +3,11 @@ import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Asset Approval notification fan-out (Slice 5). Routine, high-volume events
- * (uploads/comments/decisions) are written with `slack: false` — an in-app
- * row only, since a Slack DM per one of these would still be noisy for that
- * person even under personal-DM delivery. Only the genuine headline moment
- * (the asset's overall status flipping to APPROVED or CHANGES_REQUESTED, via
- * notifyAssetStatusChanged) DMs each recipient on Slack.
+ * Asset Approval notification fan-out. Every event type reaches Slack now —
+ * uploads/comments are Ambient tier (lighter formatting, digest-eligible
+ * once that ships) while decisions/approved/changes-requested are Important
+ * or Critical and post instantly. Tier is looked up from the notification
+ * type itself (src/lib/notification-tier.ts), not decided per call site.
  *
  * Only TeamMember reviewers/owners can receive an in-app Notification
  * (Notification.recipientId has an FK to TeamMember); ClientUser and guest
@@ -46,9 +45,9 @@ export async function notifyAssetUploaded(params: {
         entityType: "Asset",
         entityId: params.assetId,
         entityLabel: params.assetTitle,
-        message: `${params.uploaderName ?? "Someone"} uploaded v${params.versionNumber} of "${params.assetTitle}" for your review`,
+        title: `New version for review: "${params.assetTitle}"`,
+        lines: [`v${params.versionNumber} uploaded by ${params.uploaderName ?? "someone"}`],
         linkPath,
-        slack: false,
       })
     )
   );
@@ -74,9 +73,9 @@ export async function notifyAssetCommented(params: {
         entityType: "Asset",
         entityId: params.assetId,
         entityLabel: params.assetTitle,
-        message: `${params.commenterName ?? "Someone"} commented on "${params.assetTitle}"`,
+        title: `New comment: "${params.assetTitle}"`,
+        lines: [`By ${params.commenterName ?? "someone"}`],
         linkPath,
-        slack: false,
       })
     )
   );
@@ -98,9 +97,9 @@ export async function notifyAssetDecided(params: {
     entityType: "Asset",
     entityId: params.assetId,
     entityLabel: params.assetTitle,
-    message: `${params.deciderName ?? "Someone"} ${params.decisionLabel} "${params.assetTitle}"`,
+    title: `Decision submitted: "${params.assetTitle}"`,
+    lines: [`${params.deciderName ?? "Someone"} ${params.decisionLabel}`],
     linkPath: `/clients/${params.clientId}/assets/${params.assetId}`,
-    slack: false,
   });
 }
 
@@ -125,10 +124,11 @@ export async function notifyAssetStatusChanged(params: {
   if (recipients.size === 0) return;
 
   const type = params.status === "APPROVED" ? "ASSET_APPROVED" : "ASSET_CHANGES_REQUESTED";
-  const message =
+  const title = params.status === "APPROVED" ? "Asset approved 🎉" : "Asset needs changes";
+  const lines =
     params.status === "APPROVED"
-      ? `"${params.assetTitle}" was approved by every reviewer`
-      : `"${params.assetTitle}" needs changes — see the reviewer notes`;
+      ? [`"${params.assetTitle}" was approved by every reviewer`]
+      : [`"${params.assetTitle}" needs changes`, "See the reviewer notes for details"];
   const linkPath = `/clients/${params.clientId}/assets/${params.assetId}`;
 
   await Promise.all(
@@ -139,7 +139,8 @@ export async function notifyAssetStatusChanged(params: {
         entityType: "Asset",
         entityId: params.assetId,
         entityLabel: params.assetTitle,
-        message,
+        title,
+        lines,
         linkPath,
       })
     )
@@ -147,9 +148,8 @@ export async function notifyAssetStatusChanged(params: {
 
   await notifyChannel({
     clientId: params.clientId,
-    message,
+    title,
+    lines: [`Asset: ${params.assetTitle}`],
     linkPath,
-    slackTitle: params.status === "APPROVED" ? "Asset approved 🎉" : "Asset needs changes",
-    slackLines: [`Asset: ${params.assetTitle}`],
   });
 }

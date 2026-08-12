@@ -46,9 +46,8 @@ export async function GET(request: Request) {
     }, null);
 
     await notifyChannel({
-      message: `Monthly storage check: database ${mb(dbBytes)} MB, backups ${mb(backupBytes)} MB (${backupList.blobs.length} daily snapshots), total Blob storage ${mb(blobBytes)} MB.`,
-      slackTitle: "📦 Monthly storage & backup check",
-      slackLines: [
+      title: "📦 Monthly storage & backup check",
+      lines: [
         `Database size: ${mb(dbBytes)} MB`,
         `Backup storage: ${mb(backupBytes)} MB across ${backupList.blobs.length} daily snapshots${oldestBackup ? ` (oldest: ${oldestBackup.toISOString().slice(0, 10)})` : ""}`,
         `Total Blob storage (backups + uploaded assets): ${mb(blobBytes)} MB`,

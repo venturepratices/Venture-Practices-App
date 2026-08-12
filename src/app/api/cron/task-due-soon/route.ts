@@ -73,19 +73,18 @@ export async function GET(request: Request) {
 
     const linkPath = linkPathFor(task);
     await Promise.all(
-      task.assignees.map(async (a) => {
-        const mention = await mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name);
-        return notify({
+      task.assignees.map((a) =>
+        notify({
           recipientId: a.teamMemberId,
           type: "TASK_DUE_SOON",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — "${task.title}" is due ${formatDate(task.deadline!)} and isn't marked complete yet`,
-          slackMessage: `${mention} — "${task.title}" is due ${formatDate(task.deadline!)} and isn't marked complete yet`,
+          title: `Due soon: "${task.title}"`,
+          lines: [`Due ${formatDate(task.deadline!)} — not marked complete yet`],
           linkPath,
-        });
-      })
+        })
+      )
     );
     dueSoonReminded++;
   }
@@ -106,19 +105,18 @@ export async function GET(request: Request) {
 
     const linkPath = linkPathFor(task);
     await Promise.all(
-      task.assignees.map(async (a) => {
-        const mention = await mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name);
-        return notify({
+      task.assignees.map((a) =>
+        notify({
           recipientId: a.teamMemberId,
           type: "TASK_OVERDUE",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — "${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
-          slackMessage: `${mention} — "${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
+          title: `Overdue: "${task.title}"`,
+          lines: [`Was due ${formatDate(task.deadline!)}`],
           linkPath,
-        });
-      })
+        })
+      )
     );
     // Private tasks are visible only to their creator — a team-wide Slack
     // channel post would leak their existence/title to everyone else with
@@ -131,14 +129,9 @@ export async function GET(request: Request) {
       );
       await notifyChannel({
         clientId: task.clientId,
-        message: `"${task.title}" is overdue (was due ${formatDate(task.deadline!)})`,
+        title: `Task overdue: "${task.title}"`,
+        lines: [`Assigned to: ${assignedMentions.join(", ")}`, `Was due: ${formatDate(task.deadline!)}`],
         linkPath,
-        slackTitle: "Task overdue",
-        slackLines: [
-          `Task: ${task.title}`,
-          `Assigned to: ${assignedMentions.join(", ")}`,
-          `Was due: ${formatDate(task.deadline!)}`,
-        ],
       });
     }
     overdueReminded++;

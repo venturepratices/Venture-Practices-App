@@ -1,4 +1,5 @@
 import { absoluteUrlFor } from "@/lib/notification-links";
+import { getNotificationTier, TIER_EMOJI } from "@/lib/notification-tier";
 import { prisma } from "@/lib/prisma";
 import { postSlackChannel, postSlackDM, resolveSlackUserId } from "@/lib/slack";
 import type { NotificationType } from "@/generated/prisma/client";
@@ -9,17 +10,19 @@ type NotifyParams = {
   entityType: string;
   entityId: string;
   entityLabel: string;
-  /** Full sentence, already naming who it's for — used as-is for the Slack message. */
-  message: string;
   /**
-   * Override just the Slack-bound version of `message` — typically the same
-   * sentence with a plain name swapped for a real `<@SLACK_ID>` mention via
-   * `mentionOrName()`, so Slack actually pings the person instead of showing
-   * inert text — while the in-app `message` keeps the plain name. Ignored
-   * when `slackTitle`/`slackLines` are given (those already build their own
-   * text, independent of `message`).
+   * The fact, stated plainly — never the recipient's own name (this is
+   * always a 1:1 DM to them; saying their name back is redundant). Becomes
+   * both the in-app row's text and the bold Slack headline. E.g. `You're
+   * assigned: "Fix homepage CTA button"`, not `DJ — you were assigned...`.
    */
-  slackMessage?: string;
+  title: string;
+  /**
+   * Short bullet points carrying the who/where/when — rendered as a Slack
+   * bullet list under the headline. Omit for a headline-only message when
+   * there's genuinely nothing else worth saying.
+   */
+  lines?: string[];
   /**
    * App-relative path to the entity this is about (e.g.
    * "/clients/<id>/tasks?taskId=<id>") — stored on the Notification row for
@@ -30,26 +33,17 @@ type NotifyParams = {
   linkPath?: string | null;
   /**
    * Set false to skip the Slack post for this particular notification while
-   * still creating the in-app row — used for high-volume events (asset
-   * uploads/comments/decisions) where a Slack DM per event would still be
-   * noisy for that person even though it's no longer a shared channel.
-   * Defaults to true.
+   * still creating the in-app row. Every notification type reaches Slack by
+   * default now — this is only for genuine one-off exceptions, not a
+   * per-type "quiet" setting (that's what tiers are for).
    */
   slack?: boolean;
-  /**
-   * Optional structured Slack formatting: a short bold headline plus bulleted
-   * detail lines, in place of the plain `message` sentence (which still
-   * powers the in-app row either way). Omit to keep the plain one-line Slack
-   * post — most call sites haven't been converted to this format yet.
-   */
-  slackTitle?: string;
-  slackLines?: string[];
 };
 
-function buildSlackText(message: string, linkPath?: string | null, structured?: { title: string; lines: string[] }) {
-  const body = structured
-    ? `*🔔 ${structured.title}*\n${structured.lines.map((l) => `• ${l}`).join("\n")}`
-    : `🔔 ${message}`;
+function buildSlackText(type: NotificationType, title: string, lines: string[] | undefined, linkPath?: string | null) {
+  const emoji = TIER_EMOJI[getNotificationTier(type)];
+  const bulletBlock = lines && lines.length > 0 ? `\n${lines.map((l) => `• ${l}`).join("\n")}` : "";
+  const body = `*${emoji} ${title}*${bulletBlock}`;
   return linkPath ? `${body}\n<${absoluteUrlFor(linkPath)}|Open in app>` : body;
 }
 
@@ -74,7 +68,7 @@ export async function notify(params: NotifyParams) {
         entityType: params.entityType,
         entityId: params.entityId,
         entityLabel: params.entityLabel,
-        message: params.message,
+        message: params.title,
         linkPath: params.linkPath ?? null,
       },
     });
@@ -86,11 +80,7 @@ export async function notify(params: NotifyParams) {
       });
       const slackUserId = recipient ? await resolveSlackUserId(recipient) : null;
       if (slackUserId) {
-        const text = buildSlackText(
-          params.slackMessage ?? params.message,
-          params.linkPath,
-          params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
-        );
+        const text = buildSlackText(params.type, params.title, params.lines, params.linkPath);
         await postSlackDM(slackUserId, text);
       }
     }
@@ -105,10 +95,9 @@ export async function notify(params: NotifyParams) {
 type NotifyChannelParams = {
   /** The client this event is about, if any — routes to that client's Slack channel. Null/omitted routes to the general SLACK_INTERNAL_CHANNEL_ID channel. */
   clientId?: string | null;
-  message: string;
+  title: string;
+  lines?: string[];
   linkPath?: string | null;
-  slackTitle?: string;
-  slackLines?: string[];
 };
 
 /**
@@ -117,9 +106,11 @@ type NotifyChannelParams = {
  * the general internal channel otherwise. Deliberately separate from
  * notify(), which fans out per-recipient (looping this into that per-
  * recipient loop would post the same event to the channel once per person).
- * Callers construct their own team-facing message text (not the same
- * personalized "this is your task" text used for the DM) and call this
- * exactly once per event. Never throws.
+ * Always uses the 📣 "team broadcast" marker rather than a tier emoji — this
+ * is a different kind of message (many people, one summary) than a personal
+ * DM, regardless of how urgent the underlying event was. Callers construct
+ * their own team-facing text (not the same "you"-addressed text used for the
+ * DM) and call this exactly once per event. Never throws.
  */
 export async function notifyChannel(params: NotifyChannelParams) {
   try {
@@ -131,11 +122,9 @@ export async function notifyChannel(params: NotifyChannelParams) {
     if (!channelId) channelId = process.env.SLACK_INTERNAL_CHANNEL_ID ?? null;
     if (!channelId) return;
 
-    const text = buildSlackText(
-      params.message,
-      params.linkPath,
-      params.slackTitle ? { title: params.slackTitle, lines: params.slackLines ?? [] } : undefined
-    );
+    const bulletBlock = params.lines && params.lines.length > 0 ? `\n${params.lines.map((l) => `• ${l}`).join("\n")}` : "";
+    const body = `*📣 ${params.title}*${bulletBlock}`;
+    const text = params.linkPath ? `${body}\n<${absoluteUrlFor(params.linkPath)}|Open in app>` : body;
     await postSlackChannel(channelId, text);
   } catch (error) {
     console.warn("notifyChannel() failed, continuing without it:", error);

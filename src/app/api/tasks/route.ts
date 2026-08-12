@@ -5,7 +5,6 @@ import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { mentionOrName } from "@/lib/slack";
 import { isValidStatusId } from "@/lib/task-status";
 import { createTaskSchema } from "@/lib/validations/task";
 
@@ -96,7 +95,10 @@ export async function POST(request: Request) {
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },
     },
-    include: { assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } } },
+    include: {
+      assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
+      client: { select: { name: true } },
+    },
   });
 
   await logActivity({
@@ -120,15 +122,17 @@ export async function POST(request: Request) {
 
   for (const a of task.assignees) {
     if (a.teamMemberId === session.user.id) continue;
-    const mention = await mentionOrName(a.teamMember, a.teamMember.name);
     await notify({
       recipientId: a.teamMemberId,
       type: "ASSIGNED",
       entityType: "Task",
       entityId: task.id,
       entityLabel: task.title,
-      message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
-      slackMessage: `${mention} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+      title: `You're assigned: "${task.title}"`,
+      lines: [
+        `Assigned by ${session.user.name ?? "someone"}`,
+        task.client ? `Client: ${task.client.name}` : "Internal task",
+      ],
       linkPath,
     });
   }

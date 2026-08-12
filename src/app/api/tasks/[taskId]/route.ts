@@ -8,7 +8,6 @@ import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
-import { mentionOrName } from "@/lib/slack";
 import { formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
@@ -36,19 +35,6 @@ const TASK_INCLUDE = {
   subtasks: { orderBy: { sequenceNumber: "asc" as const } },
   campaign: { select: { id: true, sequenceNumber: true, currentStage: true } },
 } as const;
-
-// TASK_INCLUDE's teamMember selects only {id, name} since that shape feeds
-// the JSON API response — adding email/slackUserId there would leak team
-// members' emails into every task fetch. Mention resolution needs those
-// fields, so it's a small separate lookup, not a widening of TASK_INCLUDE.
-async function mentionInfoFor(teamMemberIds: string[]): Promise<Map<string, { id: string; email: string; slackUserId: string | null }>> {
-  if (teamMemberIds.length === 0) return new Map();
-  const members = await prisma.teamMember.findMany({
-    where: { id: { in: teamMemberIds } },
-    select: { id: true, email: true, slackUserId: true },
-  });
-  return new Map(members.map((m) => [m.id, m]));
-}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   const session = await auth();
@@ -141,12 +127,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       : `/tasks?taskId=${task.id}`;
 
   if (before) {
-    const mentionInfo = await mentionInfoFor(task.assignees.map((a) => a.teamMemberId));
-    const mentionFor = async (a: (typeof task.assignees)[number]) => {
-      const info = mentionInfo.get(a.teamMemberId);
-      return info ? mentionOrName(info, a.teamMember.name) : a.teamMember.name;
-    };
-
     const changes: string[] = [];
     if (parsed.data.title !== undefined && parsed.data.title !== before.title) {
       changes.push(`renamed to "${parsed.data.title}"`);
@@ -157,15 +137,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       changes.push(`status changed to ${newStatusLabel}`);
       for (const a of task.assignees) {
         if (a.teamMemberId === session.user.id) continue;
-        const mention = await mentionFor(a);
         await notify({
           recipientId: a.teamMemberId,
           type: "STATUS_CHANGED",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — the status of "${task.title}" changed to ${newStatusLabel} (by ${session.user.name ?? "someone"})`,
-          slackMessage: `${mention} — the status of "${task.title}" changed to ${newStatusLabel} (by ${session.user.name ?? "someone"})`,
+          title: `Status changed: "${task.title}"`,
+          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`],
           linkPath,
         });
       }
@@ -181,15 +160,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       }
       for (const a of added) {
         if (a.teamMemberId === session.user.id) continue;
-        const mention = await mentionFor(a);
         await notify({
           recipientId: a.teamMemberId,
           type: "ASSIGNED",
           entityType: "Task",
           entityId: task.id,
           entityLabel: task.title,
-          message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
-          slackMessage: `${mention} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+          title: `You're assigned: "${task.title}"`,
+          lines: [
+            `Assigned by ${session.user.name ?? "someone"}`,
+            task.client ? `Client: ${task.client.name}` : "Internal task",
+          ],
           linkPath,
         });
       }
@@ -208,15 +189,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         changes.push(`deadline changed to ${deadlineLabel}`);
         for (const a of task.assignees) {
           if (a.teamMemberId === session.user.id) continue;
-          const mention = await mentionFor(a);
           await notify({
             recipientId: a.teamMemberId,
             type: "DEADLINE_CHANGED",
             entityType: "Task",
             entityId: task.id,
             entityLabel: task.title,
-            message: `${a.teamMember.name} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
-            slackMessage: `${mention} — the deadline for "${task.title}" changed to ${deadlineLabel} (by ${session.user.name ?? "someone"})`,
+            title: `Deadline changed: "${task.title}"`,
+            lines: [`New deadline: ${deadlineLabel}`, `Changed by ${session.user.name ?? "someone"}`],
             linkPath,
           });
         }
@@ -250,18 +230,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           description: `Automatically created the next occurrence of "${next.title}"`,
         });
         const nextLinkPath = next.clientId ? `/clients/${next.clientId}/tasks?taskId=${next.id}` : `/tasks?taskId=${next.id}`;
-        const nextMentionInfo = await mentionInfoFor(next.assignees.map((a) => a.teamMemberId));
         for (const a of next.assignees) {
-          const info = nextMentionInfo.get(a.teamMemberId);
-          const mention = info ? await mentionOrName(info, a.teamMember.name) : a.teamMember.name;
           await notify({
             recipientId: a.teamMemberId,
             type: "ASSIGNED",
             entityType: "Task",
             entityId: next.id,
             entityLabel: next.title,
-            message: `${a.teamMember.name} — you have a new recurring task: "${next.title}"`,
-            slackMessage: `${mention} — you have a new recurring task: "${next.title}"`,
+            title: `New recurring task: "${next.title}"`,
+            lines: [`Carried over from the previous occurrence`],
             linkPath: nextLinkPath,
           });
         }

@@ -5,7 +5,6 @@ import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { mentionOrName } from "@/lib/slack";
 import { convertPlanningItemSchema } from "@/lib/validations/planning";
 
 // "Move to task" — the one planning-status transition that does real work
@@ -59,22 +58,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ ite
   });
 
   const linkPath = task.clientId ? `/clients/${task.clientId}/tasks?taskId=${task.id}` : `/tasks?taskId=${task.id}`;
+  const client = await prisma.client.findUnique({ where: { id: item.clientId }, select: { name: true } });
   for (const a of task.assignees) {
     if (a.teamMemberId === session.user.id) continue;
-    const mention = await mentionOrName(a.teamMember, a.teamMember.name);
     await notify({
       recipientId: a.teamMemberId,
       type: "ASSIGNED",
       entityType: "Task",
       entityId: task.id,
       entityLabel: task.title,
-      message: `${a.teamMember.name} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
-      slackMessage: `${mention} — you were assigned to "${task.title}" by ${session.user.name ?? "someone"}`,
+      title: `You're assigned: "${task.title}"`,
+      lines: [`Assigned by ${session.user.name ?? "someone"}`, `From a Planning idea — ${client?.name ?? "client"}`],
       linkPath,
     });
   }
 
-  const client = await prisma.client.findUnique({ where: { id: item.clientId }, select: { name: true } });
   await logActivity({
     actorId: session.user.id,
     actorName: session.user.name ?? null,

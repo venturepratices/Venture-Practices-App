@@ -154,7 +154,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
           entityType: "ClientOrder",
           entityId: order.id,
           entityLabel: `${docLabel} — ${client.name}`,
-          message: `${session.user.name ?? "Someone"} created ${docLabel} for ${client.name}`,
+          title: type === "ORDER" ? `New order: ${client.name}` : `Change order: ${client.name}`,
+          lines: [`Created by ${session.user.name ?? "someone"}`, ...(order.title ? [`Titled "${order.title}"`] : [])],
           linkPath,
         })
       )

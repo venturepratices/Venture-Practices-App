@@ -21,29 +21,27 @@ type TaskLineFields = {
 };
 
 /**
- * Standard "For / Task / Assigned / Status / Deadline / Workflow" bullet set
- * shared by every task-level workflow notification, so a recipient can act on
- * a Slack ping without opening the app. `whatLine` is the one thing that
+ * Standard "Task / Assigned / Status / Deadline / Project" bullet set shared
+ * by every task-level workflow notification, so a recipient can act on a
+ * Slack ping without opening the app. `whatLine` is the one thing that
  * varies by notification type (why this task is being surfaced right now).
- * Names are resolved to real Slack @mentions where possible, so both the
- * recipient and the "Assigned to" list actually ping on Slack/mobile instead
- * of rendering as inert text.
+ * Deliberately no "For: <you>" line — this is always a 1:1 DM, restating the
+ * recipient's own name back to them is the exact redundancy the message
+ * redesign removed. Other assignees' names still resolve to real Slack
+ * @mentions, since that list is genuinely useful info about someone else.
  */
 async function taskNotificationLines(params: {
-  recipient: AssigneeFields["teamMember"];
   whatLine: string;
   task: TaskLineFields;
   instanceLabel: string;
   stageLabel: string;
 }): Promise<string[]> {
-  const recipientMention = await mentionOrName(params.recipient, params.recipient.name);
   const assigneeMentions = await Promise.all(
     params.task.assignees.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
   );
   const statusLabels = statusLabelMap(await getTaskStatusOptions());
   const lines = [
-    `For: ${recipientMention}`,
-    `What: ${params.whatLine}`,
+    params.whatLine,
     `Task: ${params.task.title}`,
     `Assigned to: ${assigneeMentions.join(", ") || "Unassigned"}`,
     `Status: ${statusLabels[params.task.statusId] ?? params.task.statusId}`,
@@ -107,25 +105,15 @@ export async function notifyWorkflowStageTasks(
       const whatLine = previousStageLabel
         ? `The "${previousStageLabel}" stage just finished — this task is next`
         : "This project just started — this task is up first";
-      const message = previousStageLabel
-        ? `${a.teamMember.name} — the "${previousStageLabel}" stage just finished. Your task "${task.title}" is next in ${instanceLabel} (${stageLabel} stage)`
-        : `${a.teamMember.name} — "${task.title}" is now up in ${instanceLabel} (${stageLabel})`;
       await notify({
         recipientId: a.teamMemberId,
         type: "WORKFLOW_STAGE_STARTED",
         entityType: "Task",
         entityId: task.id,
         entityLabel: task.title,
-        message,
+        title: previousStageLabel ? "Your turn — new stage started" : "New project started — you're up",
+        lines: await taskNotificationLines({ whatLine, task, instanceLabel, stageLabel }),
         linkPath,
-        slackTitle: previousStageLabel ? "Your turn — new stage started" : "New project started — you're up",
-        slackLines: await taskNotificationLines({
-          recipient: a.teamMember,
-          whatLine,
-          task,
-          instanceLabel,
-          stageLabel,
-        }),
       });
     }
   }
@@ -136,15 +124,14 @@ export async function notifyWorkflowStageTasks(
     );
     await notifyChannel({
       clientId: instance.clientId,
-      message: `${instanceLabel}: "${stageLabel}" stage is now up`,
-      linkPath: stageLinkPath,
-      slackTitle: previousStageLabel ? "New stage started" : "New project started",
-      slackLines: [
+      title: previousStageLabel ? "New stage started" : "New project started",
+      lines: [
         `Project: ${instanceLabel}`,
         ...(previousStageLabel ? [`Previous stage: "${previousStageLabel}" ✅ complete`] : []),
         `Now on: ${stageLabel}`,
         `Assigned: ${assignedMentions.join(", ")}`,
       ],
+      linkPath: stageLinkPath,
     });
   }
 }
@@ -213,16 +200,14 @@ export async function notifyNextTaskInStage(
         entityType: "Task",
         entityId: task.id,
         entityLabel: task.title,
-        message: `${a.teamMember.name} — you're up next on "${task.title}" in ${instanceLabel} (${stageLabel})`,
-        linkPath,
-        slackTitle: "You're up next",
-        slackLines: await taskNotificationLines({
-          recipient: a.teamMember,
+        title: "You're up next",
+        lines: await taskNotificationLines({
           whatLine: `"${completedTask.title}" was just completed by ${actorName} — this task is next in line`,
           task,
           instanceLabel,
           stageLabel,
         }),
+        linkPath,
       });
     }
   }
@@ -295,28 +280,25 @@ export async function maybeAdvanceWorkflowStage(
     const completedLinkPath = instance.client
       ? `/clients/${instance.client.id}/workflows/${instance.id}`
       : `/workflows/${instance.id}`;
-    for (const [teamMemberId, member] of recipients) {
+    for (const [teamMemberId] of recipients) {
       if (teamMemberId === actorId) continue;
-      const recipientMention = await mentionOrName(member, member.name);
       await notify({
         recipientId: teamMemberId,
         type: "WORKFLOW_COMPLETED",
         entityType: "WorkflowInstance",
         entityId: instance.id,
         entityLabel: instanceLabel,
-        message: `${member.name} — ${instanceLabel} is complete (${summary})`,
+        title: "Project complete 🎉",
+        lines: [`Every stage is done — ${summary}`, `Project: ${instanceLabel}`],
         linkPath: completedLinkPath,
-        slackTitle: "Project complete 🎉",
-        slackLines: [`For: ${recipientMention}`, `What: Every stage of this project is done`, `Project: ${instanceLabel}`, `Tasks: ${taskCount} done`],
       });
     }
 
     await notifyChannel({
       clientId: instance.client?.id ?? null,
-      message: `${instanceLabel} is complete (${summary})`,
+      title: "Project complete 🎉",
+      lines: [`Project: ${instanceLabel}`, `Tasks: ${taskCount} done`],
       linkPath: completedLinkPath,
-      slackTitle: "Project complete 🎉",
-      slackLines: [`Project: ${instanceLabel}`, `Tasks: ${taskCount} done`],
     });
 
     await logActivity({
