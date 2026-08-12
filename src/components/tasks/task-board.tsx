@@ -27,11 +27,11 @@ function Column({
       ref={setNodeRef}
       className={`flex w-72 shrink-0 snap-start flex-col rounded-lg border bg-muted/20 transition-colors ${isOver ? "bg-muted/50" : ""}`}
     >
-      <div className="flex items-center justify-between border-b p-3">
+      <div className="flex items-center justify-between border-b px-3 py-3.5">
         <StatusPill option={option} />
-        <span className="text-xs text-muted-foreground">{tasks.length}</span>
+        <span className="text-xs font-medium text-muted-foreground">{tasks.length}</span>
       </div>
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2">
+      <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-2.5">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} onOpen={onOpenTask} showClient={showClient} />
         ))}

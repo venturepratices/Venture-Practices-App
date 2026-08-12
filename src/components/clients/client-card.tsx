@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Pencil } from "lucide-react";
 
+import { initialsOf } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ClientStatusPill } from "@/components/clients/client-status-pill";
@@ -25,9 +26,12 @@ type ClientCardData = {
   slackChannelId: string | null;
 };
 
-export function ClientCard({ client }: { client: ClientCardData }) {
+export function ClientCard({ client, delayMs = 0 }: { client: ClientCardData; delayMs?: number }) {
   return (
-    <Card className="relative transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md">
+    <Card
+      className="hover-glow-ring relative animate-in fade-in slide-in-from-bottom-1 duration-300 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
       <div className="absolute right-3 top-3">
         <ClientFormDialog
           mode="edit"
@@ -54,7 +58,12 @@ export function ClientCard({ client }: { client: ClientCardData }) {
       </div>
       <Link href={`/clients/${client.id}`} className="block">
         <CardHeader>
-          <CardTitle className="pr-8 text-base">{client.name}</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 pr-8 text-base">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+              {initialsOf(client.name)}
+            </span>
+            <span className="truncate">{client.name}</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-between">
           <ClientStatusPill status={client.status} />
@@ -64,7 +73,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
         </CardContent>
         {client.overdueTaskCount > 0 ? (
           <CardContent className="pt-0">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-800 dark:bg-red-900/40 dark:text-red-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-status-danger px-2.5 py-0.5 text-xs font-bold text-status-danger-foreground">
               <AlertTriangle className="size-3.5" />
               {client.overdueTaskCount} overdue
             </span>

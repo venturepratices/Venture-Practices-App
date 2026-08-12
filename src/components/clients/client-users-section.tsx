@@ -1,6 +1,7 @@
 import { Pencil, Plus, UserCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ClientUserFormDialog } from "@/components/clients/client-user-form-dialog";
 import { DeleteClientUserButton } from "@/components/clients/delete-client-user-button";
 
@@ -19,7 +20,8 @@ export function ClientUsersSection({
   if (!canManage && clientUsers.length === 0) return null;
 
   return (
-    <div className="rounded-lg border p-4">
+    <Card>
+    <CardContent className="space-y-0">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -74,6 +76,7 @@ export function ClientUsersSection({
       ) : (
         <p className="mt-3 text-sm text-muted-foreground">No client logins yet.</p>
       )}
-    </div>
+    </CardContent>
+    </Card>
   );
 }

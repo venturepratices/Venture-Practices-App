@@ -4,6 +4,7 @@ import { Mail, MapPin, Phone, Pencil, Globe } from "lucide-react";
 import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
 import { DeleteClientDialog } from "@/components/clients/delete-client-dialog";
@@ -62,7 +63,8 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+      <Card>
+      <CardContent className="flex items-start justify-between gap-4">
         <div className="space-y-4">
           {hasContactInfo ? (
             <div className="space-y-1.5">
@@ -131,14 +133,20 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
             }
           />
         ) : null}
-      </div>
+      </CardContent>
+      </Card>
 
-      <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
+      <Card>
+      <CardContent>
+        <ClientLinksSection clientId={client.id} links={client.links} canManage={canManageLinks} />
+      </CardContent>
+      </Card>
 
       <ClientUsersSection clientId={client.id} clientUsers={client.clientUsers} canManage={canManageClientUsers} />
 
       {canViewDirectMail ? (
-        <div className="space-y-3 rounded-lg border p-4">
+        <Card>
+        <CardContent className="space-y-3">
           <p className="text-sm font-medium">Direct Mail intake</p>
           {client.intake ? (
             <div className="space-y-3">
@@ -150,7 +158,8 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
           ) : (
             <p className="text-sm text-muted-foreground">Not submitted yet — the client fills this in via their portal.</p>
           )}
-        </div>
+        </CardContent>
+        </Card>
       ) : null}
 
       {canManageHighLevel ? (
@@ -169,7 +178,8 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       ) : null}
 
       {canDeleteClient ? (
-        <div className="space-y-3 rounded-lg border border-destructive/30 p-4">
+        <Card className="ring-destructive/30">
+        <CardContent className="space-y-3">
           <div>
             <p className="text-sm font-medium text-destructive">Danger zone</p>
             <p className="text-sm text-muted-foreground">
@@ -177,7 +187,8 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
             </p>
           </div>
           <DeleteClientDialog clientId={client.id} clientName={client.name} />
-        </div>
+        </CardContent>
+        </Card>
       ) : null}
     </div>
   );

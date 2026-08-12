@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Loader2, Plug, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -71,7 +72,8 @@ export function HighLevelConnectionSection({
   }
 
   return (
-    <div className="rounded-lg border p-4">
+    <Card>
+    <CardContent>
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="text-sm font-medium">HighLevel</p>
@@ -149,6 +151,7 @@ export function HighLevelConnectionSection({
           </Dialog>
         </div>
       </div>
-    </div>
+    </CardContent>
+    </Card>
   );
 }
