@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { CalendarDays, LogOut } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { MobileMenuButton } from "@/components/layout/mobile-menu-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { SignOutButton } from "@/components/layout/sign-out-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export function TopBar({ unreadCount = 0 }: { unreadCount?: number }) {
@@ -29,9 +30,7 @@ export function TopBar({ unreadCount = 0 }: { unreadCount?: number }) {
             await signOut({ redirectTo: "/login" });
           }}
         >
-          <Button type="submit" variant="ghost" size="icon" aria-label="Sign out">
-            <LogOut className="size-4" />
-          </Button>
+          <SignOutButton />
         </form>
       </div>
     </header>
