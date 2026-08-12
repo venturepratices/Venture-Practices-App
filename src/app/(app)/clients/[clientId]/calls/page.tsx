@@ -73,8 +73,8 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
         </div>
       ) : (
         <ul className="divide-y rounded-lg border">
-          {rows.map((call) => (
-            <CallLogRow key={call.id} call={call} />
+          {rows.map((call, i) => (
+            <CallLogRow key={call.id} call={call} delayMs={Math.min(i * 40, 400)} />
           ))}
         </ul>
       )}

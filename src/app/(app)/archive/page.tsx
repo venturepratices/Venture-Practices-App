@@ -124,7 +124,9 @@ async function TasksTab({ params }: { params: SearchParams }) {
             title={hasFilters ? "No archived tasks match these filters." : "Nothing has been deleted yet."}
           />
         ) : (
-          archivedTasks.map((task) => <ArchivedTaskRow key={task.id} task={task} />)
+          archivedTasks.map((task, i) => (
+            <ArchivedTaskRow key={task.id} task={task} delayMs={Math.min(i * 40, 400)} />
+          ))
         )}
       </div>
 
@@ -147,8 +149,12 @@ async function CampaignsTab() {
       {archivedCampaigns.length === 0 ? (
         <EmptyState icon={Archive} title="No deleted Direct Mail campaigns." />
       ) : (
-        archivedCampaigns.map((campaign) => (
-          <div key={campaign.id} className="flex items-center justify-between gap-3 px-4 py-3">
+        archivedCampaigns.map((campaign, i) => (
+          <div
+            key={campaign.id}
+            style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+            className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+          >
             <div>
               <p className="font-medium">{campaignLabel(campaign)}</p>
               <p className="text-sm text-muted-foreground">{campaign.clientName ?? "Unknown client"}</p>
@@ -180,8 +186,12 @@ async function ProjectsTab() {
       {archivedInstances.length === 0 ? (
         <EmptyState icon={GitBranch} title="No deleted projects." />
       ) : (
-        archivedInstances.map((instance) => (
-          <div key={instance.id} className="flex items-center justify-between gap-3 px-4 py-3">
+        archivedInstances.map((instance, i) => (
+          <div
+            key={instance.id}
+            style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+            className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+          >
             <div>
               <p className="font-medium">{instance.name}</p>
               <p className="text-sm text-muted-foreground">

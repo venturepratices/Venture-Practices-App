@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
+import { ImageIcon, Plus } from "lucide-react";
 
 import { AssetDecisionValue } from "@/generated/prisma/enums";
 import { canUseCapability, requireClientAccess } from "@/lib/permissions";
@@ -13,6 +13,7 @@ import { AssetFolderToggleButton } from "@/components/assets/asset-folder-toggle
 import { AssetRow, type AssetRowData } from "@/components/assets/asset-row";
 import { AssetSidebarProvider } from "@/components/assets/asset-sidebar-context";
 import { NewAssetDialog } from "@/components/assets/new-asset-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const STATUS_VALUES = ["DRAFT", "IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"] as const;
 const KIND_VALUES = ["IMAGE", "VIDEO", "PDF", "WEBSITE", "OTHER"] as const;
@@ -188,13 +189,13 @@ export default async function ClientAssetsPage({
           </div>
 
           {rows.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed p-10 text-center">
-              <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+            <div className="mt-4 rounded-lg border">
+              <EmptyState icon={ImageIcon} title={emptyMessage} />
             </div>
           ) : (
             <div className="rounded-lg border divide-y">
-              {rows.map((asset) => (
-                <AssetRow key={asset.id} clientId={clientId} asset={asset} />
+              {rows.map((asset, i) => (
+                <AssetRow key={asset.id} clientId={clientId} asset={asset} delayMs={Math.min(i * 40, 400)} />
               ))}
             </div>
           )}

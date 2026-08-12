@@ -6,6 +6,7 @@ import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { OrderList } from "@/components/orders/order-list";
 import type { Service } from "@/lib/validations/client-order";
 
@@ -66,22 +67,24 @@ export default async function ClientOrdersPage({ params }: { params: Promise<{ c
       </div>
 
       {activeOrders.length > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center gap-6 rounded-lg border bg-muted/30 px-4 py-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Active services</p>
-            <p className="text-xl font-semibold">{activeServices.length}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Total monthly</p>
-            <p className="text-xl font-semibold">{formatCurrency(totalMonthlyCents)}</p>
-          </div>
-          {totalAdBudgetCents > 0 ? (
+        <Card className="mt-4">
+          <CardContent className="flex flex-wrap items-center gap-6">
             <div>
-              <p className="text-xs text-muted-foreground">Ad budget</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalAdBudgetCents)}</p>
+              <p className="text-xs text-muted-foreground">Active services</p>
+              <p className="text-xl font-semibold">{activeServices.length}</p>
             </div>
-          ) : null}
-        </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total monthly</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalMonthlyCents)}</p>
+            </div>
+            {totalAdBudgetCents > 0 ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Ad budget</p>
+                <p className="text-xl font-semibold">{formatCurrency(totalAdBudgetCents)}</p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       ) : null}
 
       <div className="mt-6">

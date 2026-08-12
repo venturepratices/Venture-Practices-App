@@ -68,7 +68,9 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             title={hasFilters ? "No notifications match these filters." : "Nothing yet — you're all caught up."}
           />
         ) : (
-          notifications.map((notification) => <NotificationRow key={notification.id} notification={notification} />)
+          notifications.map((notification, i) => (
+            <NotificationRow key={notification.id} notification={notification} delayMs={Math.min(i * 40, 400)} />
+          ))
         )}
       </div>
     </div>

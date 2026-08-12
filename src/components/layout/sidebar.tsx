@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, ListTodo, Users, Building2, Mail, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
+import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
 
 type SidebarClient = {
   id: string;
@@ -51,6 +52,8 @@ const AGENCY_LINKS = [
 
 export function Sidebar({
   clients,
+  userName,
+  userEmail,
   isAdmin = false,
   canViewActivity = false,
   canViewArchive = false,
@@ -60,6 +63,8 @@ export function Sidebar({
   canManageOrders = false,
 }: {
   clients: SidebarClient[];
+  userName?: string | null;
+  userEmail?: string | null;
   isAdmin?: boolean;
   canViewActivity?: boolean;
   canViewArchive?: boolean;
@@ -132,7 +137,7 @@ export function Sidebar({
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2),0_1px_3px_0_rgba(0,0,0,0.3)]"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )}
             >
@@ -179,6 +184,26 @@ export function Sidebar({
           ) : null}
         </div>
         </nav>
+        <ChangePasswordDialog
+          trigger={
+            <button
+              type="button"
+              aria-label="Change password"
+              title="Change password"
+              className="flex items-center gap-2.5 border-t border-sidebar-border p-3 text-left transition-colors hover:bg-sidebar-accent"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+                {userName ? initialsOf(userName) : "?"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-sidebar-foreground">
+                  {userName ?? "Team member"}
+                </span>
+                <span className="block truncate text-xs text-sidebar-foreground/60">{userEmail}</span>
+              </span>
+            </button>
+          }
+        />
       </aside>
     </>
   );

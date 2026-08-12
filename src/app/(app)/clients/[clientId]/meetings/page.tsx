@@ -75,8 +75,13 @@ export default async function ClientMeetingsPage({
             title={hasFilters ? "No meeting notes match these filters." : "No meeting notes yet."}
           />
         ) : (
-          meetingNotes.map((meetingNote) => (
-            <MeetingNoteItem key={meetingNote.id} clientId={clientId} meetingNote={meetingNote} />
+          meetingNotes.map((meetingNote, i) => (
+            <MeetingNoteItem
+              key={meetingNote.id}
+              clientId={clientId}
+              meetingNote={meetingNote}
+              delayMs={Math.min(i * 40, 400)}
+            />
           ))
         )}
       </div>

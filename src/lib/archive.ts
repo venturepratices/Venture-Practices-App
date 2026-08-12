@@ -2,7 +2,7 @@ import { put } from "@vercel/blob";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot } from "@/types/task";
+import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedSubtaskSnapshot } from "@/types/task";
 
 type ArchivedAssigneeSnapshot = { id: string; name: string };
 
@@ -23,6 +23,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
         client: true,
         comments: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
         links: { orderBy: { createdAt: "asc" } },
+        subtasks: { orderBy: { sequenceNumber: "asc" } },
         statusOption: { select: { label: true } },
       },
     });
@@ -58,6 +59,11 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
           label: link.label,
           url: link.url,
           createdAt: link.createdAt.toISOString(),
+        })),
+        subtasks: task.subtasks.map((subtask) => ({
+          title: subtask.title,
+          completed: subtask.completed,
+          sequenceNumber: subtask.sequenceNumber,
         })),
       },
     });
@@ -140,6 +146,7 @@ export async function restoreArchivedTask(archivedTaskId: string) {
 
     const comments = (archived.comments as ArchivedCommentSnapshot[] | null) ?? [];
     const links = (archived.links as ArchivedLinkSnapshot[] | null) ?? [];
+    const subtasks = (archived.subtasks as ArchivedSubtaskSnapshot[] | null) ?? [];
 
     if (comments.length > 0) {
       await tx.comment.createMany({
@@ -159,6 +166,17 @@ export async function restoreArchivedTask(archivedTaskId: string) {
           label: link.label,
           url: link.url,
           createdAt: new Date(link.createdAt),
+        })),
+      });
+    }
+
+    if (subtasks.length > 0) {
+      await tx.taskSubtask.createMany({
+        data: subtasks.map((subtask) => ({
+          taskId: task.id,
+          title: subtask.title,
+          completed: subtask.completed,
+          sequenceNumber: subtask.sequenceNumber,
         })),
       });
     }

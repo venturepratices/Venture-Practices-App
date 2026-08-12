@@ -71,7 +71,9 @@ export default async function ClientNotesPage({
         {notes.length === 0 ? (
           <EmptyState icon={NotebookText} title={hasFilters ? "No notes match these filters." : "No notes yet."} />
         ) : (
-          notes.map((note) => <ClientNoteItem key={note.id} clientId={clientId} note={note} />)
+          notes.map((note, i) => (
+            <ClientNoteItem key={note.id} clientId={clientId} note={note} delayMs={Math.min(i * 40, 400)} />
+          ))
         )}
       </div>
     </div>

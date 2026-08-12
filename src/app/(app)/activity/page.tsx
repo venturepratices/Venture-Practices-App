@@ -121,8 +121,12 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
         {entries.length === 0 ? (
           <EmptyState icon={History} title={hasFilters ? "No activity matches these filters." : "No activity yet."} />
         ) : (
-          entries.map((entry) => (
-            <div key={entry.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+          entries.map((entry, i) => (
+            <div
+              key={entry.id}
+              style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+              className="flex animate-in items-center justify-between gap-4 fade-in slide-in-from-bottom-1 px-4 py-3 text-sm duration-300"
+            >
               <span className="min-w-0 flex-1 truncate">{entry.description}</span>
               <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                 {formatDateTime(entry.createdAt)}

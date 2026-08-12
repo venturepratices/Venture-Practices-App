@@ -809,6 +809,7 @@ model Task {
 
   comments Comment[]
   links    TaskLink[]
+  subtasks TaskSubtask[]
 
   @@index([clientId])
   @@index([assigneeId])
@@ -817,6 +818,22 @@ model Task {
   @@index([campaignId, campaignStage])
   @@index([workflowInstanceId, workflowStageNumber])
   @@index([createdById, isPrivate])
+}
+
+// A lightweight checklist item inside a Task — a simple, unordered-by-anything
+// but sequenceNumber, cascade-deleted with its parent Task (same shape as
+// TaskLink). Not modeled as its own Task since subtasks have no assignee,
+// status, or deadline of their own — just a title and a checkbox.
+model TaskSubtask {
+  id             String   @id @default(cuid())
+  taskId         String
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title          String
+  completed      Boolean  @default(false)
+  sequenceNumber Int
+  createdAt      DateTime @default(now())
+
+  @@index([taskId])
 }
 
 // Multi-assignee join (Slice 2) — replaces the single-assignee Task.assigneeId
@@ -1182,6 +1199,7 @@ model ArchivedTask {
   // — otherwise this backtracking history would be lost the moment a task is archived.
   comments Json?
   links    Json?
+  subtasks Json?
 
   @@index([originalTaskId])
 }

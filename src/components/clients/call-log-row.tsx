@@ -13,12 +13,15 @@ export type CallRow = {
 };
 
 // One call or voicemail record from HighLevel.
-export function CallLogRow({ call }: { call: CallRow }) {
+export function CallLogRow({ call, delayMs }: { call: CallRow; delayMs?: number }) {
   const inbound = call.direction === "inbound";
   const isVoicemail = call.channel === "Voicemail";
   const Icon = isVoicemail ? Voicemail : inbound ? PhoneIncoming : PhoneOutgoing;
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
+    <li
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+      className="flex animate-in items-start gap-3 px-4 py-3 fade-in slide-in-from-bottom-1 duration-300"
+    >
       <Icon className={`mt-0.5 size-4 shrink-0 ${inbound ? "text-emerald-600" : "text-sky-600"}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
