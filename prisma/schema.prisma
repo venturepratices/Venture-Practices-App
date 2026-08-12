@@ -265,6 +265,8 @@ model TeamMember {
   archivedTasks                ArchivedTask[]                 @relation("ArchivedBy")
   archivedCampaigns            ArchivedCampaign[]             @relation("ArchivedCampaignBy")
   archivedWorkflowInstances    ArchivedWorkflowInstance[]     @relation("ArchivedWorkflowInstanceBy")
+  archivedClientNotes          ArchivedClientNote[]           @relation("ArchivedClientNoteBy")
+  archivedMeetingNotes         ArchivedMeetingNote[]          @relation("ArchivedMeetingNoteBy")
   comments                     Comment[]
   clientNotes                  ClientNote[]
   meetingNotes                 MeetingNote[]
@@ -1273,6 +1275,49 @@ model ArchivedWorkflowInstance {
   deletedBy           TeamMember?            @relation("ArchivedWorkflowInstanceBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([originalInstanceId])
+  @@index([clientId])
+}
+
+// Full snapshot of a ClientNote at delete time, same philosophy as
+// ArchivedTask/ArchivedCampaign — clientName/authorName are frozen plain
+// strings so the record stays meaningful even if the Client or TeamMember it
+// referenced is later renamed or deleted.
+model ArchivedClientNote {
+  id             String      @id @default(cuid())
+  originalNoteId String
+  clientId       String?
+  clientName     String?
+  authorName     String?
+  body           String
+  noteCreatedAt  DateTime
+  noteUpdatedAt  DateTime
+  deletedAt      DateTime    @default(now())
+  deletedById    String?
+  deletedBy      TeamMember? @relation("ArchivedClientNoteBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  @@index([originalNoteId])
+  @@index([clientId])
+}
+
+// Full snapshot of a MeetingNote at delete time, mirrors ArchivedClientNote.
+model ArchivedMeetingNote {
+  id             String            @id @default(cuid())
+  originalNoteId String
+  clientId       String?
+  clientName     String?
+  authorName     String?
+  title          String
+  meetingDate    DateTime
+  transcript     String            @db.Text
+  summary        String?           @db.Text
+  source         MeetingNoteSource
+  noteCreatedAt  DateTime
+  noteUpdatedAt  DateTime
+  deletedAt      DateTime          @default(now())
+  deletedById    String?
+  deletedBy      TeamMember?       @relation("ArchivedMeetingNoteBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  @@index([originalNoteId])
   @@index([clientId])
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { archiveMeetingNote } from "@/lib/archive";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -26,7 +27,7 @@ export async function DELETE(
   if (!target || target.clientId !== clientId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  await prisma.meetingNote.delete({ where: { id: meetingId } });
+  await archiveMeetingNote(meetingId, session.user.id);
 
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } });
   await logActivity({

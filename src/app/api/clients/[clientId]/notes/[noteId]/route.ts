@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { archiveClientNote } from "@/lib/archive";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -75,7 +76,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!target || target.clientId !== clientId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  await prisma.clientNote.delete({ where: { id: noteId } });
+  await archiveClientNote(noteId, session.user.id);
 
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } });
   await logActivity({

@@ -357,3 +357,140 @@ export async function restoreArchivedWorkflowInstance(archivedInstanceId: string
     return instance;
   });
 }
+
+/**
+ * Deletes a live ClientNote and writes a full denormalized snapshot to
+ * ArchivedClientNote in the same transaction — same philosophy as
+ * archiveTask/archiveCampaign, closing the gap where notes were previously a
+ * plain irrecoverable hard delete.
+ */
+export async function archiveClientNote(noteId: string, deletedById: string | null) {
+  return prisma.$transaction(async (tx) => {
+    const note = await tx.clientNote.findUniqueOrThrow({
+      where: { id: noteId },
+      include: { client: { select: { name: true } }, author: { select: { name: true } } },
+    });
+
+    const archived = await tx.archivedClientNote.create({
+      data: {
+        originalNoteId: note.id,
+        clientId: note.clientId,
+        clientName: note.client.name,
+        authorName: note.author?.name ?? null,
+        body: note.body,
+        noteCreatedAt: note.createdAt,
+        noteUpdatedAt: note.updatedAt,
+        ...(deletedById ? { deletedBy: { connect: { id: deletedById } } } : {}),
+      },
+    });
+
+    await tx.clientNote.delete({ where: { id: noteId } });
+
+    return archived;
+  });
+}
+
+/**
+ * Reverses archiveClientNote: recreates a live ClientNote from an
+ * ArchivedClientNote snapshot, then removes the archive record. Refused if
+ * the original client no longer exists (a note with no client isn't a
+ * meaningful record, matching Campaign's restore behavior).
+ */
+export async function restoreArchivedClientNote(archivedNoteId: string) {
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedClientNote.findUniqueOrThrow({ where: { id: archivedNoteId } });
+
+    if (!archived.clientId) {
+      throw new Error("This note's client no longer exists — it can't be restored.");
+    }
+    const client = await tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } });
+    if (!client) {
+      throw new Error("This note's client no longer exists — it can't be restored.");
+    }
+
+    const note = await tx.clientNote.create({
+      data: {
+        clientId: archived.clientId,
+        authorId: null,
+        body: archived.body,
+        createdAt: archived.noteCreatedAt,
+        updatedAt: archived.noteUpdatedAt,
+      },
+    });
+
+    await tx.archivedClientNote.delete({ where: { id: archivedNoteId } });
+
+    return note;
+  });
+}
+
+/**
+ * Deletes a live MeetingNote and writes a full denormalized snapshot to
+ * ArchivedMeetingNote in the same transaction, mirroring archiveClientNote.
+ */
+export async function archiveMeetingNote(meetingNoteId: string, deletedById: string | null) {
+  return prisma.$transaction(async (tx) => {
+    const note = await tx.meetingNote.findUniqueOrThrow({
+      where: { id: meetingNoteId },
+      include: { client: { select: { name: true } }, author: { select: { name: true } } },
+    });
+
+    const archived = await tx.archivedMeetingNote.create({
+      data: {
+        originalNoteId: note.id,
+        clientId: note.clientId,
+        clientName: note.client.name,
+        authorName: note.author?.name ?? null,
+        title: note.title,
+        meetingDate: note.meetingDate,
+        transcript: note.transcript,
+        summary: note.summary,
+        source: note.source,
+        noteCreatedAt: note.createdAt,
+        noteUpdatedAt: note.updatedAt,
+        ...(deletedById ? { deletedBy: { connect: { id: deletedById } } } : {}),
+      },
+    });
+
+    await tx.meetingNote.delete({ where: { id: meetingNoteId } });
+
+    return archived;
+  });
+}
+
+/**
+ * Reverses archiveMeetingNote: recreates a live MeetingNote from an
+ * ArchivedMeetingNote snapshot, then removes the archive record. Refused if
+ * the original client no longer exists, same as restoreArchivedClientNote.
+ */
+export async function restoreArchivedMeetingNote(archivedMeetingNoteId: string) {
+  return prisma.$transaction(async (tx) => {
+    const archived = await tx.archivedMeetingNote.findUniqueOrThrow({ where: { id: archivedMeetingNoteId } });
+
+    if (!archived.clientId) {
+      throw new Error("This meeting note's client no longer exists — it can't be restored.");
+    }
+    const client = await tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } });
+    if (!client) {
+      throw new Error("This meeting note's client no longer exists — it can't be restored.");
+    }
+
+    const note = await tx.meetingNote.create({
+      data: {
+        clientId: archived.clientId,
+        authorId: null,
+        title: archived.title,
+        meetingDate: archived.meetingDate,
+        transcript: archived.transcript,
+        summary: archived.summary,
+        source: archived.source,
+        createdAt: archived.noteCreatedAt,
+        updatedAt: archived.noteUpdatedAt,
+      },
+    });
+
+    await tx.archivedMeetingNote.delete({ where: { id: archivedMeetingNoteId } });
+
+    return note;
+  });
+}

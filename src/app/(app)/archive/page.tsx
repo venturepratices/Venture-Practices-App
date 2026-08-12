@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Archive, GitBranch } from "lucide-react";
+import { Archive, GitBranch, StickyNote, Users } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { campaignLabel } from "@/lib/campaign-stage";
@@ -29,7 +29,10 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
   if (!(await canUseCapability("canViewArchive"))) notFound();
 
   const params = await searchParams;
-  const tab = params.tab === "campaigns" || params.tab === "projects" ? params.tab : "tasks";
+  const tab =
+    params.tab === "campaigns" || params.tab === "projects" || params.tab === "notes" || params.tab === "meetings"
+      ? params.tab
+      : "tasks";
 
   return (
     <div>
@@ -69,9 +72,35 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
         >
           Projects
         </Link>
+        <Link
+          href="/archive?tab=notes"
+          className={`border-b-2 px-3 py-2 text-sm font-medium ${
+            tab === "notes" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+          }`}
+        >
+          Notes
+        </Link>
+        <Link
+          href="/archive?tab=meetings"
+          className={`border-b-2 px-3 py-2 text-sm font-medium ${
+            tab === "meetings" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+          }`}
+        >
+          Meeting Notes
+        </Link>
       </div>
 
-      {tab === "tasks" ? <TasksTab params={params} /> : tab === "campaigns" ? <CampaignsTab /> : <ProjectsTab />}
+      {tab === "tasks" ? (
+        <TasksTab params={params} />
+      ) : tab === "campaigns" ? (
+        <CampaignsTab />
+      ) : tab === "projects" ? (
+        <ProjectsTab />
+      ) : tab === "notes" ? (
+        <ClientNotesTab />
+      ) : (
+        <MeetingNotesTab />
+      )}
     </div>
   );
 }
@@ -208,6 +237,80 @@ async function ProjectsTab() {
             <RestoreArchivedEntityButton
               restoreUrl={`/api/archived-workflow-instances/${instance.id}/restore`}
               confirmMessage={`Restore "${instance.name}"? Its archived tasks (if any) are restored separately from the Tasks tab.`}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+async function ClientNotesTab() {
+  const archivedNotes = await prisma.archivedClientNote.findMany({
+    orderBy: { deletedAt: "desc" },
+    take: 100,
+    include: { deletedBy: { select: { name: true } } },
+  });
+
+  return (
+    <div className="mt-4 rounded-lg border divide-y">
+      {archivedNotes.length === 0 ? (
+        <EmptyState icon={StickyNote} title="No deleted notes." />
+      ) : (
+        archivedNotes.map((note, i) => (
+          <div
+            key={note.id}
+            style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+            className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+          >
+            <div className="min-w-0">
+              <p className="line-clamp-2 text-sm">{note.body}</p>
+              <p className="text-sm text-muted-foreground">{note.clientName ?? "Unknown client"}</p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {formatDateTime(note.deletedAt)}
+                {note.deletedBy ? ` by ${note.deletedBy.name}` : ""}
+              </p>
+            </div>
+            <RestoreArchivedEntityButton
+              restoreUrl={`/api/archived-client-notes/${note.id}/restore`}
+              confirmMessage={`Restore this note back to ${note.clientName ?? "its client"}?`}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+async function MeetingNotesTab() {
+  const archivedMeetingNotes = await prisma.archivedMeetingNote.findMany({
+    orderBy: { deletedAt: "desc" },
+    take: 100,
+    include: { deletedBy: { select: { name: true } } },
+  });
+
+  return (
+    <div className="mt-4 rounded-lg border divide-y">
+      {archivedMeetingNotes.length === 0 ? (
+        <EmptyState icon={Users} title="No deleted meeting notes." />
+      ) : (
+        archivedMeetingNotes.map((note, i) => (
+          <div
+            key={note.id}
+            style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+            className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+          >
+            <div className="min-w-0">
+              <p className="font-medium">{note.title}</p>
+              <p className="text-sm text-muted-foreground">{note.clientName ?? "Unknown client"}</p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {formatDateTime(note.deletedAt)}
+                {note.deletedBy ? ` by ${note.deletedBy.name}` : ""}
+              </p>
+            </div>
+            <RestoreArchivedEntityButton
+              restoreUrl={`/api/archived-meeting-notes/${note.id}/restore`}
+              confirmMessage={`Restore "${note.title}" back to ${note.clientName ?? "its client"}?`}
             />
           </div>
         ))
