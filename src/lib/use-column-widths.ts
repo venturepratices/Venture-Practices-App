@@ -17,13 +17,13 @@ export function useColumnWidths(storageKey: string, defaults: Record<string, num
       if (raw) {
         const saved: unknown = JSON.parse(raw);
         if (saved && typeof saved === "object") {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from localStorage (an external system) on mount, not a prop-sync
           setWidths((prev) => ({ ...prev, ...(saved as Record<string, number>) }));
         }
       }
     } catch {
       // Malformed/unavailable storage — keep defaults.
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
   // `commit` is false during a live drag (updates the visual immediately,

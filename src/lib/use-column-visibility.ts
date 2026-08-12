@@ -17,12 +17,17 @@ export function useColumnVisibility(storageKey: string, allKeys: string[]) {
       if (raw) {
         const saved: unknown = JSON.parse(raw);
         if (Array.isArray(saved)) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from localStorage (an external system) on mount, not a prop-sync
           setVisible(new Set(saved.filter((key): key is string => typeof key === "string" && allKeys.includes(key))));
         }
       }
     } catch {
       // Malformed/unavailable storage — keep the "everything visible" default.
     }
+    // `allKeys` deliberately excluded: callers typically pass a fresh array
+    // literal each render, and this hydration should only run once per
+    // storageKey (mount), not re-run and clobber an in-progress toggle every
+    // time the caller re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 

@@ -22,7 +22,7 @@ export default async function OrderTemplatesPage() {
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
             Order Templates
             <InfoTip>
-              A reusable set of custom fields — e.g. "Standard Retainer" or "One-Time Project." Picking one when
+              A reusable set of custom fields — e.g. &quot;Standard Retainer&quot; or &quot;One-Time Project.&quot; Picking one when
               creating an Order or starting blank both still carry the built-in services, ad budget, and notes
               fields; a template only adds extra fields on top. Editing a template never changes orders already
               created from it.

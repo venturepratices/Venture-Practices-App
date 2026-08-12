@@ -64,8 +64,8 @@ export default async function ClientWorkflowsPage({
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           Projects
           <InfoTip>
-            A running instance of a Project Template — a staged pipeline of tasks. As each stage's tasks all
-            complete, the next stage's assignees get notified it's their turn.
+            A running instance of a Project Template — a staged pipeline of tasks. As each stage&apos;s tasks all
+            complete, the next stage&apos;s assignees get notified it&apos;s their turn.
           </InfoTip>
         </h2>
         {canManage ? (

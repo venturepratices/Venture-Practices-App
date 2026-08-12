@@ -113,7 +113,7 @@ export function WorkflowInstanceDetail({
       <div className="mt-6 space-y-5">
         {snapshot.length === 0 ? (
           <p className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">
-            No stages yet — add one below to start building this project's pipeline.
+            No stages yet — add one below to start building this project&apos;s pipeline.
           </p>
         ) : (
           snapshot.map((stage) => {

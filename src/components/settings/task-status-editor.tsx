@@ -249,7 +249,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
                   <Lock className="size-3.5" />
                   {option.label} — protected, wired into workflow completion
                 </TooltipTrigger>
-                <TooltipContent>This status can't be renamed, recolored, reordered, or deleted.</TooltipContent>
+                <TooltipContent>This status can&apos;t be renamed, recolored, reordered, or deleted.</TooltipContent>
               </Tooltip>
             ) : (
               <>

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 
-import { AssetStatusPill } from "@/components/assets/asset-status-pill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const NO_ASSET = "__none__";

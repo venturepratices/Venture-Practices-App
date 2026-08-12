@@ -40,7 +40,7 @@ export function ScheduleStep({
           value={draft.mailDayOfMonth}
           onChange={(e) => setField("mailDayOfMonth", e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">Each campaign's mail date; creative/approval/print due dates auto-compute from it.</p>
+        <p className="text-xs text-muted-foreground">Each campaign&apos;s mail date; creative/approval/print due dates auto-compute from it.</p>
       </div>
     </div>
   );

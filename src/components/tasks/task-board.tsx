@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DndContext, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 
 import { StatusPill } from "@/components/tasks/status-pill";
@@ -50,6 +50,17 @@ export function TaskBoard({
   statusOptions?: StatusOptionLite[];
 }) {
   const [localTasks, setLocalTasks] = useState(tasks);
+  // Reset local (optimistic, drag-reorderable) state whenever the server
+  // hands us a fresh `tasks` prop (e.g. after router.refresh()) — done during
+  // render rather than in an effect, per React's "adjusting state when a
+  // prop changes" pattern, so there's no extra render tick where stale data
+  // briefly shows.
+  const [prevTasks, setPrevTasks] = useState(tasks);
+  if (tasks !== prevTasks) {
+    setPrevTasks(tasks);
+    setLocalTasks(tasks);
+  }
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -60,10 +71,6 @@ export function TaskBoard({
     params.set("taskId", taskId);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
-
-  useEffect(() => {
-    setLocalTasks(tasks);
-  }, [tasks]);
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

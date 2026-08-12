@@ -38,15 +38,8 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # Non-blocking for now: the repo has ~46 pre-existing lint errors
-      # (mostly a repeated react-hooks/set-state-in-effect pattern, unrelated
-      # to any specific feature) that predate this CI check. Failing every
-      # build on day one over pre-existing debt would just get the whole
-      # check ignored/disabled. Once that debt is cleaned up, remove
-      # `continue-on-error` so lint actually blocks merges again.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build
         run: npm run build:ci

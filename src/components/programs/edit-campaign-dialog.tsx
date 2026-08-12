@@ -94,7 +94,7 @@ export function EditCampaignDialog({ campaign }: { campaign: EditableCampaign })
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit campaign</DialogTitle>
-          <DialogDescription>Due dates aren't recomputed automatically once edited directly. Leave any date blank to clear it.</DialogDescription>
+          <DialogDescription>Due dates aren&apos;t recomputed automatically once edited directly. Leave any date blank to clear it.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">

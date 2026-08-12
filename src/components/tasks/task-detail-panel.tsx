@@ -104,6 +104,10 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
 
   useEffect(() => {
     if (!taskId) {
+      // Clearing the panel's own state when it closes (taskId becomes null)
+      // — not a prop-sync anti-pattern, just resetting local view state on
+      // the way out, safe and intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTask(null);
       setDraft(null);
       return;
@@ -131,6 +135,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   useEffect(() => {
     const clientId = task?.clientId;
     if (!clientId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting this section's own state when there's no client to fetch for, not a prop-sync
       setCampaigns(null);
       return;
     }
@@ -151,6 +156,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   // member without canViewWorkflows, same pattern as the campaigns fetch.
   useEffect(() => {
     if (!taskId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting this section's own state on close, not a prop-sync
       setProjects(null);
       return;
     }

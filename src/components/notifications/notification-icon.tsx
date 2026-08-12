@@ -44,6 +44,10 @@ export function iconFor(type: NotificationType): LucideIcon {
 }
 
 export function NotificationIcon({ type, unread }: { type: NotificationType; unread: boolean }) {
+  // iconFor() is a pure lookup into the static ICON_FOR map above; it always
+  // returns the same stable icon-component reference for a given type, never
+  // creates a new one, so this is a false positive for the "components must
+  // not be created during render" check.
   const Icon = iconFor(type);
   return (
     <div
@@ -52,6 +56,7 @@ export function NotificationIcon({ type, unread }: { type: NotificationType; unr
         unread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
       )}
     >
+      {/* eslint-disable-next-line react-hooks/static-components -- see comment above; Icon is a stable reference, not created here */}
       <Icon className="size-3.5" />
     </div>
   );

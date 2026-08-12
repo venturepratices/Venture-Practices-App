@@ -253,6 +253,7 @@ async function AvailabilityTab({
   // src/app/api/cron/calendar-sync/route.ts is the belt-and-suspenders sweep
   // for connections nobody happens to view.
   const SYNC_THROTTLE_MS = 60_000;
+  // eslint-disable-next-line react-hooks/purity -- this is a Server Component; Date.now() here is a one-time-per-request snapshot, not a client render-purity concern (no hydration involved)
   const now = Date.now();
   const staleMemberIds = members
     .filter((m) => m.calendarConnection && (!m.calendarConnection.lastSyncAt || now - m.calendarConnection.lastSyncAt.getTime() > SYNC_THROTTLE_MS))
@@ -301,7 +302,7 @@ async function AvailabilityTab({
   return (
     <div className="mt-4 max-w-2xl">
       <p className="text-muted-foreground">
-        Pick a date to see suggested times everyone's free, or narrow it down manually.
+        Pick a date to see suggested times everyone&apos;s free, or narrow it down manually.
       </p>
 
       <div className="mt-4 space-y-3">
@@ -314,7 +315,7 @@ async function AvailabilityTab({
         <CardContent>
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <CalendarClock className="size-4" />
-            Suggested times everyone's free
+            Suggested times everyone&apos;s free
           </p>
           {consideredConnectedCount === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
@@ -408,7 +409,7 @@ async function AvailabilityTab({
         )}
       </div>
 
-      {!hasDate ? <p className="mt-4 text-sm text-muted-foreground">Pick a date above to see who's free.</p> : null}
+      {!hasDate ? <p className="mt-4 text-sm text-muted-foreground">Pick a date above to see who&apos;s free.</p> : null}
     </div>
   );
 }

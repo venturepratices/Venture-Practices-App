@@ -23,6 +23,7 @@ export function ArchivedTaskDetailPanel() {
 
   useEffect(() => {
     if (!archivedTaskId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting this panel's own state on close, not a prop-sync
       setTask(null);
       return;
     }

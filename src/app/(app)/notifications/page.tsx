@@ -50,11 +50,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           Notifications
           <InfoTip>
-            You're notified when you're assigned to a task, @-mentioned in a comment, or when a task you're assigned
+            You&apos;re notified when you&apos;re assigned to a task, @-mentioned in a comment, or when a task you&apos;re assigned
             to changes status, deadline, or gets a new comment. Click any row to open the task and mark it read.
           </InfoTip>
         </h1>
-        <p className="mt-1 text-muted-foreground">Activity that's relevant to you, most recent first.</p>
+        <p className="mt-1 text-muted-foreground">Activity that&apos;s relevant to you, most recent first.</p>
       </div>
 
       <div className="mt-4">

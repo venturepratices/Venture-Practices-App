@@ -59,6 +59,7 @@ export function WorkflowInstanceCard({
   const currentStageName = snapshot.find((s) => s.sequenceNumber === instance.currentStageNumber)?.name;
   const currentStageTasks = instance.tasks.filter((t) => t.workflowStageNumber === instance.currentStageNumber && !t.statusOption.isComplete);
   const assigneeNames = [...new Set(currentStageTasks.flatMap((t) => t.assignees.map((a) => a.teamMember.name)))];
+  // eslint-disable-next-line react-hooks/purity -- this is a Server Component; Date.now() here is a one-time-per-request snapshot, not a client render-purity concern (no hydration involved)
   const overdueCount = instance.tasks.filter((t) => !t.statusOption.isComplete && t.deadline && t.deadline.getTime() < Date.now()).length;
 
   const turnLabel =

@@ -197,7 +197,6 @@ export function AssetViewer(props: Props) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAnnotation]);
 
   // Keyboard shortcuts: n/p switch version, c focuses the comment composer.

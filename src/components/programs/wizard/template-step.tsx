@@ -38,7 +38,7 @@ export function TemplateStep({
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          The template's stage tasks get spawned into every campaign this wizard creates, unassigned.
+          The template&apos;s stage tasks get spawned into every campaign this wizard creates, unassigned.
         </p>
       </div>
     </div>

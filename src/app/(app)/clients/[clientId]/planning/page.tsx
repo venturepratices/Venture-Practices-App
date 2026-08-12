@@ -91,9 +91,9 @@ export default async function PlanningPage({
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           Planning
           <InfoTip>
-            A place to park half-formed ideas for this client, separate from real tasks. Move an idea to "Strategy"
-            once it's more solid, "Move to task" once someone's ready to work on it (you'll pick who), or "Move to
-            Archive" if it's not happening.
+            A place to park half-formed ideas for this client, separate from real tasks. Move an idea to &quot;Strategy&quot;
+            once it&apos;s more solid, &quot;Move to task&quot; once someone&apos;s ready to work on it (you&apos;ll pick who), or &quot;Move to
+            Archive&quot; if it&apos;s not happening.
           </InfoTip>
         </h2>
       </div>

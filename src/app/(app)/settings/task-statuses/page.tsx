@@ -20,7 +20,7 @@ export default async function TaskStatusesPage() {
           Task Statuses
           <InfoTip>
             The set of statuses every task in the app can be set to. Renaming or recoloring a status here applies
-            instantly to every task currently on it. Deleting a status that's still in use requires picking a
+            instantly to every task currently on it. Deleting a status that&apos;s still in use requires picking a
             replacement first.
           </InfoTip>
         </h1>

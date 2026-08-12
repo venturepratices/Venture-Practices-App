@@ -20,7 +20,7 @@ export default async function PortalIntakePage() {
     <div className="max-w-2xl p-6">
       <h1 className="text-lg font-semibold">Business info</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Tell us about your business — save whatever you have now, come back and fill in the rest whenever you're ready.
+        Tell us about your business — save whatever you have now, come back and fill in the rest whenever you&apos;re ready.
       </p>
       <ClientIntakeForm initial={{ ...client, ...intake }} />
     </div>

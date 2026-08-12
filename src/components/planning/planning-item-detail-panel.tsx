@@ -62,6 +62,7 @@ export function PlanningItemDetailPanel({
 
   useEffect(() => {
     if (!ideaId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting this panel's own state on close, not a prop-sync
       setItem(null);
       return;
     }

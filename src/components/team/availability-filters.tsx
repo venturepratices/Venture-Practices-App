@@ -42,7 +42,7 @@ export function AvailabilityFilters() {
   const to = searchParams.get("to") ?? "";
   const tzParam = searchParams.get("tz");
 
-  const detectedTz = useMemo(detectBrowserTimeZone, []);
+  const detectedTz = useMemo(() => detectBrowserTimeZone(), []);
   const tz = tzParam ?? detectedTz;
 
   const tzOptions = useMemo(() => {

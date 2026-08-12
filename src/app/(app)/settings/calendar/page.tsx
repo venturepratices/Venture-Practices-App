@@ -26,7 +26,7 @@ export default async function CalendarSettingsPage({
         <CalendarDays className="size-6" />
         Google Calendar
         <InfoTip>
-          Connect your own Google Calendar so the team can see when you're free or busy on{" "}
+          Connect your own Google Calendar so the team can see when you&apos;re free or busy on{" "}
           <span className="font-medium">Team → Availability</span> — nobody sees your event titles, attendees, or
           locations, only whether a time slot is open.
         </InfoTip>

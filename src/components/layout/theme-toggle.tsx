@@ -11,6 +11,7 @@ export function ThemeToggle() {
   // Avoid rendering theme-dependent output before hydration confirms which
   // theme actually resolved (system preference isn't known on the server).
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the standard mount-detection idiom (theme resolves client-side only); not a prop-sync
   useEffect(() => setMounted(true), []);
 
   return (
