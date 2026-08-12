@@ -1,8 +1,16 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Member = { id: string; name: string };
 
@@ -18,12 +26,7 @@ export function MemberFilter({ members }: { members: Member[] }) {
   const raw = searchParams.get("members");
   const selected = raw ? new Set(raw.split(",")) : null; // null = everyone
 
-  function toggle(memberId: string) {
-    const current = selected ?? new Set(members.map((m) => m.id));
-    const next = new Set(current);
-    if (next.has(memberId)) next.delete(memberId);
-    else next.add(memberId);
-
+  function apply(next: Set<string>) {
     const params = new URLSearchParams(searchParams.toString());
     if (next.size === members.length) params.delete("members");
     else params.set("members", [...next].join(","));
@@ -31,18 +34,46 @@ export function MemberFilter({ members }: { members: Member[] }) {
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  function toggle(memberId: string) {
+    const current = selected ?? new Set(members.map((m) => m.id));
+    const next = new Set(current);
+    if (next.has(memberId)) next.delete(memberId);
+    else next.add(memberId);
+    apply(next);
+  }
+
+  const allSelected = !selected || selected.size === members.length;
+  const selectedNames = members.filter((m) => (selected ? selected.has(m.id) : true)).map((m) => m.name);
+
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <div className="flex items-center gap-2">
       <span className="text-xs text-muted-foreground">People:</span>
-      {members.map((member) => {
-        const checked = selected ? selected.has(member.id) : true;
-        return (
-          <label key={member.id} className="flex items-center gap-1.5 text-sm">
-            <Checkbox checked={checked} onCheckedChange={() => toggle(member.id)} />
-            {member.name}
-          </label>
-        );
-      })}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button type="button" variant="outline" size="sm" className="min-w-40 justify-between font-normal">
+              <span className="truncate text-left">{allSelected ? "All people" : selectedNames.join(", ") || "None selected"}</span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start">
+          <DropdownMenuCheckboxItem checked={allSelected} closeOnClick={false} onCheckedChange={() => apply(new Set(members.map((m) => m.id)))}>
+            All people
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
+          {members.map((member) => (
+            <DropdownMenuCheckboxItem
+              key={member.id}
+              checked={selected ? selected.has(member.id) : true}
+              closeOnClick={false}
+              onCheckedChange={() => toggle(member.id)}
+            >
+              {member.name}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
