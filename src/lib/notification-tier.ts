@@ -38,6 +38,11 @@ export function getNotificationTier(type: NotificationType): NotificationTier {
   return TIER_BY_TYPE[type];
 }
 
+/** Every notification type currently classified as Ambient — the set the digest cron batches. */
+export function ambientNotificationTypes(): NotificationType[] {
+  return (Object.keys(TIER_BY_TYPE) as NotificationType[]).filter((type) => TIER_BY_TYPE[type] === "AMBIENT");
+}
+
 export const TIER_EMOJI: Record<NotificationTier, string> = {
   CRITICAL: "🚨",
   IMPORTANT: "🔔",

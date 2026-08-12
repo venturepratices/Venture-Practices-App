@@ -1166,10 +1166,17 @@ model Notification {
   // the older ?taskId= behavior in notification-row.tsx).
   linkPath    String?
   readAt      DateTime?
+  // Set once an Ambient-tier row (src/lib/notification-tier.ts) has been
+  // folded into a periodic Slack digest post — see
+  // src/app/api/cron/notification-digest/route.ts. Null for every
+  // Critical/Important row (they post instantly, never digested) and for an
+  // Ambient row still waiting on its next digest run.
+  digestedAt  DateTime?
   createdAt   DateTime         @default(now())
 
   @@index([recipientId, readAt])
   @@index([createdAt])
+  @@index([type, digestedAt])
 }
 
 // Full snapshot of a Task at delete time. Denormalized on purpose (assigneeName/

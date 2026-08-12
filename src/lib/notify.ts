@@ -32,10 +32,12 @@ type NotifyParams = {
    */
   linkPath?: string | null;
   /**
-   * Set false to skip the Slack post for this particular notification while
+   * Set false to skip Slack entirely for this particular notification while
    * still creating the in-app row. Every notification type reaches Slack by
-   * default now — this is only for genuine one-off exceptions, not a
-   * per-type "quiet" setting (that's what tiers are for).
+   * default — this is only for genuine one-off exceptions, not a per-type
+   * "quiet" setting (that's what tiers are for). Has no effect on
+   * Ambient-tier types either way — those always queue for the digest cron
+   * instead of an instant DM, regardless of this flag.
    */
   slack?: boolean;
 };
@@ -61,6 +63,7 @@ function buildSlackText(type: NotificationType, title: string, lines: string[] |
  */
 export async function notify(params: NotifyParams) {
   try {
+    const tier = getNotificationTier(params.type);
     const notification = await prisma.notification.create({
       data: {
         recipientId: params.recipientId,
@@ -73,7 +76,10 @@ export async function notify(params: NotifyParams) {
       },
     });
 
-    if (params.slack ?? true) {
+    // Ambient-tier rows never get an instant DM — they queue for the next
+    // notification-digest cron run instead (src/app/api/cron/notification-
+    // digest/route.ts), which is what actually posts to Slack for them.
+    if ((params.slack ?? true) && tier !== "AMBIENT") {
       const recipient = await prisma.teamMember.findUnique({
         where: { id: params.recipientId },
         select: { id: true, email: true, slackUserId: true },
