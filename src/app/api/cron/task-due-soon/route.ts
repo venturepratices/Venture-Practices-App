@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { notify, notifyChannel } from "@/lib/notify";
+import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
 import { getCompleteStatusId } from "@/lib/task-status";
@@ -50,7 +51,6 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_HOURS * 60 * 60 * 1000);
-  const dedupeSince = new Date(now.getTime() - DEDUPE_WINDOW_HOURS * 60 * 60 * 1000);
 
   const taskInclude = {
     assignees: { select: { teamMemberId: true, teamMember: { select: { name: true, email: true, slackUserId: true } } } },
@@ -65,11 +65,7 @@ export async function GET(request: Request) {
   let dueSoonReminded = 0;
   for (const task of dueSoonTasks) {
     if (task.assignees.length === 0) continue;
-    const alreadyReminded = await prisma.notification.findFirst({
-      where: { type: "TASK_DUE_SOON", entityId: task.id, createdAt: { gte: dedupeSince } },
-      select: { id: true },
-    });
-    if (alreadyReminded) continue;
+    if (await hasRecentNotification("TASK_DUE_SOON", task.id, DEDUPE_WINDOW_HOURS)) continue;
 
     const linkPath = linkPathFor(task);
     await Promise.all(
@@ -97,11 +93,7 @@ export async function GET(request: Request) {
   let overdueReminded = 0;
   for (const task of overdueTasks) {
     if (task.assignees.length === 0) continue;
-    const alreadyReminded = await prisma.notification.findFirst({
-      where: { type: "TASK_OVERDUE", entityId: task.id },
-      select: { id: true },
-    });
-    if (alreadyReminded) continue;
+    if (await hasRecentNotification("TASK_OVERDUE", task.id)) continue;
 
     const linkPath = linkPathFor(task);
     await Promise.all(

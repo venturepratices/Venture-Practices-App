@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { AssetStatus } from "@/generated/prisma/enums";
 import { notify } from "@/lib/notify";
+import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
@@ -30,7 +31,6 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_HOURS * 60 * 60 * 1000);
-  const dedupeSince = new Date(now.getTime() - DEDUPE_WINDOW_HOURS * 60 * 60 * 1000);
 
   const dueSoonAssets = await prisma.asset.findMany({
     where: {
@@ -42,11 +42,7 @@ export async function GET(request: Request) {
 
   let remindedCount = 0;
   for (const asset of dueSoonAssets) {
-    const alreadyReminded = await prisma.notification.findFirst({
-      where: { type: "ASSET_DUE_SOON", entityId: asset.id, createdAt: { gte: dedupeSince } },
-      select: { id: true },
-    });
-    if (alreadyReminded) continue;
+    if (await hasRecentNotification("ASSET_DUE_SOON", asset.id, DEDUPE_WINDOW_HOURS)) continue;
 
     const recipients = new Set<string>();
     if (asset.createdById) recipients.add(asset.createdById);
