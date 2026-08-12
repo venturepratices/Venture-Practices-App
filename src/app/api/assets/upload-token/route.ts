@@ -45,6 +45,10 @@ export async function POST(request: Request) {
           allowedContentTypes: ALLOWED_UPLOAD_MIME_TYPES,
           // 500 MB per upload — comfortable ceiling for prototype-scale video assets.
           maximumSizeInBytes: 500 * 1024 * 1024,
+          // @vercel/blob's client-token path defaults this to false — without it,
+          // re-uploading a file with a name that already exists at this path
+          // (e.g. a second "Pricing 2.0.png") fails with a "blob already exists" error.
+          addRandomSuffix: true,
           tokenPayload: clientPayload ?? undefined,
         };
       },

@@ -93,7 +93,8 @@ export function NewAssetDialog({
 
       if (mode === "file" && file) {
         setProgress("Uploading…");
-        // Path is a suggestion — Vercel Blob still adds a random suffix by default.
+        // Path is a suggestion — the upload-token route forces addRandomSuffix
+        // so two uploads with the same filename never collide.
         const blob = await upload(`assets/${clientId}/${file.name}`, file, {
           access: "public",
           handleUploadUrl: "/api/assets/upload-token",
