@@ -73,8 +73,14 @@ export default async function ClientCampaignsPage({ params }: { params: Promise<
           {campaigns.length === 0 ? (
             <EmptyState icon={Mail} title="No Direct Mail campaigns yet." className="py-6" />
           ) : (
-            campaigns.map((campaign) => (
-              <CampaignRow key={campaign.id} clientId={clientId} campaign={campaign} canManage={canManage} />
+            campaigns.map((campaign, i) => (
+              <CampaignRow
+                key={campaign.id}
+                clientId={clientId}
+                campaign={campaign}
+                canManage={canManage}
+                delayMs={Math.min(i * 40, 400)}
+              />
             ))
           )}
         </div>

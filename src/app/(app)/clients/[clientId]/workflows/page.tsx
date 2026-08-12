@@ -90,11 +90,19 @@ export default async function ClientWorkflowsPage({
             <WorkflowFolderToggleButton />
 
             {instances.length === 0 ? (
-              <EmptyState icon={GitBranch} title={emptyMessage} description="Start one from a template — or start blank — to see it here." className="py-6" />
+              <div className="rounded-lg border">
+                <EmptyState icon={GitBranch} title={emptyMessage} description="Start one from a template — or start blank — to see it here." className="py-6" />
+              </div>
             ) : (
               <div className="space-y-3">
-                {instances.map((instance) => (
-                  <WorkflowInstanceCard key={instance.id} instance={instance} href={`/clients/${clientId}/workflows/${instance.id}`} hideClientLabel />
+                {instances.map((instance, i) => (
+                  <WorkflowInstanceCard
+                    key={instance.id}
+                    instance={instance}
+                    href={`/clients/${clientId}/workflows/${instance.id}`}
+                    hideClientLabel
+                    delayMs={Math.min(i * 40, 400)}
+                  />
                 ))}
               </div>
             )}

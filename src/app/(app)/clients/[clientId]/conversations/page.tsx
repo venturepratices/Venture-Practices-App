@@ -132,7 +132,7 @@ export default async function ConversationsPage({
       ) : (
         <div className="flex h-[calc(100vh-260px)] min-h-[420px] overflow-hidden rounded-lg border">
           <aside className="w-72 shrink-0 overflow-y-auto border-r">
-            {contacts.map((c) => {
+            {contacts.map((c, i) => {
               const active = c.contactId === selected?.contactId;
               const preview =
                 c.lastChannel === "Email"
@@ -142,8 +142,9 @@ export default async function ConversationsPage({
                 <Link
                   key={c.contactId}
                   href={`?contactId=${encodeURIComponent(c.contactId)}`}
+                  style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
                   className={cn(
-                    "flex gap-2.5 border-b px-3 py-2.5 text-left transition-colors hover:bg-accent/50",
+                    "flex animate-in gap-2.5 border-b px-3 py-2.5 text-left fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-accent/50",
                     active && "bg-accent"
                   )}
                 >

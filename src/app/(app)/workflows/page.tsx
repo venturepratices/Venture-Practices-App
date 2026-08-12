@@ -67,8 +67,14 @@ export default async function WorkflowsPage() {
             <EmptyState icon={GitBranch} title="No internal projects yet." description="Start one from a template to see it here." />
           </div>
         ) : (
-          instances.map((instance) => (
-            <WorkflowInstanceCard key={instance.id} instance={instance} href={`/workflows/${instance.id}`} hideClientLabel />
+          instances.map((instance, i) => (
+            <WorkflowInstanceCard
+              key={instance.id}
+              instance={instance}
+              href={`/workflows/${instance.id}`}
+              hideClientLabel
+              delayMs={Math.min(i * 40, 400)}
+            />
           ))
         )}
       </div>

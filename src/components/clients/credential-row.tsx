@@ -31,10 +31,12 @@ export function CredentialRow({
   credential,
   canManage = false,
   canReveal = false,
+  delayMs,
 }: {
   credential: Credential;
   canManage?: boolean;
   canReveal?: boolean;
+  delayMs?: number;
 }) {
   const router = useRouter();
   const [revealOpen, setRevealOpen] = useState(false);
@@ -79,7 +81,10 @@ export function CredentialRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+    <div
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+      className="flex animate-in items-center justify-between gap-3 rounded-md border p-3 fade-in slide-in-from-bottom-1 duration-300"
+    >
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="text-sm font-medium">{credential.label}</p>
         {credential.url ? (

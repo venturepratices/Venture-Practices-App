@@ -2,15 +2,15 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2, Lock, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
@@ -84,6 +84,9 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   const [linkError, setLinkError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignOption[] | null>(null);
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -105,6 +108,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
       setDraft(null);
       return;
     }
+    setIsEditingTitle(false);
     let cancelled = false;
     fetch(`/api/tasks/${taskId}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -162,7 +166,6 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   }, [taskId]);
 
   function close() {
-    if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("taskId");
     const query = params.toString();
@@ -272,45 +275,101 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
     if (response.ok) refetchTask();
   }
 
+  async function submitSubtask() {
+    if (!taskId || !newSubtaskTitle.trim()) return;
+    setIsAddingSubtask(true);
+    const response = await fetch(`/api/tasks/${taskId}/subtasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newSubtaskTitle.trim() }),
+    });
+    setIsAddingSubtask(false);
+    if (response.ok) {
+      setNewSubtaskTitle("");
+      refetchTask();
+    }
+  }
+
+  async function toggleSubtask(subtaskId: string, completed: boolean) {
+    const response = await fetch(`/api/task-subtasks/${subtaskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed }),
+    });
+    if (response.ok) refetchTask();
+  }
+
+  async function deleteSubtask(subtaskId: string) {
+    const response = await fetch(`/api/task-subtasks/${subtaskId}`, { method: "DELETE" });
+    if (response.ok) refetchTask();
+  }
+
   return (
-    <Sheet open={Boolean(taskId)} onOpenChange={(open) => !open && close()}>
-      <SheetContent className="flex flex-col gap-6 overflow-y-auto p-6">
+    <Dialog open={Boolean(taskId)} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="flex max-w-[calc(100%-2rem)] flex-col gap-6 sm:max-w-2xl">
         {task && draft ? (
           <>
-            <SheetHeader className="p-0">
-              <SheetTitle className="sr-only">Task details</SheetTitle>
-              <Input
-                value={draft.title}
-                onChange={(event) => setField("title", event.target.value)}
-                className="border-none px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
-              />
-            </SheetHeader>
-
-            {isDirty ? (
-              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
-                <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Unsaved changes</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={discard} disabled={isSaving}>
-                    Discard
-                  </Button>
-                  <Button size="sm" onClick={save} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                    {isSaving ? "Saving..." : "Save changes"}
-                  </Button>
-                </div>
+            <DialogHeader className="p-0">
+              <DialogTitle className="sr-only">Task details</DialogTitle>
+              <div className="flex items-center gap-2">
+                {isEditingTitle ? (
+                  <Input
+                    autoFocus
+                    value={draft.title}
+                    onChange={(event) => setField("title", event.target.value)}
+                    onBlur={() => setIsEditingTitle(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === "Escape") {
+                        event.preventDefault();
+                        setIsEditingTitle(false);
+                      }
+                    }}
+                    className="h-auto flex-1 px-2 py-1 text-xl font-bold tracking-tight"
+                  />
+                ) : (
+                  <>
+                    <h2 className="flex-1 truncate text-xl font-bold tracking-tight">
+                      {draft.title || "Untitled task"}
+                    </h2>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Edit title"
+                      onClick={() => setIsEditingTitle(true)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  </>
+                )}
               </div>
-            ) : null}
+            </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+              <span className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                {isDirty ? "You have unsaved changes" : "No unsaved changes"}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={discard} disabled={isSaving || !isDirty}>
+                  Discard
+                </Button>
+                <Button size="sm" onClick={save} disabled={isSaving || !isDirty}>
+                  {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {isSaving ? "Saving..." : "Save changes"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="task-description">Description</Label>
                 <Textarea
                   id="task-description"
                   value={draft.description}
                   onChange={(event) => setField("description", event.target.value)}
-                  placeholder="Add more detail about this task..."
-                  className="min-h-20 text-sm"
+                  placeholder="Add more detail about this task — what needs to happen, and any context the assignee should know."
+                  className="min-h-36 text-sm"
                 />
+                <p className="text-xs text-muted-foreground">Plain text only — links and @mentions aren&apos;t parsed here.</p>
               </div>
 
               <div className="space-y-1.5">
@@ -354,7 +413,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
               </div>
 
               {draft.kind === "PROJECT" ? (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 sm:col-span-2">
                   <Label>Project</Label>
                   {projects ? (
                     <ProjectPicker
@@ -369,7 +428,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
               ) : null}
 
               {task.createdById === null || task.createdById === currentUserId ? (
-                <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+                <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm sm:col-span-2 dark:border-blue-800 dark:bg-blue-950/30">
                   <Checkbox
                     checked={draft.isPrivate}
                     onCheckedChange={(checked) => setField("isPrivate", checked === true)}
@@ -379,12 +438,12 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                   <span>
                     <span className="font-semibold">Private</span>
                     <span className="block text-xs font-normal text-muted-foreground">
-                      Only you can see this task — turn off to make it visible to everyone.
+                      Only you can see this task — turn this off to make it visible to everyone.
                     </span>
                   </span>
                 </label>
               ) : draft.isPrivate ? (
-                <div className="flex items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+                <div className="flex items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm sm:col-span-2 dark:border-blue-800 dark:bg-blue-950/30">
                   <Lock className="size-4 shrink-0 text-muted-foreground" />
                   <span>
                     <span className="font-semibold">Private</span>
@@ -510,6 +569,70 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
             <Separator />
 
             <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <CheckSquare className="size-4" />
+                Subtasks
+                {task.subtasks.length > 0 ? (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+                  </span>
+                ) : null}
+              </Label>
+              {task.subtasks.length > 0 ? (
+                <ul className="space-y-1">
+                  {task.subtasks.map((subtask) => (
+                    <li key={subtask.id} className="flex items-center gap-2.5 rounded-md px-1 py-1 text-sm hover:bg-muted/50">
+                      <Checkbox
+                        checked={subtask.completed}
+                        onCheckedChange={(checked) => toggleSubtask(subtask.id, checked === true)}
+                      />
+                      <span
+                        className={
+                          subtask.completed ? "flex-1 truncate text-muted-foreground line-through" : "flex-1 truncate"
+                        }
+                      >
+                        {subtask.title}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove ${subtask.title}`}
+                        onClick={() => deleteSubtask(subtask.id)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={newSubtaskTitle}
+                  onChange={(event) => setNewSubtaskTitle(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      submitSubtask();
+                    }
+                  }}
+                  placeholder="Add subtask..."
+                  className="h-8 text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Add subtask"
+                  disabled={isAddingSubtask || !newSubtaskTitle.trim()}
+                  onClick={submitSubtask}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
               <Label>Links</Label>
               {task.links.length > 0 ? (
                 <ul className="space-y-1.5">
@@ -600,7 +723,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
         ) : (
           <p className="text-sm text-muted-foreground">Loading...</p>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

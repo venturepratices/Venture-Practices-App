@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 
 import { accessibleClientFilter, canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +6,7 @@ import { getCompleteStatusId } from "@/lib/task-status";
 import { Button } from "@/components/ui/button";
 import { ClientCard } from "@/components/clients/client-card";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/info-tip";
 
 export default async function ClientsPage() {
@@ -58,12 +59,18 @@ export default async function ClientsPage() {
       </div>
 
       {clients.length === 0 ? (
-        <p className="mt-10 text-center text-muted-foreground">No clients yet. Add your first one to get started.</p>
+        <EmptyState
+          icon={Building2}
+          title="No clients yet."
+          description="Add your first one to get started."
+          className="mt-10"
+        />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {clients.map((client) => (
+          {clients.map((client, i) => (
             <ClientCard
               key={client.id}
+              delayMs={Math.min(i * 40, 400)}
               client={{
                 id: client.id,
                 name: client.name,

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { NotificationIcon } from "@/components/notifications/notification-icon";
 import type { Notification } from "@/generated/prisma/client";
 
-export function NotificationRow({ notification }: { notification: Notification }) {
+export function NotificationRow({ notification, delayMs }: { notification: Notification; delayMs?: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -35,6 +35,7 @@ export function NotificationRow({ notification }: { notification: Notification }
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") open();
       }}
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
       className="flex w-full cursor-pointer animate-in items-center justify-between gap-4 px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2.5">

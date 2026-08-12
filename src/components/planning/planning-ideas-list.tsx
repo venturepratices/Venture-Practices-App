@@ -65,7 +65,7 @@ export function PlanningIdeasList({
         showFolderColumn={canManage && folders.length > 0}
       />
       <div className="divide-y">
-        {items.map((item) => (
+        {items.map((item, i) => (
           <PlanningItemRow
             key={item.id}
             clientId={clientId}
@@ -75,6 +75,7 @@ export function PlanningIdeasList({
             folders={folders}
             visibleColumns={visibleColumns}
             widths={columnWidths}
+            delayMs={Math.min(i * 40, 400)}
           />
         ))}
       </div>

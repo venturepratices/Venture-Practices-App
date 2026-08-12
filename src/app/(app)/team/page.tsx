@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { initialsOf, zonedDateTime } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import { TeamMemberFormDialog } from "@/components/team/team-member-form-dialog";
@@ -170,13 +171,17 @@ async function MembersTab() {
         {members.length === 0 ? (
           <EmptyState icon={Users} title="No team members yet." />
         ) : (
-          members.map((member) => {
+          members.map((member, i) => {
             const defaultCaps = Object.fromEntries(CAPABILITIES.map((cap) => [cap, member[cap]])) as Record<
               Capability,
               boolean
             >;
             return (
-              <div key={member.id} className="flex items-center justify-between px-4 py-3">
+              <div
+                key={member.id}
+                style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+                className="flex animate-in items-center justify-between fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
                     {initialsOf(member.name)}
@@ -305,7 +310,8 @@ async function AvailabilityTab({
       </div>
 
       {hasDate && searchStart && searchEnd ? (
-        <div className="mt-4 rounded-lg border p-3">
+        <Card className="mt-4">
+        <CardContent>
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <CalendarClock className="size-4" />
             Suggested times everyone's free
@@ -338,14 +344,15 @@ async function AvailabilityTab({
               ))}
             </div>
           )}
-        </div>
+        </CardContent>
+        </Card>
       ) : null}
 
       <div className="mt-4 divide-y rounded-lg border">
         {members.length === 0 ? (
           <EmptyState icon={Users} title="No team members yet." />
         ) : (
-          members.map((member) => {
+          members.map((member, i) => {
             const connected = !!member.calendarConnection;
             const theirBlocks = blocksByMember.get(member.id) ?? [];
             const busyInWindow = hasDate && connected && theirBlocks.some((b) => b.start < searchEnd! && b.end > searchStart!);
@@ -358,7 +365,10 @@ async function AvailabilityTab({
             else pill = { tone: "success", label: "Available" };
 
             const row = (
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <div
+                style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+                className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
                     {initialsOf(member.name)}

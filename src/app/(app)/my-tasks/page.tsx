@@ -147,8 +147,14 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
             <EmptyState icon={CalendarCheck} title="Nothing overdue or due today. You're caught up." />
           ) : (
             <div className="divide-y">
-              {myDayTasks.map((task) => (
-                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
+              {myDayTasks.map((task, i) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  showClient
+                  statusOptions={statusOptions}
+                  delayMs={Math.min(i * 40, 400)}
+                />
               ))}
             </div>
           )}
@@ -169,8 +175,14 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y">
-              {privateTasks.map((task) => (
-                <TaskRow key={task.id} task={task} showClient statusOptions={statusOptions} />
+              {privateTasks.map((task, i) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  showClient
+                  statusOptions={statusOptions}
+                  delayMs={Math.min(i * 40, 400)}
+                />
               ))}
             </div>
           </CardContent>

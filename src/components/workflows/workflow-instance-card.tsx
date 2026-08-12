@@ -35,10 +35,12 @@ export function WorkflowInstanceCard({
   instance,
   href,
   hideClientLabel = false,
+  delayMs,
 }: {
   instance: WorkflowInstanceCardData;
   href: string;
   hideClientLabel?: boolean;
+  delayMs?: number;
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const taskCounts = snapshot.reduce<Record<number, { total: number; complete: number }>>((acc, stage) => {
@@ -67,7 +69,11 @@ export function WorkflowInstanceCard({
         : `${assigneeNames.slice(0, 2).join(", ")} +${assigneeNames.length - 2} more`;
 
   return (
-    <Link href={href} className="block rounded-lg border p-4 transition-colors hover:border-primary">
+    <Link
+      href={href}
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+      className="hover-glow-ring block animate-in rounded-lg border p-4 fade-in slide-in-from-bottom-1 transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-0.5 hover:border-primary"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">{instance.name}</p>

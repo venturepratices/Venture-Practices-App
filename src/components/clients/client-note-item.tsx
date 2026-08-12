@@ -20,6 +20,7 @@ type Props = {
     updatedAt: string | Date;
     author: { name: string } | null;
   };
+  delayMs?: number;
 };
 
 // A one-line row preview — strips the leading "## "/"- " markers so the list
@@ -32,7 +33,7 @@ function previewOf(body: string) {
   return line ? line.replace(/^#{1,2}\s+/, "").replace(/^[-*]\s+/, "") : "";
 }
 
-export function ClientNoteItem({ clientId, note }: Props) {
+export function ClientNoteItem({ clientId, note, delayMs }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -86,7 +87,8 @@ export function ClientNoteItem({ clientId, note }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50"
+        style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+        className="flex w-full animate-in items-center gap-3 px-4 py-3 text-left text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted/50"
       >
         <span className="w-32 shrink-0 truncate font-medium">{note.author?.name ?? "Former team member"}</span>
         <span className="min-w-0 flex-1 truncate text-muted-foreground">{previewOf(note.body)}</span>

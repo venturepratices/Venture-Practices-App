@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ListTodo } from "lucide-react";
 
 import { canUseCapability, loadPermissions, requireClientAccess, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +16,8 @@ import { ProofAssetSelect } from "@/components/programs/proof-asset-select";
 import { StageSelect } from "@/components/programs/stage-select";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function formatDate(date: Date | null) {
   return date ? formatDateInTz(date, { month: "long", day: "numeric", year: "numeric" }) : "Not set";
@@ -105,11 +107,14 @@ export default async function CampaignDetailPage({
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border p-4">
-        <CampaignStepper currentStage={campaign.currentStage} taskCounts={taskCounts} />
-      </div>
+      <Card className="mt-4">
+        <CardContent>
+          <CampaignStepper currentStage={campaign.currentStage} taskCounts={taskCounts} />
+        </CardContent>
+      </Card>
 
-      <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">
+      <Card className="mt-4">
+      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <p className="text-xs text-muted-foreground">Mail date</p>
           <p className="text-sm font-medium">{formatDate(campaign.mailDate)}</p>
@@ -173,7 +178,8 @@ export default async function CampaignDetailPage({
             <p className="text-sm font-medium">Not linked</p>
           )}
         </div>
-      </div>
+      </CardContent>
+      </Card>
 
       <div className="mt-6">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -205,7 +211,7 @@ export default async function CampaignDetailPage({
                       </div>
                     </>
                   ) : (
-                    <p className="px-4 py-3 text-sm text-muted-foreground">No tasks yet.</p>
+                    <EmptyState icon={ListTodo} title="No tasks yet." className="py-4" />
                   )}
                   {canManage ? (
                     <div className="border-t p-2">

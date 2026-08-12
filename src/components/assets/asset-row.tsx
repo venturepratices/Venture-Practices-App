@@ -51,13 +51,22 @@ function FormatIcon({ kind, className }: { kind: string; className?: string }) {
  * just with a thumbnail column and a click-through Link instead of a
  * query-param detail panel.
  */
-export function AssetRow({ clientId, asset }: { clientId: string; asset: AssetRowData }) {
+export function AssetRow({
+  clientId,
+  asset,
+  delayMs,
+}: {
+  clientId: string;
+  asset: AssetRowData;
+  delayMs?: number;
+}) {
   const kind = asset.currentVersion?.kind ?? "OTHER";
   const isImage = kind === "IMAGE" && !!asset.currentVersion?.blobUrl;
 
   return (
     <Link
       href={`/clients/${clientId}/assets/${asset.id}`}
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
       className={cn(
         ASSET_ROW_GRID,
         "w-full min-w-0 animate-in items-center px-3 py-2.5 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"

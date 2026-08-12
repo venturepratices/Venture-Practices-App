@@ -35,7 +35,11 @@ export function OrderList({
   emptyDescription?: string;
 }) {
   if (orders.length === 0) {
-    return <EmptyState icon={DollarSign} title={emptyTitle} description={emptyDescription} />;
+    return (
+      <div className="rounded-lg border">
+        <EmptyState icon={DollarSign} title={emptyTitle} description={emptyDescription} />
+      </div>
+    );
   }
 
   return (
@@ -49,13 +53,14 @@ export function OrderList({
         <span className="hidden md:block">Ad budget</span>
       </div>
       <div className="divide-y">
-        {orders.map((order) => {
+        {orders.map((order, i) => {
           const totalCents = totalActiveCents(order.services);
           return (
             <Link
               key={order.id}
               href={`/clients/${clientId}/orders/${order.id}`}
-              className={`${GRID} block px-3 py-2.5 text-sm transition-colors hover:bg-muted`}
+              style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+              className={`${GRID} block animate-in fade-in slide-in-from-bottom-1 px-3 py-2.5 text-sm transition-colors duration-300 hover:bg-muted`}
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2 truncate">

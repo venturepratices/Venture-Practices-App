@@ -10,9 +10,10 @@ import type { ArchivedTask } from "@/generated/prisma/client";
 
 type Props = {
   task: ArchivedTask & { deletedBy: { name: string } | null };
+  delayMs?: number;
 };
 
-export function ArchivedTaskRow({ task }: Props) {
+export function ArchivedTaskRow({ task, delayMs }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,6 +33,7 @@ export function ArchivedTaskRow({ task }: Props) {
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") open();
       }}
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
       className={cn(
         ARCHIVE_GRID,
         "w-full min-w-0 cursor-pointer animate-in items-center px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted"

@@ -52,8 +52,14 @@ export default async function ClientCredentialsPage({ params }: { params: Promis
             <EmptyState icon={KeyRound} title="No credentials stored yet." className="py-6" />
           </div>
         ) : (
-          credentials.map((credential) => (
-            <CredentialRow key={credential.id} credential={credential} canManage={canManage} canReveal={canReveal} />
+          credentials.map((credential, i) => (
+            <CredentialRow
+              key={credential.id}
+              credential={credential}
+              canManage={canManage}
+              canReveal={canReveal}
+              delayMs={Math.min(i * 40, 400)}
+            />
           ))
         )}
       </div>

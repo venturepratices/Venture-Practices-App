@@ -24,6 +24,7 @@ export type TaskDetail = Prisma.TaskGetPayload<{
     createdBy: { select: { id: true; name: true } };
     comments: { include: { author: { select: { id: true; name: true } } } };
     links: true;
+    subtasks: true;
     campaign: { select: { id: true; sequenceNumber: true; currentStage: true } };
     statusOption: { select: { id: true; label: true; tone: true; isComplete: true } };
   };
@@ -31,6 +32,7 @@ export type TaskDetail = Prisma.TaskGetPayload<{
 
 export type ArchivedCommentSnapshot = { authorName: string; body: string; createdAt: string };
 export type ArchivedLinkSnapshot = { label: string; url: string; createdAt: string };
+export type ArchivedSubtaskSnapshot = { title: string; completed: boolean; sequenceNumber: number };
 export type ArchivedAssigneeSnapshot = { id: string; name: string };
 
 export type ArchivedTaskDetail = Prisma.ArchivedTaskGetPayload<{

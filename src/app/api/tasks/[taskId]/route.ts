@@ -33,6 +33,7 @@ const TASK_INCLUDE = {
     orderBy: { createdAt: "asc" as const },
   },
   links: { orderBy: { createdAt: "asc" as const } },
+  subtasks: { orderBy: { sequenceNumber: "asc" as const } },
   campaign: { select: { id: true, sequenceNumber: true, currentStage: true } },
 } as const;
 

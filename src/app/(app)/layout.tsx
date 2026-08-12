@@ -28,6 +28,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen">
         <Sidebar
           clients={clients}
+          userName={session?.user?.name}
+          userEmail={session?.user?.email}
           isAdmin={!!perms?.isAdmin}
           canViewActivity={!!perms?.caps.canViewActivity}
           canViewArchive={!!perms?.caps.canViewArchive}
@@ -37,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canManageOrders={!!perms?.caps.canManageOrders}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <TopBar userName={session?.user?.name} userEmail={session?.user?.email} unreadCount={unreadCount} />
+          <TopBar unreadCount={unreadCount} />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
         <Suspense fallback={null}>

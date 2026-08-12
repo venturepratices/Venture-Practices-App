@@ -20,9 +20,10 @@ type Props = {
     summary: string | null;
     author: { name: string } | null;
   };
+  delayMs?: number;
 };
 
-export function MeetingNoteItem({ clientId, meetingNote }: Props) {
+export function MeetingNoteItem({ clientId, meetingNote, delayMs }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -41,7 +42,8 @@ export function MeetingNoteItem({ clientId, meetingNote }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50"
+        style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+        className="flex w-full animate-in items-center gap-3 px-4 py-3 text-left text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted/50"
       >
         <span className="w-48 shrink-0 truncate font-medium">{meetingNote.title}</span>
         <span className="min-w-0 flex-1 truncate text-muted-foreground">

@@ -6,6 +6,7 @@ import { canUseCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import type { Service } from "@/lib/validations/client-order";
 
@@ -48,7 +49,8 @@ export default async function ClientOrderDetailPage({
         Orders
       </Link>
 
-      <div className="mt-4 rounded-lg border p-6">
+      <Card className="mt-4" size="lg">
+      <CardContent>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{order.title || "Untitled order"}</h2>
@@ -169,7 +171,8 @@ export default async function ClientOrderDetailPage({
             </div>
           </div>
         ) : null}
-      </div>
+      </CardContent>
+      </Card>
     </div>
   );
 }

@@ -24,13 +24,18 @@ export function CampaignRow({
   clientId,
   campaign,
   canManage,
+  delayMs,
 }: {
   clientId: string;
   campaign: CampaignRowData;
   canManage: boolean;
+  delayMs?: number;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+    <div
+      style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+      className="flex animate-in flex-wrap items-center justify-between gap-3 px-4 py-3 fade-in slide-in-from-bottom-1 duration-300"
+    >
       <Link href={`/clients/${clientId}/campaigns/${campaign.id}`} className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{campaignLabel(campaign)}</p>
         <p className="text-xs text-muted-foreground">

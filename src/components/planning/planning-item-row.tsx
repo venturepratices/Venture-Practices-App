@@ -108,6 +108,7 @@ export function PlanningItemRow({
   folders,
   visibleColumns,
   widths,
+  delayMs,
 }: {
   clientId: string;
   item: PlanningItem;
@@ -116,6 +117,7 @@ export function PlanningItemRow({
   folders?: { id: string; name: string }[];
   visibleColumns?: Set<string>;
   widths?: Record<string, number>;
+  delayMs?: number;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -175,8 +177,8 @@ export function PlanningItemRow({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") openIdea();
       }}
-      style={gridTemplateVar(visibleColumns, resolvedWidths)}
-      className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-muted")}
+      style={{ ...gridTemplateVar(visibleColumns, resolvedWidths), animationDelay: delayMs ? `${delayMs}ms` : undefined }}
+      className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer animate-in px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted")}
     >
       <div className="min-w-0">
         <p className="truncate font-medium" title={item.title}>
