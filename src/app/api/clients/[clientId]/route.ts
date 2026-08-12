@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { archiveCampaign } from "@/lib/archive";
 import { auth } from "@/lib/auth";
 import { createDatabaseSnapshot, writeBackupToBlob } from "@/lib/backup";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
@@ -10,12 +11,21 @@ const deleteSchema = z.object({ confirmName: z.string().min(1) });
 
 /**
  * Permanently deletes a Client and every piece of its own data (notes,
- * assets, workflows, campaigns, orders, credentials, etc. — anything with a
- * Cascade relation to Client; see prisma/schema.prisma). Tasks and Workflow
- * instances that reference this client are NOT deleted — their client
- * relation is nullable with onDelete: SetNull, so they survive as
- * internal/no-client records, matching this app's existing "detach, don't
- * destroy" convention for Task.assignee/Task.client elsewhere.
+ * assets, workflows, credentials, etc. — anything with a Cascade relation to
+ * Client; see prisma/schema.prisma). Tasks and Workflow instances that
+ * reference this client are NOT deleted — their client relation is nullable
+ * with onDelete: SetNull, so they survive as internal/no-client records,
+ * matching this app's existing "detach, don't destroy" convention for
+ * Task.assignee/Task.client elsewhere.
+ *
+ * Campaigns and Orders are handled specially rather than left to cascade:
+ * both are ON DELETE RESTRICT at the database level (see the schema
+ * comments), so this route archives every active Campaign through the same
+ * archiveCampaign() path the single-campaign delete route uses (real
+ * archive-page visibility, one-click restorable) and refuses to proceed at
+ * all while the client still has any Orders — those are permanent billing
+ * documents with no delete/archive path of their own, so the only honest
+ * option is to block rather than silently destroy them.
  *
  * This is the single most destructive action in the app, so it's gated
  * behind (a) the canDeleteClients capability — never auto-granted, an admin
@@ -51,6 +61,21 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
   }
   if (parsed.data.confirmName !== client.name) {
     return NextResponse.json({ error: `That doesn't match "${client.name}". Nothing was deleted.` }, { status: 400 });
+  }
+
+  const orderCount = await prisma.clientOrder.count({ where: { clientId } });
+  if (orderCount > 0) {
+    return NextResponse.json(
+      {
+        error: `"${client.name}" has ${orderCount} order document${orderCount === 1 ? "" : "s"} on file. Orders are permanent billing history and can't be deleted or archived, so this client can't be deleted while any exist.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  const campaignIds = (await prisma.campaign.findMany({ where: { clientId }, select: { id: true } })).map((c) => c.id);
+  for (const campaignId of campaignIds) {
+    await archiveCampaign(campaignId, session.user.id);
   }
 
   const snapshot = await createDatabaseSnapshot();

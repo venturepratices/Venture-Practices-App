@@ -639,7 +639,12 @@ model OrderTemplate {
 model ClientOrder {
   id                String          @id @default(cuid())
   clientId          String
-  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: Orders are permanent billing history (see the
+  // comment above — no PATCH/DELETE route exists for this model at all), so
+  // deleting a Client can never silently take its Orders down with it. The
+  // client-delete route checks for these up front and blocks with a clear
+  // message rather than ever hitting this constraint.
+  client            Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   type              ClientOrderType
   sequenceNumber    Int
   // Groups documents into an independent "order line": null on the ORDER row
@@ -862,7 +867,13 @@ model TaskAssignee {
 model Campaign {
   id              String        @id @default(cuid())
   clientId        String
-  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: this model already has a real archive-on-delete
+  // path (archiveCampaign() → ArchivedCampaign, used by the single-campaign
+  // DELETE route). The client-delete route archives every active campaign
+  // through that same path before deleting the client, so this constraint
+  // should never actually fire in normal use — it's a backstop against a
+  // future code path silently skipping the archive step.
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
   sequenceNumber  Int
   name            String?
   // All four nullable — a campaign can be created before its dates are
