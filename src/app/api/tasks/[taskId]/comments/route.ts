@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { deadlineLine } from "@/lib/utils";
 
 function excerpt(text: string, max = 80): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
@@ -35,6 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       clientId: true,
       isPrivate: true,
       workflowInstanceId: true,
+      deadline: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
   });
@@ -88,7 +90,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       entityId: taskId,
       entityLabel: task?.title ?? taskId,
       title: `You were mentioned: "${task?.title ?? "a task"}"`,
-      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`, ...deadlineLine(task?.deadline)],
       linkPath,
     });
   }
@@ -102,7 +104,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       entityId: taskId,
       entityLabel: task!.title,
       title: `New comment: "${task!.title}"`,
-      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`, ...deadlineLine(task!.deadline)],
       linkPath,
     });
   }
@@ -111,7 +113,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     await notifyChannel({
       clientId: task.clientId,
       title: `New comment: "${task.title}"`,
-      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`, ...deadlineLine(task.deadline)],
       linkPath,
     });
   }

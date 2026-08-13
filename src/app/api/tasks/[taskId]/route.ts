@@ -9,7 +9,7 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { mentionOrName } from "@/lib/slack";
-import { formatDate } from "@/lib/utils";
+import { deadlineLine, formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
 import { statusLabelMap } from "@/lib/task-status-utils";
@@ -145,7 +145,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           title: `Status changed: "${task.title}"`,
-          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`],
+          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
           linkPath,
         });
       }
@@ -153,7 +153,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         await notifyChannel({
           clientId: task.clientId,
           title: `Status changed: "${task.title}"`,
-          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`],
+          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
           linkPath,
         });
       }
@@ -179,6 +179,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           lines: [
             `Assigned by ${session.user.name ?? "someone"}`,
             task.client ? `Client: ${task.client.name}` : "Internal task",
+            ...deadlineLine(task.deadline),
           ],
           linkPath,
         });
@@ -190,7 +191,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         await notifyChannel({
           clientId: task.clientId,
           title: `Assigned: "${task.title}"`,
-          lines: [`Now assigned to: ${addedMentions.join(", ")}`],
+          lines: [`Now assigned to: ${addedMentions.join(", ")}`, ...deadlineLine(task.deadline)],
           linkPath,
         });
       }
@@ -266,7 +267,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityId: next.id,
             entityLabel: next.title,
             title: `New recurring task: "${next.title}"`,
-            lines: [`Carried over from the previous occurrence`],
+            lines: [`Carried over from the previous occurrence`, ...deadlineLine(next.deadline)],
             linkPath: nextLinkPath,
           });
         }

@@ -4,6 +4,7 @@ import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
 import { getCompleteStatusId } from "@/lib/task-status";
+import { deadlineLine } from "@/lib/utils";
 
 type AssigneeMember = { id: string; name: string; email: string; slackUserId: string | null };
 
@@ -35,6 +36,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
           title: true,
           statusId: true,
           campaignStage: true,
+          deadline: true,
           assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
         },
       },
@@ -74,7 +76,7 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
         entityId: task.id,
         entityLabel: task.title,
         title: `You're up: "${task.title}"`,
-        lines: [`Campaign: ${campaignLabel}`, `Stage: ${newStageLabel}`],
+        lines: [`Campaign: ${campaignLabel}`, `Stage: ${newStageLabel}`, ...deadlineLine(task.deadline)],
         linkPath: campaignLinkPath,
       });
     }

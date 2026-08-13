@@ -7,6 +7,7 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
 import { isValidStatusId } from "@/lib/task-status";
+import { deadlineLine } from "@/lib/utils";
 import { createTaskSchema } from "@/lib/validations/task";
 
 export async function POST(request: Request) {
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
       lines: [
         `Assigned by ${session.user.name ?? "someone"}`,
         task.client ? `Client: ${task.client.name}` : "Internal task",
+        ...deadlineLine(task.deadline),
       ],
       linkPath,
     });
@@ -148,7 +150,7 @@ export async function POST(request: Request) {
     await notifyChannel({
       clientId: task.clientId,
       title: `New task: "${task.title}"`,
-      lines: [`Assigned to: ${assignedMentions.join(", ")}`],
+      lines: [`Assigned to: ${assignedMentions.join(", ")}`, ...deadlineLine(task.deadline)],
       linkPath,
     });
   }

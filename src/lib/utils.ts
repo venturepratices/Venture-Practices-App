@@ -22,6 +22,16 @@ export function formatDateTime(date: Date | string) {
   return `${formatDate(d)} at ${time}`;
 }
 
+/**
+ * A `Deadline: ...` bullet for a notification's `lines`, or `[]` when the
+ * task has none — spread into a `lines` array (`...deadlineLine(task.deadline)`)
+ * so every notification that touches a task mentions its deadline when one
+ * exists, without every call site re-deriving the same conditional.
+ */
+export function deadlineLine(deadline: Date | null | undefined): string[] {
+  return deadline ? [`Deadline: ${formatDate(deadline)}`] : [];
+}
+
 export function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
