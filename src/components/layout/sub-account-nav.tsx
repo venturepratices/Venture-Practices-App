@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 const LOCAL_LINKS = [
   { segment: "", label: "Info" },
   { segment: "tasks", label: "Tasks" },
+  { segment: "briefing", label: "Dashboard" },
   { segment: "workflows", label: "Projects", cap: "workflows" as const },
   { segment: "planning", label: "Planning", cap: "planning" as const },
   { segment: "orders", label: "Orders", cap: "orders" as const },
