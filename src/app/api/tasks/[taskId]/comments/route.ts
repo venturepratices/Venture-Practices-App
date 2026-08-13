@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -33,6 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     select: {
       title: true,
       clientId: true,
+      isPrivate: true,
       workflowInstanceId: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
@@ -101,6 +102,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       entityId: taskId,
       entityLabel: task!.title,
       title: `New comment: "${task!.title}"`,
+      lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
+      linkPath,
+    });
+  }
+
+  if (!task.isPrivate) {
+    await notifyChannel({
+      clientId: task.clientId,
+      title: `New comment: "${task.title}"`,
       lines: [`By ${session.user.name ?? "someone"}`, `"${excerpt(parsed.data.body)}"`],
       linkPath,
     });

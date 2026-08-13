@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { AssetStatus } from "@/generated/prisma/enums";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     }
     if (recipients.size === 0) continue;
 
+    const linkPath = `/clients/${asset.clientId}/assets/${asset.id}`;
     await Promise.all(
       [...recipients].map((recipientId) =>
         notify({
@@ -61,10 +62,16 @@ export async function GET(request: Request) {
           entityLabel: asset.title,
           title: `Due soon: "${asset.title}"`,
           lines: [`Due ${formatDate(asset.dueDate!)} — still needs review`],
-          linkPath: `/clients/${asset.clientId}/assets/${asset.id}`,
+          linkPath,
         })
       )
     );
+    await notifyChannel({
+      clientId: asset.clientId,
+      title: `Asset due soon: "${asset.title}"`,
+      lines: [`Due ${formatDate(asset.dueDate!)} — still needs review`],
+      linkPath,
+    });
     remindedCount++;
   }
 

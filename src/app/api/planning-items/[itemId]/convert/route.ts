@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 import { convertPlanningItemSchema } from "@/lib/validations/planning";
 
 // "Move to task" — the one planning-status transition that does real work
@@ -69,6 +70,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ ite
       entityLabel: task.title,
       title: `You're assigned: "${task.title}"`,
       lines: [`Assigned by ${session.user.name ?? "someone"}`, `From a Planning idea — ${client?.name ?? "client"}`],
+      linkPath,
+    });
+  }
+
+  if (task.assignees.length > 0) {
+    const assignedMentions = await Promise.all(
+      task.assignees.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
+    );
+    await notifyChannel({
+      clientId: task.clientId,
+      title: `Planning idea became a task: "${task.title}"`,
+      lines: [`Converted by ${session.user.name ?? "someone"}`, `Assigned to: ${assignedMentions.join(", ")}`],
       linkPath,
     });
   }

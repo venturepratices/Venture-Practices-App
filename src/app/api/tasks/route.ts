@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 import { isValidStatusId } from "@/lib/task-status";
 import { createTaskSchema } from "@/lib/validations/task";
 
@@ -133,6 +134,21 @@ export async function POST(request: Request) {
         `Assigned by ${session.user.name ?? "someone"}`,
         task.client ? `Client: ${task.client.name}` : "Internal task",
       ],
+      linkPath,
+    });
+  }
+
+  // One team-facing summary in the client's channel per creation, separate
+  // from the per-assignee DM loop above — never inside it, or the channel
+  // would get one post per assignee instead of one per task.
+  if (!task.isPrivate && task.assignees.length > 0) {
+    const assignedMentions = await Promise.all(
+      task.assignees.map((a) => mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name))
+    );
+    await notifyChannel({
+      clientId: task.clientId,
+      title: `New task: "${task.title}"`,
+      lines: [`Assigned to: ${assignedMentions.join(", ")}`],
       linkPath,
     });
   }

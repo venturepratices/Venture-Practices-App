@@ -82,6 +82,17 @@ export async function GET(request: Request) {
         })
       )
     );
+    if (!task.isPrivate) {
+      const assignedMentions = await Promise.all(
+        task.assignees.map((a) => mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name))
+      );
+      await notifyChannel({
+        clientId: task.clientId,
+        title: `Due soon: "${task.title}"`,
+        lines: [`Assigned to: ${assignedMentions.join(", ")}`, `Due ${formatDate(task.deadline!)}`],
+        linkPath,
+      });
+    }
     dueSoonReminded++;
   }
 

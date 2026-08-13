@@ -51,6 +51,13 @@ export async function notifyAssetUploaded(params: {
       })
     )
   );
+
+  await notifyChannel({
+    clientId: params.clientId,
+    title: `New file uploaded: "${params.assetTitle}"`,
+    lines: [`v${params.versionNumber} by ${params.uploaderName ?? "someone"}`],
+    linkPath,
+  });
 }
 
 export async function notifyAssetCommented(params: {
@@ -79,6 +86,13 @@ export async function notifyAssetCommented(params: {
       })
     )
   );
+
+  await notifyChannel({
+    clientId: params.clientId,
+    title: `New comment on asset: "${params.assetTitle}"`,
+    lines: [`By ${params.commenterName ?? "someone"}`],
+    linkPath,
+  });
 }
 
 export async function notifyAssetDecided(params: {
@@ -90,16 +104,25 @@ export async function notifyAssetDecided(params: {
   deciderName: string | null;
   decisionLabel: string;
 }) {
-  if (!params.ownerId || params.ownerId === params.deciderTeamMemberId) return;
-  await notify({
-    recipientId: params.ownerId,
-    type: "ASSET_DECIDED",
-    entityType: "Asset",
-    entityId: params.assetId,
-    entityLabel: params.assetTitle,
-    title: `Decision submitted: "${params.assetTitle}"`,
+  const linkPath = `/clients/${params.clientId}/assets/${params.assetId}`;
+  if (params.ownerId && params.ownerId !== params.deciderTeamMemberId) {
+    await notify({
+      recipientId: params.ownerId,
+      type: "ASSET_DECIDED",
+      entityType: "Asset",
+      entityId: params.assetId,
+      entityLabel: params.assetTitle,
+      title: `Decision submitted: "${params.assetTitle}"`,
+      lines: [`${params.deciderName ?? "Someone"} ${params.decisionLabel}`],
+      linkPath,
+    });
+  }
+
+  await notifyChannel({
+    clientId: params.clientId,
+    title: `Review decision: "${params.assetTitle}"`,
     lines: [`${params.deciderName ?? "Someone"} ${params.decisionLabel}`],
-    linkPath: `/clients/${params.clientId}/assets/${params.assetId}`,
+    linkPath,
   });
 }
 

@@ -188,12 +188,15 @@ export async function notifyNextTaskInStage(
   const stageLabel = snapshot.find((s) => s.sequenceNumber === stageNumber)?.name ?? `Stage ${stageNumber}`;
   const instanceLabel = labelFor(instance);
 
+  const notifiedNext = new Map<string, AssigneeFields["teamMember"]>();
+
   for (const task of nextTasks) {
     const linkPath = instance.clientId
       ? `/clients/${instance.clientId}/workflows/${instanceId}?taskId=${task.id}`
       : `/workflows/${instanceId}?taskId=${task.id}`;
     for (const a of task.assignees) {
       if (a.teamMemberId === actorId) continue;
+      notifiedNext.set(a.teamMemberId, a.teamMember);
       await notify({
         recipientId: a.teamMemberId,
         type: "WORKFLOW_TASK_UP_NEXT",
@@ -210,6 +213,26 @@ export async function notifyNextTaskInStage(
         linkPath,
       });
     }
+  }
+
+  // Progress milestone, team-facing: someone finished a task and the next
+  // one in line is ready — the whole point of the "everyone sees the
+  // client's progress" channel, not just the specific people it's assigned to.
+  if (notifiedNext.size > 0) {
+    const nextMentions = await Promise.all([...notifiedNext.values()].map((m) => mentionOrName(m, m.name)));
+    const stageLinkPath = instance.clientId
+      ? `/clients/${instance.clientId}/workflows/${instanceId}`
+      : `/workflows/${instanceId}`;
+    await notifyChannel({
+      clientId: instance.clientId,
+      title: "Progress update",
+      lines: [
+        `Project: ${instanceLabel}`,
+        `"${completedTask.title}" done by ${actorName}`,
+        `Next up: ${nextMentions.join(", ")}`,
+      ],
+      linkPath: stageLinkPath,
+    });
   }
 }
 

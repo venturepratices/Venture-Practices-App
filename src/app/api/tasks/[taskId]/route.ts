@@ -4,10 +4,11 @@ import { auth } from "@/lib/auth";
 import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
 import { maybeAdvanceCampaignStage } from "@/lib/campaign-advance";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
+import { mentionOrName } from "@/lib/slack";
 import { formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
@@ -23,7 +24,7 @@ const OCCURRENCE_LABELS: Record<string, string> = {
 };
 
 const TASK_INCLUDE = {
-  assignees: { include: { teamMember: { select: { id: true, name: true } } } },
+  assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
@@ -148,6 +149,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           linkPath,
         });
       }
+      if (!task.isPrivate) {
+        await notifyChannel({
+          clientId: task.clientId,
+          title: `Status changed: "${task.title}"`,
+          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`],
+          linkPath,
+        });
+      }
     }
     if (assigneeIds !== undefined) {
       const beforeIds = new Set(before.assignees.map((a) => a.teamMemberId));
@@ -174,6 +183,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           linkPath,
         });
       }
+      if (!task.isPrivate && added.length > 0) {
+        const addedMentions = await Promise.all(
+          added.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
+        );
+        await notifyChannel({
+          clientId: task.clientId,
+          title: `Assigned: "${task.title}"`,
+          lines: [`Now assigned to: ${addedMentions.join(", ")}`],
+          linkPath,
+        });
+      }
     }
     if (parsed.data.clientId !== undefined && parsed.data.clientId !== before.clientId) {
       changes.push(`client changed to ${task.client?.name ?? "Internal / Agency"}`);
@@ -195,6 +215,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
             entityType: "Task",
             entityId: task.id,
             entityLabel: task.title,
+            title: `Deadline changed: "${task.title}"`,
+            lines: [`New deadline: ${deadlineLabel}`, `Changed by ${session.user.name ?? "someone"}`],
+            linkPath,
+          });
+        }
+        if (!task.isPrivate) {
+          await notifyChannel({
+            clientId: task.clientId,
             title: `Deadline changed: "${task.title}"`,
             lines: [`New deadline: ${deadlineLabel}`, `Changed by ${session.user.name ?? "someone"}`],
             linkPath,

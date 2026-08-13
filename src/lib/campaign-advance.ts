@@ -1,7 +1,8 @@
 import { logActivity } from "@/lib/activity-log";
 import { CAMPAIGN_STAGE_LABELS, campaignLabel as formatCampaignLabel, nextCampaignStage, type CampaignStageValue } from "@/lib/campaign-stage";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { mentionOrName } from "@/lib/slack";
 import { getCompleteStatusId } from "@/lib/task-status";
 
 type AssigneeMember = { id: string; name: string; email: string; slackUserId: string | null };
@@ -98,6 +99,27 @@ export async function maybeAdvanceCampaignStage(campaignId: string, actorId: str
       linkPath: campaignLinkPath,
     });
   }
+
+  // One team-facing summary of the stage advance in the client's channel —
+  // separate from (never inside) the per-recipient loops above.
+  const newStageMembers = new Map<string, AssigneeMember>();
+  for (const task of newStageTasks) {
+    for (const a of task.assignees) newStageMembers.set(a.teamMemberId, a.teamMember);
+  }
+  const newStageMentions = await Promise.all(
+    [...newStageMembers.values()].map((m) => mentionOrName(m, m.name))
+  );
+  await notifyChannel({
+    clientId: campaign.client.id,
+    title: "Campaign stage advanced",
+    lines: [
+      `Campaign: ${campaignLabel}`,
+      `"${CAMPAIGN_STAGE_LABELS[currentStage]}" ✅ complete`,
+      `Now in: ${newStageLabel}`,
+      ...(newStageMentions.length > 0 ? [`Up next: ${newStageMentions.join(", ")}`] : []),
+    ],
+    linkPath: campaignLinkPath,
+  });
 
   await logActivity({
     actorId: null,

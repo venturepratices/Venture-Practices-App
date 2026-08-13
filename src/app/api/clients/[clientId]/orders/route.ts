@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { notify } from "@/lib/notify";
+import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createClientOrderSchema } from "@/lib/validations/client-order";
@@ -160,6 +160,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
         })
       )
   );
+
+  await notifyChannel({
+    clientId,
+    title: type === "ORDER" ? "New order created" : "Change order created",
+    lines: [`Created by ${session.user.name ?? "someone"}`, ...(order.title ? [`Titled "${order.title}"`] : [])],
+    linkPath,
+  });
 
   return NextResponse.json(order, { status: 201 });
 }
