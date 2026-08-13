@@ -85,6 +85,11 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
       Mention.configure({
         HTMLAttributes: { class: "mention" },
         suggestion: {
+          // Default is `[" "]` — @tiptap/suggestion otherwise only opens the
+          // dropdown when "@" is preceded by a space or starts the line,
+          // which silently does nothing if typed after punctuation or
+          // mid-sentence. Null disables that restriction entirely.
+          allowedPrefixes: null,
           items: ({ query }: { query: string }): MentionItem[] =>
             teamMembers.filter((member) => member.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8),
           render: () => {
