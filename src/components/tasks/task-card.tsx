@@ -4,6 +4,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CalendarIcon, Lock } from "lucide-react";
 
 import { KindPill } from "@/components/tasks/kind-pill";
+import { stripHtml } from "@/lib/text-format";
 import { cn, formatDate } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
@@ -39,7 +40,7 @@ export function TaskCard({
         </p>
         <KindPill kind={task.kind} label={task.kind === "PROJECT" ? task.workflowInstance?.name : undefined} className="shrink-0" />
       </div>
-      {task.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{task.description}</p> : null}
+      {task.description ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{stripHtml(task.description)}</p> : null}
       {showClient ? (
         <p className="mt-1 truncate text-xs text-muted-foreground">{task.client?.name ?? "Internal / Agency"}</p>
       ) : null}

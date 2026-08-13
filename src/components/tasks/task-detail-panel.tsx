@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -368,14 +369,15 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="task-description">Description</Label>
-                <Textarea
-                  id="task-description"
-                  value={draft.description}
-                  onChange={(event) => setField("description", event.target.value)}
+                <RichTextEditor
+                  content={draft.description}
+                  onChange={(html) => setField("description", html)}
+                  teamMembers={teamMembers}
                   placeholder="Add more detail about this task — what needs to happen, and any context the assignee should know."
-                  className="min-h-36 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">Plain text only — links and @mentions aren&apos;t parsed here.</p>
+                <p className="text-xs text-muted-foreground">
+                  Type <b>@</b> to mention someone. Links you type or paste go live automatically.
+                </p>
               </div>
 
               <div className="space-y-1.5">

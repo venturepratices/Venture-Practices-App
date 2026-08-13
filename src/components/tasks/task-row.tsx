@@ -11,6 +11,7 @@ import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_KIND_LABELS } from "@/lib/validations/task";
 import type { StatusOptionLite } from "@/lib/task-status-utils";
 import { resolveStatusOption } from "@/lib/task-status-utils";
+import { stripHtml } from "@/lib/text-format";
 import { cn, formatDate } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
@@ -109,6 +110,7 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const assigneeNames = task.assignees.map((a) => a.teamMember.name).join(", ") || "Unassigned";
+  const descriptionPreview = task.description ? stripHtml(task.description) : "";
   const kindLabel = task.kind === "PROJECT" && task.workflowInstance ? task.workflowInstance.name : TASK_KIND_LABELS[task.kind] ?? task.kind;
   const columns = taskColumnsFor(showClient).filter((c) => !visibleColumns || visibleColumns.has(c.key));
   const isVisible = (key: string) => columns.some((c) => c.key === key);
@@ -158,9 +160,9 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
           {task.isPrivate ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="Private" /> : null}
           <span className="truncate">{task.title}</span>
         </span>
-        {task.description ? (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={task.description}>
-            {task.description}
+        {descriptionPreview ? (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={descriptionPreview}>
+            {descriptionPreview}
           </span>
         ) : null}
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
