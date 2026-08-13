@@ -103,6 +103,7 @@ enum NotificationType {
   TASK_OVERDUE
   ORDER_ADDED
   ORDER_CHANGED
+  DAILY_BRIEFING
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.

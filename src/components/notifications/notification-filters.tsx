@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<string, string> = {
   TASK_OVERDUE: "Task overdue",
   ORDER_ADDED: "Order added",
   ORDER_CHANGED: "Change order added",
+  DAILY_BRIEFING: "Daily briefing",
 };
 
 const READ_LABELS: Record<string, string> = {

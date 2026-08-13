@@ -6,6 +6,7 @@ import {
   Clock,
   DollarSign,
   MessageSquarePlus,
+  Newspaper,
   RefreshCw,
   Upload,
   UserPlus,
@@ -37,6 +38,7 @@ const ICON_FOR: Record<NotificationType, LucideIcon> = {
   TASK_OVERDUE: AlertTriangle,
   ORDER_ADDED: DollarSign,
   ORDER_CHANGED: DollarSign,
+  DAILY_BRIEFING: Newspaper,
 };
 
 export function iconFor(type: NotificationType): LucideIcon {

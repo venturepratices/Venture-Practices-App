@@ -70,6 +70,18 @@ export function endOfDay(dateString: string): Date {
   return new Date(wallClockAsUtc.getTime() - lead);
 }
 
+/** Start of the given calendar day in the app's timezone — see endOfDay(). */
+export function startOfDay(dateString: string): Date {
+  const wallClockAsUtc = new Date(`${dateString}T00:00:00.000Z`);
+  const lead = tzLeadMs(wallClockAsUtc, APP_TIME_ZONE);
+  return new Date(wallClockAsUtc.getTime() - lead);
+}
+
+/** Today's date as "YYYY-MM-DD" in the app's timezone, not the server's. */
+export function todayDateString(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+}
+
 /**
  * A wall-clock date + time (e.g. "2026-08-05", "14:30") interpreted in the
  * given IANA timezone (defaults to the app's Charlotte, NC zone), converted
