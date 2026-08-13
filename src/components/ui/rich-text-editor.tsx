@@ -98,6 +98,13 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
             return {
               onStart: (props) => {
                 component = new ReactRenderer(MentionList, { props, editor: props.editor as unknown as Editor });
+                // This is the actual node @tiptap/suggestion positions
+                // (position: absolute, appended straight to document.body) —
+                // it has no z-index of its own, so a Dialog's z-50 popup
+                // (e.g. the Task Detail panel) paints over it. z-index only
+                // has any effect here, not on a class inside MentionList's
+                // own JSX, which stays position: static.
+                (component.element as HTMLElement).style.zIndex = "60";
                 unmount = props.mount(component.element as HTMLElement);
               },
               onUpdate(props) {
