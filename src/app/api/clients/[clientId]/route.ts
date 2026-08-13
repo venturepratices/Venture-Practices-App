@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { createDatabaseSnapshot, writeBackupToBlob } from "@/lib/backup";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { archiveClientChannel } from "@/lib/slack";
 
 const deleteSchema = z.object({ confirmName: z.string().min(1) });
 
@@ -34,6 +35,10 @@ const deleteSchema = z.object({ confirmName: z.string().min(1) });
  * full-database backup taken immediately before the delete, independent of
  * the daily backup cron, so a mistake here is always recoverable via
  * scripts/restore-from-backup.ts.
+ *
+ * The client's Slack channel (if one exists) is archived as the last step —
+ * best-effort, after the delete has already succeeded — so deleted clients
+ * don't leave a channel lingering in the workspace forever.
  */
 export async function DELETE(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
   const session = await auth();
@@ -42,7 +47,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
   }
 
   const { clientId } = await params;
-  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true, name: true } });
+  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true, name: true, slackChannelId: true } });
   if (!client) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -101,6 +106,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
     }),
     prisma.client.delete({ where: { id: clientId } }),
   ]);
+
+  if (client.slackChannelId) {
+    await archiveClientChannel(client.slackChannelId);
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -197,6 +197,18 @@ export async function syncTeamMemberClientChannels(teamMemberId: string) {
   }
 }
 
+/**
+ * Archives a client's Slack channel — called when the client itself is
+ * permanently deleted, so its channel doesn't linger in the workspace forever
+ * (Slack archive is reversible from the Slack side if that's ever needed).
+ * Never throws; silently no-ops if unconfigured, already archived, or the
+ * channel id is stale.
+ */
+export async function archiveClientChannel(channelId: string) {
+  if (!process.env.SLACK_BOT_TOKEN) return;
+  await slackApi("conversations.archive", { channel: channelId });
+}
+
 /** Removes a team member from every client channel — used right before deleting them. */
 export async function removeTeamMemberFromAllClientChannels(teamMemberId: string) {
   if (!process.env.SLACK_BOT_TOKEN) return;
