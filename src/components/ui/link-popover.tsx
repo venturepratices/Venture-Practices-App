@@ -24,12 +24,14 @@ export function LinkPopover({ active, currentUrl, onApply, onRemove }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Selecting the freshly-seeded text has to wait a frame — the input doesn't
+  // exist in the DOM until this render commits. Seeding the value itself
+  // happens in the toggle handler below, not here, so opening the popover
+  // doesn't cascade an extra render.
   useEffect(() => {
     if (!open) return;
-    setUrlInput(currentUrl ?? "https://");
     const id = requestAnimationFrame(() => inputRef.current?.select());
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed when the popover opens, not on every currentUrl change
   }, [open]);
 
   useEffect(() => {
@@ -65,6 +67,10 @@ export function LinkPopover({ active, currentUrl, onApply, onRemove }: Props) {
         aria-label="Add link"
         onMouseDown={(event) => {
           event.preventDefault();
+          // Re-seed from the current selection's link every time it opens, so
+          // editing an existing link starts from that link rather than a
+          // stale value left over from the last time it was used.
+          if (!open) setUrlInput(currentUrl ?? "https://");
           setOpen((value) => !value);
         }}
         className={cn(
