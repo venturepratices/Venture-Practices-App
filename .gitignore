@@ -45,3 +45,14 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# throwaway verification scripts/pages — created to prove something works
+# against real data, then deleted. Ignored so a forgotten one never lands in
+# a commit.
+_scratch_*
+scripts/_scratch_*
+
+# Design reference screenshots (~31 MB of downloaded inspiration images).
+# Kept locally for reference only — far too heavy to carry in git history,
+# and they're inputs to the UI work, not part of the app.
+APP UI UX DESIGN INSPO*/
