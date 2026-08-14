@@ -19,8 +19,9 @@ type Props = {
  * them; stacking all of it here would push the real task list below four
  * screens of tasks and show most of them twice. The numbers alone, wired to
  * filter the one real list, carry the same information in a fraction of the
- * height. The Dashboard tab keeps the detailed breakdown and its date picker
- * (and the morning Slack digest still deep-links to it).
+ * height. The briefing page (no longer a tab, but still live at
+ * /clients/[clientId]/briefing) keeps that detailed breakdown and its date
+ * picker for the morning Slack digest to link into.
  */
 export function ClientTaskStats({ clientId, counts, params }: Props) {
   const basePath = `/clients/${clientId}/tasks`;

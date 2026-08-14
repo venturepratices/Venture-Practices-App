@@ -13,7 +13,12 @@ import { cn } from "@/lib/utils";
 const LOCAL_LINKS = [
   { segment: "", label: "Info" },
   { segment: "tasks", label: "Tasks" },
-  { segment: "briefing", label: "Dashboard" },
+  // No "Dashboard" tab: the Tasks tab now carries the same headline numbers at
+  // the top, so a separate tab was two doors to one thing. The underlying
+  // /clients/[clientId]/briefing page is deliberately still live — the morning
+  // Slack digest deep-links to it every weekday (src/app/api/cron/daily-briefing),
+  // and it's the only view with the per-date picker. It's just not browsable
+  // from here anymore.
   { segment: "workflows", label: "Projects", cap: "workflows" as const },
   { segment: "planning", label: "Planning", cap: "planning" as const },
   { segment: "orders", label: "Orders", cap: "orders" as const },
