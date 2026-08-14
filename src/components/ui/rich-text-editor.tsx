@@ -17,7 +17,6 @@ import {
   Eraser,
   Highlighter,
   Italic as ItalicIcon,
-  Link2,
   List,
   ListChecks,
   ListOrdered,
@@ -30,6 +29,7 @@ import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { EmojiPickerPopover } from "@/components/ui/emoji-picker-popover";
+import { LinkPopover } from "@/components/ui/link-popover";
 import { MentionList, type MentionItem, type MentionListHandle } from "@/components/ui/mention-list";
 import { HIGHLIGHT_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "@/lib/rich-text-colors";
 
@@ -152,17 +152,6 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
 
   if (!editor) return null;
 
-  function setLink() {
-    const previousUrl = editor!.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Link URL", previousUrl ?? "https://");
-    if (url === null) return;
-    if (url === "") {
-      editor!.chain().focus().extendMarkRange("link").unsetLink().run();
-      return;
-    }
-    editor!.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-  }
-
   return (
     <div className={cn("overflow-hidden rounded-md border", className)}>
       <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/40 p-1">
@@ -217,9 +206,12 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
           <Code2 className="size-3.5" />
         </ToolbarButton>
         <span className="mx-0.5 h-4 w-px bg-border" />
-        <ToolbarButton label="Add link" active={editor.isActive("link")} onClick={setLink}>
-          <Link2 className="size-3.5" />
-        </ToolbarButton>
+        <LinkPopover
+          active={editor.isActive("link")}
+          currentUrl={editor.getAttributes("link").href as string | undefined}
+          onApply={(url) => editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()}
+          onRemove={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}
+        />
         <span className="mx-0.5 h-4 w-px bg-border" />
         <ToolbarButton label="Clear formatting" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
           <Eraser className="size-3.5" />
