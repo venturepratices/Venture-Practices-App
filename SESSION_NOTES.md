@@ -85,12 +85,21 @@ Last updated: 2026-08-15 (late evening)
   no one noticing, because the only signal is a GitHub email to the user's
   inbox — which this session only read when the user forwarded a screenshot of
   it. Two things make this easy to miss:
-  - **`gh` (the GitHub CLI) is not installed on this machine**, so CI status
-    can't be checked from the terminal. Installing it would make
-    `gh run list` a one-line post-push verification. Until then the only
-    programmatic check is searching Gmail for
+  - **`gh` (the GitHub CLI) is now installed** — v2.97.0 via
+    `winget install --id GitHub.cli`, on the machine PATH, so any new terminal
+    finds it. **Authentication is still pending and only the user can do it**
+    (logging in / authorizing OAuth is off-limits for me): they run
+    `gh auth login --hostname github.com --git-protocol https --web` once, in
+    their own interactive terminal. `git push` works via Git Credential
+    Manager, but gh does NOT read those stored credentials, so git working is
+    not evidence that gh will.
+  - Once authenticated, the post-push check is
+    `gh run list --limit 3` (add `gh run view --log-failed` on a red run to
+    read the actual error instead of guessing). **Do this after every push.**
+  - Fallback that needs no auth: search Gmail for
     `from:notifications@github.com subject:"Run failed"` — absence of a new
-    email means it passed (GitHub only emails on failure).
+    email means it passed (GitHub only emails on failure). This is what was
+    used on 8/15 to confirm `a3cc6a7` went green.
   - **Local `npm run build` ≠ CI.** CI also runs `npm run lint`, which is a
     *blocking* gate as of `7c4f6b2`. Running only `tsc` + `build` locally (the
     long-standing habit in this project) will miss lint errors every time.
