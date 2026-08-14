@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, Plus, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,8 +49,45 @@ export function NotificationConnectionsPanel({
   teamMembers: ConnectionsTeamMember[];
   clients: ConnectionsClient[];
 }) {
+  const router = useRouter();
   const [testState, setTestState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
+  const [creatingClientId, setCreatingClientId] = useState<string | null>(null);
+  const [createdClientIds, setCreatedClientIds] = useState<string[]>([]);
+  const [channelErrors, setChannelErrors] = useState<Record<string, string>>({});
+
+  async function handleCreateChannel(clientId: string) {
+    setCreatingClientId(clientId);
+    setChannelErrors((current) => {
+      const next = { ...current };
+      delete next[clientId];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/admin/notifications/client-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setChannelErrors((current) => ({
+          ...current,
+          [clientId]: (body && body.error) || "Couldn't create the channel.",
+        }));
+        return;
+      }
+      // Marked locally as well as refreshed — the refresh is what makes it
+      // truthful (it re-reads slackChannelId), the local flag just avoids a
+      // flash of "Not created yet" while that round-trip lands.
+      setCreatedClientIds((current) => [...current, clientId]);
+      router.refresh();
+    } catch {
+      setChannelErrors((current) => ({ ...current, [clientId]: "Couldn't create the channel." }));
+    } finally {
+      setCreatingClientId(null);
+    }
+  }
 
   async function handleTestChannel() {
     setTestState("sending");
@@ -133,17 +171,45 @@ export function NotificationConnectionsPanel({
             {clients.length === 0 ? (
               <p className="py-2 text-sm text-muted-foreground">No clients yet.</p>
             ) : (
-              clients.map((client) => (
-                <div key={client.id} className="flex items-center justify-between py-2">
-                  <span className="text-sm font-medium">{client.name}</span>
-                  <StatusPill ok={client.channelActive} okLabel="Active" notOkLabel="Not created yet" />
-                </div>
-              ))
+              clients.map((client) => {
+                const active = client.channelActive || createdClientIds.includes(client.id);
+                const creating = creatingClientId === client.id;
+                const error = channelErrors[client.id];
+                return (
+                  <div key={client.id} className="py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">{client.name}</span>
+                      {active ? (
+                        <StatusPill ok okLabel="Active" notOkLabel="Not created yet" />
+                      ) : creating ? (
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          Creating...
+                        </span>
+                      ) : (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusPill ok={false} okLabel="Active" notOkLabel="Not created yet" />
+                          <Button variant="outline" size="xs" onClick={() => handleCreateChannel(client.id)}>
+                            <Plus className="size-3.5" />
+                            Create channel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {error ? (
+                      <p className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
+                        <XCircle className="mt-0.5 size-3.5 shrink-0" />
+                        {error}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Created automatically the first time anything happens on that client — nothing to set up by hand normally.
+          Created automatically when a client is added. Clients added before Slack was wired up need one click here.
         </p>
       </div>
 
