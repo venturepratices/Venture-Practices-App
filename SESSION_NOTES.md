@@ -68,6 +68,29 @@ Last updated: 2026-08-15 (late evening)
 
 ## Paused mid-build
 
+- **Email sending (Resend) — set aside by the user 2026-08-15, mid-discussion,
+  before any decision was made.** Two files are written and sitting
+  **uncommitted and inert** in the working tree; nothing in the app calls
+  either, so leaving them costs nothing:
+  - `src/lib/email.ts` — `sendEmail()` via plain `fetch` to Resend's HTTP API
+    (no SDK, mirroring how `src/lib/slack.ts` works), plus `isEmailConfigured()`
+    and `renderEmailShell()`. Never throws; guards on `RESEND_API_KEY` +
+    `EMAIL_FROM`.
+  - `src/app/api/me/notification-preferences/test-email/route.ts` — a
+    self-only wiring test (sends to the caller's own address, deliberately not
+    a compose box / open relay).
+  - **The undecided fork**, when this is picked back up — the user was asked and
+    dismissed the question, so nothing is settled: **(A)** the app sends
+    automatically on triggers, an email counterpart to the existing Slack
+    notifications, vs **(B)** a compose box on each client's page that a person
+    types into. Not exclusive; A is the bigger build and the bigger win.
+  - **Real external blocker either way:** until `venturepractices.com` is
+    verified with Resend via DNS records, Resend rejects sends to any address
+    other than the account owner's own. That is provider-side anti-spoofing —
+    there is no way to code around it, and the user has not verified it yet.
+  - **Do NOT sweep these two files into an unrelated commit.** They were
+    deliberately held back from `31f14e1`.
+
 - **Rich Calls tab (HighLevel)** — Slices A–E, explicitly paused by the user.
   - Slice A (capture call-specific fields from the HighLevel payload) is
     blocked on pulling one real `[HL-DEBUG] full raw Call/Voicemail message:`
@@ -158,6 +181,24 @@ Last updated: 2026-08-15 (late evening)
   the compaction rather than silently dropping out of context.
 
 ## Recently shipped (context for "what's next" conversations)
+
+- **Client Dashboard tab removed** — commit `31f14e1`, pushed. The Tasks tab
+  already carries the same four headline numbers (added in `03a41ce`), so a
+  separate tab was two doors to one thing. **The `/clients/[clientId]/briefing`
+  page itself is deliberately still live**, just not in the tab row: the weekday
+  morning Slack digest deep-links to it per client with a `?date=` param
+  (`src/app/api/cron/daily-briefing/route.ts:59`), so deleting the page would
+  404 every digest link already sitting in Slack. If it's ever removed for real,
+  repoint that `linkPath` at the Tasks tab first.
+
+- **Client Tasks dashboard + filters** — commit `03a41ce`, pushed. Four
+  toggle-aware stat cards (Overdue / Due today / Open tasks / Needs a decision)
+  above each client's task list, plus a full filter bar with search. New shared
+  `src/lib/task-filter-where.ts` so the two Tasks pages (`/tasks` and the
+  per-client tab) can't drift as filters get added — its `buildTaskFilterWhere`
+  returns `{filters, searchClause}` **separately** on purpose, because search is
+  an `OR` and callers set their own top-level `OR` for permission scoping;
+  merging them would silently overwrite.
 
 - **Repo hygiene: track the punch list, ignore the noise** — commit `0402d4f`,
   pushed. This file is now tracked in git (it previously existed only on the
