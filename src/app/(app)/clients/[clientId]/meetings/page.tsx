@@ -40,11 +40,14 @@ export default async function ClientMeetingsPage({
     };
   }
 
-  const meetingNotes = await prisma.meetingNote.findMany({
-    where,
-    include: { author: { select: { name: true } } },
-    orderBy: { meetingDate: "desc" },
-  });
+  const [meetingNotes, teamMembers] = await Promise.all([
+    prisma.meetingNote.findMany({
+      where,
+      include: { author: { select: { name: true } } },
+      orderBy: { meetingDate: "desc" },
+    }),
+    prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   const hasFilters = Boolean(filters.q || filters.from || filters.to);
 
@@ -61,7 +64,7 @@ export default async function ClientMeetingsPage({
       </div>
 
       <div className="mt-4">
-        <NewMeetingNoteForm clientId={clientId} />
+        <NewMeetingNoteForm clientId={clientId} teamMembers={teamMembers} />
       </div>
 
       <div className="mt-4">

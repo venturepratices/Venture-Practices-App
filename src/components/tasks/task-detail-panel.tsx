@@ -9,16 +9,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
+import { stripHtml } from "@/lib/text-format";
 import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
 import type { StatusOptionLite } from "@/lib/task-status-utils";
 import { resolveStatusOption } from "@/lib/task-status-utils";
@@ -245,7 +246,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   }
 
   async function submitComment() {
-    if (!taskId || !commentBody.trim()) return;
+    if (!taskId || !stripHtml(commentBody).trim()) return;
     setIsPostingComment(true);
     const response = await fetch(`/api/tasks/${taskId}/comments`, {
       method: "POST",
@@ -701,7 +702,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                           {formatDateTime(comment.createdAt)}
                         </span>
                       </div>
-                      <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{comment.body}</p>
+                      <RichTextContent html={comment.body} className="mt-0.5 whitespace-pre-wrap text-muted-foreground" />
                     </li>
                   ))}
                 </ul>
@@ -709,13 +710,13 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                 <p className="text-sm text-muted-foreground">No comments yet.</p>
               )}
               <div className="space-y-2">
-                <Textarea
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  placeholder="Leave a note for the team..."
-                  className="min-h-16 text-sm"
+                <RichTextEditor
+                  content={commentBody}
+                  onChange={setCommentBody}
+                  teamMembers={teamMembers}
+                  placeholder="Leave a note for the team... type @ to mention someone"
                 />
-                <Button size="sm" disabled={isPostingComment || !commentBody.trim()} onClick={submitComment}>
+                <Button size="sm" disabled={isPostingComment || !stripHtml(commentBody).trim()} onClick={submitComment}>
                   {isPostingComment ? "Posting..." : "Add comment"}
                 </Button>
               </div>

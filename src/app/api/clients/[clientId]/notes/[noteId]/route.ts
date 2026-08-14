@@ -8,7 +8,7 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 
 const updateClientNoteSchema = z.object({
-  body: z.string().trim().min(1, "Note can't be empty").max(4000),
+  body: z.string().trim().min(1, "Note can't be empty").max(20000),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ clientId: string; noteId: string }> }) {

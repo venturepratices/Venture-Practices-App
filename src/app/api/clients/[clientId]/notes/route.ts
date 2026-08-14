@@ -3,11 +3,15 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { extractMentionedTeamMemberIds } from "@/lib/text-format";
 
 const createClientNoteSchema = z.object({
-  body: z.string().trim().min(1, "Note can't be empty").max(4000),
+  // Stores Tiptap-produced HTML (bold/lists/@mentions) — 20000 covers the
+  // markup overhead the same way Task.description's limit was raised.
+  body: z.string().trim().min(1, "Note can't be empty").max(20000),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
@@ -46,6 +50,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     action: "noted",
     description: `${session.user.name ?? "Someone"} added a note to "${client?.name ?? "a client"}"`,
   });
+
+  const validTeamMemberIds = new Set(
+    (await prisma.teamMember.findMany({ select: { id: true } })).map((m) => m.id)
+  );
+  const mentionedIds = extractMentionedTeamMemberIds(parsed.data.body).filter(
+    (id) => id !== session.user.id && validTeamMemberIds.has(id)
+  );
+  for (const id of mentionedIds) {
+    await notify({
+      recipientId: id,
+      type: "MENTIONED",
+      entityType: "Client",
+      entityId: clientId,
+      entityLabel: client?.name ?? clientId,
+      title: `You were mentioned in a note on "${client?.name ?? "a client"}"`,
+      lines: [`By ${session.user.name ?? "someone"}`],
+      linkPath: `/clients/${clientId}/notes`,
+    });
+  }
 
   return NextResponse.json(note, { status: 201 });
 }

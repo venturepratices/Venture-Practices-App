@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 import { formatDate, formatDateTime } from "@/lib/utils";
@@ -95,17 +96,19 @@ export function MeetingNoteItem({ clientId, meetingNote, delayMs }: Props) {
                 {showTranscript ? "Hide transcript" : "Show full transcript"}
               </button>
               {showTranscript ? (
-                <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-                  {meetingNote.transcript}
-                </p>
+                <RichTextContent
+                  html={meetingNote.transcript}
+                  className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground"
+                />
               ) : null}
             </>
           ) : (
             <>
               <p className="text-xs text-muted-foreground/70 italic">No AI summary — showing the saved transcript.</p>
-              <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-                {meetingNote.transcript}
-              </p>
+              <RichTextContent
+                html={meetingNote.transcript}
+                className="mt-1.5 whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs text-muted-foreground"
+              />
             </>
           )}
         </DialogContent>

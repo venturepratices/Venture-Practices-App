@@ -6,14 +6,18 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { extractMentionedTeamMemberIds, stripHtml } from "@/lib/text-format";
 import { deadlineLine } from "@/lib/utils";
 
 function excerpt(text: string, max = 80): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+  const plain = stripHtml(text);
+  return plain.length > max ? `${plain.slice(0, max)}…` : plain;
 }
 
 const createCommentSchema = z.object({
-  body: z.string().trim().min(1, "Comment can't be empty").max(4000),
+  // Stores Tiptap-produced HTML (bold/lists/@mentions) — 20000 covers the
+  // markup overhead the same way Task.description's limit was raised.
+  body: z.string().trim().min(1, "Comment can't be empty").max(20000),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
@@ -74,17 +78,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     description: `${session.user.name ?? "Someone"} commented on "${task?.title ?? "a task"}"`,
   });
 
-  // Plain-text @Full Name matching — no mention autocomplete UI exists yet,
-  // so this is a simple substring scan against team member names.
-  const teamMembers = await prisma.teamMember.findMany({ select: { id: true, name: true } });
-  const mentionedIds = new Set<string>();
-  const lowerBody = parsed.data.body.toLowerCase();
-  for (const member of teamMembers) {
-    if (member.id === session.user.id) continue;
-    if (!lowerBody.includes(`@${member.name.toLowerCase()}`)) continue;
-    mentionedIds.add(member.id);
+  // @mentions come from the RichTextEditor's Mention node (data-id spans) —
+  // cross-check against real team members so tampered HTML can't fire a
+  // notification for (or a Prisma FK error on) a fabricated id.
+  const validTeamMemberIds = new Set(
+    (await prisma.teamMember.findMany({ select: { id: true } })).map((m) => m.id)
+  );
+  const mentionedIds = new Set(
+    extractMentionedTeamMemberIds(parsed.data.body).filter(
+      (id) => id !== session.user.id && validTeamMemberIds.has(id)
+    )
+  );
+  for (const id of mentionedIds) {
     await notify({
-      recipientId: member.id,
+      recipientId: id,
       type: "MENTIONED",
       entityType: "Task",
       entityId: taskId,

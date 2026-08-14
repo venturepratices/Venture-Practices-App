@@ -60,7 +60,7 @@ export default async function ClientNotesPage({
       </div>
 
       <div className="mt-4">
-        <NewClientNoteForm clientId={clientId} />
+        <NewClientNoteForm clientId={clientId} teamMembers={teamMembers} />
       </div>
 
       <div className="mt-4">
@@ -72,7 +72,13 @@ export default async function ClientNotesPage({
           <EmptyState icon={NotebookText} title={hasFilters ? "No notes match these filters." : "No notes yet."} />
         ) : (
           notes.map((note, i) => (
-            <ClientNoteItem key={note.id} clientId={clientId} note={note} delayMs={Math.min(i * 40, 400)} />
+            <ClientNoteItem
+              key={note.id}
+              clientId={clientId}
+              note={note}
+              teamMembers={teamMembers}
+              delayMs={Math.min(i * 40, 400)}
+            />
           ))
         )}
       </div>

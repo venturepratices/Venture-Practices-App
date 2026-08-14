@@ -4,15 +4,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import type { MentionItem } from "@/components/ui/mention-list";
+import { stripHtml } from "@/lib/text-format";
 
-export function NewClientNoteForm({ clientId }: { clientId: string }) {
+export function NewClientNoteForm({ clientId, teamMembers }: { clientId: string; teamMembers: MentionItem[] }) {
   const router = useRouter();
   const [body, setBody] = useState("");
   const [isPosting, setIsPosting] = useState(false);
 
   async function submit() {
-    if (!body.trim()) return;
+    if (!stripHtml(body).trim()) return;
     setIsPosting(true);
     const response = await fetch(`/api/clients/${clientId}/notes`, {
       method: "POST",
@@ -27,15 +29,15 @@ export function NewClientNoteForm({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div className="space-y-2">
-      <Textarea
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        placeholder="What's the latest on this client? (e.g. summarize an email, call, or update)"
-        className="min-h-20 text-sm"
+    <div className="space-y-2 rounded-lg border p-3">
+      <RichTextEditor
+        content={body}
+        onChange={setBody}
+        teamMembers={teamMembers}
+        placeholder="Summarize an email, call, or update... type @ to mention someone"
       />
-      <Button size="sm" disabled={isPosting || !body.trim()} onClick={submit}>
-        {isPosting ? "Adding..." : "Add note"}
+      <Button size="sm" disabled={isPosting || !stripHtml(body).trim()} onClick={submit}>
+        {isPosting ? "Saving..." : "Add note"}
       </Button>
     </div>
   );

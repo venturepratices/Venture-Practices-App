@@ -6,9 +6,11 @@ import { Loader2, Pencil, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import type { MentionItem } from "@/components/ui/mention-list";
+import { RichTextContent } from "@/components/ui/rich-text-content";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SimpleMarkdown } from "@/components/ui/simple-markdown";
+import { stripHtml } from "@/lib/text-format";
 import { formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -20,20 +22,17 @@ type Props = {
     updatedAt: string | Date;
     author: { name: string } | null;
   };
+  teamMembers: MentionItem[];
   delayMs?: number;
 };
 
-// A one-line row preview — strips the leading "## "/"- " markers so the list
-// reads as plain text, matching how Task rows preview their title.
+// A one-line row preview — note.body is Tiptap-produced HTML, so strip tags
+// down to plain text first, matching how Task rows preview their title.
 function previewOf(body: string) {
-  const line = body
-    .split("\n")
-    .map((segment) => segment.trim())
-    .find((segment) => segment.length > 0);
-  return line ? line.replace(/^#{1,2}\s+/, "").replace(/^[-*]\s+/, "") : "";
+  return stripHtml(body);
 }
 
-export function ClientNoteItem({ clientId, note, delayMs }: Props) {
+export function ClientNoteItem({ clientId, note, teamMembers, delayMs }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -56,7 +55,7 @@ export function ClientNoteItem({ clientId, note, delayMs }: Props) {
   }
 
   async function save() {
-    if (!draft.trim() || draft.trim() === note.body) {
+    if (!stripHtml(draft).trim() || draft.trim() === note.body) {
       setIsEditing(false);
       return;
     }
@@ -144,17 +143,9 @@ export function ClientNoteItem({ clientId, note, delayMs }: Props) {
 
           {isEditing ? (
             <div className="space-y-2">
-              <Textarea
-                autoFocus
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") cancelEdit();
-                }}
-                className="min-h-32 text-sm"
-              />
+              <RichTextEditor content={draft} onChange={setDraft} teamMembers={teamMembers} />
               <div className="flex items-center gap-2">
-                <Button size="sm" disabled={isSaving || !draft.trim()} onClick={save}>
+                <Button size="sm" disabled={isSaving || !stripHtml(draft).trim()} onClick={save}>
                   {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
                   {isSaving ? "Saving..." : "Save"}
                 </Button>
@@ -165,7 +156,7 @@ export function ClientNoteItem({ clientId, note, delayMs }: Props) {
               </div>
             </div>
           ) : (
-            <SimpleMarkdown text={note.body} className="space-y-1 text-muted-foreground" />
+            <RichTextContent html={note.body} className="whitespace-pre-wrap text-muted-foreground" />
           )}
         </DialogContent>
       </Dialog>

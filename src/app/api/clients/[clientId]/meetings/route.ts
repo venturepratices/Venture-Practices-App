@@ -6,10 +6,14 @@ import { logActivity } from "@/lib/activity-log";
 import { summarizeMeetingTranscript } from "@/lib/meeting-summary";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { extractMentionedTeamMemberIds, stripHtml } from "@/lib/text-format";
+import { notify } from "@/lib/notify";
 
 const createMeetingNoteSchema = z.object({
   title: z.string().trim().min(1, "Title can't be empty").max(200),
   meetingDate: z.coerce.date(),
+  // Stores Tiptap-produced HTML (bold/lists/@mentions) — 100000 already has
+  // ample headroom for the markup overhead.
   transcript: z.string().trim().min(1, "Transcript can't be empty").max(100000),
   summarize: z.boolean().optional().default(false),
 });
@@ -37,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
   let summary: string | null = null;
   if (parsed.data.summarize) {
     try {
-      summary = await summarizeMeetingTranscript(parsed.data.transcript);
+      summary = await summarizeMeetingTranscript(stripHtml(parsed.data.transcript));
     } catch (error) {
       console.error("Meeting transcript summarization failed:", error);
       return NextResponse.json({ error: "Failed to summarize transcript" }, { status: 502 });
@@ -67,6 +71,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     action: "meeting_noted",
     description: `${session.user.name ?? "Someone"} added a meeting note to "${client?.name ?? "a client"}"`,
   });
+
+  const validTeamMemberIds = new Set(
+    (await prisma.teamMember.findMany({ select: { id: true } })).map((m) => m.id)
+  );
+  const mentionedIds = extractMentionedTeamMemberIds(parsed.data.transcript).filter(
+    (id) => id !== session.user.id && validTeamMemberIds.has(id)
+  );
+  for (const id of mentionedIds) {
+    await notify({
+      recipientId: id,
+      type: "MENTIONED",
+      entityType: "Client",
+      entityId: clientId,
+      entityLabel: client?.name ?? clientId,
+      title: `You were mentioned in a meeting note on "${client?.name ?? "a client"}"`,
+      lines: [`By ${session.user.name ?? "someone"}`, `"${parsed.data.title}"`],
+      linkPath: `/clients/${clientId}/meetings`,
+    });
+  }
 
   return NextResponse.json(meetingNote, { status: 201 });
 }
