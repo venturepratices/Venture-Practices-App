@@ -7,10 +7,15 @@ import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import { Highlight } from "@tiptap/extension-highlight";
 import {
+  Baseline,
   Bold as BoldIcon,
   Code2,
   Eraser,
+  Highlighter,
   Italic as ItalicIcon,
   Link2,
   List,
@@ -23,7 +28,10 @@ import {
 import { useEffect } from "react";
 
 import { cn } from "@/lib/utils";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
+import { EmojiPickerPopover } from "@/components/ui/emoji-picker-popover";
 import { MentionList, type MentionItem, type MentionListHandle } from "@/components/ui/mention-list";
+import { HIGHLIGHT_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "@/lib/rich-text-colors";
 
 type Props = {
   content: string;
@@ -81,6 +89,9 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
       }),
       TaskList,
       TaskItem.configure({ nested: false }),
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
       Placeholder.configure({ placeholder: placeholder ?? "Add more detail..." }),
       Mention.configure({
         HTMLAttributes: { class: "mention" },
@@ -167,6 +178,27 @@ export function RichTextEditor({ content, onChange, teamMembers, placeholder, cl
         <ToolbarButton label="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
           <Strikethrough className="size-3.5" />
         </ToolbarButton>
+        <ColorPickerPopover
+          label="Text color"
+          icon={Baseline}
+          presets={TEXT_COLOR_PRESETS}
+          activeColor={editor.getAttributes("textStyle").color as string | undefined}
+          indicatorColor={(editor.getAttributes("textStyle").color as string | undefined) ?? null}
+          onSelect={(hex) => editor.chain().focus().setColor(hex).run()}
+          onClear={() => editor.chain().focus().unsetColor().run()}
+          clearLabel="Remove color"
+        />
+        <ColorPickerPopover
+          label="Highlight color"
+          icon={Highlighter}
+          presets={HIGHLIGHT_COLOR_PRESETS}
+          activeColor={editor.getAttributes("highlight").color as string | undefined}
+          indicatorColor={(editor.getAttributes("highlight").color as string | undefined) ?? null}
+          onSelect={(hex) => editor.chain().focus().setHighlight({ color: hex }).run()}
+          onClear={() => editor.chain().focus().unsetHighlight().run()}
+          clearLabel="Remove highlight"
+        />
+        <EmojiPickerPopover onSelect={(emoji) => editor.chain().focus().insertContent(emoji).run()} />
         <span className="mx-0.5 h-4 w-px bg-border" />
         <ToolbarButton label="Bulleted list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
           <List className="size-3.5" />
