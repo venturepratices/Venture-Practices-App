@@ -97,6 +97,20 @@ export async function postSlackChannel(channelId: string, text: string) {
   await slackApi("chat.postMessage", { channel: channelId, text });
 }
 
+type SlackCardPayload = {
+  attachments: { color: string; blocks: Record<string, unknown>[]; fallback: string }[];
+};
+
+/**
+ * Posts a Block Kit card (see src/lib/slack-card.ts) to a DM or a channel —
+ * same `chat.postMessage` call as the plain-text variants above, just carrying
+ * `attachments` for the coloured stripe and structured blocks. `text` still
+ * goes along as the push-notification preview.
+ */
+export async function postSlackCard(channel: string, payload: SlackCardPayload) {
+  await slackApi("chat.postMessage", { channel, ...payload });
+}
+
 function slugifyChannelName(name: string): string {
   const slug = name
     .toLowerCase()

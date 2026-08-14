@@ -8,32 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { SearchInput } from "@/components/search-input";
+import { NOTIFICATION_TYPE_LABELS as TYPE_LABELS } from "@/lib/notification-type-labels";
 
 const ALL = "ALL";
-
-const TYPE_LABELS: Record<string, string> = {
-  ASSIGNED: "Assigned to you",
-  MENTIONED: "Mentioned you",
-  STATUS_CHANGED: "Status changed",
-  DEADLINE_CHANGED: "Deadline changed",
-  COMMENTED: "New comment",
-  ASSET_UPLOADED: "Asset uploaded",
-  ASSET_COMMENTED: "Asset commented",
-  ASSET_DECIDED: "Asset decision made",
-  ASSET_APPROVED: "Asset approved",
-  ASSET_CHANGES_REQUESTED: "Asset changes requested",
-  ASSET_DUE_SOON: "Asset due soon",
-  CAMPAIGN_STAGE_ADVANCED: "Campaign stage advanced",
-  CAMPAIGN_TASK_ASSIGNED: "New campaign task",
-  WORKFLOW_STAGE_STARTED: "Project stage started",
-  WORKFLOW_COMPLETED: "Project completed",
-  WORKFLOW_TASK_UP_NEXT: "You're up next",
-  TASK_DUE_SOON: "Task due soon",
-  TASK_OVERDUE: "Task overdue",
-  ORDER_ADDED: "Order added",
-  ORDER_CHANGED: "Change order added",
-  DAILY_BRIEFING: "Daily briefing",
-};
 
 const READ_LABELS: Record<string, string> = {
   UNREAD: "Unread",
@@ -94,7 +71,7 @@ export function NotificationFilters({ hasUnread }: Props) {
 
       <Select value={type} onValueChange={(value) => setParam("type", value)}>
         <SelectTrigger className="w-[180px]">
-          <SelectValue>{(value: string) => (value === ALL ? "All types" : TYPE_LABELS[value])}</SelectValue>
+          <SelectValue>{(value: string) => (value === ALL ? "All types" : (TYPE_LABELS as Record<string, string>)[value])}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All types</SelectItem>

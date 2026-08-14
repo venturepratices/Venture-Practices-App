@@ -7,7 +7,8 @@ import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/p
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
 import { isValidStatusId } from "@/lib/task-status";
-import { deadlineLine } from "@/lib/utils";
+import { stripHtml } from "@/lib/text-format";
+import { deadlineLine, formatDate } from "@/lib/utils";
 import { createTaskSchema } from "@/lib/validations/task";
 
 export async function POST(request: Request) {
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
     include: {
       assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
       client: { select: { name: true } },
+      statusOption: { select: { label: true } },
     },
   });
 
@@ -122,6 +124,16 @@ export async function POST(request: Request) {
       ? `/clients/${task.clientId}/tasks?taskId=${task.id}`
       : `/tasks?taskId=${task.id}`;
 
+  // "Task: <title>" is already covered by the card's subject line
+  // (subjectLabel defaults to the entity type — "Task" — in buildNotifyCard),
+  // so it isn't repeated here as its own field.
+  const assignedFields = [
+    ...(task.description ? [{ label: "Description", value: stripHtml(task.description) }] : []),
+    { label: "Client", value: task.client ? task.client.name : "Internal (no client)" },
+    { label: "Status", value: task.statusOption.label },
+    ...(task.deadline ? [{ label: "Deadline", value: formatDate(task.deadline) }] : []),
+  ];
+
   for (const a of task.assignees) {
     if (a.teamMemberId === session.user.id) continue;
     await notify({
@@ -131,11 +143,8 @@ export async function POST(request: Request) {
       entityId: task.id,
       entityLabel: task.title,
       title: `You're assigned: "${task.title}"`,
-      lines: [
-        `Assigned by ${session.user.name ?? "someone"}`,
-        task.client ? `Client: ${task.client.name}` : "Internal task",
-        ...deadlineLine(task.deadline),
-      ],
+      fields: assignedFields,
+      context: `Assigned by ${session.user.name ?? "someone"}`,
       linkPath,
     });
   }

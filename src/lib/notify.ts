@@ -2,7 +2,9 @@ import { absoluteUrlFor } from "@/lib/notification-links";
 import { getNotificationTier, TIER_EMOJI } from "@/lib/notification-tier";
 import { isCategoryMuted, parseNotificationPreferences } from "@/lib/notification-preferences";
 import { prisma } from "@/lib/prisma";
-import { postSlackChannel, postSlackDM, resolveSlackUserId } from "@/lib/slack";
+import { buildSlackCard, CHANNEL_COLOR, deriveCardFromLegacy, TIER_COLOR, type SlackCardField } from "@/lib/slack-card";
+import { postSlackCard, resolveSlackUserId } from "@/lib/slack";
+import { buildKicker, entityTypeLabel } from "@/lib/notification-type-labels";
 import type { NotificationType } from "@/generated/prisma/client";
 
 type NotifyParams = {
@@ -19,11 +21,26 @@ type NotifyParams = {
    */
   title: string;
   /**
-   * Short bullet points carrying the who/where/when — rendered as a Slack
-   * bullet list under the headline. Omit for a headline-only message when
-   * there's genuinely nothing else worth saying.
+   * Short bullet points carrying the who/where/when. Only used as a fallback
+   * for the Slack card's detail area when `fields` isn't supplied — prefer
+   * `fields`, which renders as a scannable two-column grid instead.
    */
   lines?: string[];
+  /**
+   * Slack-only presentation. `title` stays the in-app row's text; these
+   * split it into the card's bold first line (the kind of event, e.g.
+   * "Task assigned to you") and its plain second line (the thing itself,
+   * e.g. the task title). Omit both and the card falls back to using `title`
+   * as the headline, which still reads fine — just less scannable.
+   */
+  headline?: string;
+  subject?: string | null;
+  /** Labelled detail rows, rendered as Slack's two-column field grid. Max 10. */
+  fields?: SlackCardField[];
+  /** Small muted line under the details — a comment excerpt, a caveat. */
+  context?: string | null;
+  /** Button text. Defaults to "Open in app". Only renders when `linkPath` is set too. */
+  buttonLabel?: string;
   /**
    * App-relative path to the entity this is about (e.g.
    * "/clients/<id>/tasks?taskId=<id>") — stored on the Notification row for
@@ -43,11 +60,31 @@ type NotifyParams = {
   slack?: boolean;
 };
 
-function buildSlackText(type: NotificationType, title: string, lines: string[] | undefined, linkPath?: string | null) {
-  const emoji = TIER_EMOJI[getNotificationTier(type)];
-  const bulletBlock = lines && lines.length > 0 ? `\n${lines.map((l) => `• ${l}`).join("\n")}` : "";
-  const body = `*${emoji} ${title}*${bulletBlock}`;
-  return linkPath ? `${body}\n<${absoluteUrlFor(linkPath)}|Open in app>` : body;
+function buildNotifyCard(params: NotifyParams) {
+  const tier = getNotificationTier(params.type);
+  const derived = deriveCardFromLegacy(params.title, params.lines);
+  const headline = params.headline ?? derived.headline;
+
+  // Never let the card come up emptier than the app's own record of the
+  // event: if nothing supplied a subject line, fall back to entityLabel
+  // (the task/asset/client name this notification is actually about) rather
+  // than leaving the card as a bare headline with no specifics.
+  const explicitSubject = params.subject !== undefined ? params.subject : derived.subject;
+  const subject = explicitSubject ?? (params.entityLabel !== headline ? params.entityLabel : null);
+
+  return buildSlackCard({
+    kicker: buildKicker(params.entityType, params.type),
+    headline,
+    subject,
+    subjectLabel: entityTypeLabel(params.entityType),
+    fields: params.fields ?? derived.fields,
+    bullets: params.fields ? [] : derived.bullets,
+    color: TIER_COLOR[tier],
+    emoji: tier === "CRITICAL" ? TIER_EMOJI[tier] : null,
+    buttonLabel: params.linkPath ? (params.buttonLabel ?? "Open in app") : null,
+    buttonUrl: params.linkPath ? absoluteUrlFor(params.linkPath) : null,
+    context: params.context ?? null,
+  });
 }
 
 /**
@@ -96,8 +133,7 @@ export async function notify(params: NotifyParams) {
     if ((params.slack ?? true) && tier !== "AMBIENT" && prefs.slackEnabled) {
       const slackUserId = await resolveSlackUserId(recipient);
       if (slackUserId) {
-        const text = buildSlackText(params.type, params.title, params.lines, params.linkPath);
-        await postSlackDM(slackUserId, text);
+        await postSlackCard(slackUserId, buildNotifyCard(params));
       }
     }
 
@@ -114,6 +150,7 @@ type NotifyChannelParams = {
   title: string;
   lines?: string[];
   linkPath?: string | null;
+  buttonLabel?: string;
 };
 
 /**
@@ -131,17 +168,28 @@ type NotifyChannelParams = {
 export async function notifyChannel(params: NotifyChannelParams) {
   try {
     let channelId: string | null = null;
+    let clientName: string | null = null;
     if (params.clientId) {
-      const client = await prisma.client.findUnique({ where: { id: params.clientId }, select: { slackChannelId: true } });
+      const client = await prisma.client.findUnique({ where: { id: params.clientId }, select: { slackChannelId: true, name: true } });
       channelId = client?.slackChannelId ?? null;
+      clientName = client?.name ?? null;
     }
     if (!channelId) channelId = process.env.SLACK_INTERNAL_CHANNEL_ID ?? null;
     if (!channelId) return;
 
-    const bulletBlock = params.lines && params.lines.length > 0 ? `\n${params.lines.map((l) => `• ${l}`).join("\n")}` : "";
-    const body = `*📣 ${params.title}*${bulletBlock}`;
-    const text = params.linkPath ? `${body}\n<${absoluteUrlFor(params.linkPath)}|Open in app>` : body;
-    await postSlackChannel(channelId, text);
+    const derived = deriveCardFromLegacy(params.title, params.lines);
+    const card = buildSlackCard({
+      kicker: clientName ? `${clientName} · Team update` : "Team update",
+      headline: derived.headline,
+      subject: derived.subject,
+      fields: derived.fields,
+      bullets: derived.bullets,
+      color: CHANNEL_COLOR,
+      emoji: "📣",
+      buttonLabel: params.linkPath ? (params.buttonLabel ?? "Open in app") : null,
+      buttonUrl: params.linkPath ? absoluteUrlFor(params.linkPath) : null,
+    });
+    await postSlackCard(channelId, card);
   } catch (error) {
     console.warn("notifyChannel() failed, continuing without it:", error);
   }

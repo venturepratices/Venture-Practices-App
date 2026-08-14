@@ -145,7 +145,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           entityId: task.id,
           entityLabel: task.title,
           title: `Status changed: "${task.title}"`,
-          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
+          lines: [`Status: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
           linkPath,
         });
       }
@@ -153,7 +153,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         await notifyChannel({
           clientId: task.clientId,
           title: `Status changed: "${task.title}"`,
-          lines: [`Now: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
+          lines: [`Status: ${newStatusLabel}`, `Changed by ${session.user.name ?? "someone"}`, ...deadlineLine(task.deadline)],
           linkPath,
         });
       }
