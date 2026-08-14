@@ -166,6 +166,12 @@ model TeamMember {
   // email-lookup result — whichever set it first, it's the source of truth
   // for where this person's notifications get DMed.
   slackUserId        String?
+  // Self-service notification preferences (Slack master switch, per-category
+  // mutes, ambient-digest toggle) — see src/lib/notification-preferences.ts
+  // for the shape + parsing. Null means "use defaults," which is identical
+  // to today's behavior for everyone until they visit /settings/notifications
+  // and change something — no migration/backfill needed for existing rows.
+  notificationPreferences Json?
   role               Role    @default(AGENCY)
   // Access control. Admins bypass every check below (full access + team/
   // permission management + granting others admin/permissions). Members are

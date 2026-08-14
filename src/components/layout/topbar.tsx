@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, SlidersHorizontal } from "lucide-react";
 
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,15 @@ export function TopBar({ unreadCount = 0 }: { unreadCount?: number }) {
       <div className="ml-auto flex min-w-0 items-center gap-1">
         <ThemeToggle />
         <NotificationBell unreadCount={unreadCount} />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Notification settings"
+          title="Notification settings"
+          render={<Link href="/settings/notifications" />}
+        >
+          <SlidersHorizontal className="size-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

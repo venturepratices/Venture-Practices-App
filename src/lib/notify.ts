@@ -1,5 +1,6 @@
 import { absoluteUrlFor } from "@/lib/notification-links";
 import { getNotificationTier, TIER_EMOJI } from "@/lib/notification-tier";
+import { isCategoryMuted, parseNotificationPreferences } from "@/lib/notification-preferences";
 import { prisma } from "@/lib/prisma";
 import { postSlackChannel, postSlackDM, resolveSlackUserId } from "@/lib/slack";
 import type { NotificationType } from "@/generated/prisma/client";
@@ -64,6 +65,19 @@ function buildSlackText(type: NotificationType, title: string, lines: string[] |
 export async function notify(params: NotifyParams) {
   try {
     const tier = getNotificationTier(params.type);
+
+    const recipient = await prisma.teamMember.findUnique({
+      where: { id: params.recipientId },
+      select: { id: true, email: true, slackUserId: true, notificationPreferences: true },
+    });
+    if (!recipient) return null;
+
+    const prefs = parseNotificationPreferences(recipient.notificationPreferences);
+    // A muted category is suppressed entirely — no in-app row either. This is
+    // "stop telling me about this," not just "stop pinging me on Slack about
+    // it" (that's what the slackEnabled switch below is for).
+    if (isCategoryMuted(prefs, params.type)) return null;
+
     const notification = await prisma.notification.create({
       data: {
         recipientId: params.recipientId,
@@ -79,12 +93,8 @@ export async function notify(params: NotifyParams) {
     // Ambient-tier rows never get an instant DM — they queue for the next
     // notification-digest cron run instead (src/app/api/cron/notification-
     // digest/route.ts), which is what actually posts to Slack for them.
-    if ((params.slack ?? true) && tier !== "AMBIENT") {
-      const recipient = await prisma.teamMember.findUnique({
-        where: { id: params.recipientId },
-        select: { id: true, email: true, slackUserId: true },
-      });
-      const slackUserId = recipient ? await resolveSlackUserId(recipient) : null;
+    if ((params.slack ?? true) && tier !== "AMBIENT" && prefs.slackEnabled) {
+      const slackUserId = await resolveSlackUserId(recipient);
       if (slackUserId) {
         const text = buildSlackText(params.type, params.title, params.lines, params.linkPath);
         await postSlackDM(slackUserId, text);

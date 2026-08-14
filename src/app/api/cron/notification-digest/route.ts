@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { absoluteUrlFor } from "@/lib/notification-links";
 import { ambientNotificationTypes } from "@/lib/notification-tier";
+import { parseNotificationPreferences } from "@/lib/notification-preferences";
 import { prisma } from "@/lib/prisma";
 import { postSlackDM, resolveSlackUserId } from "@/lib/slack";
 
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
 
   const recipients = await prisma.teamMember.findMany({
     where: { id: { in: [...byRecipient.keys()] } },
-    select: { id: true, email: true, slackUserId: true },
+    select: { id: true, email: true, slackUserId: true, notificationPreferences: true },
   });
   const recipientById = new Map(recipients.map((r) => [r.id, r]));
 
@@ -59,7 +60,17 @@ export async function GET(request: Request) {
 
   for (const [recipientId, items] of byRecipient) {
     const recipient = recipientById.get(recipientId);
-    const slackUserId = recipient ? await resolveSlackUserId(recipient) : null;
+    if (!recipient) continue;
+
+    // Muted categories already stopped these rows from ever being created
+    // (see notify()) — this only covers "I still want the in-app rows, just
+    // not the periodic Slack digest for them." Left undigested (not marked
+    // digestedAt) so turning the preference back on later catches up on
+    // everything that piled up in the meantime, same as an unmapped Slack ID.
+    const prefs = parseNotificationPreferences(recipient.notificationPreferences);
+    if (!prefs.slackEnabled || !prefs.ambientDigest) continue;
+
+    const slackUserId = await resolveSlackUserId(recipient);
     if (!slackUserId) continue; // leave undigested — picked up by a later run once mapped
 
     const lines = items.map((n) => (n.linkPath ? `<${absoluteUrlFor(n.linkPath)}|${n.message}>` : n.message));
