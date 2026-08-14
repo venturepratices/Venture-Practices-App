@@ -4,8 +4,8 @@ import { ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getTaskStatusOptions } from "@/lib/task-status";
-import { endOfDay } from "@/lib/utils";
+import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
+import { buildTaskFilterHref, buildTaskFilterWhere, type TaskFilterParams } from "@/lib/task-filter-where";
 import { InfoTip } from "@/components/info-tip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,55 +21,16 @@ import { TaskFilters } from "@/components/tasks/task-filters";
 const LIST_PAGE_SIZE = 100;
 const BOARD_TAKE_CEILING = 500;
 
-type SearchParams = {
-  view?: string;
-  q?: string;
-  status?: string;
-  clientId?: string;
-  assigneeId?: string;
-  occurrence?: string;
-  kind?: string;
-  deadline?: string;
-  deadlineFrom?: string;
-  deadlineTo?: string;
-  page?: string;
-};
+type SearchParams = TaskFilterParams & { view?: string; page?: string };
 
 export default async function AllTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const isBoard = params.view === "board";
 
-  const where: Prisma.TaskWhereInput = {};
-  const searchClause: Prisma.TaskWhereInput | null = params.q
-    ? {
-        OR: [
-          { title: { contains: params.q, mode: "insensitive" } },
-          { description: { contains: params.q, mode: "insensitive" } },
-        ],
-      }
-    : null;
-  if (params.status) where.statusId = params.status;
-  if (params.clientId === "NONE") where.clientId = null;
-  else if (params.clientId) where.clientId = params.clientId;
-  if (params.assigneeId === "UNASSIGNED") where.assignees = { none: {} };
-  else if (params.assigneeId) where.assignees = { some: { teamMemberId: params.assigneeId } };
-  if (params.occurrence) where.occurrence = params.occurrence as Prisma.TaskWhereInput["occurrence"];
-  if (params.kind) where.kind = params.kind as Prisma.TaskWhereInput["kind"];
-
-  if (params.deadlineFrom || params.deadlineTo) {
-    where.deadline = {
-      ...(params.deadlineFrom ? { gte: new Date(params.deadlineFrom) } : {}),
-      ...(params.deadlineTo ? { lte: endOfDay(params.deadlineTo) } : {}),
-    };
-  } else if (params.deadline === "OVERDUE") {
-    where.deadline = { lt: new Date() };
-  } else if (params.deadline === "SOON") {
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    where.deadline = { gte: new Date(), lte: sevenDaysFromNow };
-  } else if (params.deadline === "NONE") {
-    where.deadline = null;
-  }
+  // Shared with each client's own Tasks tab (src/lib/task-filter-where.ts) so
+  // the two pages' filters can never drift apart.
+  const completeStatusId = await getCompleteStatusId();
+  const { filters: where, searchClause } = buildTaskFilterWhere(params, completeStatusId);
 
   // Scope to the viewer's accessible clients (+ internal client-less tasks).
   // ANDed with any client filter above, so a scoped member can never widen
@@ -113,20 +74,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
   const rangeEndIndex = Math.min(page * LIST_PAGE_SIZE, totalCount);
 
   function pageHref(targetPage: number): string {
-    const query = new URLSearchParams();
-    if (params.view) query.set("view", params.view);
-    if (params.q) query.set("q", params.q);
-    if (params.status) query.set("status", params.status);
-    if (params.clientId) query.set("clientId", params.clientId);
-    if (params.assigneeId) query.set("assigneeId", params.assigneeId);
-    if (params.occurrence) query.set("occurrence", params.occurrence);
-    if (params.kind) query.set("kind", params.kind);
-    if (params.deadline) query.set("deadline", params.deadline);
-    if (params.deadlineFrom) query.set("deadlineFrom", params.deadlineFrom);
-    if (params.deadlineTo) query.set("deadlineTo", params.deadlineTo);
-    if (targetPage > 1) query.set("page", String(targetPage));
-    const qs = query.toString();
-    return qs ? `/tasks?${qs}` : "/tasks";
+    return buildTaskFilterHref("/tasks", params, { page: String(targetPage) });
   }
 
   return (

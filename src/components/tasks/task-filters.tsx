@@ -19,6 +19,7 @@ const UNASSIGNED = "UNASSIGNED";
 
 const DEADLINE_LABELS: Record<string, string> = {
   OVERDUE: "Overdue",
+  TODAY: "Due today",
   SOON: "Due in 7 days",
   NONE: "No deadline",
 };
@@ -32,15 +33,28 @@ export const TASK_FILTER_KEYS = [
   "deadline",
   "deadlineFrom",
   "deadlineTo",
+  // Not a dropdown — set by the "Open tasks" stat card on a client's Tasks
+  // tab. Listed here so "Clear filters" clears it too, otherwise the card
+  // would stay stuck on with no visible control to switch it off.
+  "open",
 ] as const;
 
 type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
   statusOptions?: StatusOptionLite[];
+  /** Set on a single client's Tasks tab, where a client dropdown would list exactly one option. */
+  hideClientFilter?: boolean;
+  searchPlaceholder?: string;
 };
 
-export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props) {
+export function TaskFilters({
+  clients,
+  teamMembers,
+  statusOptions = [],
+  hideClientFilter = false,
+  searchPlaceholder = "Search tasks...",
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,7 +68,10 @@ export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props)
 
   const activeFilterCount =
     [status, clientId, assigneeId, occurrence, kind, deadline].filter((v) => v !== ALL).length +
-    (searchParams.get("deadlineFrom") || searchParams.get("deadlineTo") ? 1 : 0);
+    (searchParams.get("deadlineFrom") || searchParams.get("deadlineTo") ? 1 : 0) +
+    // Counted so "Clear filters" appears when a stat card is the only thing
+    // filtering — otherwise there'd be no way to switch it off from the bar.
+    (searchParams.get("open") ? 1 : 0);
 
   function setParam(key: string, value: string | null, clearKeys: string[] = []) {
     const params = new URLSearchParams(searchParams.toString());
@@ -77,9 +94,12 @@ export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props)
 
   return (
     <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
-      <SearchInput placeholder="Search tasks..." className="w-full sm:w-64" />
+      <SearchInput placeholder={searchPlaceholder} className="w-full sm:w-64" />
 
-      <Select value={status} onValueChange={(value) => setParam("status", value)}>
+      {/* Picking a specific status clears `open` — the where-builder lets an
+          explicit status outrank it, so leaving it set would keep the "Open
+          tasks" card looking active while having no effect. */}
+      <Select value={status} onValueChange={(value) => setParam("status", value, ["open"])}>
         <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue>
             {(value: string) => (value === ALL ? "All statuses" : <StatusPill option={resolveStatusOption(statusOptions, value)} />)}
@@ -95,26 +115,28 @@ export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props)
         </SelectContent>
       </Select>
 
-      <Select value={clientId} onValueChange={(value) => setParam("clientId", value)}>
-        <SelectTrigger className="w-full sm:w-[160px]">
-          <SelectValue>
-            {(value: string) => {
-              if (value === ALL) return "All clients";
-              if (value === NO_CLIENT) return "Internal / Agency";
-              return clients.find((c) => c.id === value)?.name ?? value;
-            }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>All clients</SelectItem>
-          <SelectItem value={NO_CLIENT}>Internal / Agency</SelectItem>
-          {clients.map((client) => (
-            <SelectItem key={client.id} value={client.id}>
-              {client.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {hideClientFilter ? null : (
+        <Select value={clientId} onValueChange={(value) => setParam("clientId", value)}>
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <SelectValue>
+              {(value: string) => {
+                if (value === ALL) return "All clients";
+                if (value === NO_CLIENT) return "Internal / Agency";
+                return clients.find((c) => c.id === value)?.name ?? value;
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All clients</SelectItem>
+            <SelectItem value={NO_CLIENT}>Internal / Agency</SelectItem>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       <Select value={assigneeId} onValueChange={(value) => setParam("assigneeId", value)}>
         <SelectTrigger className="w-full sm:w-[160px]">
@@ -158,6 +180,7 @@ export function TaskFilters({ clients, teamMembers, statusOptions = [] }: Props)
         <SelectContent>
           <SelectItem value={ALL}>Any deadline</SelectItem>
           <SelectItem value="OVERDUE">Overdue</SelectItem>
+          <SelectItem value="TODAY">Due today</SelectItem>
           <SelectItem value="SOON">Due in 7 days</SelectItem>
           <SelectItem value="NONE">No deadline</SelectItem>
         </SelectContent>
