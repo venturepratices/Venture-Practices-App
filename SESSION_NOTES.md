@@ -5,9 +5,18 @@ sessions (and refreshed before any context compaction) so nothing here gets
 silently dropped. It is NOT a feature spec — see the Claude Code plan file for
 full build history and detailed designs. This is just the punch list.
 
-Last updated: 2026-08-15 (late evening)
+Last updated: 2026-08-18
 
 ## Waiting on the user (do these first when picking this back up)
+
+- **Two commits are sitting unpushed on master** — `027b43a` (Ask Viktor +
+  agent read API) and `84e912a` (Project Templates redesign). **Pushing is
+  blocked on applying two migrations to the PRODUCTION database first**
+  (`20260817120000_add_ai_conversations` and
+  `20260818100000_add_workflow_template_folders` — both are already applied to
+  the dev branch). If the code deploys before the tables exist, the deployed
+  app writes to missing tables. The production `prisma migrate deploy` is the
+  user's call — ask before running anything against production.
 
 - **Click "Create channel" for Journey Smiles and LandMark Dental** in the live
   app: Settings → Notifications → Connections → CLIENT CHANNELS. Shipped in
@@ -181,6 +190,24 @@ Last updated: 2026-08-15 (late evening)
   the compaction rather than silently dropping out of context.
 
 ## Recently shipped (context for "what's next" conversations)
+
+- **Project Templates redesign** — commit `84e912a`, NOT pushed (see "Waiting
+  on the user"). Folder sidebar (agency-wide `WorkflowTemplateFolder`, distinct
+  from the per-client `WorkflowFolder`) + card grid + popup editor with
+  one-stage-per-page paging replacing the old expandable dropdown editor
+  (deleted). Browser-verified on the dev DB at desktop and 375px: folder
+  create/delete, stage paging with composer-clear on page switch, disabled
+  pager at the last stage, no mobile overflow. Promised to Ashley separately:
+  a task "Duplicate" option — not started.
+
+- **Ask Viktor** — commit `027b43a`, NOT pushed (same migration gate). Topbar
+  sparkle button (admin-only v1) → chat panel with per-user conversation
+  history (`AiConversation`/`AiMessage`), `src/lib/viktor.ts` stub until
+  `VIKTOR_API_KEY` exists (`TODO(viktor-wire)`), read-only agent API under
+  `/api/agent/v1/**` behind `AGENT_API_TOKEN`, settings page at
+  `/settings/ai-assistant`. After push+deploy: user sets `AGENT_API_TOKEN`
+  (+ optionally `VIKTOR_API_KEY`) in Vercel, hands Viktor the base URL +
+  `/api/agent/v1/openapi.json` + token.
 
 - **Client Dashboard tab removed** — commit `31f14e1`, pushed. The Tasks tab
   already carries the same four headline numbers (added in `03a41ce`), so a
