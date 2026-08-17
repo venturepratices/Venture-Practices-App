@@ -290,6 +290,49 @@ model TeamMember {
   clientOrders                 ClientOrder[]
   calendarConnection           TeamMemberCalendarConnection?
   busyBlocks                   TeamMemberBusyBlock[]
+  aiConversations              AiConversation[]
+}
+
+/**
+ * A user's personal "Ask Viktor" conversation. One TeamMember can have many
+ * — each new chat is a new row. Cascades so deleting a team member wipes
+ * their conversation history with them (no orphans, no cross-user access).
+ *
+ * viktorThreadId is Viktor's own thread id, once we start passing it back
+ * to Viktor's API for multi-turn context. Null until the first successful
+ * reply lands. `title` is the first user message truncated, generated
+ * server-side on the first send.
+ */
+model AiConversation {
+  id             String       @id @default(cuid())
+  teamMemberId   String
+  teamMember     TeamMember   @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  title          String?
+  viktorThreadId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  messages AiMessage[]
+
+  @@index([teamMemberId, updatedAt(sort: Desc)])
+}
+
+/**
+ * One message within an AiConversation. Role is the OpenAI/Anthropic
+ * convention ("user" or "assistant"). attachmentsJson stores an array of
+ * { name, sizeBytes } — file contents themselves aren't stored here, only
+ * their metadata (real upload wiring is a future step).
+ */
+model AiMessage {
+  id              String         @id @default(cuid())
+  conversationId  String
+  conversation    AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            String
+  body            String         @db.Text
+  attachmentsJson Json?
+  createdAt       DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 // Per-Member grant of access to a specific Client (the "checklist of access").
