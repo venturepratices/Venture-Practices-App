@@ -84,16 +84,17 @@ export function WorkflowTemplateCard({
             <DropdownMenuTrigger
               render={
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Options for ${template.name}`}
                   onClick={(e) => e.stopPropagation()}
                   disabled={busy}
-                />
+                >
+                  <MoreVertical className="size-4" />
+                </Button>
               }
-            >
-              <MoreVertical className="size-4" />
-            </DropdownMenuTrigger>
+            />
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
               <DropdownMenuItem disabled={template.folderId === null} onClick={() => moveToFolder(null)}>
