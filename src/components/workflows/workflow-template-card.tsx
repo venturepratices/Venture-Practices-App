@@ -10,7 +10,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -96,7 +95,7 @@ export function WorkflowTemplateCard({
               }
             />
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
+              <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">Move to folder</div>
               <DropdownMenuItem disabled={template.folderId === null} onClick={() => moveToFolder(null)}>
                 <Folder className="size-3.5" />
                 All templates
