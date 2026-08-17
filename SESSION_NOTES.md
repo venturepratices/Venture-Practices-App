@@ -9,14 +9,9 @@ Last updated: 2026-08-18
 
 ## Waiting on the user (do these first when picking this back up)
 
-- **Two commits are sitting unpushed on master** — `027b43a` (Ask Viktor +
-  agent read API) and `84e912a` (Project Templates redesign). **Pushing is
-  blocked on applying two migrations to the PRODUCTION database first**
-  (`20260817120000_add_ai_conversations` and
-  `20260818100000_add_workflow_template_folders` — both are already applied to
-  the dev branch). If the code deploys before the tables exist, the deployed
-  app writes to missing tables. The production `prisma migrate deploy` is the
-  user's call — ask before running anything against production.
+- **Nothing blocking right now.** Both migrations reached production on
+  2026-08-18 and all of Ask Viktor + the templates redesign is live (see
+  "Recently shipped"). The remaining items below are older and unchanged.
 
 - **Click "Create channel" for Journey Smiles and LandMark Dental** in the live
   app: Settings → Notifications → Connections → CLIENT CHANNELS. Shipped in
@@ -111,6 +106,33 @@ Last updated: 2026-08-18
 
 ## Known rough edges (worth fixing, nobody's blocked)
 
+- **`DropdownMenuLabel` throws unless wrapped in a Group — and the whole four-
+  check gate misses it.** It wraps Base UI's `Menu.GroupLabel`, whose
+  `useMenuGroupRootContext()` **throws unconditionally** when there's no
+  `<Menu.Group>`/`<Menu.RadioGroup>` ancestor (see
+  `node_modules/@base-ui/react/menu/group/MenuGroupContext.js`). Used bare in
+  `workflow-template-card.tsx`, it shipped to production and crashed the page
+  to the error boundary the instant anyone clicked ⋮.
+  - **Why every check passed anyway:** the throw is render-time, inside a
+    portal that only mounts on click. `tsc`, `lint`, `npm test`, and
+    `build:ci` all pass. Loading the page in a browser passes too. **Only
+    actually clicking the control catches it.**
+  - **The lesson, generalized:** after adding any interactive control
+    (dropdown, popover, dialog, menu), click it in the browser before calling
+    the work verified. Rendering the page that contains it is not enough.
+    This cost two failed production deploys and ~30 minutes of the user
+    re-testing before the real cause was found.
+  - **Fix used:** a plain `<div className="px-1.5 py-1 text-xs font-medium
+    text-muted-foreground">` — the exact classes `DropdownMenuLabel` would
+    have applied, no context requirement, cannot throw. If a real grouped
+    label is ever wanted, wrap the items in `DropdownMenuGroup` (already
+    exported, currently unused anywhere).
+  - Related, same file, found while diagnosing: `DropdownMenuTrigger` should
+    be **self-closing** with the icon *inside* the `render={<Button/>}`, not
+    passed as children alongside a `render` prop. Both working call sites
+    (`member-filter.tsx`, `column-visibility-menu.tsx`) do it the self-closing
+    way; copy one of them rather than writing a trigger from scratch.
+
 - **Nothing in this workflow checks CI after a push, so a red build can sit
   unnoticed for days.** That's exactly what happened: CI broke at `3972fe6`
   and stayed broken through `b015eac` and `ed39355` (2 days, 3 failures) with
@@ -191,23 +213,40 @@ Last updated: 2026-08-18
 
 ## Recently shipped (context for "what's next" conversations)
 
-- **Project Templates redesign** — commit `84e912a`, NOT pushed (see "Waiting
-  on the user"). Folder sidebar (agency-wide `WorkflowTemplateFolder`, distinct
-  from the per-client `WorkflowFolder`) + card grid + popup editor with
-  one-stage-per-page paging replacing the old expandable dropdown editor
-  (deleted). Browser-verified on the dev DB at desktop and 375px: folder
-  create/delete, stage paging with composer-clear on page switch, disabled
-  pager at the last stage, no mobile overflow. Promised to Ashley separately:
-  a task "Duplicate" option — not started.
+- **Project Templates redesign** — commits `84e912a` + `8f17b56` + `c4b4e7f`,
+  **pushed and live, user-confirmed working in production 2026-08-18.** Folder
+  sidebar (agency-wide `WorkflowTemplateFolder`, distinct from the per-client
+  `WorkflowFolder`) + card grid + popup editor with one-stage-per-page paging
+  replacing the old expandable dropdown editor (deleted).
+  - **Shipped with a crash that took two follow-up commits to fix** — see the
+    Base UI GroupLabel entry under "Known rough edges." Worth reading before
+    adding any new DropdownMenu.
+  - Promised to Ashley separately: a task **"Duplicate" option** — the user
+    committed to this in writing in an email to her. Not started.
 
-- **Ask Viktor** — commit `027b43a`, NOT pushed (same migration gate). Topbar
-  sparkle button (admin-only v1) → chat panel with per-user conversation
-  history (`AiConversation`/`AiMessage`), `src/lib/viktor.ts` stub until
+- **Ask Viktor** — commit `027b43a`, **pushed and live.** Topbar sparkle button
+  (admin-only v1) → chat panel with per-user conversation history
+  (`AiConversation`/`AiMessage`), `src/lib/viktor.ts` stub until
   `VIKTOR_API_KEY` exists (`TODO(viktor-wire)`), read-only agent API under
   `/api/agent/v1/**` behind `AGENT_API_TOKEN`, settings page at
-  `/settings/ai-assistant`. After push+deploy: user sets `AGENT_API_TOKEN`
-  (+ optionally `VIKTOR_API_KEY`) in Vercel, hands Viktor the base URL +
-  `/api/agent/v1/openapi.json` + token.
+  `/settings/ai-assistant`.
+  - **Still to do before Viktor actually answers anything:** user sets
+    `AGENT_API_TOKEN` (+ optionally `VIKTOR_API_KEY`) in Vercel, then hands
+    Viktor the base URL + `/api/agent/v1/openapi.json` + the token. Until then
+    the panel works end-to-end but replies "not connected yet." **The panel was
+    never clicked in production** — only the templates half of this deploy was
+    verified live.
+
+- **Both production migrations applied 2026-08-18** —
+  `20260817120000_add_ai_conversations` and
+  `20260818100000_add_workflow_template_folders`. Method that worked, for next
+  time: `set "DATABASE_URL=<prod>"` in cmd did **not** override (`.env` won),
+  so the reliable route was temporarily commenting out the dev `DATABASE_URL`
+  line in `.env`, adding the production one below it, running
+  `npx prisma migrate deploy`, then reverting `.env`. Always confirm the
+  `Datasource "db": ... at "ep-XXXX"` line in the output shows a **different**
+  endpoint than the dev branch's `ep-long-dew-ad8nkrdc` — that check is what
+  caught two silent no-op runs against dev.
 
 - **Client Dashboard tab removed** — commit `31f14e1`, pushed. The Tasks tab
   already carries the same four headline numbers (added in `03a41ce`), so a
