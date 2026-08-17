@@ -1016,11 +1016,32 @@ model WorkflowTemplate {
   name        String   @unique
   description String?
   isActive    Boolean  @default(true)
+  // Optional folder for organizing the template library (Settings → Project
+  // Templates). SetNull so deleting a folder drops its templates back into
+  // "All templates" rather than deleting them — same convention as
+  // WorkflowInstance.folderId / Asset.folderId.
+  folderId    String?
+  folder      WorkflowTemplateFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   stageTemplates WorkflowStageTemplate[]
   instances      WorkflowInstance[]
+
+  @@index([folderId])
+}
+
+// Folders for the Project Templates library. Unlike WorkflowFolder (which is
+// per-client, organizing that client's live project instances), these are
+// agency-wide — templates themselves aren't tied to a client, so their
+// folders can't be either.
+model WorkflowTemplateFolder {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  templates WorkflowTemplate[]
 }
 
 model WorkflowStageTemplate {

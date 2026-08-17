@@ -55,6 +55,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
     }
   }
 
+  if (parsed.data.folderId) {
+    const folder = await prisma.workflowTemplateFolder.findUnique({ where: { id: parsed.data.folderId } });
+    if (!folder) {
+      return NextResponse.json({ error: "That folder no longer exists." }, { status: 400 });
+    }
+  }
+
   const { stageTemplates, ...rest } = parsed.data;
   const template = await prisma.$transaction(async (tx) => {
     await tx.workflowTemplate.update({

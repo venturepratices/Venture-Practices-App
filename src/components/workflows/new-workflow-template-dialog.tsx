@@ -17,7 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function NewWorkflowTemplateDialog({ trigger }: { trigger: React.ReactElement }) {
+export function NewWorkflowTemplateDialog({
+  trigger,
+  folderId = null,
+}: {
+  trigger: React.ReactElement;
+  /** Library folder the template is created in — the one currently open in the sidebar, so "New template" lands where you're looking. */
+  folderId?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -34,7 +41,7 @@ export function NewWorkflowTemplateDialog({ trigger }: { trigger: React.ReactEle
       // Starts with zero stages — unlike Direct Mail's fixed 7-stage pipeline,
       // a Workflow's stages are entirely user-defined, so there's no
       // sensible skeleton to pre-seed. Add stages in the editor after creating.
-      body: JSON.stringify({ name: name.trim(), stageTemplates: [] }),
+      body: JSON.stringify({ name: name.trim(), folderId, stageTemplates: [] }),
     });
     setIsSaving(false);
 

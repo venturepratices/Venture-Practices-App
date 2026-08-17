@@ -23,6 +23,9 @@ const stageTemplateSchema = z.object({
 export const createWorkflowTemplateSchema = z.object({
   name: z.string().trim().min(1, "Template name is required").max(120),
   description: z.string().trim().max(2000).nullable().optional(),
+  // Library folder to create the template in; validated against a real
+  // WorkflowTemplateFolder row in the route handler.
+  folderId: z.string().nullable().optional(),
   stageTemplates: z.array(stageTemplateSchema),
 });
 
@@ -30,6 +33,8 @@ export const updateWorkflowTemplateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
+  // Move between library folders (null = back to "All templates").
+  folderId: z.string().nullable().optional(),
   // When provided, replaces the entire stages/tasks tree wholesale — templates
   // are edited infrequently, so a full-tree replace is simpler and safer than
   // granular per-stage/per-task CRUD endpoints. Matches the Direct Mail

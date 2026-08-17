@@ -61,10 +61,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A template with that name already exists." }, { status: 409 });
   }
 
+  if (parsed.data.folderId) {
+    const folder = await prisma.workflowTemplateFolder.findUnique({ where: { id: parsed.data.folderId } });
+    if (!folder) {
+      return NextResponse.json({ error: "That folder no longer exists." }, { status: 400 });
+    }
+  }
+
   const template = await prisma.workflowTemplate.create({
     data: {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
+      folderId: parsed.data.folderId ?? null,
       stageTemplates: {
         create: parsed.data.stageTemplates.map((stage, stageIndex) => ({
           name: stage.name,
