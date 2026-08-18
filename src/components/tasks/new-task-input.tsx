@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Lock, Plus } from "lucide-react";
+import { Lock, Plus, Users } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ export function NewTaskInput({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [populateWithClients, setPopulateWithClients] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(assigneeId ? [assigneeId] : []);
   const [client, setClient] = useState(clientId ?? NO_CLIENT);
   const [deadline, setDeadline] = useState("");
@@ -68,6 +69,7 @@ export function NewTaskInput({
     setKind("TASK");
     setSelectedProjectId(null);
     setIsPrivate(false);
+    setPopulateWithClients(false);
     setAssigneeIds(assigneeId ? [assigneeId] : []);
     setClient(clientId ?? NO_CLIENT);
     setDeadline("");
@@ -117,6 +119,17 @@ export function NewTaskInput({
     });
 
     if (response.ok) {
+      // If the "populate with all clients" box was ticked, fire the bulk-populate
+      // endpoint against the newly-created task before refreshing the list.
+      // Never blocks the create — a failure here just leaves the task with no
+      // subtasks (same graceful degradation as every other optional side effect
+      // in this codebase).
+      if (populateWithClients) {
+        const created = (await response.json().catch(() => null)) as { id?: string } | null;
+        if (created?.id) {
+          await fetch(`/api/tasks/${created.id}/subtasks/bulk-populate-clients`, { method: "POST" }).catch(() => null);
+        }
+      }
       resetFields();
       startTransition(() => router.refresh());
     }
@@ -268,6 +281,21 @@ export function NewTaskInput({
           )}
         </div>
       ) : null}
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-md border border-secondary-accent/60 bg-secondary-accent/5 p-2.5 text-sm">
+        <Checkbox
+          checked={populateWithClients}
+          onCheckedChange={(checked) => setPopulateWithClients(checked === true)}
+          className="mt-0.5 size-5 border-2 border-secondary-accent"
+        />
+        <Users className="mt-0.5 size-4 shrink-0 text-secondary-accent" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-secondary-accent">Add every client as a subtask</span>
+          <span className="block text-xs text-muted-foreground">
+            One checkbox per active client — skips ones already listed
+          </span>
+        </span>
+      </label>
 
       <label className="flex cursor-pointer items-center gap-3 rounded-md border border-blue-300 bg-blue-50 p-2.5 text-sm dark:border-blue-800 dark:bg-blue-950/30">
         <Checkbox
