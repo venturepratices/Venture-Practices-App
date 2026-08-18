@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CheckSquare, Copy, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare, Copy, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -88,6 +88,8 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [isPopulatingClients, setIsPopulatingClients] = useState(false);
+  const [populateFeedback, setPopulateFeedback] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
 
@@ -311,6 +313,31 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
       setNewSubtaskTitle("");
       refetchTask();
     }
+  }
+
+  async function populateWithAllClients() {
+    if (!taskId || isPopulatingClients) return;
+    setIsPopulatingClients(true);
+    setPopulateFeedback(null);
+    const response = await fetch(`/api/tasks/${taskId}/subtasks/bulk-populate-clients`, { method: "POST" });
+    setIsPopulatingClients(false);
+    if (!response.ok) {
+      setPopulateFeedback("Couldn't add clients. Try again in a moment.");
+      return;
+    }
+    const result = (await response.json().catch(() => null)) as { addedCount?: number; skippedCount?: number } | null;
+    const added = result?.addedCount ?? 0;
+    const skipped = result?.skippedCount ?? 0;
+    if (added === 0 && skipped === 0) {
+      setPopulateFeedback("No active clients to add.");
+    } else if (added === 0) {
+      setPopulateFeedback(`Already up to date — ${skipped} client${skipped === 1 ? "" : "s"} already listed.`);
+    } else {
+      setPopulateFeedback(
+        `Added ${added} client${added === 1 ? "" : "s"}${skipped > 0 ? ` (${skipped} already listed)` : ""}.`
+      );
+    }
+    router.refresh();
   }
 
   async function toggleSubtask(subtaskId: string, completed: boolean) {
@@ -652,6 +679,34 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                   <Plus className="size-4" />
                 </Button>
               </div>
+              <div className="flex flex-col gap-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-xs sm:text-sm">
+                  <p className="font-medium text-primary">Add all clients as subtasks</p>
+                  <p className="text-xs text-muted-foreground">
+                    One checkbox per active client · skips ones already listed
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={populateWithAllClients}
+                  disabled={isPopulatingClients}
+                  className="w-full shrink-0 sm:w-auto"
+                >
+                  {isPopulatingClients ? (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <Users className="mr-1.5 size-3.5" />
+                  )}
+                  {task.subtasks.length > 0 ? "Add missing clients" : "Add all clients"}
+                </Button>
+              </div>
+              {populateFeedback ? (
+                <p className="text-xs text-muted-foreground" role="status">
+                  {populateFeedback}
+                </p>
+              ) : null}
             </div>
 
             <Separator />
