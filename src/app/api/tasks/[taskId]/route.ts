@@ -23,7 +23,7 @@ const OCCURRENCE_LABELS: Record<string, string> = {
   NON_RECURRING: "Non Recurring",
 };
 
-const TASK_INCLUDE = {
+export const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },

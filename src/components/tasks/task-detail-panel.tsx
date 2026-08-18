@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CheckSquare, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare, Copy, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,6 +89,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -241,6 +242,20 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
       params.delete("taskId");
       const query = params.toString();
       router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      router.refresh();
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!taskId) return;
+    setIsDuplicating(true);
+    const response = await fetch(`/api/tasks/${taskId}/duplicate`, { method: "POST" });
+    setIsDuplicating(false);
+    if (response.ok) {
+      const created = (await response.json()) as TaskDetail;
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("taskId", created.id);
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
       router.refresh();
     }
   }
@@ -722,7 +737,11 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
               </div>
             </div>
 
-            <div className="mt-auto border-t pt-4">
+            <div className="mt-auto flex items-center gap-2 border-t pt-4">
+              <Button variant="outline" onClick={handleDuplicate} disabled={isDuplicating}>
+                {isDuplicating ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
+                {isDuplicating ? "Duplicating..." : "Duplicate"}
+              </Button>
               <Button variant="destructive" onClick={handleDelete}>
                 <Trash2 className="size-4" />
                 Delete task
