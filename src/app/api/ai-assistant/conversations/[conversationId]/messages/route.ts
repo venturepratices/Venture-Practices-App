@@ -8,6 +8,7 @@ import { askViktor } from "@/lib/viktor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const messageSchema = z.object({
   body: z.string().trim().min(1).max(4000),

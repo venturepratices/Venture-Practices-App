@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * The Viktor API key itself lives in VIKTOR_API_KEY (env var), matching how
  * every other agency-wide integration key is stored in this codebase
  * (SLACK_BOT_TOKEN, ANTHROPIC_API_KEY, CREDENTIALS_ENCRYPTION_KEY). The key
- * is generated in Viktor's own dashboard (viktor.com → Developer → API keys)
+ * is generated in Viktor's own dashboard (Settings → API Keys → Generate Key)
  * and pasted into Vercel's environment variables — this page shows the
  * connection status and explains the setup, but never accepts the key here
  * (a paste-into-a-web-form flow would need DB storage + encryption for no
@@ -81,7 +81,7 @@ export default async function AiAssistantSettingsPage() {
                     viktor.com
                     <ExternalLink className="size-3" />
                   </a>{" "}
-                  and open Developer → API keys. Create a new key and copy it.
+                  and open Settings → API Keys. Click &quot;Generate Key&quot; and copy it.
                 </li>
                 <li>
                   In your{" "}
