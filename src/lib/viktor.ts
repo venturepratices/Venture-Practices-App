@@ -33,6 +33,15 @@ export type AskViktorParams = {
   attachments?: { name: string; sizeBytes: number }[];
   /** Viktor's own thread id, once one exists, so a follow-up keeps context. */
   threadId?: string;
+  /**
+   * The team member asking, prefixed onto the message so Viktor knows this
+   * came from inside the PM app (not Slack) and who specifically is asking —
+   * lets it answer person-scoped questions like "what are my tasks" via the
+   * /api/agent/v1/tasks?assigneeName= endpoint. Only prefixed on the first
+   * message of a thread (threadId unset) — a follow-up in the same thread
+   * doesn't need re-introducing.
+   */
+  askerName?: string;
 };
 
 export type AskViktorResult =
@@ -75,16 +84,21 @@ export async function askViktor(params: AskViktorParams): Promise<AskViktorResul
   }
 
   try {
+    const message =
+      !params.threadId && params.askerName
+        ? `[Asked by ${params.askerName}, a team member using the Venture Practices PM app's in-app "Ask Viktor" assistant — not Slack] ${params.question}`
+        : params.question;
+
     const kickoffRes = params.threadId
       ? await fetch(`${VIKTOR_API_BASE}/threads/${params.threadId}/messages`, {
           method: "POST",
           headers: authHeaders(apiKey),
-          body: JSON.stringify({ message: params.question }),
+          body: JSON.stringify({ message }),
         })
       : await fetch(`${VIKTOR_API_BASE}/threads`, {
           method: "POST",
           headers: authHeaders(apiKey),
-          body: JSON.stringify({ message: params.question, speed: "smarter" }),
+          body: JSON.stringify({ message, speed: "smarter" }),
         });
 
     if (!kickoffRes.ok) {

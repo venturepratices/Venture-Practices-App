@@ -72,6 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
     question: parsed.data.body,
     attachments: parsed.data.attachments,
     threadId: conversation.viktorThreadId ?? undefined,
+    askerName: session.user.name ?? undefined,
   });
 
   const assistantBody = result.ok ? result.answer : result.reason;
