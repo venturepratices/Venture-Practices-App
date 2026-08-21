@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAgentToken } from "@/lib/agent-auth";
-import { prisma } from "@/lib/prisma";
+import { listTeam } from "@/lib/agent-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,10 +17,5 @@ export async function GET(request: Request) {
   const unauthorized = requireAgentToken(request);
   if (unauthorized) return unauthorized;
 
-  const team = await prisma.teamMember.findMany({
-    select: { name: true, email: true, isAdmin: true },
-    orderBy: { name: "asc" },
-  });
-
-  return NextResponse.json({ team });
+  return NextResponse.json({ team: await listTeam() });
 }
