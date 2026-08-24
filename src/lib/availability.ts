@@ -62,3 +62,22 @@ export function intervalPositionInDay(interval: Interval, day: Interval): { left
 export function formatTimeInTz(date: Date, timeZone: string): string {
   return date.toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" });
 }
+
+/**
+ * Every "YYYY-MM-DD" calendar date from `startStr` to `endStr` inclusive
+ * (swapped automatically if picked backwards), capped at `maxDays` so a huge
+ * range can't trigger an unbounded query loop. Pure calendar-date math done
+ * in UTC — these are date strings, not zoned instants, so DST never enters
+ * into it (that conversion happens separately, per-date, in dayBoundsInTz).
+ */
+export function datesBetween(startStr: string, endStr: string, maxDays: number): { dates: string[]; truncated: boolean } {
+  const [from, to] = startStr <= endStr ? [startStr, endStr] : [endStr, startStr];
+  const dates: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor.getTime() <= end.getTime() && dates.length < maxDays) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return { dates, truncated: cursor.getTime() <= end.getTime() && dates.length >= maxDays };
+}

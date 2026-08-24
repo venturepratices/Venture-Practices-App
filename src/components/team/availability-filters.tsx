@@ -25,12 +25,17 @@ function detectBrowserTimeZone(): string {
 }
 
 /**
- * Date + from-time + to-time + timezone, synced to URL params
- * (?date=&from=&to=&tz=) so the server page can compute the query window in
- * whichever zone the viewer means — same live-update-on-change pattern as
- * DateRangeFilter. Timezone defaults to the browser's own detected zone
- * (not always Charlotte, NC) since availability is checked by people
- * wherever they actually are.
+ * Date (+ optional "through" date for a range) + from-time + to-time +
+ * timezone, synced to URL params (?date=&through=&from=&to=&tz=) so the
+ * server page can compute the query window in whichever zone the viewer
+ * means — same live-update-on-change pattern as DateRangeFilter. Timezone
+ * defaults to the browser's own detected zone (not always Charlotte, NC)
+ * since availability is checked by people wherever they actually are.
+ *
+ * Leaving "through" blank keeps the original single-day flow (pick a date,
+ * see who's free at the from/to window) untouched. Filling it in switches
+ * the page into the per-person, per-day open-slots view — see
+ * AvailabilityTab in app/(app)/team/page.tsx for the branch.
  */
 export function AvailabilityFilters() {
   const router = useRouter();
@@ -38,6 +43,7 @@ export function AvailabilityFilters() {
   const searchParams = useSearchParams();
 
   const date = searchParams.get("date") ?? "";
+  const through = searchParams.get("through") ?? "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
   const tzParam = searchParams.get("tz");
@@ -69,6 +75,15 @@ export function AvailabilityFilters() {
         value={date}
         onChange={(e) => setParam("date", e.target.value)}
         aria-label="Date"
+        className="h-8 w-[150px]"
+      />
+      <span className="text-sm text-muted-foreground">through</span>
+      <Input
+        type="date"
+        value={through}
+        onChange={(e) => setParam("through", e.target.value)}
+        aria-label="Through date (optional, for a range)"
+        placeholder="optional"
         className="h-8 w-[150px]"
       />
       <span className="text-sm text-muted-foreground">from</span>

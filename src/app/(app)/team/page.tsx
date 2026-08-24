@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, Pencil, Plus, Users } from "lucide-react";
+import { CalendarClock, CalendarRange, Pencil, Plus, Users } from "lucide-react";
 
 import { auth } from "@/lib/auth";
-import { computeFreeSlots, dayBoundsInTz, formatTimeInTz, type Interval } from "@/lib/availability";
+import { computeFreeSlots, datesBetween, dayBoundsInTz, formatTimeInTz, type Interval } from "@/lib/availability";
 import { syncTeamMemberCalendar } from "@/lib/google-calendar";
 import { CAPABILITIES, type Capability } from "@/lib/permission-catalog";
 import { isAdmin } from "@/lib/permissions";
@@ -47,7 +47,15 @@ function hhmmInTz(date: Date, timeZone: string): string {
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; date?: string; from?: string; to?: string; tz?: string; members?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    date?: string;
+    through?: string;
+    from?: string;
+    to?: string;
+    tz?: string;
+    members?: string;
+  }>;
 }) {
   const session = await auth();
   const params = await searchParams;
@@ -235,11 +243,14 @@ async function MembersTab() {
   );
 }
 
+/** How many days a picked range can span before we cap it (see datesBetween). */
+const MAX_RANGE_DAYS = 14;
+
 async function AvailabilityTab({
   params,
   currentUserId,
 }: {
-  params: { date?: string; from?: string; to?: string; tz?: string; members?: string };
+  params: { date?: string; through?: string; from?: string; to?: string; tz?: string; members?: string };
   currentUserId: string | null;
 }) {
   const members = await prisma.teamMember.findMany({
@@ -268,13 +279,19 @@ async function AvailabilityTab({
   const toStr = params.to || "17:00";
   const selectedIds = params.members ? new Set(params.members.split(",")) : null;
 
+  // A "through" date turns this into the range view (below) instead of the
+  // original single-day "who's free at this exact window" view — the two
+  // are mutually exclusive so the original flow's behavior/params are
+  // untouched when "through" is left blank.
+  const isRange = hasDate && !!params.through && params.through !== params.date;
+
   let day: Interval | null = null;
   let searchStart: Date | null = null;
   let searchEnd: Date | null = null;
   const blocksByMember = new Map<string, Interval[]>();
   let freeSlots: Interval[] = [];
 
-  if (hasDate) {
+  if (hasDate && !isRange) {
     day = dayBoundsInTz(params.date!, tz);
     searchStart = zonedDateTime(params.date!, fromStr, tz);
     searchEnd = zonedDateTime(params.date!, toStr, tz);
@@ -295,6 +312,47 @@ async function AvailabilityTab({
     freeSlots = computeFreeSlots(searchStart, searchEnd, consideredBusy, 30).slice(0, 6);
   }
 
+  // Range view: for every day in the range, every connected member's own
+  // free slots within the from/to window that day — the "show me all their
+  // open times" answer, instead of the single-day flow's one busy/available
+  // pill for a slot you'd already have to guess and pick first.
+  let rangeDates: string[] = [];
+  let rangeTruncated = false;
+  const rangeSlotsByMember = new Map<string, { dateStr: string; slots: Interval[] }[]>();
+
+  if (isRange) {
+    const { dates, truncated } = datesBetween(params.date!, params.through!, MAX_RANGE_DAYS);
+    rangeDates = dates;
+    rangeTruncated = truncated;
+
+    const rangeStart = dayBoundsInTz(dates[0], tz).start;
+    const rangeEnd = dayBoundsInTz(dates[dates.length - 1], tz).end;
+    const rangeBlocks = await prisma.teamMemberBusyBlock.findMany({
+      where: { teamMemberId: { in: members.map((m) => m.id) }, startTime: { lt: rangeEnd }, endTime: { gt: rangeStart } },
+      select: { teamMemberId: true, startTime: true, endTime: true },
+    });
+    const rangeBlocksByMember = new Map<string, Interval[]>();
+    for (const block of rangeBlocks) {
+      const list = rangeBlocksByMember.get(block.teamMemberId) ?? [];
+      list.push({ start: block.startTime, end: block.endTime });
+      rangeBlocksByMember.set(block.teamMemberId, list);
+    }
+
+    for (const member of members) {
+      if (!member.calendarConnection) continue;
+      if (selectedIds && !selectedIds.has(member.id)) continue;
+      const theirBlocks = rangeBlocksByMember.get(member.id) ?? [];
+      const perDay = dates.map((dateStr) => {
+        const dayWindowStart = zonedDateTime(dateStr, fromStr, tz);
+        const dayWindowEnd = zonedDateTime(dateStr, toStr, tz);
+        const dayBounds = dayBoundsInTz(dateStr, tz);
+        const blocksThatDay = theirBlocks.filter((b) => b.start < dayBounds.end && b.end > dayBounds.start);
+        return { dateStr, slots: computeFreeSlots(dayWindowStart, dayWindowEnd, blocksThatDay, 30) };
+      });
+      rangeSlotsByMember.set(member.id, perDay);
+    }
+  }
+
   const consideredConnectedCount = members.filter(
     (m) => !!m.calendarConnection && (selectedIds ? selectedIds.has(m.id) : true),
   ).length;
@@ -302,7 +360,8 @@ async function AvailabilityTab({
   return (
     <div className="mt-4 max-w-2xl">
       <p className="text-muted-foreground">
-        Pick a date to see suggested times everyone&apos;s free, or narrow it down manually.
+        Pick a date to see suggested times everyone&apos;s free, or add a &quot;through&quot; date to browse
+        everyone&apos;s open slots across a range without picking a time first.
       </p>
 
       <div className="mt-4 space-y-3">
@@ -310,106 +369,196 @@ async function AvailabilityTab({
         <MemberFilter members={members} />
       </div>
 
-      {hasDate && searchStart && searchEnd ? (
+      {isRange ? (
         <Card className="mt-4">
-        <CardContent>
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <CalendarClock className="size-4" />
-            Suggested times everyone&apos;s free
-          </p>
-          {consideredConnectedCount === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              None of the selected people have connected their Google Calendar yet.
+          <CardContent>
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <CalendarRange className="size-4" />
+              Open slots, {rangeDates[0]} to {rangeDates[rangeDates.length - 1]}
             </p>
-          ) : freeSlots.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              No common free slot found between {fromStr} and {toStr} for the selected people.
-            </p>
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {freeSlots.map((slot, i) => (
-                <Link
-                  key={i}
-                  href={`/team?${new URLSearchParams({
-                    tab: "availability",
-                    date: params.date!,
-                    tz,
-                    ...(params.members ? { members: params.members } : {}),
-                    from: hhmmInTz(slot.start, tz),
-                    to: hhmmInTz(slot.end, tz),
-                  }).toString()}`}
-                  className="rounded-full border border-status-success-foreground/30 bg-status-success/20 px-2.5 py-1 text-xs font-medium text-status-success-foreground hover:bg-status-success/30"
-                >
-                  {formatTimeInTz(slot.start, tz)} – {formatTimeInTz(slot.end, tz)}
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-        </Card>
-      ) : null}
+            {rangeTruncated ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Showing the first {MAX_RANGE_DAYS} days — pick a shorter range to see the rest.
+              </p>
+            ) : null}
 
-      <div className="mt-4 divide-y rounded-lg border">
-        {members.length === 0 ? (
-          <EmptyState icon={Users} title="No team members yet." />
-        ) : (
-          members.map((member, i) => {
-            const connected = !!member.calendarConnection;
-            const theirBlocks = blocksByMember.get(member.id) ?? [];
-            const busyInWindow = hasDate && connected && theirBlocks.some((b) => b.start < searchEnd! && b.end > searchStart!);
-            const isMe = member.id === currentUserId;
+            {consideredConnectedCount === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                None of the selected people have connected their Google Calendar yet.
+              </p>
+            ) : (
+              <div className="mt-3 divide-y">
+                {members
+                  .filter((m) => !selectedIds || selectedIds.has(m.id))
+                  .map((member) => {
+                    const connected = !!member.calendarConnection;
+                    const isMe = member.id === currentUserId;
+                    const perDay = rangeSlotsByMember.get(member.id) ?? [];
 
-            let pill: { tone: "success" | "danger" | "neutral"; label: string };
-            if (!hasDate) pill = { tone: "neutral", label: connected ? "Connected" : "Not connected" };
-            else if (!connected) pill = { tone: "neutral", label: "Not connected" };
-            else if (busyInWindow) pill = { tone: "danger", label: "Busy" };
-            else pill = { tone: "success", label: "Available" };
+                    return (
+                      <div key={member.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                            {initialsOf(member.name)}
+                          </div>
+                          <p className="font-medium">
+                            {member.name}
+                            {isMe ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span> : null}
+                          </p>
+                          {!connected ? (
+                            <span className="text-xs text-muted-foreground">
+                              Not connected
+                              {isMe ? (
+                                <>
+                                  {" · "}
+                                  <Link href="/settings/calendar" className="text-primary underline-offset-4 hover:underline">
+                                    Connect
+                                  </Link>
+                                </>
+                              ) : null}
+                            </span>
+                          ) : null}
+                        </div>
 
-            const row = (
-              <div
-                style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
-                className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-                    {initialsOf(member.name)}
-                  </div>
-                  <p className="font-medium">
-                    {member.name}
-                    {isMe ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span> : null}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {isMe && !connected ? (
-                    <Link
-                      href="/settings/calendar"
-                      className="text-xs text-primary underline-offset-4 hover:underline"
-                    >
-                      Connect
-                    </Link>
-                  ) : null}
-                  <StatusPillBase tone={pill.tone} label={pill.label} />
-                </div>
+                        {connected ? (
+                          <div className="mt-2 space-y-1.5 pl-12">
+                            {perDay.map(({ dateStr, slots }) => (
+                              <div key={dateStr} className="flex flex-wrap items-center gap-1.5">
+                                <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                                  {new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("en-US", {
+                                    timeZone: "UTC",
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                                {slots.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground">No open slots</span>
+                                ) : (
+                                  slots.map((slot, i) => (
+                                    <span
+                                      key={i}
+                                      className="rounded-full border border-status-success-foreground/30 bg-status-success/20 px-2 py-0.5 text-xs font-medium text-status-success-foreground"
+                                    >
+                                      {formatTimeInTz(slot.start, tz)} – {formatTimeInTz(slot.end, tz)}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
               </div>
-            );
-
-            if (!hasDate || !connected || !day) {
-              return <div key={member.id}>{row}</div>;
-            }
-
-            return (
-              <details key={member.id} className="group">
-                <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">{row}</summary>
-                <div className="px-4 pb-3">
-                  <AvailabilityDayTimeline day={day} busyBlocks={theirBlocks} />
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {hasDate && searchStart && searchEnd ? (
+            <Card className="mt-4">
+            <CardContent>
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <CalendarClock className="size-4" />
+                Suggested times everyone&apos;s free
+              </p>
+              {consideredConnectedCount === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  None of the selected people have connected their Google Calendar yet.
+                </p>
+              ) : freeSlots.length === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No common free slot found between {fromStr} and {toStr} for the selected people.
+                </p>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {freeSlots.map((slot, i) => (
+                    <Link
+                      key={i}
+                      href={`/team?${new URLSearchParams({
+                        tab: "availability",
+                        date: params.date!,
+                        tz,
+                        ...(params.members ? { members: params.members } : {}),
+                        from: hhmmInTz(slot.start, tz),
+                        to: hhmmInTz(slot.end, tz),
+                      }).toString()}`}
+                      className="rounded-full border border-status-success-foreground/30 bg-status-success/20 px-2.5 py-1 text-xs font-medium text-status-success-foreground hover:bg-status-success/30"
+                    >
+                      {formatTimeInTz(slot.start, tz)} – {formatTimeInTz(slot.end, tz)}
+                    </Link>
+                  ))}
                 </div>
-              </details>
-            );
-          })
-        )}
-      </div>
+              )}
+            </CardContent>
+            </Card>
+          ) : null}
 
-      {!hasDate ? <p className="mt-4 text-sm text-muted-foreground">Pick a date above to see who&apos;s free.</p> : null}
+          <div className="mt-4 divide-y rounded-lg border">
+            {members.length === 0 ? (
+              <EmptyState icon={Users} title="No team members yet." />
+            ) : (
+              members.map((member, i) => {
+                const connected = !!member.calendarConnection;
+                const theirBlocks = blocksByMember.get(member.id) ?? [];
+                const busyInWindow = hasDate && connected && theirBlocks.some((b) => b.start < searchEnd! && b.end > searchStart!);
+                const isMe = member.id === currentUserId;
+
+                let pill: { tone: "success" | "danger" | "neutral"; label: string };
+                if (!hasDate) pill = { tone: "neutral", label: connected ? "Connected" : "Not connected" };
+                else if (!connected) pill = { tone: "neutral", label: "Not connected" };
+                else if (busyInWindow) pill = { tone: "danger", label: "Busy" };
+                else pill = { tone: "success", label: "Available" };
+
+                const row = (
+                  <div
+                    style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+                    className="flex animate-in items-center justify-between gap-3 fade-in slide-in-from-bottom-1 px-4 py-3 duration-300"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                        {initialsOf(member.name)}
+                      </div>
+                      <p className="font-medium">
+                        {member.name}
+                        {isMe ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span> : null}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isMe && !connected ? (
+                        <Link
+                          href="/settings/calendar"
+                          className="text-xs text-primary underline-offset-4 hover:underline"
+                        >
+                          Connect
+                        </Link>
+                      ) : null}
+                      <StatusPillBase tone={pill.tone} label={pill.label} />
+                    </div>
+                  </div>
+                );
+
+                if (!hasDate || !connected || !day) {
+                  return <div key={member.id}>{row}</div>;
+                }
+
+                return (
+                  <details key={member.id} className="group">
+                    <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">{row}</summary>
+                    <div className="px-4 pb-3">
+                      <AvailabilityDayTimeline day={day} busyBlocks={theirBlocks} />
+                    </div>
+                  </details>
+                );
+              })
+            )}
+          </div>
+
+          {!hasDate ? <p className="mt-4 text-sm text-muted-foreground">Pick a date above to see who&apos;s free.</p> : null}
+        </>
+      )}
     </div>
   );
 }
