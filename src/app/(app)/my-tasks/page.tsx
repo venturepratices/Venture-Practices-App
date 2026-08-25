@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
-import { endOfDay } from "@/lib/utils";
+import { endOfDay, todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
@@ -154,8 +154,15 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     return qs ? `/my-tasks?${qs}` : "/my-tasks";
   }
 
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  // Must be computed in the app's own timezone (America/New_York), not the
+  // server's local time — Vercel's Node runtime defaults to UTC, and a
+  // raw `new Date().setHours(23,59,59,999)` would resolve "today" and
+  // "end of day" against UTC's calendar day instead. Since Eastern's day
+  // always ends before UTC's, any task due later in the Eastern afternoon/
+  // evening was already past that naive cutoff and got silently dropped
+  // from My Day, even though it correctly showed as "due today" everywhere
+  // else on this same page (found via a real user report + Sentry).
+  const endOfToday = endOfDay(todayDateString());
   const myDayTasks = allAssignedTasks
     .filter((task) => !task.statusOption.isComplete && task.deadline && new Date(task.deadline) <= endOfToday)
     .sort((a, b) => (a.deadline && b.deadline ? +new Date(a.deadline) - +new Date(b.deadline) : 0));

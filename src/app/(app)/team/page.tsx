@@ -44,21 +44,35 @@ function hhmmInTz(date: Date, timeZone: string): string {
   return date.toLocaleTimeString("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+/**
+ * Next.js hands a repeated query key (e.g. a bad/doubled-up link with
+ * `?tz=UTC&tz=America/New_York`) to a Server Component as a string[], not a
+ * string — even though our own prop types below narrow it to `string`. Left
+ * unguarded, that array flows straight into Intl.DateTimeFormat's timeZone
+ * option (via zonedDateTime/formatTimeInTz) and throws, crashing the whole
+ * page for whoever clicked that link (caught via a real Sentry report).
+ * Every raw query value is run through this before use.
+ */
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    tab?: string;
-    date?: string;
-    through?: string;
-    from?: string;
-    to?: string;
-    tz?: string;
-    members?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await auth();
-  const params = await searchParams;
+  const rawParams = await searchParams;
+  const params = {
+    tab: firstParam(rawParams.tab),
+    date: firstParam(rawParams.date),
+    through: firstParam(rawParams.through),
+    from: firstParam(rawParams.from),
+    to: firstParam(rawParams.to),
+    tz: firstParam(rawParams.tz),
+    members: firstParam(rawParams.members),
+  };
   const admin = await isAdmin();
   const tab = admin && params.tab === "availability" ? "availability" : admin ? "members" : "availability";
 
