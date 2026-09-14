@@ -97,7 +97,7 @@ export function TeamMemberFormDialog(props: Props) {
               <Input id="email" name="email" type="email" required defaultValue={isEdit ? props.defaultEmail : undefined} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="slackUserId">Slack member ID (optional)</Label>
+              <Label htmlFor="slackUserId">Slack member ID or channel ID (optional)</Label>
               <Input
                 id="slackUserId"
                 name="slackUserId"
@@ -106,7 +106,9 @@ export function TeamMemberFormDialog(props: Props) {
               />
               <p className="text-xs text-muted-foreground">
                 Notifications DM this person on Slack automatically by matching their email. If their Slack account uses a
-                different email, paste their Slack Member ID here (their Slack profile → &quot;...&quot; → &quot;Copy member ID&quot;).
+                different email, paste their Slack Member ID here — or paste a channel ID instead to route their
+                notifications there (their Slack profile or channel name → &quot;...&quot; → &quot;Copy member ID&quot; /
+                &quot;Copy channel ID&quot;). They can also change this themselves anytime under Settings → Notifications.
               </p>
             </div>
             <div className="space-y-2">

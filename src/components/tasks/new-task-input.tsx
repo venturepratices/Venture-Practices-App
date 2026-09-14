@@ -11,14 +11,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { PriorityPill } from "@/components/tasks/priority-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
-import { resolveStatusOption } from "@/lib/task-status-utils";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
+import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
 
 const NO_CLIENT = "__none__";
+const NO_PRIORITY = "__none__";
 
 type Props = {
   clientId?: string | null;
@@ -31,6 +33,7 @@ type Props = {
   workflowInstanceId?: string | null;
   workflowStageNumber?: number | null;
   statusOptions?: StatusOptionLite[];
+  priorityLevelOptions?: PriorityLevelOptionLite[];
 };
 
 export function NewTaskInput({
@@ -44,11 +47,13 @@ export function NewTaskInput({
   workflowInstanceId,
   workflowStageNumber,
   statusOptions = [],
+  priorityLevelOptions = [],
 }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("NEXT_UP");
+  const [priorityLevelId, setPriorityLevelId] = useState(NO_PRIORITY);
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
   const [kind, setKind] = useState("TASK");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -65,6 +70,7 @@ export function NewTaskInput({
     setTitle("");
     setDescription("");
     setStatus("NEXT_UP");
+    setPriorityLevelId(NO_PRIORITY);
     setOccurrence("NON_RECURRING");
     setKind("TASK");
     setSelectedProjectId(null);
@@ -103,6 +109,7 @@ export function NewTaskInput({
         clientId: lockClient ? clientId ?? null : client === NO_CLIENT ? null : client,
         assigneeIds,
         status,
+        priorityLevelId: priorityLevelId === NO_PRIORITY ? null : priorityLevelId,
         occurrence,
         kind,
         isPrivate,
@@ -187,6 +194,31 @@ export function NewTaskInput({
               {statusOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   <StatusPill option={option} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Priority</Label>
+          <Select value={priorityLevelId} onValueChange={(value) => value && setPriorityLevelId(value)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue>
+                {(value: string) =>
+                  value === NO_PRIORITY ? (
+                    "No priority"
+                  ) : (
+                    <PriorityPill option={resolvePriorityLevelOption(priorityLevelOptions, value) ?? { label: value, color: "#71717a" }} />
+                  )
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
+              {priorityLevelOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  <PriorityPill option={option} />
                 </SelectItem>
               ))}
             </SelectContent>

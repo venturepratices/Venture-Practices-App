@@ -8,8 +8,10 @@ export function StatusPill({
   option,
   className,
 }: {
-  option: { label: string; tone: string };
+  option: { label: string; tone: string; color?: string | null };
   className?: string;
 }) {
-  return <StatusPillBase tone={option.tone as StatusTone} label={option.label} className={className} />;
+  return (
+    <StatusPillBase tone={option.tone as StatusTone} color={option.color} label={option.label} className={className} />
+  );
 }

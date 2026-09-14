@@ -7,9 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { PriorityPill } from "@/components/tasks/priority-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_KIND_LABELS } from "@/lib/validations/task";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { resolveStatusOption } from "@/lib/task-status-utils";
 import { stripHtml } from "@/lib/text-format";
 import { cn, formatDate } from "@/lib/utils";
@@ -20,6 +21,12 @@ import type { TaskWithRelations } from "@/types/task";
 // when showClient is on (the per-client Tasks tab never shows its own name).
 // defaultWidth is a starting point only — the user can drag each column
 // wider (or narrower) and that preference persists (see useColumnWidths).
+// Order here defines left-to-right column order in the grid — "Priority" is
+// deliberately last so it sits immediately beside the (always-shown, fixed)
+// Status pill at the end of the row. "Date created" defaults to hidden (see
+// DEFAULT_HIDDEN_COLUMNS below) to make room for it without widening the
+// row — still toggleable back on via the Columns menu, just not shown by
+// default.
 const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number; clientOnly?: boolean }[] = [
   { key: "client", label: "Client", defaultWidth: 120, clientOnly: true },
   { key: "due", label: "Due", defaultWidth: 110 },
@@ -27,9 +34,14 @@ const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number; clie
   { key: "relatedTo", label: "Related to", defaultWidth: 150 },
   { key: "createdBy", label: "Created by", defaultWidth: 120 },
   { key: "dateCreated", label: "Date created", defaultWidth: 110 },
+  { key: "priority", label: "Priority", defaultWidth: 110 },
 ];
 
 export const TASK_COLUMN_KEYS = OPTIONAL_COLUMNS.map((c) => c.key);
+
+export const DEFAULT_HIDDEN_COLUMNS = ["dateCreated"];
+
+const NO_PRIORITY = "__none__";
 
 export function taskColumnsFor(showClient?: boolean) {
   return OPTIONAL_COLUMNS.filter((c) => !c.clientOnly || showClient);
@@ -100,12 +112,25 @@ type Props = {
   // callers that never let a task's status be changed inline can omit it —
   // the dropdown just won't render a full set of choices in that case.
   statusOptions?: StatusOptionLite[];
+  // Same deal for the inline priority-change dropdown (the Priority column).
+  priorityLevelOptions?: PriorityLevelOptionLite[];
   // Stagger delay for the entrance animation, in ms — callers rendering a
   // list pass index * 40 (capped) for a quick top-to-bottom ripple.
   delayMs?: number;
 };
 
-export function TaskRow({ task, showClient, visibleColumns, widths, selectable, selected, onToggleSelect, statusOptions = [], delayMs }: Props) {
+export function TaskRow({
+  task,
+  showClient,
+  visibleColumns,
+  widths,
+  selectable,
+  selected,
+  onToggleSelect,
+  statusOptions = [],
+  priorityLevelOptions = [],
+  delayMs,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -131,6 +156,17 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
+    });
+    router.refresh();
+  }
+
+  async function updatePriority(value: string | null) {
+    const priorityLevelId = !value || value === NO_PRIORITY ? null : value;
+    if (priorityLevelId === (task.priorityLevelId ?? null)) return;
+    await fetch(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priorityLevelId }),
     });
     router.refresh();
   }
@@ -168,6 +204,7 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
         <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
           {[
             showClient ? task.client?.name ?? null : null,
+            task.priorityLevel ? task.priorityLevel.label : null,
             task.deadline ? `Due ${formatDate(task.deadline)}` : null,
             assigneeNames,
             kindLabel,
@@ -212,6 +249,31 @@ export function TaskRow({ task, showClient, visibleColumns, widths, selectable, 
       {isVisible("dateCreated") ? (
         <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">
           {formatDate(task.createdAt)}
+        </span>
+      ) : null}
+      {isVisible("priority") ? (
+        <span onClick={(e) => e.stopPropagation()} className="hidden min-w-0 justify-self-start md:block">
+          <Select value={task.priorityLevelId ?? NO_PRIORITY} onValueChange={updatePriority}>
+            <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">
+              <SelectValue>
+                {() =>
+                  task.priorityLevel ? (
+                    <PriorityPill option={task.priorityLevel} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
+              {priorityLevelOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  <PriorityPill option={option} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </span>
       ) : null}
       <span onClick={(e) => e.stopPropagation()} className="min-w-0 justify-self-start">

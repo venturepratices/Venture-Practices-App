@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, ListTodo, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, Settings, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -43,9 +43,9 @@ const AGENCY_LINKS = [
     needs: "canManageOrders" as const,
   },
   {
-    href: "/settings/task-statuses",
-    label: "Task Statuses",
-    icon: ListTodo,
+    href: "/settings",
+    label: "Settings",
+    icon: Settings,
     adminOnly: true,
   },
 ];

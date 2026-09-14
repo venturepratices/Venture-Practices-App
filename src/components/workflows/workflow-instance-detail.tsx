@@ -10,7 +10,7 @@ import { WorkflowSummaryCard } from "@/components/workflows/workflow-summary-car
 import { NewTaskInput } from "@/components/tasks/new-task-input";
 import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import { StatusPillBase } from "@/components/ui/status-pill";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import type { StagesSnapshot } from "@/lib/workflow-instance";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -25,7 +25,8 @@ export type WorkflowInstanceDetailData = Prisma.WorkflowInstanceGetPayload<{
         client: { select: { id: true; name: true } };
         createdBy: { select: { id: true; name: true } };
         workflowInstance: { select: { id: true; name: true } };
-        statusOption: { select: { id: true; label: true; tone: true; isComplete: true } };
+        statusOption: { select: { id: true; label: true; tone: true; color: true; isComplete: true } };
+        priorityLevel: { select: { id: true; label: true; color: true } };
       };
     };
   };
@@ -47,6 +48,7 @@ export function WorkflowInstanceDetail({
   folders = [],
   recentActivity = [],
   statusOptions = [],
+  priorityLevelOptions = [],
 }: {
   instance: WorkflowInstanceDetailData;
   canManage: boolean;
@@ -57,6 +59,7 @@ export function WorkflowInstanceDetail({
   folders?: { id: string; name: string }[];
   recentActivity?: { id: string; description: string; createdAt: Date }[];
   statusOptions?: StatusOptionLite[];
+  priorityLevelOptions?: PriorityLevelOptionLite[];
 }) {
   const snapshot = instance.stagesSnapshot as StagesSnapshot;
   const tasksByStage = instance.tasks.reduce<Record<number, typeof instance.tasks>>((acc, task) => {
@@ -135,7 +138,7 @@ export function WorkflowInstanceDetail({
                       <TaskListHeader />
                       <div className="divide-y px-1.5">
                         {stageTasks.map((task) => (
-                          <TaskRow key={task.id} task={task} statusOptions={statusOptions} />
+                          <TaskRow key={task.id} task={task} statusOptions={statusOptions} priorityLevelOptions={priorityLevelOptions} />
                         ))}
                       </div>
                     </>
@@ -152,6 +155,7 @@ export function WorkflowInstanceDetail({
                       workflowInstanceId={instance.id}
                       workflowStageNumber={stage.sequenceNumber}
                       statusOptions={statusOptions}
+                      priorityLevelOptions={priorityLevelOptions}
                     />
                   </div>
                 ) : null}

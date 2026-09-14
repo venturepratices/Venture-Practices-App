@@ -13,6 +13,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 function PrefRow({
@@ -42,17 +44,29 @@ function PrefRow({
   );
 }
 
-export function NotificationPreferencesForm({ initial }: { initial: NotificationPreferences }) {
+export function NotificationPreferencesForm({
+  initial,
+  slackDestinationInitial,
+}: {
+  initial: NotificationPreferences;
+  slackDestinationInitial: string | null;
+}) {
   const router = useRouter();
   const [prefs, setPrefs] = useState<NotificationPreferences>(initial);
   const [saved, setSaved] = useState<NotificationPreferences>(initial);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [slackDestination, setSlackDestination] = useState(slackDestinationInitial ?? "");
+  const [savedSlackDestination, setSavedSlackDestination] = useState(slackDestinationInitial ?? "");
+  const [savingDestination, setSavingDestination] = useState(false);
+  const [destinationSaveError, setDestinationSaveError] = useState<string | null>(null);
+
   const [testState, setTestState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
 
   const dirty = JSON.stringify(prefs) !== JSON.stringify(saved);
+  const destinationDirty = slackDestination.trim() !== savedSlackDestination.trim();
 
   function setSlackEnabled(value: boolean) {
     setPrefs((p) => ({ ...p, slackEnabled: value }));
@@ -89,6 +103,28 @@ export function NotificationPreferencesForm({ initial }: { initial: Notification
     }
   }
 
+  async function handleSaveDestination() {
+    setSavingDestination(true);
+    setDestinationSaveError(null);
+    try {
+      const trimmed = slackDestination.trim();
+      const res = await fetch("/api/me/slack-destination", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slackUserId: trimmed || null }),
+      });
+      if (!res.ok) {
+        setDestinationSaveError("Failed to save. Try again.");
+        return;
+      }
+      setSlackDestination(trimmed);
+      setSavedSlackDestination(trimmed);
+      router.refresh();
+    } finally {
+      setSavingDestination(false);
+    }
+  }
+
   async function handleTestDm() {
     setTestState("sending");
     setTestError(null);
@@ -117,6 +153,37 @@ export function NotificationPreferencesForm({ initial }: { initial: Notification
             checked={prefs.slackEnabled}
             onChange={setSlackEnabled}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Label htmlFor="slackDestination" className="text-sm font-semibold">
+            Where on Slack
+          </Label>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
+            By default we match your Slack account by email. Want your notifications somewhere else instead — your
+            own Slack ID, or a channel you pick? Paste it here; change it back anytime.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              id="slackDestination"
+              value={slackDestination}
+              onChange={(e) => setSlackDestination(e.target.value)}
+              placeholder="Leave blank to auto-match by email"
+              className="max-w-xs"
+            />
+            <Button onClick={handleSaveDestination} disabled={!destinationDirty || savingDestination} size="sm" variant="outline">
+              {savingDestination ? <Loader2 className="size-4 animate-spin" /> : null}
+              Update
+            </Button>
+          </div>
+          {destinationSaveError ? <p className="mt-1.5 text-xs text-destructive">{destinationSaveError}</p> : null}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Your own Slack ID DMs you personally; a channel ID posts your notifications there instead. Find either
+            one in Slack: profile or channel name → &quot;...&quot; → &quot;Copy member ID&quot; / &quot;Copy channel
+            ID&quot;. For a private channel, make sure the bot is invited to it first.
+          </p>
         </CardContent>
       </Card>
 

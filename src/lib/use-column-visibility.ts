@@ -6,10 +6,13 @@ import { useEffect, useState } from "react";
  * Personal, per-browser column-visibility preference for a list view.
  * Persisted to localStorage (not the URL/DB) since it's display-only and
  * shouldn't affect what gets shared via a link. Falls back to "everything
- * visible" until localStorage is read on mount, so SSR/CSR markup matches.
+ * visible except defaultHiddenKeys" until localStorage is read on mount, so
+ * SSR/CSR markup matches.
  */
-export function useColumnVisibility(storageKey: string, allKeys: string[]) {
-  const [visible, setVisible] = useState<Set<string>>(() => new Set(allKeys));
+export function useColumnVisibility(storageKey: string, allKeys: string[], defaultHiddenKeys: string[] = []) {
+  const [visible, setVisible] = useState<Set<string>>(
+    () => new Set(allKeys.filter((key) => !defaultHiddenKeys.includes(key)))
+  );
 
   useEffect(() => {
     try {

@@ -15,7 +15,7 @@ export default async function NotificationSettingsPage() {
 
   const me = await prisma.teamMember.findUnique({
     where: { id: perms.userId },
-    select: { notificationPreferences: true },
+    select: { notificationPreferences: true, slackUserId: true },
   });
   const prefsInitial = parseNotificationPreferences(me?.notificationPreferences ?? null);
 
@@ -76,7 +76,12 @@ export default async function NotificationSettingsPage() {
       </div>
 
       <div className="mt-6">
-        <NotificationSettingsTabs prefsInitial={prefsInitial} isAdmin={perms.isAdmin} connections={connections} />
+        <NotificationSettingsTabs
+          prefsInitial={prefsInitial}
+          slackDestinationInitial={me?.slackUserId ?? null}
+          isAdmin={perms.isAdmin}
+          connections={connections}
+        />
       </div>
     </div>
   );

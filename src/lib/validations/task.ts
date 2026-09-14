@@ -38,6 +38,9 @@ export const createTaskSchema = z.object({
   // Validated against the live TaskStatusOption table inside the route
   // handler, not a fixed enum — admins can add/rename statuses at runtime.
   status: z.string().trim().min(1).optional(),
+  // Independent of status — validated against the live PriorityLevelOption
+  // table inside the route handler. Nullable: most tasks have no priority.
+  priorityLevelId: z.string().trim().min(1).nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
@@ -58,6 +61,7 @@ export const updateTaskSchema = z.object({
   clientId: z.string().nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
   status: z.string().trim().min(1).optional(),
+  priorityLevelId: z.string().trim().min(1).nullable().optional(),
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),

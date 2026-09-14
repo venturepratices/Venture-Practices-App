@@ -6,6 +6,7 @@ import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { mentionOrName } from "@/lib/slack";
+import { isValidPriorityLevelId } from "@/lib/priority-level";
 import { isValidStatusId } from "@/lib/task-status";
 import { stripHtml } from "@/lib/text-format";
 import { deadlineLine, formatDate } from "@/lib/utils";
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
 
   if (parsed.data.status && !(await isValidStatusId(parsed.data.status))) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  }
+  if (parsed.data.priorityLevelId && !(await isValidPriorityLevelId(parsed.data.priorityLevelId))) {
+    return NextResponse.json({ error: "Invalid priority level" }, { status: 400 });
   }
 
   if (parsed.data.workflowInstanceId) {
@@ -94,6 +98,7 @@ export async function POST(request: Request) {
       isPrivate: parsed.data.isPrivate ?? false,
       createdById: session.user.id,
       ...(parsed.data.status ? { statusId: parsed.data.status } : {}),
+      ...(parsed.data.priorityLevelId !== undefined ? { priorityLevelId: parsed.data.priorityLevelId } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },

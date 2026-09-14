@@ -81,10 +81,12 @@ function NotificationTypesReference() {
 
 export function NotificationSettingsTabs({
   prefsInitial,
+  slackDestinationInitial,
   isAdmin,
   connections,
 }: {
   prefsInitial: NotificationPreferences;
+  slackDestinationInitial: string | null;
   isAdmin: boolean;
   connections?: { health: ConnectionsHealth; teamMembers: ConnectionsTeamMember[]; clients: ConnectionsClient[] };
 }) {
@@ -125,7 +127,9 @@ export function NotificationSettingsTabs({
       </nav>
 
       <div className="min-w-0 flex-1">
-        {tab === "prefs" ? <NotificationPreferencesForm initial={prefsInitial} /> : null}
+        {tab === "prefs" ? (
+          <NotificationPreferencesForm initial={prefsInitial} slackDestinationInitial={slackDestinationInitial} />
+        ) : null}
         {tab === "types" ? <NotificationTypesReference /> : null}
         {tab === "connect" && isAdmin && connections ? (
           <NotificationConnectionsPanel

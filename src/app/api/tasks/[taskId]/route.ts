@@ -11,8 +11,10 @@ import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
 import { mentionOrName } from "@/lib/slack";
 import { deadlineLine, formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
+import { isValidPriorityLevelId } from "@/lib/priority-level";
 import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
-import { statusLabelMap } from "@/lib/task-status-utils";
+import { priorityLevelLabelMap, statusLabelMap } from "@/lib/task-status-utils";
+import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { updateTaskSchema } from "@/lib/validations/task";
 
 const OCCURRENCE_LABELS: Record<string, string> = {
@@ -27,7 +29,8 @@ export const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
-  statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+  statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
+  priorityLevel: { select: { id: true, label: true, color: true } },
   comments: {
     include: { author: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" as const },
@@ -94,8 +97,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
   if (parsed.data.status && !(await isValidStatusId(parsed.data.status))) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
+  if (parsed.data.priorityLevelId && !(await isValidPriorityLevelId(parsed.data.priorityLevelId))) {
+    return NextResponse.json({ error: "Invalid priority level" }, { status: 400 });
+  }
 
-  const { deadline, assigneeIds, isPrivate, status, ...rest } = parsed.data;
+  const { deadline, assigneeIds, isPrivate, status, priorityLevelId, ...rest } = parsed.data;
   // Only the task's creator may toggle Private — a non-creator's isPrivate
   // value in the request body is silently ignored rather than rejected, so
   // an otherwise-valid edit from a non-creator doesn't fail outright.
@@ -105,6 +111,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     data: {
       ...rest,
       ...(status ? { statusId: status } : {}),
+      ...(priorityLevelId !== undefined ? { priorityLevelId } : {}),
       ...(isPrivate !== undefined && canTogglePrivacy ? { isPrivate } : {}),
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
       ...(assigneeIds !== undefined
@@ -157,6 +164,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
           linkPath,
         });
       }
+    }
+    if (priorityLevelId !== undefined && priorityLevelId !== before.priorityLevelId) {
+      const priorityLabels = priorityLevelLabelMap(await getPriorityLevelOptions());
+      const newPriorityLabel = priorityLevelId ? (priorityLabels[priorityLevelId] ?? priorityLevelId) : "No priority";
+      changes.push(`priority changed to ${newPriorityLabel}`);
     }
     if (assigneeIds !== undefined) {
       const beforeIds = new Set(before.assignees.map((a) => a.teamMemberId));

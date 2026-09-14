@@ -14,6 +14,7 @@ import { endOfDay, startOfDay, todayDateString } from "@/lib/utils";
 export type TaskFilterParams = {
   q?: string;
   status?: string;
+  priorityLevelId?: string;
   clientId?: string;
   assigneeId?: string;
   occurrence?: string;
@@ -28,6 +29,7 @@ export type TaskFilterParams = {
 export const TASK_FILTER_PARAM_KEYS = [
   "q",
   "status",
+  "priorityLevelId",
   "clientId",
   "assigneeId",
   "occurrence",
@@ -58,6 +60,9 @@ export function buildTaskFilterWhere(
     // since statuses are admin-editable.
     filters.statusId = { not: completeStatusId };
   }
+
+  if (params.priorityLevelId === "NONE") filters.priorityLevelId = null;
+  else if (params.priorityLevelId) filters.priorityLevelId = params.priorityLevelId;
 
   if (params.clientId === "NONE") filters.clientId = null;
   else if (params.clientId) filters.clientId = params.clientId;

@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { SearchInput } from "@/components/search-input";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { PriorityPill } from "@/components/tasks/priority-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
-import { resolveStatusOption } from "@/lib/task-status-utils";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
+import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
 
 const ALL = "ALL";
 const NO_CLIENT = "NONE";
+const NO_PRIORITY = "NONE";
 const UNASSIGNED = "UNASSIGNED";
 
 const DEADLINE_LABELS: Record<string, string> = {
@@ -26,6 +28,7 @@ const DEADLINE_LABELS: Record<string, string> = {
 
 export const TASK_FILTER_KEYS = [
   "status",
+  "priorityLevelId",
   "clientId",
   "assigneeId",
   "occurrence",
@@ -43,6 +46,7 @@ type Props = {
   clients: { id: string; name: string }[];
   teamMembers: { id: string; name: string }[];
   statusOptions?: StatusOptionLite[];
+  priorityLevelOptions?: PriorityLevelOptionLite[];
   /** Set on a single client's Tasks tab, where a client dropdown would list exactly one option. */
   hideClientFilter?: boolean;
   searchPlaceholder?: string;
@@ -52,6 +56,7 @@ export function TaskFilters({
   clients,
   teamMembers,
   statusOptions = [],
+  priorityLevelOptions = [],
   hideClientFilter = false,
   searchPlaceholder = "Search tasks...",
 }: Props) {
@@ -60,6 +65,7 @@ export function TaskFilters({
   const searchParams = useSearchParams();
 
   const status = searchParams.get("status") ?? ALL;
+  const priorityLevelId = searchParams.get("priorityLevelId") ?? ALL;
   const clientId = searchParams.get("clientId") ?? ALL;
   const assigneeId = searchParams.get("assigneeId") ?? ALL;
   const occurrence = searchParams.get("occurrence") ?? ALL;
@@ -67,7 +73,7 @@ export function TaskFilters({
   const deadline = searchParams.get("deadline") ?? ALL;
 
   const activeFilterCount =
-    [status, clientId, assigneeId, occurrence, kind, deadline].filter((v) => v !== ALL).length +
+    [status, priorityLevelId, clientId, assigneeId, occurrence, kind, deadline].filter((v) => v !== ALL).length +
     (searchParams.get("deadlineFrom") || searchParams.get("deadlineTo") ? 1 : 0) +
     // Counted so "Clear filters" appears when a stat card is the only thing
     // filtering — otherwise there'd be no way to switch it off from the bar.
@@ -110,6 +116,29 @@ export function TaskFilters({
           {statusOptions.map((option) => (
             <SelectItem key={option.id} value={option.id}>
               <StatusPill option={option} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={priorityLevelId} onValueChange={(value) => setParam("priorityLevelId", value)}>
+        <SelectTrigger className="w-full sm:w-[150px]">
+          <SelectValue>
+            {(value: string) =>
+              value === ALL
+                ? "All priorities"
+                : value === NO_PRIORITY
+                  ? "No priority"
+                  : <PriorityPill option={resolvePriorityLevelOption(priorityLevelOptions, value) ?? { label: value, color: "#71717a" }} />
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All priorities</SelectItem>
+          <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
+          {priorityLevelOptions.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              <PriorityPill option={option} />
             </SelectItem>
           ))}
         </SelectContent>

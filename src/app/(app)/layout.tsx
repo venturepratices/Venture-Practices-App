@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
+import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
@@ -13,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   const perms = await loadPermissions();
   const clientWhere = await accessibleClientFilter("id");
-  const [clients, teamMembers, unreadCount, statusOptions] = await Promise.all([
+  const [clients, teamMembers, unreadCount, statusOptions, priorityLevelOptions] = await Promise.all([
     // Sidebar client list scoped to what this user may access.
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -21,6 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? prisma.notification.count({ where: { recipientId: session.user.id, readAt: null } })
       : Promise.resolve(0),
     getTaskStatusOptions(),
+    getPriorityLevelOptions(),
   ]);
 
   return (
@@ -48,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             teamMembers={teamMembers}
             currentUserId={session?.user?.id ?? null}
             statusOptions={statusOptions}
+            priorityLevelOptions={priorityLevelOptions}
           />
         </Suspense>
       </div>

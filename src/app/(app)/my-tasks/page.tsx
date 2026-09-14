@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
+import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { endOfDay, todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,8 @@ const TASK_INCLUDE = {
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   workflowInstance: { select: { id: true, name: true } },
-  statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+  statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
+  priorityLevel: { select: { id: true, label: true, color: true } },
 } as const;
 
 export default async function MyTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -94,7 +96,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     AND: [{ assignees: { some: { teamMemberId: userId ?? "" } } }, taskVisibilityFilter(userId), ...filterClauses],
   };
 
-  const [allAssignedTasks, filteredTasks, filteredCount, privateTasks, clients, teamMembers, statusOptions] = await Promise.all([
+  const [allAssignedTasks, filteredTasks, filteredCount, privateTasks, clients, teamMembers, statusOptions, priorityLevelOptions] = await Promise.all([
     // Unfiltered — used only to derive "My Day", which is always the true
     // today's-focus list regardless of whatever filters are set below.
     userId
@@ -131,6 +133,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getTaskStatusOptions(),
+    getPriorityLevelOptions(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCount / LIST_PAGE_SIZE));
@@ -204,6 +207,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                   task={task}
                   showClient
                   statusOptions={statusOptions}
+                  priorityLevelOptions={priorityLevelOptions}
                   delayMs={Math.min(i * 40, 400)}
                 />
               ))}
@@ -232,6 +236,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                   task={task}
                   showClient
                   statusOptions={statusOptions}
+                  priorityLevelOptions={priorityLevelOptions}
                   delayMs={Math.min(i * 40, 400)}
                 />
               ))}
@@ -241,7 +246,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       ) : null}
 
       <div className="mt-6">
-        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
+        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} priorityLevelOptions={priorityLevelOptions} />
       </div>
 
       <div className="mt-4">
@@ -264,6 +269,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               clients={clients}
               teamMembers={teamMembers}
               statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
             />
           )}
         </div>
@@ -276,6 +282,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               clients={clients}
               teamMembers={teamMembers}
               statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
             />
           </div>
         ) : null}

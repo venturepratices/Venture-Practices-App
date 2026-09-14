@@ -14,6 +14,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { KindPill } from "@/components/tasks/kind-pill";
+import { PriorityPill } from "@/components/tasks/priority-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { StagePill } from "@/components/programs/stage-pill";
@@ -21,13 +22,14 @@ import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { stripHtml } from "@/lib/text-format";
 import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
-import { resolveStatusOption } from "@/lib/task-status-utils";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
+import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
 import { formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
 const NO_CLIENT = "__none__";
 const NO_CAMPAIGN = "__none__";
+const NO_PRIORITY = "__none__";
 
 type CampaignOption = { id: string; sequenceNumber: number; name?: string | null; currentStage: string };
 
@@ -35,6 +37,7 @@ type Draft = {
   title: string;
   description: string;
   status: string;
+  priorityLevelId: string;
   assigneeIds: string[];
   clientId: string;
   occurrence: string;
@@ -51,6 +54,7 @@ function draftFromTask(task: TaskDetail): Draft {
     title: task.title,
     description: task.description ?? "",
     status: task.statusId,
+    priorityLevelId: task.priorityLevelId ?? NO_PRIORITY,
     assigneeIds: task.assignees.map((a) => a.teamMemberId).sort(),
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
@@ -68,9 +72,10 @@ type Props = {
   teamMembers: { id: string; name: string }[];
   currentUserId: string | null;
   statusOptions?: StatusOptionLite[];
+  priorityLevelOptions?: PriorityLevelOptionLite[];
 };
 
-export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOptions = [] }: Props) {
+export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOptions = [], priorityLevelOptions = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -198,6 +203,9 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
     if (draft.title.trim() && draft.title.trim() !== base.title) fields.title = draft.title.trim();
     if (draft.description !== base.description) fields.description = draft.description.trim() || null;
     if (draft.status !== base.status) fields.status = draft.status;
+    if (draft.priorityLevelId !== base.priorityLevelId) {
+      fields.priorityLevelId = draft.priorityLevelId === NO_PRIORITY ? null : draft.priorityLevelId;
+    }
     if (JSON.stringify(draft.assigneeIds) !== JSON.stringify(base.assigneeIds)) {
       fields.assigneeIds = draft.assigneeIds;
     }
@@ -433,6 +441,31 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                     {statusOptions.map((option) => (
                       <SelectItem key={option.id} value={option.id}>
                         <StatusPill option={option} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Select value={draft.priorityLevelId} onValueChange={(value) => value && setField("priorityLevelId", value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(value: string) =>
+                        value === NO_PRIORITY ? (
+                          "No priority"
+                        ) : (
+                          <PriorityPill option={resolvePriorityLevelOption(priorityLevelOptions, value) ?? { label: value, color: "#71717a" }} />
+                        )
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
+                    {priorityLevelOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        <PriorityPill option={option} />
                       </SelectItem>
                     ))}
                   </SelectContent>

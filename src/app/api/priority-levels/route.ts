@@ -5,9 +5,8 @@ import { auth } from "@/lib/auth";
 import { requireAdmin, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-// A handful of admin-only, app-wide status options — no client scoping, no
-// granular capability. Gated the same way Team management is: this config
-// affects literally every task in the app, so only admins touch it.
+// Same shape and gating as src/app/api/task-statuses/route.ts — a handful of
+// admin-only, app-wide options, no client scoping, no granular capability.
 
 const HEX_COLOR = z.string().trim().regex(/^#[0-9a-f]{6}$/i, "Must be a hex color like #2563eb");
 
@@ -21,7 +20,7 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const options = await prisma.taskStatusOption.findMany({ orderBy: { sequenceNumber: "asc" } });
+  const options = await prisma.priorityLevelOption.findMany({ orderBy: { sequenceNumber: "asc" } });
   return NextResponse.json(options);
 }
 
@@ -42,13 +41,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const max = await prisma.taskStatusOption.aggregate({ _max: { sequenceNumber: true } });
-  const option = await prisma.taskStatusOption.create({
+  const max = await prisma.priorityLevelOption.aggregate({ _max: { sequenceNumber: true } });
+  const option = await prisma.priorityLevelOption.create({
     data: {
       label: parsed.data.label,
-      // `tone` is a deprecated NOT NULL column — no longer user-facing (see
-      // TaskStatusOption.color), so every new row just gets a placeholder.
-      tone: "neutral",
       color: parsed.data.color,
       sequenceNumber: (max._max.sequenceNumber ?? 0) + 1,
     },

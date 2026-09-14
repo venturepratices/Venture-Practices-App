@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
+import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { buildTaskFilterHref, buildTaskFilterWhere, type TaskFilterParams } from "@/lib/task-filter-where";
 import { endOfDay, startOfDay, todayDateString } from "@/lib/utils";
 import { InfoTip } from "@/components/info-tip";
@@ -53,7 +54,8 @@ export default async function ClientTasksPage({
     client: { select: { id: true, name: true } },
     createdBy: { select: { id: true, name: true } },
     workflowInstance: { select: { id: true, name: true } },
-    statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+    statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
+    priorityLevel: { select: { id: true, label: true, color: true } },
   } as const;
 
   // The stat-card counts deliberately ignore the active filters — they're the
@@ -66,7 +68,7 @@ export default async function ClientTasksPage({
     AND: [{ clientId }, visibility, ...(completeStatusId ? [{ statusId: { not: completeStatusId } }] : [])],
   };
 
-  const [tasks, totalCount, teamMembers, statusOptions, overdueCount, dueTodayCount, openCount, needsDecisionCount] =
+  const [tasks, totalCount, teamMembers, statusOptions, priorityLevelOptions, overdueCount, dueTodayCount, openCount, needsDecisionCount] =
     await Promise.all([
       isBoard
         ? prisma.task.findMany({ where: finalWhere, include: taskInclude, orderBy: { createdAt: "desc" }, take: BOARD_TAKE_CEILING })
@@ -80,6 +82,7 @@ export default async function ClientTasksPage({
       isBoard ? Promise.resolve(0) : prisma.task.count({ where: finalWhere }),
       prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
       getTaskStatusOptions(),
+      getPriorityLevelOptions(),
       prisma.task.count({ where: { AND: [openScope, { deadline: { lt: startOfDay(today) } }] } }),
       prisma.task.count({ where: { AND: [openScope, { deadline: { gte: startOfDay(today), lte: endOfDay(today) } }] } }),
       prisma.task.count({ where: openScope }),
@@ -121,6 +124,7 @@ export default async function ClientTasksPage({
           clients={[]}
           teamMembers={teamMembers}
           statusOptions={statusOptions}
+          priorityLevelOptions={priorityLevelOptions}
           hideClientFilter
           searchPlaceholder="Search this client's tasks..."
         />
@@ -139,12 +143,26 @@ export default async function ClientTasksPage({
               <TaskBoard tasks={tasks} statusOptions={statusOptions} />
             )
           ) : (
-            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} statusOptions={statusOptions} />
+            <TaskList
+              tasks={tasks}
+              newTaskDefaults={{ clientId }}
+              lockClient
+              teamMembers={teamMembers}
+              statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
+            />
           )}
         </div>
         {isBoard ? (
           <div className="md:hidden">
-            <TaskList tasks={tasks} newTaskDefaults={{ clientId }} lockClient teamMembers={teamMembers} statusOptions={statusOptions} />
+            <TaskList
+              tasks={tasks}
+              newTaskDefaults={{ clientId }}
+              lockClient
+              teamMembers={teamMembers}
+              statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
+            />
           </div>
         ) : null}
       </div>

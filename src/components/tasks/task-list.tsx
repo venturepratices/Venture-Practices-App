@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ColumnVisibilityMenu } from "@/components/ui/column-visibility-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewTaskInput } from "@/components/tasks/new-task-input";
-import { TaskListHeader, TaskRow, taskColumnsFor, defaultTaskColumnWidths } from "@/components/tasks/task-row";
-import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { DEFAULT_HIDDEN_COLUMNS, TaskListHeader, TaskRow, taskColumnsFor, defaultTaskColumnWidths } from "@/components/tasks/task-row";
+import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { useColumnWidths } from "@/lib/use-column-widths";
 import type { TaskWithRelations } from "@/types/task";
@@ -22,16 +22,27 @@ type Props = {
   clients?: { id: string; name: string }[];
   teamMembers?: { id: string; name: string }[];
   statusOptions?: StatusOptionLite[];
+  priorityLevelOptions?: PriorityLevelOptionLite[];
 };
 
-export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient, clients, teamMembers, statusOptions = [] }: Props) {
+export function TaskList({
+  tasks,
+  showClientColumn,
+  newTaskDefaults,
+  lockClient,
+  clients,
+  teamMembers,
+  statusOptions = [],
+  priorityLevelOptions = [],
+}: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isArchiving, setIsArchiving] = useState(false);
   const columns = taskColumnsFor(showClientColumn);
   const { visible: visibleColumns, toggle: toggleColumn } = useColumnVisibility(
     "taskListColumns",
-    columns.map((c) => c.key)
+    columns.map((c) => c.key),
+    DEFAULT_HIDDEN_COLUMNS
   );
   const { widths: columnWidths, setWidth: setColumnWidth, resetWidths } = useColumnWidths(
     "taskListColumnWidths",
@@ -70,6 +81,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
             clients={clients}
             teamMembers={teamMembers}
             statusOptions={statusOptions}
+            priorityLevelOptions={priorityLevelOptions}
           />
         </div>
         <ColumnVisibilityMenu columns={columns} visible={visibleColumns} onToggle={toggleColumn} onResetWidths={resetWidths} />
@@ -111,6 +123,7 @@ export function TaskList({ tasks, showClientColumn, newTaskDefaults, lockClient,
               selected={selected.has(task.id)}
               onToggleSelect={toggleSelect}
               statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
             />
           ))}
         </div>

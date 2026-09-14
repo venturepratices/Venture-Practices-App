@@ -2,36 +2,24 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 import { StatusPillBase } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColorPicker } from "@/components/settings/color-picker";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type TaskStatusOption = {
+// Same editable-list pattern as TaskStatusEditor (rename/recolor/reorder,
+// delete-requires-replacement-if-in-use), minus the isComplete-protected row
+// — no priority level is wired into anything that requires protecting one.
+
+type PriorityLevelOption = {
   id: string;
   label: string;
-  tone: string;
   color: string;
   sequenceNumber: number;
-  isComplete: boolean;
 };
 
 const DEFAULT_NEW_COLOR = "#71717a";
@@ -41,7 +29,7 @@ async function parseErrorMessage(res: Response, fallback: string): Promise<strin
   return (body && typeof body === "object" && "error" in body && typeof body.error === "string" && body.error) || fallback;
 }
 
-export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatusOption[] }) {
+export function PriorityLevelEditor({ initialOptions }: { initialOptions: PriorityLevelOption[] }) {
   const router = useRouter();
   const [options, setOptions] = useState(initialOptions);
   const [error, setError] = useState<string | null>(null);
@@ -49,26 +37,26 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_NEW_COLOR);
   const [adding, setAdding] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ option: TaskStatusOption; tasksInUse: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ option: PriorityLevelOption; tasksInUse: number } | null>(null);
   const [replacementId, setReplacementId] = useState<string>("");
   const [deleting, setDeleting] = useState(false);
 
-  function sync(next: TaskStatusOption[]) {
+  function sync(next: PriorityLevelOption[]) {
     setOptions([...next].sort((a, b) => a.sequenceNumber - b.sequenceNumber));
   }
 
-  async function handleRename(option: TaskStatusOption, label: string) {
+  async function handleRename(option: PriorityLevelOption, label: string) {
     if (!label.trim() || label === option.label) return;
     setPendingId(option.id);
     setError(null);
     try {
-      const res = await fetch(`/api/task-statuses/${option.id}`, {
+      const res = await fetch(`/api/priority-levels/${option.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: label.trim() }),
       });
       if (!res.ok) {
-        setError(await parseErrorMessage(res, "Failed to rename status."));
+        setError(await parseErrorMessage(res, "Failed to rename priority level."));
         return;
       }
       const updated = await res.json();
@@ -79,17 +67,17 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     }
   }
 
-  async function handleRecolor(option: TaskStatusOption, color: string) {
+  async function handleRecolor(option: PriorityLevelOption, color: string) {
     setPendingId(option.id);
     setError(null);
     try {
-      const res = await fetch(`/api/task-statuses/${option.id}`, {
+      const res = await fetch(`/api/priority-levels/${option.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ color }),
       });
       if (!res.ok) {
-        setError(await parseErrorMessage(res, "Failed to recolor status."));
+        setError(await parseErrorMessage(res, "Failed to recolor priority level."));
         return;
       }
       const updated = await res.json();
@@ -100,7 +88,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     }
   }
 
-  async function handleMove(option: TaskStatusOption, direction: -1 | 1) {
+  async function handleMove(option: PriorityLevelOption, direction: -1 | 1) {
     const sorted = [...options].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
     const index = sorted.findIndex((o) => o.id === option.id);
     const swapIndex = index + direction;
@@ -111,19 +99,19 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     setError(null);
     try {
       const [res1, res2] = await Promise.all([
-        fetch(`/api/task-statuses/${option.id}`, {
+        fetch(`/api/priority-levels/${option.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sequenceNumber: other.sequenceNumber }),
         }),
-        fetch(`/api/task-statuses/${other.id}`, {
+        fetch(`/api/priority-levels/${other.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sequenceNumber: option.sequenceNumber }),
         }),
       ]);
       if (!res1.ok || !res2.ok) {
-        setError("Failed to reorder statuses.");
+        setError("Failed to reorder priority levels.");
         return;
       }
       const [updated1, updated2] = await Promise.all([res1.json(), res2.json()]);
@@ -145,13 +133,13 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     setAdding(true);
     setError(null);
     try {
-      const res = await fetch("/api/task-statuses", {
+      const res = await fetch("/api/priority-levels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: newLabel.trim(), color: newColor }),
       });
       if (!res.ok) {
-        setError(await parseErrorMessage(res, "Failed to add status."));
+        setError(await parseErrorMessage(res, "Failed to add priority level."));
         return;
       }
       const created = await res.json();
@@ -164,9 +152,9 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     }
   }
 
-  async function requestDelete(option: TaskStatusOption) {
+  async function requestDelete(option: PriorityLevelOption) {
     setError(null);
-    const res = await fetch(`/api/task-statuses/${option.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/priority-levels/${option.id}`, { method: "DELETE" });
     if (res.ok) {
       sync(options.filter((o) => o.id !== option.id));
       router.refresh();
@@ -178,7 +166,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
       setReplacementId("");
       return;
     }
-    setError((body && body.error) || "Failed to delete status.");
+    setError((body && body.error) || "Failed to delete priority level.");
   }
 
   async function confirmDeleteWithReplacement() {
@@ -186,13 +174,13 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
     setDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/task-statuses/${deleteTarget.option.id}`, {
+      const res = await fetch(`/api/priority-levels/${deleteTarget.option.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ replacementId }),
       });
       if (!res.ok) {
-        setError(await parseErrorMessage(res, "Failed to delete status."));
+        setError(await parseErrorMessage(res, "Failed to delete priority level."));
         return;
       }
       sync(options.filter((o) => o.id !== deleteTarget.option.id));
@@ -216,7 +204,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
               <Button
                 variant="ghost"
                 size="icon-xs"
-                disabled={index === 0 || pendingId === option.id || option.isComplete}
+                disabled={index === 0 || pendingId === option.id}
                 onClick={() => handleMove(option, -1)}
                 aria-label="Move up"
               >
@@ -225,7 +213,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
               <Button
                 variant="ghost"
                 size="icon-xs"
-                disabled={index === sorted.length - 1 || pendingId === option.id || option.isComplete}
+                disabled={index === sorted.length - 1 || pendingId === option.id}
                 onClick={() => handleMove(option, 1)}
                 aria-label="Move down"
               >
@@ -235,48 +223,34 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
 
             <StatusPillBase tone="neutral" color={option.color} label={option.label} className="shrink-0" />
 
-            {option.isComplete ? (
-              <Tooltip>
-                <TooltipTrigger render={<span className="flex flex-1 items-center gap-2 text-sm text-muted-foreground" />}>
-                  <Lock className="size-3.5" />
-                  {option.label} — protected, wired into workflow completion
-                </TooltipTrigger>
-                <TooltipContent>This status can&apos;t be renamed, recolored, reordered, or deleted.</TooltipContent>
-              </Tooltip>
-            ) : (
-              <div className="flex min-w-[220px] flex-1 items-center gap-2">
-                <Input
-                  defaultValue={option.label}
-                  className="h-8 min-w-0 max-w-56 flex-1"
-                  disabled={pendingId === option.id}
-                  onBlur={(e) => handleRename(option, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  }}
-                />
-                <ColorPicker
-                  value={option.color}
-                  onCommit={(color) => handleRecolor(option, color)}
-                  disabled={pendingId === option.id}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={pendingId === option.id}
-                  onClick={() => requestDelete(option)}
-                  aria-label={`Delete ${option.label}`}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </div>
-            )}
+            <div className="flex min-w-[220px] flex-1 items-center gap-2">
+              <Input
+                defaultValue={option.label}
+                className="h-8 min-w-0 max-w-56 flex-1"
+                disabled={pendingId === option.id}
+                onBlur={(e) => handleRename(option, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+              <ColorPicker value={option.color} onCommit={(color) => handleRecolor(option, color)} disabled={pendingId === option.id} />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={pendingId === option.id}
+                onClick={() => requestDelete(option)}
+                aria-label={`Delete ${option.label}`}
+              >
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
         <Input
-          placeholder="New status name"
+          placeholder="New priority level name"
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
           className="h-8 min-w-[140px] max-w-56 flex-1"
@@ -284,7 +258,7 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
         <ColorPicker value={newColor} onCommit={setNewColor} />
         <Button size="sm" onClick={handleAdd} disabled={!newLabel.trim() || adding}>
           <Plus className="size-4" />
-          Add status
+          Add priority level
         </Button>
       </div>
 
@@ -294,13 +268,13 @@ export function TaskStatusEditor({ initialOptions }: { initialOptions: TaskStatu
             <DialogTitle>Move tasks before deleting</DialogTitle>
             <DialogDescription>
               {deleteTarget
-                ? `${deleteTarget.tasksInUse} task${deleteTarget.tasksInUse === 1 ? " is" : "s are"} still set to "${deleteTarget.option.label}". Choose a status to move them to.`
+                ? `${deleteTarget.tasksInUse} task${deleteTarget.tasksInUse === 1 ? " is" : "s are"} still set to "${deleteTarget.option.label}". Choose a priority level to move them to.`
                 : null}
             </DialogDescription>
           </DialogHeader>
           <Select value={replacementId} onValueChange={(value) => setReplacementId(value ?? "")}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choose a replacement status" />
+              <SelectValue placeholder="Choose a replacement priority level" />
             </SelectTrigger>
             <SelectContent>
               {options

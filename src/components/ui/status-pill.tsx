@@ -35,9 +35,10 @@ export type StatusTone = NonNullable<VariantProps<typeof statusPillVariants>["to
 
 function StatusPillBase({
   tone,
+  color,
   label,
   className,
-}: { label: string; className?: string } & VariantProps<typeof statusPillVariants>) {
+}: { label: string; color?: string | null; className?: string } & VariantProps<typeof statusPillVariants>) {
   const [popping, setPopping] = useState(false)
   const previousLabel = useRef(label)
 
@@ -49,8 +50,16 @@ function StatusPillBase({
     return () => clearTimeout(timeout)
   }, [label])
 
+  // `color` (a user-picked hex, see TaskStatusOption/PriorityLevelOption) is
+  // an inline-style override — it always wins over the tone class's
+  // background, no matter which tone the cva variant resolves to, so the
+  // shape/padding/shadow classes stay shared for both fixed-tone and
+  // custom-color pills.
   return (
-    <span className={cn(statusPillVariants({ tone }), popping && "animate-pill-pop", className)}>
+    <span
+      className={cn(statusPillVariants({ tone }), popping && "animate-pill-pop", className)}
+      style={color ? { backgroundColor: color } : undefined}
+    >
       {label}
     </span>
   )

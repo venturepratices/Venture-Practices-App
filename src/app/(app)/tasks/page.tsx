@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
+import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { buildTaskFilterHref, buildTaskFilterWhere, type TaskFilterParams } from "@/lib/task-filter-where";
 import { InfoTip } from "@/components/info-tip";
 import { Button } from "@/components/ui/button";
@@ -50,10 +51,11 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     client: { select: { id: true, name: true } },
     createdBy: { select: { id: true, name: true } },
     workflowInstance: { select: { id: true, name: true } },
-    statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+    statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
+    priorityLevel: { select: { id: true, label: true, color: true } },
   } as const;
 
-  const [tasks, totalCount, clients, teamMembers, statusOptions] = await Promise.all([
+  const [tasks, totalCount, clients, teamMembers, statusOptions, priorityLevelOptions] = await Promise.all([
     isBoard
       ? prisma.task.findMany({ where: finalWhere, include: taskInclude, orderBy: { createdAt: "desc" }, take: BOARD_TAKE_CEILING })
       : prisma.task.findMany({
@@ -67,6 +69,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getTaskStatusOptions(),
+    getPriorityLevelOptions(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / LIST_PAGE_SIZE));
@@ -94,7 +97,7 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-4">
-        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
+        <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} priorityLevelOptions={priorityLevelOptions} />
       </div>
 
       <div className="mt-4">
@@ -114,12 +117,28 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
           ) : (
             // TaskList always renders (even with zero tasks) so its own "Add task" box
             // stays visible — it already handles its own empty state internally.
-            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
+            <TaskList
+              tasks={tasks}
+              showClientColumn
+              newTaskDefaults={{}}
+              clients={clients}
+              teamMembers={teamMembers}
+              statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
+            />
           )}
         </div>
         {isBoard ? (
           <div className="md:hidden">
-            <TaskList tasks={tasks} showClientColumn newTaskDefaults={{}} clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} />
+            <TaskList
+              tasks={tasks}
+              showClientColumn
+              newTaskDefaults={{}}
+              clients={clients}
+              teamMembers={teamMembers}
+              statusOptions={statusOptions}
+              priorityLevelOptions={priorityLevelOptions}
+            />
           </div>
         ) : null}
       </div>

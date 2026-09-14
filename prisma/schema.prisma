@@ -785,7 +785,11 @@ model LandingPage {
 model TaskStatusOption {
   id             String   @id @default(cuid())
   label          String
-  tone           String // one of the tone keys in src/components/ui/status-pill.tsx's cva variants
+  // Deprecated — superseded by `color` below, kept only so old rows never
+  // fail a NOT NULL write. No longer read for rendering; every status now
+  // carries its own literal hex `color` instead of one of a fixed tone set.
+  tone           String
+  color          String   @default("#71717a") // hex, user-pickable via the color picker in Settings
   sequenceNumber Int // display/board-column order
   isComplete     Boolean  @default(false)
   createdAt      DateTime @default(now())
@@ -793,6 +797,25 @@ model TaskStatusOption {
 
   tasks                        Task[]
   workflowTaskTemplateDefaults WorkflowTaskTemplate[]
+
+  @@index([sequenceNumber])
+}
+
+// Admin-configurable priority levels — split out of TaskStatusOption (which
+// used to have a "Priority" status entangling urgency with workflow state)
+// into its own independent field, so a task's status and priority can vary
+// separately. Same editable-table shape as TaskStatusOption (id/label/color/
+// sequenceNumber), but nothing auto-advances off a priority level, so there's
+// no isComplete-equivalent flag.
+model PriorityLevelOption {
+  id             String   @id @default(cuid())
+  label          String
+  color          String // hex, user-pickable via the color picker in Settings
+  sequenceNumber Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tasks Task[]
 
   @@index([sequenceNumber])
 }
@@ -818,6 +841,11 @@ model Task {
   status     TaskStatus       @default(NEXT_UP)
   statusId   String           @default("NEXT_UP")
   statusOption TaskStatusOption @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  // Independent of status — Low/Medium/High/Urgent by default, admin-editable
+  // in Settings (see PriorityLevelOption above). Nullable: most tasks have no
+  // priority set at all, unlike status which always has a value.
+  priorityLevelId String?
+  priorityLevel   PriorityLevelOption? @relation(fields: [priorityLevelId], references: [id], onDelete: SetNull)
   deadline   DateTime?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
@@ -872,6 +900,7 @@ model Task {
   @@index([assigneeId])
   @@index([status])
   @@index([statusId])
+  @@index([priorityLevelId])
   @@index([campaignId, campaignStage])
   @@index([workflowInstanceId, workflowStageNumber])
   @@index([createdById, isPrivate])

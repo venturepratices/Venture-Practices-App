@@ -11,7 +11,8 @@ const BRIEFING_TASK_INCLUDE = {
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   workflowInstance: { select: { id: true, name: true } },
-  statusOption: { select: { id: true, label: true, tone: true, isComplete: true } },
+  statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
+  priorityLevel: { select: { id: true, label: true, color: true } },
 } as const;
 
 export type NeedsDecisionAsset = {
