@@ -18,7 +18,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 type StatusOption = { id: string; label: string; tone: string; color: string; sequenceNumber: number; isComplete: boolean };
-type PriorityLevelOption = { id: string; label: string; color: string; sequenceNumber: number };
+type PriorityLevelOption = { id: string; label: string; color: string; sequenceNumber: number; autoApplyDaysBeforeDue: number | null };
 
 export function SettingsTabs({
   prefsInitial,
@@ -78,7 +78,8 @@ export function SettingsTabs({
           <div>
             <p className="mb-4 text-sm text-muted-foreground">
               The priority levels tasks can be set to — independent of status. Deleting one still in use requires
-              picking a replacement first.
+              picking a replacement first. Each level can also auto-apply itself as a deadline approaches — see
+              below.
             </p>
             <PriorityLevelEditor initialOptions={priorityLevelOptions} />
           </div>

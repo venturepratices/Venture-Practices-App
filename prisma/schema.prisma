@@ -812,6 +812,13 @@ model PriorityLevelOption {
   label          String
   color          String // hex, user-pickable via the color picker in Settings
   sequenceNumber Int
+  // Optional auto-escalation trigger: when a task's deadline is this many
+  // days out (or fewer) and its current priority is less urgent than this
+  // level, the daily cron (src/app/api/cron/priority-auto-escalate/route.ts)
+  // bumps it up to this level. Null = no automatic trigger for this level.
+  // Escalation only ever raises priority, never lowers it — see that route
+  // for the full rule, confirmed with the user.
+  autoApplyDaysBeforeDue Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

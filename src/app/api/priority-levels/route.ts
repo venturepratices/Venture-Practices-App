@@ -13,6 +13,9 @@ const HEX_COLOR = z.string().trim().regex(/^#[0-9a-f]{6}$/i, "Must be a hex colo
 const createSchema = z.object({
   label: z.string().trim().min(1).max(60),
   color: HEX_COLOR,
+  // See PriorityLevelOption.autoApplyDaysBeforeDue in prisma/schema.prisma —
+  // null/omitted means no automatic escalation trigger for this level.
+  autoApplyDaysBeforeDue: z.number().int().min(0).max(365).nullable().optional(),
 });
 
 export async function GET() {
@@ -46,6 +49,7 @@ export async function POST(request: Request) {
     data: {
       label: parsed.data.label,
       color: parsed.data.color,
+      autoApplyDaysBeforeDue: parsed.data.autoApplyDaysBeforeDue ?? null,
       sequenceNumber: (max._max.sequenceNumber ?? 0) + 1,
     },
   });

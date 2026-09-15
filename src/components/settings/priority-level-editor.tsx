@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ColorPicker } from "@/components/settings/color-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,9 +21,22 @@ type PriorityLevelOption = {
   label: string;
   color: string;
   sequenceNumber: number;
+  autoApplyDaysBeforeDue: number | null;
 };
 
+function parseDaysInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 365) return null;
+  return parsed;
+}
+
 const DEFAULT_NEW_COLOR = "#71717a";
+// Pre-filled the first time a level's auto-apply Switch is flipped on, so
+// turning it on always lands on a valid, immediately-meaningful threshold
+// instead of an empty box.
+const DEFAULT_AUTO_APPLY_DAYS = 7;
 
 async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
   const body = await res.json().catch(() => null);
@@ -86,6 +100,42 @@ export function PriorityLevelEditor({ initialOptions }: { initialOptions: Priori
     } finally {
       setPendingId(null);
     }
+  }
+
+  async function commitAutoApply(option: PriorityLevelOption, days: number | null) {
+    if (days === option.autoApplyDaysBeforeDue) return;
+    setPendingId(option.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/priority-levels/${option.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoApplyDaysBeforeDue: days }),
+      });
+      if (!res.ok) {
+        setError(await parseErrorMessage(res, "Failed to update auto-apply setting."));
+        return;
+      }
+      const updated = await res.json();
+      sync(options.map((o) => (o.id === option.id ? updated : o)));
+      router.refresh();
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  // The Switch is the one and only way to turn a level's automation off —
+  // typing into the days box never implicitly turns it off (an empty or
+  // invalid entry just falls back to the last good value instead), so the
+  // Switch's on/off state and "is a number actually configured" can never
+  // drift out of sync with each other.
+  async function handleAutoApplyInputChange(option: PriorityLevelOption, rawValue: string) {
+    const parsed = parseDaysInput(rawValue);
+    await commitAutoApply(option, parsed ?? option.autoApplyDaysBeforeDue ?? DEFAULT_AUTO_APPLY_DAYS);
+  }
+
+  async function handleAutoApplyToggle(option: PriorityLevelOption, checked: boolean) {
+    await commitAutoApply(option, checked ? (option.autoApplyDaysBeforeDue ?? DEFAULT_AUTO_APPLY_DAYS) : null);
   }
 
   async function handleMove(option: PriorityLevelOption, direction: -1 | 1) {
@@ -197,6 +247,13 @@ export function PriorityLevelEditor({ initialOptions }: { initialOptions: Priori
     <div className="space-y-4">
       {error ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
 
+      <p className="text-xs text-muted-foreground">
+        Turn on <b>auto-apply</b> on a level to have it apply itself once a task&apos;s deadline gets within a
+        chosen number of days — e.g. 7 for Urgent. This only ever raises a task&apos;s priority, never lowers it: you
+        can always set a task back down by hand, and it&apos;ll simply auto-raise again on the next daily check if
+        the deadline is still inside the window.
+      </p>
+
       <div className="divide-y rounded-lg border">
         {sorted.map((option, index) => (
           <div key={option.id} className="flex flex-wrap items-center gap-3 p-3">
@@ -223,7 +280,10 @@ export function PriorityLevelEditor({ initialOptions }: { initialOptions: Priori
 
             <StatusPillBase tone="neutral" color={option.color} label={option.label} className="shrink-0" />
 
-            <div className="flex min-w-[220px] flex-1 items-center gap-2">
+            {/* Level identity (name + color) — kept visually separate from the
+                auto-apply box below so it's unambiguous which control configures
+                what the level looks like vs. when it applies itself. */}
+            <div className="flex min-w-[180px] flex-1 items-center gap-2">
               <Input
                 defaultValue={option.label}
                 className="h-8 min-w-0 max-w-56 flex-1"
@@ -234,16 +294,50 @@ export function PriorityLevelEditor({ initialOptions }: { initialOptions: Priori
                 }}
               />
               <ColorPicker value={option.color} onCommit={(color) => handleRecolor(option, color)} disabled={pendingId === option.id} />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={pendingId === option.id}
-                onClick={() => requestDelete(option)}
-                aria-label={`Delete ${option.label}`}
-              >
-                <Trash2 className="size-4 text-destructive" />
-              </Button>
             </div>
+
+            {/* Auto-apply — a bordered box of its own so it reads as a
+                distinct "when this level kicks in automatically" setting,
+                not part of the level's name/color. */}
+            <div className="flex shrink-0 items-center gap-2 rounded-md border bg-muted/40 px-2.5 py-1.5">
+              <span className="text-xs font-medium whitespace-nowrap text-muted-foreground">Auto-apply</span>
+              <Switch
+                checked={option.autoApplyDaysBeforeDue != null}
+                onCheckedChange={(checked) => handleAutoApplyToggle(option, checked)}
+                disabled={pendingId === option.id}
+                aria-label={`Auto-apply ${option.label} as deadlines approach`}
+              />
+              {option.autoApplyDaysBeforeDue != null ? (
+                <span className="flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
+                  <label htmlFor={`auto-apply-days-${option.id}`}>Days before due:</label>
+                  <Input
+                    id={`auto-apply-days-${option.id}`}
+                    type="number"
+                    min={0}
+                    max={365}
+                    defaultValue={option.autoApplyDaysBeforeDue}
+                    className="h-8 w-16 text-center"
+                    disabled={pendingId === option.id}
+                    onBlur={(e) => handleAutoApplyInputChange(option, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    }}
+                  />
+                </span>
+              ) : (
+                <span className="text-xs whitespace-nowrap text-muted-foreground">Off</span>
+              )}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={pendingId === option.id}
+              onClick={() => requestDelete(option)}
+              aria-label={`Delete ${option.label}`}
+            >
+              <Trash2 className="size-4 text-destructive" />
+            </Button>
           </div>
         ))}
       </div>

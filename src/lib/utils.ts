@@ -83,6 +83,19 @@ export function todayDateString(): string {
 }
 
 /**
+ * Whole calendar days between today and `deadline`, both read in the app's
+ * timezone (not raw millisecond subtraction, which would be off by one
+ * around each day's boundary depending on what time of day the deadline was
+ * set). Negative once the deadline's calendar day has passed. Used by the
+ * priority auto-escalation cron (see src/app/api/cron/priority-auto-escalate).
+ */
+export function daysUntilDue(deadline: Date): number {
+  const deadlineDateString = deadline.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((startOfDay(deadlineDateString).getTime() - startOfDay(todayDateString()).getTime()) / msPerDay);
+}
+
+/**
  * A wall-clock date + time (e.g. "2026-08-05", "14:30") interpreted in the
  * given IANA timezone (defaults to the app's Charlotte, NC zone), converted
  * to the correct UTC instant — same technique as endOfDay(). Used by the Team

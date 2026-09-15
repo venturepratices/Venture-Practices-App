@@ -15,6 +15,9 @@ const patchSchema = z.object({
   label: z.string().trim().min(1).max(60).optional(),
   color: HEX_COLOR.optional(),
   sequenceNumber: z.number().int().min(1).optional(),
+  // See PriorityLevelOption.autoApplyDaysBeforeDue in prisma/schema.prisma —
+  // explicit null clears the trigger for this level.
+  autoApplyDaysBeforeDue: z.number().int().min(0).max(365).nullable().optional(),
 });
 
 const deleteSchema = z.object({ replacementId: z.string().min(1).nullable().optional() });
