@@ -49,6 +49,9 @@ export const createTaskSchema = z.object({
   workflowStageNumber: z.number().int().nullable().optional(),
   kind: z.enum(TASK_KIND_VALUES).optional(),
   isPrivate: z.boolean().optional(),
+  // Validated in the route handler: must belong to the creator, and only
+  // ever set on a private task (see PrivateProject in prisma/schema.prisma).
+  privateProjectId: z.string().nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -68,6 +71,7 @@ export const updateTaskSchema = z.object({
   workflowInstanceId: z.string().nullable().optional(),
   kind: z.enum(TASK_KIND_VALUES).optional(),
   isPrivate: z.boolean().optional(),
+  privateProjectId: z.string().nullable().optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;

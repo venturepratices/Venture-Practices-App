@@ -101,11 +101,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     return NextResponse.json({ error: "Invalid priority level" }, { status: 400 });
   }
 
-  const { deadline, assigneeIds, isPrivate, status, priorityLevelId, ...rest } = parsed.data;
+  const { deadline, assigneeIds, isPrivate, status, priorityLevelId, privateProjectId, ...rest } = parsed.data;
   // Only the task's creator may toggle Private — a non-creator's isPrivate
   // value in the request body is silently ignored rather than rejected, so
   // an otherwise-valid edit from a non-creator doesn't fail outright.
   const canTogglePrivacy = before.createdById === null || before.createdById === session.user.id;
+  if (privateProjectId !== undefined) {
+    if (!canTogglePrivacy) {
+      return NextResponse.json({ error: "Only this task's creator can move it between private projects" }, { status: 400 });
+    }
+    const willBePrivate = isPrivate !== undefined ? isPrivate : before.isPrivate;
+    if (privateProjectId && !willBePrivate) {
+      return NextResponse.json({ error: "Only a private task can belong to a private project" }, { status: 400 });
+    }
+    if (privateProjectId) {
+      const project = await prisma.privateProject.findUnique({ where: { id: privateProjectId } });
+      if (!project || project.ownerId !== session.user.id) {
+        return NextResponse.json({ error: "Private project not found" }, { status: 400 });
+      }
+    }
+  }
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -113,6 +128,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       ...(status ? { statusId: status } : {}),
       ...(priorityLevelId !== undefined ? { priorityLevelId } : {}),
       ...(isPrivate !== undefined && canTogglePrivacy ? { isPrivate } : {}),
+      ...(privateProjectId !== undefined && canTogglePrivacy ? { privateProjectId } : {}),
       ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
       ...(assigneeIds !== undefined
         ? {

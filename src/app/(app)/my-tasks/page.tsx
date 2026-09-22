@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
@@ -96,7 +96,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     AND: [{ assignees: { some: { teamMemberId: userId ?? "" } } }, taskVisibilityFilter(userId), ...filterClauses],
   };
 
-  const [allAssignedTasks, filteredTasks, filteredCount, privateTasks, clients, teamMembers, statusOptions, priorityLevelOptions] = await Promise.all([
+  const [allAssignedTasks, filteredTasks, filteredCount, clients, teamMembers, statusOptions, priorityLevelOptions] = await Promise.all([
     // Unfiltered — used only to derive "My Day", which is always the true
     // today's-focus list regardless of whatever filters are set below.
     userId
@@ -119,17 +119,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           })
       : Promise.resolve([]),
     userId && !isBoard ? prisma.task.count({ where: filteredWhere }) : Promise.resolve(0),
-    // Fetched independently from the assignee-scoped list above — a private
-    // task might not be assigned to anyone at all (a quick personal note),
-    // so it wouldn't otherwise show up anywhere for its own creator.
-    userId
-      ? prisma.task.findMany({
-          where: { createdById: userId, isPrivate: true },
-          include: TASK_INCLUDE,
-          orderBy: { createdAt: "desc" },
-          take: FIXED_SECTION_CEILING,
-        })
-      : Promise.resolve([]),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getTaskStatusOptions(),
@@ -173,16 +162,13 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            My Tasks
-            <InfoTip>
-              Only the tasks assigned to you, pulled from every client automatically. Tasks you add here are assigned to
-              you by default.
-            </InfoTip>
-          </h1>
-          <p className="mt-1 text-muted-foreground">Everything assigned to you, across every client.</p>
-        </div>
+        <p className="flex items-center gap-2 text-muted-foreground">
+          Everything assigned to you, across every client.
+          <InfoTip>
+            Only the tasks assigned to you, pulled from every client automatically. Tasks you add here are assigned to
+            you by default.
+          </InfoTip>
+        </p>
         <TaskViewToggle view={isBoard ? "board" : "list"} />
       </div>
 
@@ -215,35 +201,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           )}
         </CardContent>
       </Card>
-
-      {privateTasks.length > 0 ? (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lock className="size-4" />
-              Private tasks
-              <InfoTip>
-                Only you can see these — created by you and marked private. Toggle a task&apos;s Private setting off
-                (from its detail panel) to make it visible to everyone again.
-              </InfoTip>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {privateTasks.map((task, i) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  showClient
-                  statusOptions={statusOptions}
-                  priorityLevelOptions={priorityLevelOptions}
-                  delayMs={Math.min(i * 40, 400)}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <div className="mt-6">
         <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} priorityLevelOptions={priorityLevelOptions} />

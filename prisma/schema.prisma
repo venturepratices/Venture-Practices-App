@@ -269,6 +269,7 @@ model TeamMember {
   assignedTasks                Task[]                         @relation("TaskAssignee")
   taskAssignments              TaskAssignee[]
   createdTasks                 Task[]                         @relation("TaskCreatedBy")
+  privateProjects               PrivateProject[]
   archivedTasks                ArchivedTask[]                 @relation("ArchivedBy")
   archivedCampaigns            ArchivedCampaign[]             @relation("ArchivedCampaignBy")
   archivedWorkflowInstances    ArchivedWorkflowInstance[]     @relation("ArchivedWorkflowInstanceBy")
@@ -827,6 +828,23 @@ model PriorityLevelOption {
   @@index([sequenceNumber])
 }
 
+// A lightweight, personal grouping for a TeamMember's own private tasks —
+// e.g. "Book launch prep". Visible only to its owner, same as the private
+// tasks it groups (see Task.isPrivate); never shown to anyone else, not even
+// admins. Deleting one does not delete its tasks — they just fall back to
+// "no project" (Task.privateProjectId set null).
+model PrivateProject {
+  id        String      @id @default(cuid())
+  label     String
+  ownerId   String
+  owner     TeamMember  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tasks     Task[]
+
+  @@index([ownerId])
+}
+
 model Task {
   id          String         @id @default(cuid())
   title       String
@@ -899,6 +917,13 @@ model Task {
   createdById String?
   createdBy   TeamMember? @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  // Optional grouping into one of the creator's own PrivateProjects — only
+  // ever set on a private task, and only ever to a project the same person
+  // owns (enforced in the API, not the schema). SetNull so deleting the
+  // project just un-groups its tasks instead of taking them with it.
+  privateProjectId String?
+  privateProject   PrivateProject? @relation(fields: [privateProjectId], references: [id], onDelete: SetNull)
+
   comments Comment[]
   links    TaskLink[]
   subtasks TaskSubtask[]
@@ -911,6 +936,7 @@ model Task {
   @@index([campaignId, campaignStage])
   @@index([workflowInstanceId, workflowStageNumber])
   @@index([createdById, isPrivate])
+  @@index([privateProjectId])
 }
 
 // A lightweight checklist item inside a Task — a simple, unordered-by-anything

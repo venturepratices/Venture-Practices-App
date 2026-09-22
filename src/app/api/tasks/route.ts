@@ -48,6 +48,18 @@ export async function POST(request: Request) {
   if (parsed.data.priorityLevelId && !(await isValidPriorityLevelId(parsed.data.priorityLevelId))) {
     return NextResponse.json({ error: "Invalid priority level" }, { status: 400 });
   }
+  // A private project is only ever visible to its owner — grouping a task
+  // into one only makes sense (and is only allowed) for that same owner's
+  // own private task.
+  if (parsed.data.privateProjectId) {
+    if (!parsed.data.isPrivate) {
+      return NextResponse.json({ error: "Only a private task can belong to a private project" }, { status: 400 });
+    }
+    const project = await prisma.privateProject.findUnique({ where: { id: parsed.data.privateProjectId } });
+    if (!project || project.ownerId !== session.user.id) {
+      return NextResponse.json({ error: "Private project not found" }, { status: 400 });
+    }
+  }
 
   if (parsed.data.workflowInstanceId) {
     const instance = await prisma.workflowInstance.findUnique({
@@ -96,6 +108,7 @@ export async function POST(request: Request) {
       workflowTaskOrder,
       kind: parsed.data.kind ?? defaultKind,
       isPrivate: parsed.data.isPrivate ?? false,
+      privateProjectId: parsed.data.privateProjectId ?? null,
       createdById: session.user.id,
       ...(parsed.data.status ? { statusId: parsed.data.status } : {}),
       ...(parsed.data.priorityLevelId !== undefined ? { priorityLevelId: parsed.data.priorityLevelId } : {}),
