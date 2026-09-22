@@ -8,6 +8,7 @@ import { getTaskStatusOptions } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PrivatePriorityFilter } from "@/components/tasks/private-priority-filter";
 import { PrivateProjectHeader } from "@/components/tasks/private-project-header";
 import { PrivateTaskQuickAdd } from "@/components/tasks/private-task-quick-add";
 import { TaskRow } from "@/components/tasks/task-row";
@@ -21,10 +22,17 @@ const TASK_INCLUDE = {
   priorityLevel: { select: { id: true, label: true, color: true } },
 } as const;
 
-export default async function PrivateProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function PrivateProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ priorityLevelId?: string }>;
+}) {
   const session = await auth();
   const userId = session?.user?.id ?? null;
   const { projectId } = await params;
+  const { priorityLevelId: priorityFilter } = await searchParams;
 
   const project = await prisma.privateProject.findUnique({ where: { id: projectId } });
   // Not found (not "not yours") for anyone but the owner — same posture as
@@ -41,6 +49,11 @@ export default async function PrivateProjectDetailPage({ params }: { params: Pro
     getPriorityLevelOptions(),
   ]);
 
+  const visibleTasks =
+    !priorityFilter || priorityFilter === "ALL"
+      ? tasks
+      : tasks.filter((t) => (priorityFilter === "NONE" ? !t.priorityLevelId : t.priorityLevelId === priorityFilter));
+
   return (
     <div>
       <Link href="/my-tasks/private" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -52,13 +65,23 @@ export default async function PrivateProjectDetailPage({ params }: { params: Pro
         <PrivateProjectHeader projectId={project.id} label={project.label} />
       </div>
 
-      <Card className="mt-4">
+      {tasks.length > 0 ? (
+        <div className="mt-4">
+          <PrivatePriorityFilter priorityLevelOptions={priorityLevelOptions} />
+        </div>
+      ) : null}
+
+      <Card className={tasks.length > 0 ? "mt-3" : "mt-4"}>
         <CardContent className="p-0">
-          {tasks.length === 0 ? (
-            <EmptyState icon={ListChecks} title="No tasks in this project yet" description="Add one below." />
+          {visibleTasks.length === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              title={tasks.length === 0 ? "No tasks in this project yet" : "No tasks match this priority"}
+              description={tasks.length === 0 ? "Add one below." : undefined}
+            />
           ) : (
             <div className="divide-y">
-              {tasks.map((task, i) => (
+              {visibleTasks.map((task, i) => (
                 <TaskRow
                   key={task.id}
                   task={task}

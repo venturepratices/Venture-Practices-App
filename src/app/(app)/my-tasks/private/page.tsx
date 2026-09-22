@@ -8,6 +8,7 @@ import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PrivateProjectQuickAdd } from "@/components/tasks/private-project-quick-add";
+import { PrivatePriorityFilter } from "@/components/tasks/private-priority-filter";
 import { PrivateTabToggle } from "@/components/tasks/private-tab-toggle";
 import { PrivateTaskQuickAdd } from "@/components/tasks/private-task-quick-add";
 import { TaskRow } from "@/components/tasks/task-row";
@@ -21,7 +22,11 @@ const TASK_INCLUDE = {
   priorityLevel: { select: { id: true, label: true, color: true } },
 } as const;
 
-export default async function PrivateTasksProjectsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function PrivateTasksProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; priorityLevelId?: string }>;
+}) {
   const session = await auth();
   const userId = session?.user?.id ?? null;
   const params = await searchParams;
@@ -46,6 +51,14 @@ export default async function PrivateTasksProjectsPage({ searchParams }: { searc
   ]);
 
   const standaloneTasks = allPrivateTasks.filter((t) => !t.privateProjectId);
+  // Filters the Tasks panel's own list only — the toggle's badge count above
+  // and the Projects panel's "X of Y done" counts always reflect true totals,
+  // not whatever priority happens to be filtered right now.
+  const priorityFilter = params.priorityLevelId;
+  const visibleStandaloneTasks =
+    !priorityFilter || priorityFilter === "ALL"
+      ? standaloneTasks
+      : standaloneTasks.filter((t) => (priorityFilter === "NONE" ? !t.priorityLevelId : t.priorityLevelId === priorityFilter));
   const tasksByProject = new Map<string, typeof allPrivateTasks>();
   for (const task of allPrivateTasks) {
     if (!task.privateProjectId) continue;
@@ -100,7 +113,8 @@ export default async function PrivateTasksProjectsPage({ searchParams }: { searc
         </div>
       ) : (
         <div className="mt-4">
-          <Card>
+          <PrivatePriorityFilter priorityLevelOptions={priorityLevelOptions} />
+          <Card className="mt-3">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Lock className="size-4" />
@@ -108,11 +122,15 @@ export default async function PrivateTasksProjectsPage({ searchParams }: { searc
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {standaloneTasks.length === 0 ? (
-                <EmptyState icon={Lock} title="No private tasks yet" description="Add one below, or add tasks from inside a private project." />
+              {visibleStandaloneTasks.length === 0 ? (
+                <EmptyState
+                  icon={Lock}
+                  title={standaloneTasks.length === 0 ? "No private tasks yet" : "No tasks match this priority"}
+                  description={standaloneTasks.length === 0 ? "Add one below, or add tasks from inside a private project." : undefined}
+                />
               ) : (
                 <div className="divide-y">
-                  {standaloneTasks.map((task, i) => (
+                  {visibleStandaloneTasks.map((task, i) => (
                     <TaskRow
                       key={task.id}
                       task={task}
