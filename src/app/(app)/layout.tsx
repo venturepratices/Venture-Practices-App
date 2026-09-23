@@ -14,13 +14,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   const perms = await loadPermissions();
   const clientWhere = await accessibleClientFilter("id");
-  const [clients, teamMembers, unreadCount, statusOptions, priorityLevelOptions] = await Promise.all([
+  const [clients, teamMembers, unreadCount, recentNotifications, statusOptions, priorityLevelOptions] = await Promise.all([
     // Sidebar client list scoped to what this user may access.
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     session?.user?.id
       ? prisma.notification.count({ where: { recipientId: session.user.id, readAt: null } })
       : Promise.resolve(0),
+    // Feeds the notification bell's popup — just enough recent rows to fill
+    // it, not a paginated list (that's what the full /notifications page is
+    // for, reachable from the popup's "View all" link).
+    session?.user?.id
+      ? prisma.notification.findMany({ where: { recipientId: session.user.id }, orderBy: { createdAt: "desc" }, take: 8 })
+      : Promise.resolve([]),
     getTaskStatusOptions(),
     getPriorityLevelOptions(),
   ]);
@@ -41,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canManageOrders={!!perms?.caps.canManageOrders}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <TopBar unreadCount={unreadCount} canUseAiAssistant={!!perms?.isAdmin} />
+          <TopBar unreadCount={unreadCount} recentNotifications={recentNotifications} canUseAiAssistant={!!perms?.isAdmin} />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
         <Suspense fallback={null}>

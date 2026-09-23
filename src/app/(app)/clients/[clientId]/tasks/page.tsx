@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ClientTaskStats } from "@/components/clients/client-task-stats";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
+import { TaskCompletionToggle } from "@/components/tasks/task-completion-toggle";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { TaskFilters } from "@/components/tasks/task-filters";
 
@@ -35,6 +36,7 @@ export default async function ClientTasksPage({
   const { clientId } = await params;
   const filterParams = await searchParams;
   const isBoard = filterParams.view === "board";
+  const completionTab = filterParams.tab === "completed" ? "completed" : "active";
 
   const perms = await loadPermissions();
   const completeStatusId = await getCompleteStatusId();
@@ -117,6 +119,10 @@ export default async function ClientTasksPage({
           }}
           params={filterParams}
         />
+      </div>
+
+      <div className="mt-4">
+        <TaskCompletionToggle tab={completionTab} />
       </div>
 
       <div className="mt-4">

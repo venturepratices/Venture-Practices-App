@@ -23,6 +23,10 @@ export type TaskFilterParams = {
   deadlineFrom?: string;
   deadlineTo?: string;
   open?: string;
+  // "active" (default, omitted from the URL) or "completed" — the Active/
+  // Completed tab. Keeps completed tasks out of the default view entirely
+  // instead of leaving them mixed into the list.
+  tab?: string;
 };
 
 /** Every filter key this module reads — used to rebuild pagination links without dropping filters. */
@@ -38,6 +42,7 @@ export const TASK_FILTER_PARAM_KEYS = [
   "deadlineFrom",
   "deadlineTo",
   "open",
+  "tab",
 ] as const;
 
 /**
@@ -54,10 +59,13 @@ export function buildTaskFilterWhere(
   const filters: Prisma.TaskWhereInput = {};
 
   if (params.status) filters.statusId = params.status;
-  else if (params.open && completeStatusId) {
-    // "Open" means "not the status flagged as the done-state" — read from the
-    // live TaskStatusOption row rather than a hardcoded "COMPLETE" string,
-    // since statuses are admin-editable.
+  else if (params.tab === "completed" && completeStatusId) {
+    filters.statusId = completeStatusId;
+  } else if (completeStatusId) {
+    // Default (the "Active" tab) hides completed tasks entirely — same
+    // clause the "open" stat-card toggle used to opt into explicitly, now
+    // just the baseline so a completed task is never mixed back into the
+    // active list.
     filters.statusId = { not: completeStatusId };
   }
 

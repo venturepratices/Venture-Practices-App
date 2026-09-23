@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
+import { TaskCompletionToggle } from "@/components/tasks/task-completion-toggle";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { TaskFilters } from "@/components/tasks/task-filters";
 
@@ -27,6 +28,7 @@ type SearchParams = TaskFilterParams & { view?: string; page?: string };
 export default async function AllTasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const isBoard = params.view === "board";
+  const completionTab = params.tab === "completed" ? "completed" : "active";
 
   // Shared with each client's own Tasks tab (src/lib/task-filter-where.ts) so
   // the two pages' filters can never drift apart.
@@ -94,6 +96,10 @@ export default async function AllTasksPage({ searchParams }: { searchParams: Pro
           <p className="mt-1 text-muted-foreground">Every task across every client, filterable.</p>
         </div>
         <TaskViewToggle view={isBoard ? "board" : "list"} />
+      </div>
+
+      <div className="mt-4">
+        <TaskCompletionToggle tab={completionTab} />
       </div>
 
       <div className="mt-4">

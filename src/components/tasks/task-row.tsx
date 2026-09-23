@@ -13,43 +13,16 @@ import { TASK_KIND_LABELS } from "@/lib/validations/task";
 import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { resolveStatusOption } from "@/lib/task-status-utils";
 import { stripHtml } from "@/lib/text-format";
+import { defaultTaskColumnWidths, taskColumnsFor } from "@/lib/task-columns";
 import { cn, formatDate } from "@/lib/utils";
 import type { TaskWithRelations } from "@/types/task";
 
-// Column widths keyed by the same column keys used by the visibility menu —
-// order here defines column order in the grid. "Client" is only included
-// when showClient is on (the per-client Tasks tab never shows its own name).
-// defaultWidth is a starting point only — the user can drag each column
-// wider (or narrower) and that preference persists (see useColumnWidths).
-// Order here defines left-to-right column order in the grid — "Priority" is
-// deliberately last so it sits immediately beside the (always-shown, fixed)
-// Status pill at the end of the row. "Date created" defaults to hidden (see
-// DEFAULT_HIDDEN_COLUMNS below) to make room for it without widening the
-// row — still toggleable back on via the Columns menu, just not shown by
-// default.
-const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number; clientOnly?: boolean }[] = [
-  { key: "client", label: "Client", defaultWidth: 120, clientOnly: true },
-  { key: "due", label: "Due", defaultWidth: 110 },
-  { key: "assignee", label: "Assignee", defaultWidth: 130 },
-  { key: "relatedTo", label: "Related to", defaultWidth: 150 },
-  { key: "createdBy", label: "Created by", defaultWidth: 120 },
-  { key: "dateCreated", label: "Date created", defaultWidth: 110 },
-  { key: "priority", label: "Priority", defaultWidth: 110 },
-];
-
-export const TASK_COLUMN_KEYS = OPTIONAL_COLUMNS.map((c) => c.key);
-
-export const DEFAULT_HIDDEN_COLUMNS = ["dateCreated"];
+// Column-set constants and helpers now live in src/lib/task-columns.ts so a
+// server component can compute a default `visibleColumns` set without pulling
+// in this client module.
+export { DEFAULT_HIDDEN_COLUMNS, TASK_COLUMN_KEYS, defaultTaskColumnWidths, taskColumnsFor } from "@/lib/task-columns";
 
 const NO_PRIORITY = "__none__";
-
-export function taskColumnsFor(showClient?: boolean) {
-  return OPTIONAL_COLUMNS.filter((c) => !c.clientOnly || showClient);
-}
-
-export function defaultTaskColumnWidths(showClient?: boolean) {
-  return Object.fromEntries(taskColumnsFor(showClient).map((c) => [c.key, c.defaultWidth]));
-}
 
 // Grid template is computed at runtime (which columns are visible/how wide
 // each is are both user preferences, not knowable at build time) and passed
@@ -57,11 +30,18 @@ export function defaultTaskColumnWidths(showClient?: boolean) {
 // Tailwind can't generate a class for a value it never saw in the source.
 function gridTemplateVar(showClient: boolean | undefined, visible: Set<string> | undefined, widths: Record<string, number>) {
   const cols = taskColumnsFor(showClient).filter((c) => !visible || visible.has(c.key));
-  const template = ["20px", "minmax(0,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), "120px"].join(" ");
+  // The title column gets a real pixel floor (not 0) so a wide set of visible
+  // columns can never squeeze it down to unreadable — it's the one thing on
+  // this row that must always stay legible; everything else is negotiable.
+  const template = ["20px", "minmax(160px,1fr)", ...cols.map((c) => `${widths[c.key] ?? c.defaultWidth}px`), "120px"].join(" ");
   return { "--task-grid-cols": template } as React.CSSProperties;
 }
 
-const GRID_CLASS = "grid grid-cols-[20px_minmax(0,1fr)_120px] items-center gap-3 md:[grid-template-columns:var(--task-grid-cols)]";
+// Below `lg`, only Task title + Status show (the two-column mobile template)
+// — every optional column waits for `lg` rather than `md`, so a tablet-width
+// or half-split-screen window doesn't jump straight into a crowded dense grid
+// that has to squeeze the title to fit everything at once.
+const GRID_CLASS = "grid grid-cols-[20px_minmax(0,1fr)_120px] items-center gap-3 lg:[grid-template-columns:var(--task-grid-cols)]";
 
 export function TaskListHeader({
   showClient,
@@ -84,7 +64,7 @@ export function TaskListHeader({
       <span />
       <span className="min-w-0">Task title</span>
       {columns.map((col) => (
-        <span key={col.key} className="relative hidden min-w-0 truncate md:block">
+        <span key={col.key} className="relative hidden min-w-0 truncate lg:block">
           {col.label}
           {onResizeColumn ? (
             <ColumnResizeHandle
@@ -201,7 +181,7 @@ export function TaskRow({
             {descriptionPreview}
           </span>
         ) : null}
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground lg:hidden">
           {[
             showClient ? task.client?.name ?? null : null,
             task.priorityLevel ? task.priorityLevel.label : null,
@@ -215,12 +195,12 @@ export function TaskRow({
         </span>
       </span>
       {isVisible("client") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={task.client?.name ?? undefined}>
+        <span className="hidden min-w-0 truncate text-muted-foreground lg:block" title={task.client?.name ?? undefined}>
           {task.client?.name ?? "—"}
         </span>
       ) : null}
       {isVisible("due") ? (
-        <span className="hidden min-w-0 items-center gap-1 truncate whitespace-nowrap text-muted-foreground md:flex">
+        <span className="hidden min-w-0 items-center gap-1 truncate whitespace-nowrap text-muted-foreground lg:flex">
           {task.deadline ? (
             <>
               <CalendarIcon className="size-3.5 shrink-0" />
@@ -232,27 +212,27 @@ export function TaskRow({
         </span>
       ) : null}
       {isVisible("assignee") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={assigneeNames}>
+        <span className="hidden min-w-0 truncate text-muted-foreground lg:block" title={assigneeNames}>
           {assigneeNames}
         </span>
       ) : null}
       {isVisible("relatedTo") ? (
-        <span className="hidden min-w-0 truncate md:block" title={kindLabel}>
+        <span className="hidden min-w-0 truncate lg:block" title={kindLabel}>
           <KindPill kind={task.kind} label={task.kind === "PROJECT" ? task.workflowInstance?.name : undefined} />
         </span>
       ) : null}
       {isVisible("createdBy") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={task.createdBy?.name ?? undefined}>
+        <span className="hidden min-w-0 truncate text-muted-foreground lg:block" title={task.createdBy?.name ?? undefined}>
           {task.createdBy?.name ?? "—"}
         </span>
       ) : null}
       {isVisible("dateCreated") ? (
-        <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">
+        <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground lg:block">
           {formatDate(task.createdAt)}
         </span>
       ) : null}
       {isVisible("priority") ? (
-        <span onClick={(e) => e.stopPropagation()} className="hidden min-w-0 justify-self-start md:block">
+        <span onClick={(e) => e.stopPropagation()} className="hidden min-w-0 justify-self-start lg:block">
           <Select value={task.priorityLevelId ?? NO_PRIORITY} onValueChange={updatePriority}>
             <SelectTrigger className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 shadow-none focus-visible:ring-0 data-[size=default]:h-auto [&_svg]:size-3">
               <SelectValue>

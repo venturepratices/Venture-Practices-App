@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getTaskStatusOptions } from "@/lib/task-status";
+import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { endOfDay, todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,10 @@ import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskBoard } from "@/components/tasks/task-board";
+import { TaskCompletionToggle } from "@/components/tasks/task-completion-toggle";
 import { TaskFilters } from "@/components/tasks/task-filters";
-import { TaskRow } from "@/components/tasks/task-row";
+import { DEFAULT_HIDDEN_COLUMNS, taskColumnsFor } from "@/lib/task-columns";
+import { TaskListHeader, TaskRow } from "@/components/tasks/task-row";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 
 // Same rationale as src/app/(app)/tasks/page.tsx: Board needs every matching
@@ -38,6 +40,7 @@ type SearchParams = {
   deadlineFrom?: string;
   deadlineTo?: string;
   page?: string;
+  tab?: string;
 };
 
 const TASK_INCLUDE = {
@@ -54,6 +57,8 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const isBoard = params.view === "board";
   const userId = session?.user?.id ?? null;
+  const completeStatusId = await getCompleteStatusId();
+  const completionTab = params.tab === "completed" ? "completed" : "active";
 
   // Filters (search bar + dropdowns) apply only to the main List/Board
   // section below — My Day and Private Tasks are fixed-purpose views and
@@ -68,6 +73,8 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     });
   }
   if (params.status) filterClauses.push({ statusId: params.status });
+  else if (completionTab === "completed") filterClauses.push({ statusId: completeStatusId });
+  else filterClauses.push({ statusId: { not: completeStatusId } });
   if (params.clientId === "NONE") filterClauses.push({ clientId: null });
   else if (params.clientId) filterClauses.push({ clientId: params.clientId });
   if (params.assigneeId === "UNASSIGNED") filterClauses.push({ assignees: { none: {} } });
@@ -141,6 +148,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     if (params.deadline) query.set("deadline", params.deadline);
     if (params.deadlineFrom) query.set("deadlineFrom", params.deadlineFrom);
     if (params.deadlineTo) query.set("deadlineTo", params.deadlineTo);
+    if (params.tab) query.set("tab", params.tab);
     if (targetPage > 1) query.set("page", String(targetPage));
     const qs = query.toString();
     return qs ? `/my-tasks?${qs}` : "/my-tasks";
@@ -186,23 +194,40 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           {myDayTasks.length === 0 ? (
             <EmptyState icon={CalendarCheck} title="Nothing overdue or due today. You're caught up." />
           ) : (
-            <div className="divide-y">
-              {myDayTasks.map((task, i) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  showClient
-                  statusOptions={statusOptions}
-                  priorityLevelOptions={priorityLevelOptions}
-                  delayMs={Math.min(i * 40, 400)}
-                />
-              ))}
-            </div>
+            (() => {
+              // Match TaskList's default column set (Date created hidden by
+              // default there via DEFAULT_HIDDEN_COLUMNS) so the My Day header
+              // + rows line up with the filtered list further down the page,
+              // rather than showing a wider column set only here.
+              const visibleColumns = new Set(
+                taskColumnsFor(true).map((c) => c.key).filter((key) => !DEFAULT_HIDDEN_COLUMNS.includes(key))
+              );
+              return (
+                <div className="divide-y">
+                  <TaskListHeader showClient visibleColumns={visibleColumns} />
+                  {myDayTasks.map((task, i) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      showClient
+                      visibleColumns={visibleColumns}
+                      statusOptions={statusOptions}
+                      priorityLevelOptions={priorityLevelOptions}
+                      delayMs={Math.min(i * 40, 400)}
+                    />
+                  ))}
+                </div>
+              );
+            })()
           )}
         </CardContent>
       </Card>
 
       <div className="mt-6">
+        <TaskCompletionToggle tab={completionTab} />
+      </div>
+
+      <div className="mt-4">
         <TaskFilters clients={clients} teamMembers={teamMembers} statusOptions={statusOptions} priorityLevelOptions={priorityLevelOptions} />
       </div>
 
