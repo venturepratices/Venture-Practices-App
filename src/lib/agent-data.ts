@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { taskVisibilityFilter } from "@/lib/permissions";
+import { hiddenPrivateTaskIds, taskVisibilityFilter } from "@/lib/permissions";
 import { getCompleteStatusId } from "@/lib/task-status";
 
 /**
@@ -193,12 +193,16 @@ const EXCLUDED_ACTIVITY_ENTITY_TYPES = ["ClientOrder"];
 
 export async function listActivity(opts: { clientId?: string; limit?: number }) {
   const limit = Math.min(opts.limit ?? 20, 50);
+  // No specific viewer here (this feeds an external AI, not a logged-in
+  // person), so every private task is excluded, same as listTasks() above.
+  const excludedTaskIds = await hiddenPrivateTaskIds(null);
 
   return prisma.activityLog.findMany({
     where: {
       ...(opts.clientId ? { clientId: opts.clientId } : {}),
       entityType: { notIn: EXCLUDED_ACTIVITY_ENTITY_TYPES },
       AND: EXCLUDED_ACTIVITY_ACTION_PREFIXES.map((prefix) => ({ NOT: { action: { startsWith: prefix } } })),
+      ...(excludedTaskIds.length > 0 ? { NOT: { entityType: "Task", entityId: { in: excludedTaskIds } } } : {}),
     },
     select: {
       actorName: true,

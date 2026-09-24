@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight, History } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { accessibleClientFilter, canUseCapability } from "@/lib/permissions";
+import { auth } from "@/lib/auth";
+import { accessibleClientFilter, canUseCapability, hiddenPrivateTaskIds } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { endOfDay, formatDateTime } from "@/lib/utils";
 import { ActivityFilters } from "@/components/activity/activity-filters";
@@ -45,6 +46,7 @@ function rangeStart(range?: string): Date | null {
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   if (!(await canUseCapability("canViewActivity"))) notFound();
 
+  const session = await auth();
   const params = await searchParams;
 
   const where: Prisma.ActivityLogWhereInput = {};
@@ -60,6 +62,14 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   } else {
     const start = rangeStart(params.range);
     if (start) where.createdAt = { gte: start };
+  }
+
+  // A private task is visible only to its creator (see taskVisibilityFilter) —
+  // this feed must honor the same rule, or another person's private task
+  // title and edits leak into the agency-wide list.
+  const excludedTaskIds = await hiddenPrivateTaskIds(session?.user?.id ?? null);
+  if (excludedTaskIds.length > 0) {
+    where.NOT = { entityType: "Task", entityId: { in: excludedTaskIds } };
   }
 
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);

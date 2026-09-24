@@ -14,9 +14,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { linkId } = await params;
   const link = await prisma.taskLink.findUnique({
     where: { id: linkId },
-    include: { task: { select: { title: true, clientId: true } } },
+    include: { task: { select: { title: true, clientId: true, isPrivate: true, createdById: true } } },
   });
-  if (!link) {
+  if (!link || (link.task.isPrivate && link.task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {

@@ -24,8 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true, clientId: true } });
-  if (!task) {
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true, clientId: true, isPrivate: true, createdById: true } });
+  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {

@@ -39,12 +39,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       title: true,
       clientId: true,
       isPrivate: true,
+      createdById: true,
       workflowInstanceId: true,
       deadline: true,
       assignees: { select: { teamMemberId: true, teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
     },
   });
-  if (!task) {
+  // Same "404, not 403" rule as every other task route — a private task
+  // leaks nothing to anyone but its creator, including whether it exists.
+  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const linkPath = task.workflowInstanceId

@@ -130,6 +130,19 @@ export function taskVisibilityFilter(viewerId: string | null): Prisma.TaskWhereI
     : { isPrivate: false };
 }
 
+// ActivityLog rows are polymorphic (entityType/entityId, no FK to Task), so a
+// private task's activity can't be hidden with a join the way taskVisibilityFilter
+// hides the task itself — this returns the ids to exclude by hand instead.
+// Every caller that reads ActivityLog (or the agent's equivalent) must apply
+// this, or another person's private task title/edits leak into a general feed.
+export async function hiddenPrivateTaskIds(viewerId: string | null): Promise<string[]> {
+  const rows = await prisma.task.findMany({
+    where: viewerId ? { isPrivate: true, createdById: { not: viewerId } } : { isPrivate: true },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
 // --- Boolean variants: for server components / conditional UI. ---
 
 export async function getPermissions(): Promise<Permissions | null> {
