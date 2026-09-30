@@ -6,6 +6,7 @@ import { ChevronLeft, Clock, FileText, Loader2, Paperclip, Pencil, Plus, Send, S
 import { cn, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type MessageAttachment = { name: string; sizeBytes: number };
 
@@ -354,7 +355,7 @@ export function AskViktorPanel({ open, onOpenChange }: { open: boolean; onOpenCh
                       className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-primary/10 px-2.5 py-1 text-xs"
                     >
                       <FileText className="size-3" />
-                      <span className="max-w-[160px] truncate">{p.file.name}</span>
+                      <TruncateTooltip text={p.file.name} className="max-w-[160px]" />
                       <button
                         type="button"
                         onClick={() => removePending(p.id)}
@@ -458,7 +459,7 @@ function HistoryView({
                   )}
                 >
                   <button type="button" onClick={() => onSelect(c.id)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm font-medium">{c.title ?? "(Empty chat)"}</p>
+                    <TruncateTooltip as="p" text={c.title ?? "(Empty chat)"} className="text-sm font-medium" />
                     <p className="text-xs text-muted-foreground">{formatDateTime(c.updatedAt)}</p>
                   </button>
                   <button

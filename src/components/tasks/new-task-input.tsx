@@ -15,7 +15,14 @@ import { PriorityPill } from "@/components/tasks/priority-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
-import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
+import {
+  RECURRENCE_UNIT_LABELS,
+  RECURRENCE_UNIT_VALUES,
+  TASK_KIND_LABELS,
+  TASK_KIND_VALUES,
+  TASK_OCCURRENCE_LABELS,
+  TASK_OCCURRENCE_VALUES,
+} from "@/lib/validations/task";
 import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
 
@@ -55,6 +62,8 @@ export function NewTaskInput({
   const [status, setStatus] = useState("NEXT_UP");
   const [priorityLevelId, setPriorityLevelId] = useState(NO_PRIORITY);
   const [occurrence, setOccurrence] = useState("NON_RECURRING");
+  const [customRecurrenceInterval, setCustomRecurrenceInterval] = useState(1);
+  const [customRecurrenceUnit, setCustomRecurrenceUnit] = useState("WEEK");
   const [kind, setKind] = useState("TASK");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
@@ -72,6 +81,8 @@ export function NewTaskInput({
     setStatus("NEXT_UP");
     setPriorityLevelId(NO_PRIORITY);
     setOccurrence("NON_RECURRING");
+    setCustomRecurrenceInterval(1);
+    setCustomRecurrenceUnit("WEEK");
     setKind("TASK");
     setSelectedProjectId(null);
     setIsPrivate(false);
@@ -111,6 +122,7 @@ export function NewTaskInput({
         status,
         priorityLevelId: priorityLevelId === NO_PRIORITY ? null : priorityLevelId,
         occurrence,
+        ...(occurrence === "RECURRING_CUSTOM" ? { customRecurrenceInterval, customRecurrenceUnit } : {}),
         kind,
         isPrivate,
         deadline: deadline ? new Date(deadline).toISOString() : null,
@@ -265,6 +277,35 @@ export function NewTaskInput({
               ))}
             </SelectContent>
           </Select>
+          {occurrence === "RECURRING_CUSTOM" ? (
+            <div className="flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1.5">
+              <span className="text-xs text-muted-foreground">Every</span>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={customRecurrenceInterval}
+                onChange={(event) => setCustomRecurrenceInterval(Math.max(1, Number(event.target.value) || 1))}
+                className="h-7 w-14 px-1.5 text-center text-xs"
+              />
+              <Select value={customRecurrenceUnit} onValueChange={(value) => value && setCustomRecurrenceUnit(value)}>
+                <SelectTrigger className="h-7 flex-1 text-xs">
+                  <SelectValue>
+                    {(unit: string) =>
+                      customRecurrenceInterval === 1 ? RECURRENCE_UNIT_LABELS[unit]?.singular : RECURRENCE_UNIT_LABELS[unit]?.plural
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {RECURRENCE_UNIT_VALUES.map((unit) => (
+                    <SelectItem key={unit} value={unit}>
+                      {RECURRENCE_UNIT_LABELS[unit].plural}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-1">

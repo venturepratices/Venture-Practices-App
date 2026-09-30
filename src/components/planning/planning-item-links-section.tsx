@@ -6,6 +6,7 @@ import { ExternalLink, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type PlanningItemLinkLike = { id: string; label: string; url: string };
 
@@ -60,7 +61,7 @@ export function PlanningItemLinksSection({
                 className="flex flex-1 items-center gap-1.5 truncate text-primary underline-offset-4 hover:underline"
               >
                 <ExternalLink className="size-3.5 shrink-0" />
-                <span className="truncate">{link.label}</span>
+                <TruncateTooltip text={link.label} />
               </a>
               {canManage ? (
                 <Button variant="ghost" size="icon-sm" aria-label={`Remove ${link.label}`} onClick={() => deleteLink(link.id)}>

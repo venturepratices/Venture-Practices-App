@@ -13,6 +13,7 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type ComboItem = { value: string; label: string };
 
@@ -49,7 +50,7 @@ export function ClientFilterCombobox({
         <ComboboxList>
           {(item: ComboItem) => (
             <ComboboxItem key={item.value} value={item}>
-              <span className="truncate">{item.label}</span>
+              <TruncateTooltip text={item.label} />
             </ComboboxItem>
           )}
         </ComboboxList>

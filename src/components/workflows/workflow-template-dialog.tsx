@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 
 type ComposerField = "description" | "link";
@@ -220,7 +221,9 @@ export function WorkflowTemplateDialog({
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-y-2 border-b px-5 py-3.5">
           <div className="flex min-w-0 items-baseline gap-3">
-            <DialogTitle className="truncate text-lg font-bold">{template.name}</DialogTitle>
+            <DialogTitle className="min-w-0 flex-1">
+              <TruncateTooltip text={template.name} className="text-lg font-bold" />
+            </DialogTitle>
             <span className="shrink-0 text-xs text-muted-foreground">
               {stagesDraft.length} stage{stagesDraft.length === 1 ? "" : "s"} · {totalTasks} task{totalTasks === 1 ? "" : "s"}
             </span>
@@ -359,7 +362,7 @@ export function WorkflowTemplateDialog({
                   {stage.tasks.map((task, taskIndex) => (
                     <li key={taskIndex} className="rounded-lg border px-3 py-2.5 text-sm">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate font-medium">{task.title}</span>
+                        <TruncateTooltip text={task.title} className="min-w-0 flex-1 font-medium" />
                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                           {statusLabelMap(statusOptions)[task.defaultStatus] ?? task.defaultStatus}
                         </span>
@@ -381,7 +384,7 @@ export function WorkflowTemplateDialog({
                       </div>
                       {task.description || task.links.length > 0 ? (
                         <div className="mt-1.5 flex items-center gap-2 border-t pt-1.5 text-xs text-muted-foreground">
-                          {task.description ? <span className="min-w-0 flex-1 truncate">{task.description}</span> : null}
+                          {task.description ? <TruncateTooltip text={task.description} className="min-w-0 flex-1" /> : null}
                           {task.links.length > 0 ? (
                             <span className="flex shrink-0 items-center gap-0.5">
                               <Link2 className="size-3" />

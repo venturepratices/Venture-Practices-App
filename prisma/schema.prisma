@@ -25,9 +25,19 @@ enum ClientStatus {
 enum TaskOccurrence {
   RECURRING_WEEKLY
   RECURRING_MONTHLY
+  RECURRING_BIMONTHLY
   RECURRING_QUARTERLY
+  // Repeats every Task.customRecurrenceInterval Task.customRecurrenceUnit —
+  // the only occurrence value that reads those two columns.
+  RECURRING_CUSTOM
   PROJECT
   NON_RECURRING
+}
+
+enum RecurrenceUnit {
+  DAY
+  WEEK
+  MONTH
 }
 
 // What this task is related to — auto-set at creation from its real link
@@ -859,6 +869,11 @@ model Task {
   clientId   String? // null = internal/agency task, not tied to a client
   client     Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   occurrence TaskOccurrence @default(NON_RECURRING)
+  // Only meaningful when occurrence is RECURRING_CUSTOM — "repeat every
+  // {customRecurrenceInterval} {customRecurrenceUnit}". Null for every other
+  // occurrence value, including the fixed presets above.
+  customRecurrenceInterval Int?
+  customRecurrenceUnit     RecurrenceUnit?
   // Deprecated shadow column from the fixed-enum era — see TaskStatusOption
   // above. Dual-written alongside statusId during the migration; reads
   // should go through statusId/TaskStatusOption once every consumer has
@@ -1272,6 +1287,10 @@ model ActivityLog {
   clientId    String?
   action      String
   description String
+  // Structured before/after data for the task popup's Activity tab (see
+  // src/lib/task-activity.ts). Null on rows written before it existed — those
+  // still render from `description`, just without the before → after pills.
+  details     Json?
   createdAt   DateTime    @default(now())
 
   @@index([entityType, entityId])

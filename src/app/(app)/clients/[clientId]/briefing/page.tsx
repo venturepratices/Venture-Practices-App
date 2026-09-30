@@ -8,6 +8,7 @@ import { formatDate, startOfDay, todayDateString } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatCard } from "@/components/ui/stat-card";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { TaskRow } from "@/components/tasks/task-row";
 
 export default async function ClientBriefingPage({
@@ -97,7 +98,7 @@ export default async function ClientBriefingPage({
                       href={`/clients/${asset.clientId}/assets/${asset.id}`}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted"
                     >
-                      <span className="truncate">{asset.title}</span>
+                      <TruncateTooltip text={asset.title} />
                       {asset.dueDate ? <span className="shrink-0 text-xs text-muted-foreground">Due {formatDate(asset.dueDate)}</span> : null}
                     </Link>
                   ))}

@@ -4,6 +4,7 @@ import { AlertTriangle, File, FileText, Film, Globe, Image as ImageIcon } from "
 
 import { ASSET_ROW_GRID } from "@/components/assets/asset-row-grid";
 import { AssetStatusPill } from "@/components/assets/asset-status-pill";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn, formatDate } from "@/lib/utils";
 
 export type AssetRowData = {
@@ -81,12 +82,14 @@ export function AssetRow({
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{asset.title}</p>
+        <TruncateTooltip as="p" text={asset.title} className="text-sm font-semibold" />
         {asset.description ? (
-          <p className="truncate text-xs text-muted-foreground">{asset.description}</p>
+          <TruncateTooltip as="p" text={asset.description} className="text-xs text-muted-foreground" />
         ) : null}
-        <p className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
-          {[
+        <TruncateTooltip
+          as="p"
+          className="mt-0.5 text-xs text-muted-foreground md:hidden"
+          text={[
             KIND_LABELS[kind],
             `v${asset.currentVersion?.versionNumber ?? 1}`,
             asset.changesRequested
@@ -98,7 +101,7 @@ export function AssetRow({
           ]
             .filter(Boolean)
             .join(" · ")}
-        </p>
+        />
       </div>
 
       <AssetStatusPill status={asset.status} className="min-w-0 justify-self-start" />

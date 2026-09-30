@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CornerDownRight, DollarSign, FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Service } from "@/lib/validations/client-order";
 
@@ -65,12 +66,12 @@ export function OrderList({
               <span className="min-w-0">
                 <span className="flex items-center gap-2 truncate">
                   <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate font-medium" title={order.title ?? undefined}>
-                    {order.title || "Untitled order"}
-                  </span>
+                  <TruncateTooltip text={order.title || "Untitled order"} className="font-medium" />
                 </span>
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground md:hidden">
-                  {[
+                <TruncateTooltip
+                  as="span"
+                  className="mt-0.5 block text-xs text-muted-foreground md:hidden"
+                  text={[
                     order.parentTitle ? `From "${order.parentTitle}"` : null,
                     order.type === "ORDER" ? `Created ${formatDate(order.createdAt)}` : `Changed ${formatDate(order.createdAt)}`,
                     `${formatCurrency(totalCents)}/mo`,
@@ -78,13 +79,13 @@ export function OrderList({
                   ]
                     .filter(Boolean)
                     .join(" · ")}
-                </span>
+                />
               </span>
               <span className="min-w-0 truncate text-muted-foreground">
                 {order.parentTitle ? (
                   <span className="flex items-center gap-1" title={order.parentTitle}>
                     <CornerDownRight className="size-3.5 shrink-0" />
-                    <span className="truncate">{order.parentTitle}</span>
+                    <TruncateTooltip text={order.parentTitle} />
                   </span>
                 ) : (
                   "Original"

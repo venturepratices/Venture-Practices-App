@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type Member = { id: string; name: string };
 
@@ -52,7 +53,10 @@ export function MemberFilter({ members }: { members: Member[] }) {
         <DropdownMenuTrigger
           render={
             <Button type="button" variant="outline" size="sm" className="min-w-40 justify-between font-normal">
-              <span className="truncate text-left">{allSelected ? "All people" : selectedNames.join(", ") || "None selected"}</span>
+              <TruncateTooltip
+                text={allSelected ? "All people" : selectedNames.join(", ") || "None selected"}
+                className="text-left"
+              />
               <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
             </Button>
           }

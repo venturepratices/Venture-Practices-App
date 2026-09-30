@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function logActivity(params: {
@@ -9,6 +10,7 @@ export async function logActivity(params: {
   clientId?: string | null;
   action: string;
   description: string;
+  details?: Prisma.InputJsonValue;
 }) {
   return prisma.activityLog.create({ data: { ...params, clientId: params.clientId ?? null } });
 }

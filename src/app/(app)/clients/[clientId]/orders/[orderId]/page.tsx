@@ -8,6 +8,7 @@ import { cn, formatCurrency, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusPillBase } from "@/components/ui/status-pill";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import type { Service } from "@/lib/validations/client-order";
 
 const SERVICE_STATUS_TONE = { ACTIVE: "success", PAUSED: "warning", CANCELLED: "neutral" } as const;
@@ -98,7 +99,7 @@ export default async function ClientOrderDetailPage({
           <div className="mt-2 divide-y rounded-lg border">
             {services.map((service, i) => (
               <div key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                <span className="min-w-0 truncate">{service.name}</span>
+                <TruncateTooltip text={service.name} className="min-w-0" />
                 <div className="flex shrink-0 items-center gap-3">
                   <span className="text-muted-foreground">{formatCurrency(service.feeCents)}/mo</span>
                   <StatusPillBase tone={SERVICE_STATUS_TONE[service.status]} label={SERVICE_STATUS_LABEL[service.status]} />

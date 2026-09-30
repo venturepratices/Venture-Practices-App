@@ -10,6 +10,7 @@ import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConvertToTaskDialog } from "@/components/planning/convert-to-task-dialog";
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn, formatDate } from "@/lib/utils";
 
 const OPTIONAL_COLUMNS: { key: string; label: string; defaultWidth: number }[] = [
@@ -181,25 +182,24 @@ export function PlanningItemRow({
       className={cn(GRID_CLASS, "w-full min-w-0 cursor-pointer animate-in px-4 py-3 text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted")}
     >
       <div className="min-w-0">
-        <p className="truncate font-medium" title={item.title}>
-          {item.title}
-        </p>
+        <TruncateTooltip as="p" text={item.title} className="font-medium" />
         {item.description ? (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={item.description}>
-            {item.description}
-          </p>
+          <TruncateTooltip as="p" text={item.description} className="mt-0.5 text-xs text-muted-foreground" />
         ) : null}
-        <p className="mt-1 truncate text-xs text-muted-foreground md:hidden">
-          {[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
+        <TruncateTooltip
+          as="p"
+          className="mt-1 text-xs text-muted-foreground md:hidden"
+          text={[item.createdBy?.name ? `Added by ${item.createdBy.name}` : "Added", formatDate(item.createdAt)]
             .filter(Boolean)
             .join(" · ")}
-        </p>
+        />
       </div>
 
       {isVisible("createdBy") ? (
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block" title={item.createdBy?.name ?? undefined}>
-          {item.createdBy?.name ?? "—"}
-        </span>
+        <TruncateTooltip
+          text={item.createdBy?.name ?? "—"}
+          className="hidden min-w-0 text-muted-foreground md:block"
+        />
       ) : null}
       {isVisible("dateCreated") ? (
         <span className="hidden min-w-0 truncate whitespace-nowrap text-muted-foreground md:block">{formatDate(item.createdAt)}</span>

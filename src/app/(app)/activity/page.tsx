@@ -11,6 +11,7 @@ import { ActivityFilters } from "@/components/activity/activity-filters";
 import { InfoTip } from "@/components/info-tip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 const PAGE_SIZE = 100;
 
@@ -137,7 +138,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
               style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
               className="flex animate-in items-center justify-between gap-4 fade-in slide-in-from-bottom-1 px-4 py-3 text-sm duration-300"
             >
-              <span className="min-w-0 flex-1 truncate">{entry.description}</span>
+              <TruncateTooltip text={entry.description} className="min-w-0 flex-1" />
               <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                 {formatDateTime(entry.createdAt)}
               </span>

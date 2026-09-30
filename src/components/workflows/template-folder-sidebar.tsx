@@ -8,6 +8,7 @@ import { Check, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 export type TemplateFolderItem = {
   id: string;
@@ -179,7 +180,7 @@ export function TemplateFolderSidebar({ folders, totalCount }: { folders: Templa
               >
                 <Link href={`/settings/workflow-templates?folderId=${folder.id}`} className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: folder.color ?? "#64748b" }} />
-                  <span className="truncate">{folder.name}</span>
+                  <TruncateTooltip text={folder.name} />
                   <span className="ml-auto text-xs font-normal text-muted-foreground">{folder.templateCount}</span>
                 </Link>
                 <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">

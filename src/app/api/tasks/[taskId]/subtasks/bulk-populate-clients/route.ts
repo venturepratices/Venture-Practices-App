@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
+import type { TaskActivityDetails } from "@/lib/task-activity";
 import {
   accessibleClientFilter,
   requireCapability,
@@ -30,7 +32,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ta
   const { taskId } = await params;
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { clientId: true, isPrivate: true, createdById: true },
+    select: { title: true, clientId: true, isPrivate: true, createdById: true },
   });
   if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -66,6 +68,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ta
 
   if (toCreate.length > 0) {
     await prisma.taskSubtask.createMany({ data: toCreate });
+    await logActivity({
+      actorId: session.user.id,
+      actorName: session.user.name ?? null,
+      entityType: "Task",
+      entityId: taskId,
+      entityLabel: task.title,
+      clientId: task.clientId,
+      action: "subtasks_added",
+      description: `${session.user.name ?? "Someone"} added ${toCreate.length} client subtask${toCreate.length === 1 ? "" : "s"} to "${task.title}"`,
+      details: { subtaskCount: toCreate.length } satisfies TaskActivityDetails,
+    });
   }
 
   return NextResponse.json(

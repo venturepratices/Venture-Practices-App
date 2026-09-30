@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type TeamMemberOption = { id: string; name: string };
 
@@ -46,7 +47,10 @@ export function TaskAssigneesPicker({
             size="sm"
             className={cn("w-full justify-between font-normal", triggerClassName)}
           >
-            <span className="truncate text-left">{selectedNames.length > 0 ? selectedNames.join(", ") : "Unassigned"}</span>
+            <TruncateTooltip
+              text={selectedNames.length > 0 ? selectedNames.join(", ") : "Unassigned"}
+              className="text-left"
+            />
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           </Button>
         }

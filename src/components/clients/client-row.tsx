@@ -5,6 +5,7 @@ import { initialsOf } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ClientStatusPill } from "@/components/clients/client-status-pill";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 // Below md, only Client / Status / Open show — Primary contact and the edit
 // affordance wait for more room, same idea as the task list's column
@@ -73,7 +74,7 @@ export function ClientRow({ client, delayMs = 0 }: { client: ClientRowData; dela
           <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
             {initialsOf(client.name)}
           </span>
-          <span className="min-w-0 truncate font-medium">{client.name}</span>
+          <TruncateTooltip text={client.name} className="min-w-0 font-medium" />
         </span>
         <span>
           <ClientStatusPill status={client.status} />
@@ -87,7 +88,10 @@ export function ClientRow({ client, delayMs = 0 }: { client: ClientRowData; dela
             </span>
           ) : null}
         </span>
-        <span className="hidden min-w-0 truncate text-muted-foreground md:block">{client.contactName ?? "—"}</span>
+        <TruncateTooltip
+          text={client.contactName ?? "—"}
+          className="hidden min-w-0 text-muted-foreground md:block"
+        />
       </Link>
     </div>
   );

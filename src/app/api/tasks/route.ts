@@ -113,6 +113,10 @@ export async function POST(request: Request) {
       ...(parsed.data.status ? { statusId: parsed.data.status } : {}),
       ...(parsed.data.priorityLevelId !== undefined ? { priorityLevelId: parsed.data.priorityLevelId } : {}),
       ...(parsed.data.occurrence ? { occurrence: parsed.data.occurrence } : {}),
+      ...(parsed.data.customRecurrenceInterval !== undefined
+        ? { customRecurrenceInterval: parsed.data.customRecurrenceInterval }
+        : {}),
+      ...(parsed.data.customRecurrenceUnit !== undefined ? { customRecurrenceUnit: parsed.data.customRecurrenceUnit } : {}),
       ...(parsed.data.deadline !== undefined ? { deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null } : {}),
       assignees: { create: assigneeIds.map((teamMemberId) => ({ teamMemberId })) },
     },

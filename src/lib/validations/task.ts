@@ -5,7 +5,9 @@ import { CAMPAIGN_STAGE_VALUES } from "@/lib/campaign-stage";
 export const TASK_OCCURRENCE_VALUES = [
   "RECURRING_WEEKLY",
   "RECURRING_MONTHLY",
+  "RECURRING_BIMONTHLY",
   "RECURRING_QUARTERLY",
+  "RECURRING_CUSTOM",
   "PROJECT",
   "NON_RECURRING",
 ] as const;
@@ -13,9 +15,19 @@ export const TASK_OCCURRENCE_VALUES = [
 export const TASK_OCCURRENCE_LABELS: Record<string, string> = {
   RECURRING_WEEKLY: "Recurring Weekly",
   RECURRING_MONTHLY: "Recurring Monthly",
+  RECURRING_BIMONTHLY: "Recurring Bi-Monthly",
   RECURRING_QUARTERLY: "Recurring Quarterly",
+  RECURRING_CUSTOM: "Custom",
   PROJECT: "Project",
   NON_RECURRING: "Non Recurring",
+};
+
+export const RECURRENCE_UNIT_VALUES = ["DAY", "WEEK", "MONTH"] as const;
+
+export const RECURRENCE_UNIT_LABELS: Record<string, { singular: string; plural: string }> = {
+  DAY: { singular: "Day", plural: "Days" },
+  WEEK: { singular: "Week", plural: "Weeks" },
+  MONTH: { singular: "Month", plural: "Months" },
 };
 
 export const TASK_KIND_VALUES = ["PROJECT", "DIRECT_MAIL", "TASK", "OTHER"] as const;
@@ -42,6 +54,9 @@ export const createTaskSchema = z.object({
   // table inside the route handler. Nullable: most tasks have no priority.
   priorityLevelId: z.string().trim().min(1).nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
+  // Only read when occurrence is RECURRING_CUSTOM — see Task.customRecurrenceInterval.
+  customRecurrenceInterval: z.number().int().min(1).max(365).nullable().optional(),
+  customRecurrenceUnit: z.enum(RECURRENCE_UNIT_VALUES).nullable().optional(),
   deadline: z.string().datetime().nullable().optional(),
   campaignId: z.string().nullable().optional(),
   campaignStage: z.enum(CAMPAIGN_STAGE_VALUES).nullable().optional(),
@@ -63,6 +78,9 @@ export const updateTaskSchema = z.object({
   assigneeIds: z.array(z.string()).optional(),
   clientId: z.string().nullable().optional(),
   occurrence: z.enum(TASK_OCCURRENCE_VALUES).optional(),
+  // Only read when occurrence is RECURRING_CUSTOM — see Task.customRecurrenceInterval.
+  customRecurrenceInterval: z.number().int().min(1).max(365).nullable().optional(),
+  customRecurrenceUnit: z.enum(RECURRENCE_UNIT_VALUES).nullable().optional(),
   status: z.string().trim().min(1).optional(),
   priorityLevelId: z.string().trim().min(1).nullable().optional(),
   deadline: z.string().datetime().nullable().optional(),

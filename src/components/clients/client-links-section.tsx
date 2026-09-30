@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import type { ClientLink } from "@/generated/prisma/client";
 
 export function ClientLinksSection({
@@ -61,7 +62,7 @@ export function ClientLinksSection({
                 className="flex flex-1 items-center gap-1.5 truncate text-primary underline-offset-4 hover:underline"
               >
                 <ExternalLink className="size-3.5 shrink-0" />
-                <span className="truncate">{link.label}</span>
+                <TruncateTooltip text={link.label} />
               </a>
               {canManage ? (
                 <TooltipProvider delay={300}>

@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Card, CardAction } from "@/components/ui/card"
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip"
 
 type StatCardTone = "primary" | "accent" | "neutral"
 
@@ -47,9 +48,10 @@ function StatCard({
     >
       <div className="flex items-start justify-between gap-3 px-(--card-spacing)">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground" title={label}>
-            {label}
-          </span>
+          <TruncateTooltip
+            text={label}
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          />
           <span
             className={cn(
               "text-4xl font-bold tracking-tight tabular-nums",

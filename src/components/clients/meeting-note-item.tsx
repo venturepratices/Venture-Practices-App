@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SimpleMarkdown } from "@/components/ui/simple-markdown";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 type Props = {
@@ -46,10 +47,11 @@ export function MeetingNoteItem({ clientId, meetingNote, delayMs }: Props) {
         style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
         className="flex w-full animate-in items-center gap-3 px-4 py-3 text-left text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted/50"
       >
-        <span className="w-48 shrink-0 truncate font-medium">{meetingNote.title}</span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">
-          {meetingNote.author?.name ? `Added by ${meetingNote.author.name}` : ""}
-        </span>
+        <TruncateTooltip text={meetingNote.title} className="w-48 shrink-0 font-medium" />
+        <TruncateTooltip
+          text={meetingNote.author?.name ? `Added by ${meetingNote.author.name}` : ""}
+          className="min-w-0 flex-1 text-muted-foreground"
+        />
         <span className="shrink-0 text-xs text-muted-foreground">{formatDate(meetingNote.meetingDate)}</span>
       </button>
 

@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { CredentialFormDialog } from "@/components/clients/credential-form-dialog";
 
 type Credential = {
@@ -92,9 +93,9 @@ export function CredentialRow({
             href={credential.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block truncate text-xs text-primary underline-offset-4 hover:underline"
+            className="block text-xs text-primary underline-offset-4 hover:underline"
           >
-            {credential.url}
+            <TruncateTooltip text={credential.url} className="block" />
           </a>
         ) : null}
         {credential.username ? <p className="text-xs text-muted-foreground">{credential.username}</p> : null}

@@ -10,6 +10,7 @@ import { ClientLinksSection } from "@/components/clients/client-links-section";
 import { DeleteClientDialog } from "@/components/clients/delete-client-dialog";
 import { ClientUsersSection } from "@/components/clients/client-users-section";
 import { HighLevelConnectionSection } from "@/components/clients/highlevel-connection-section";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 function IntakeField({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -31,7 +32,7 @@ function InfoRow({ icon: Icon, value, href }: { icon: React.ComponentType<{ clas
           {value}
         </a>
       ) : (
-        <span className="truncate">{value}</span>
+        <TruncateTooltip text={value} />
       )}
     </div>
   );

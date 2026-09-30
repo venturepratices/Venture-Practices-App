@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import type { TaskActivityDetails } from "@/lib/task-activity";
 
 const createLinkSchema = z.object({
   label: z.string().trim().min(1, "Label is required").max(120),
@@ -47,6 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     clientId: task.clientId,
     action: "link_added",
     description: `${session.user.name ?? "Someone"} added the link "${parsed.data.label}" to "${task?.title ?? "a task"}"`,
+    details: { link: { label: parsed.data.label } } satisfies TaskActivityDetails,
   });
 
   return NextResponse.json(link, { status: 201 });

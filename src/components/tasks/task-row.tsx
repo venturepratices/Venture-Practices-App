@@ -6,6 +6,7 @@ import { CalendarIcon, Lock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColumnResizeHandle } from "@/components/ui/column-resize-handle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { PriorityPill } from "@/components/tasks/priority-pill";
 import { StatusPill } from "@/components/tasks/status-pill";
@@ -172,9 +173,9 @@ export function TaskRow({
         ) : null}
       </span>
       <span className="min-w-0">
-        <span className="flex items-center gap-1.5 truncate" title={task.title}>
+        <span className="flex items-center gap-1.5">
           {task.isPrivate ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="Private" /> : null}
-          <span className="truncate">{task.title}</span>
+          <TruncateTooltip text={task.title} />
         </span>
         {descriptionPreview ? (
           <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={descriptionPreview}>

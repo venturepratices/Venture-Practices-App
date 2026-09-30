@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, FileText, Sparkles } from "lucide-react";
 
 import { OrderForm } from "@/components/orders/order-form";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import type { OrderTemplateField } from "@/lib/validations/order-template";
 
 type TemplateOption = { id: string; name: string; customFields: OrderTemplateField[] };
@@ -26,7 +27,7 @@ export function NewOrderStart({ clientId, templates }: { clientId: string; templ
             >
               <Sparkles className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{template.name}</span>
+                <TruncateTooltip as="span" text={template.name} className="block text-sm font-medium" />
                 <span className="block text-xs text-muted-foreground">
                   {template.customFields.length} custom field{template.customFields.length === 1 ? "" : "s"}
                 </span>

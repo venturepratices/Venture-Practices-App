@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Archive, Check, Folder, FolderPlus, Images, Pencil, Trash2, X } from "lucide-react";
 
 import { ANNOTATION_COLORS } from "@/lib/asset-annotation";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import { useAssetSidebar } from "@/components/assets/asset-sidebar-context";
 
@@ -207,7 +208,7 @@ export function AssetFolderSidebar({
                     className="size-3.5 shrink-0"
                     style={{ color: folder.color ?? "var(--muted-foreground)" }}
                   />
-                  <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+                  <TruncateTooltip text={folder.name} className="min-w-0 flex-1" />
                   <span className="text-xs text-muted-foreground">{folder.count}</span>
                 </Link>
                 {canManage ? (

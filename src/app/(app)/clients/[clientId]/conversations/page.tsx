@@ -10,6 +10,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { ConversationDetailThread, type ThreadMessage } from "@/components/clients/conversation-thread";
 import { SyncNowButton } from "@/components/clients/sync-now-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type ContactSummary = {
   contactId: string;
@@ -153,7 +154,7 @@ export default async function ConversationsPage({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{c.contactName ?? "Unknown contact"}</span>
+                      <TruncateTooltip text={c.contactName ?? "Unknown contact"} className="text-sm font-medium" />
                       <span className="shrink-0 text-[10px] text-muted-foreground">
                         {formatDate(c.lastTimestamp)}
                       </span>
@@ -168,7 +169,7 @@ export default async function ConversationsPage({
                       ) : (
                         <MessageSquare className="size-3 shrink-0" />
                       )}
-                      <span className="truncate">{preview || "(no text content)"}</span>
+                      <TruncateTooltip text={preview || "(no text content)"} />
                     </span>
                   </span>
                 </Link>

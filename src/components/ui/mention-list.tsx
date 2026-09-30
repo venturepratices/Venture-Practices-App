@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 
 import { cn, initialsOf } from "@/lib/utils";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 export type MentionItem = { id: string; name: string };
 
@@ -68,7 +69,7 @@ export const MentionList = forwardRef<MentionListHandle, Props>(function Mention
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
             {initialsOf(item.name)}
           </span>
-          <span className="truncate">{item.name}</span>
+          <TruncateTooltip text={item.name} />
         </button>
       ))}
     </div>

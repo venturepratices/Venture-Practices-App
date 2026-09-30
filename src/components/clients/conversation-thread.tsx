@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Mail, Phone, Voicemail } from "lucide-react";
 
 import { cn, formatDateTime } from "@/lib/utils";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 export type ThreadMessage = {
   id: string;
@@ -39,13 +40,17 @@ function EmailMessageCard({ message }: { message: ThreadMessage }) {
           <span className={inbound ? "text-emerald-600" : "text-sky-600"}>{inbound ? "Received" : "Sent"}</span>
           <span className="shrink-0">{formatDateTime(message.ghlTimestamp)}</span>
         </div>
-        <p className={cn("text-sm font-medium", !expanded && "truncate")}>{message.subject || "(no subject)"}</p>
+        {expanded ? (
+          <p className="text-sm font-medium">{message.subject || "(no subject)"}</p>
+        ) : (
+          <TruncateTooltip as="p" text={message.subject || "(no subject)"} className="text-sm font-medium" />
+        )}
         {expanded ? (
           <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">
             {message.body || <span className="italic text-muted-foreground">(no text content)</span>}
           </p>
         ) : (
-          <p className="truncate text-sm text-muted-foreground">{message.body || "(no text content)"}</p>
+          <TruncateTooltip as="p" text={message.body || "(no text content)"} className="text-sm text-muted-foreground" />
         )}
       </div>
     </div>

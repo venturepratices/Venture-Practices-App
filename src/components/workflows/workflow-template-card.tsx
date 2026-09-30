@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { StatusOptionLite } from "@/lib/task-status-utils";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { WorkflowTemplateDialog, type WorkflowTemplateWithStages } from "@/components/workflows/workflow-template-dialog";
 
 type TeamMemberOption = { id: string; name: string };
@@ -115,7 +116,7 @@ export function WorkflowTemplateCard({
           </DropdownMenu>
         </div>
 
-        <p className="mt-2.5 truncate text-sm font-semibold">{template.name}</p>
+        <TruncateTooltip as="p" text={template.name} className="mt-2.5 text-sm font-semibold" />
         {template.description ? (
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{template.description}</p>
         ) : null}

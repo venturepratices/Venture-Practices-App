@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckSquare, Copy, ExternalLink, Loader2, Lock, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,18 +13,28 @@ import { RichTextContent } from "@/components/ui/rich-text-content";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { PriorityPill } from "@/components/tasks/priority-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
+import { TaskActivityDigest, TaskActivityTimeline } from "@/components/tasks/task-activity";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { stripHtml } from "@/lib/text-format";
-import { TASK_KIND_LABELS, TASK_KIND_VALUES, TASK_OCCURRENCE_LABELS, TASK_OCCURRENCE_VALUES } from "@/lib/validations/task";
+import {
+  RECURRENCE_UNIT_LABELS,
+  RECURRENCE_UNIT_VALUES,
+  TASK_KIND_LABELS,
+  TASK_KIND_VALUES,
+  TASK_OCCURRENCE_LABELS,
+  TASK_OCCURRENCE_VALUES,
+} from "@/lib/validations/task";
 import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
-import { formatDateTime } from "@/lib/utils";
+import type { TaskActivityEvent } from "@/lib/task-activity";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
 const NO_CLIENT = "__none__";
@@ -41,6 +51,8 @@ type Draft = {
   assigneeIds: string[];
   clientId: string;
   occurrence: string;
+  customRecurrenceInterval: number;
+  customRecurrenceUnit: string;
   deadline: string; // "YYYY-MM-DD" or ""
   campaignId: string;
   campaignStage: string;
@@ -58,6 +70,8 @@ function draftFromTask(task: TaskDetail): Draft {
     assigneeIds: task.assignees.map((a) => a.teamMemberId).sort(),
     clientId: task.clientId ?? NO_CLIENT,
     occurrence: task.occurrence,
+    customRecurrenceInterval: task.customRecurrenceInterval ?? 1,
+    customRecurrenceUnit: task.customRecurrenceUnit ?? "WEEK",
     deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
     campaignId: task.campaignId ?? NO_CAMPAIGN,
     campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
@@ -97,6 +111,13 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   const [populateFeedback, setPopulateFeedback] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  // Both keyed by the task they belong to, so opening a different task
+  // falls back to the Details tab / "loading" on its own — no reset effect.
+  const [tabState, setTabState] = useState<{ taskId: string | null; tab: "details" | "activity" }>({ taskId: null, tab: "details" });
+  const [activityState, setActivityState] = useState<{ taskId: string; events: TaskActivityEvent[] } | null>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+  const tab = tabState.taskId === taskId ? tabState.tab : "details";
+  const activity = activityState && activityState.taskId === taskId ? activityState.events : null;
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -181,6 +202,27 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
     };
   }, [taskId]);
 
+  // Keyed on the `task` object itself so the log refreshes after every save,
+  // comment, link or subtask change (each of those replaces `task`).
+  useEffect(() => {
+    if (!taskId || !task) return;
+    let cancelled = false;
+    fetch(`/api/tasks/${taskId}/activity`)
+      .then((res) => (res.ok ? res.json() : { events: [] }))
+      .then((data: { events: TaskActivityEvent[] }) => {
+        if (!cancelled) setActivityState({ taskId, events: data.events });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId, task]);
+
+  function openTab(next: "details" | "activity") {
+    setTabState({ taskId, tab: next });
+    // "See all" sits at the bottom of Details — bring the tabs back into view.
+    requestAnimationFrame(() => tabStripRef.current?.scrollIntoView({ block: "nearest" }));
+  }
+
   function close() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("taskId");
@@ -213,6 +255,19 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
       fields.clientId = draft.clientId === NO_CLIENT ? null : draft.clientId;
     }
     if (draft.occurrence !== base.occurrence) fields.occurrence = draft.occurrence;
+    if (draft.occurrence === "RECURRING_CUSTOM") {
+      if (
+        draft.occurrence !== base.occurrence ||
+        draft.customRecurrenceInterval !== base.customRecurrenceInterval ||
+        draft.customRecurrenceUnit !== base.customRecurrenceUnit
+      ) {
+        fields.customRecurrenceInterval = draft.customRecurrenceInterval;
+        fields.customRecurrenceUnit = draft.customRecurrenceUnit;
+      }
+    } else if (base.occurrence === "RECURRING_CUSTOM" && draft.occurrence !== base.occurrence) {
+      fields.customRecurrenceInterval = null;
+      fields.customRecurrenceUnit = null;
+    }
     if (draft.deadline !== base.deadline) {
       fields.deadline = draft.deadline ? new Date(draft.deadline).toISOString() : null;
     }
@@ -386,9 +441,11 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                   />
                 ) : (
                   <>
-                    <h2 className="flex-1 truncate text-xl font-bold tracking-tight">
-                      {draft.title || "Untitled task"}
-                    </h2>
+                    <TruncateTooltip
+                      as="h2"
+                      text={draft.title || "Untitled task"}
+                      className="flex-1 text-xl font-bold tracking-tight"
+                    />
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -402,6 +459,39 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
               </div>
             </DialogHeader>
 
+            <div ref={tabStripRef} role="tablist" aria-label="Task sections" className="-mt-3 flex gap-1 border-b">
+              {(["details", "activity"] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === key}
+                  onClick={() => openTab(key)}
+                  className={cn(
+                    "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                    tab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {key === "details" ? "Details" : "Activity"}
+                  {key === "activity" && activity && activity.length > 0 ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                        tab === "activity" ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                      )}
+                    >
+                      {activity.length}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+
+            {tab === "activity" ? <TaskActivityTimeline key={taskId} events={activity} /> : null}
+
+            {/* Details stays mounted (just hidden) while on Activity, so an
+                unsaved edit or half-typed comment survives a tab switch. */}
+            <div className={tab === "details" ? "flex flex-col gap-6" : "hidden"}>
             <div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
               <span className="text-xs font-medium text-amber-800 dark:text-amber-300">
                 {isDirty ? "You have unsaved changes" : "No unsaved changes"}
@@ -578,6 +668,42 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                     ))}
                   </SelectContent>
                 </Select>
+                {draft.occurrence === "RECURRING_CUSTOM" ? (
+                  <div className="flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1.5">
+                    <span className="text-xs text-muted-foreground">Every</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={draft.customRecurrenceInterval}
+                      onChange={(event) =>
+                        setField("customRecurrenceInterval", Math.max(1, Number(event.target.value) || 1))
+                      }
+                      className="h-7 w-14 px-1.5 text-center text-xs"
+                    />
+                    <Select
+                      value={draft.customRecurrenceUnit}
+                      onValueChange={(value) => value && setField("customRecurrenceUnit", value)}
+                    >
+                      <SelectTrigger className="h-7 flex-1 text-xs">
+                        <SelectValue>
+                          {(unit: string) =>
+                            draft.customRecurrenceInterval === 1
+                              ? RECURRENCE_UNIT_LABELS[unit]?.singular
+                              : RECURRENCE_UNIT_LABELS[unit]?.plural
+                          }
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RECURRENCE_UNIT_VALUES.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {RECURRENCE_UNIT_LABELS[unit].plural}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
                 {draft.occurrence !== "NON_RECURRING" && draft.occurrence !== "PROJECT" ? (
                   <p className="text-xs text-muted-foreground">
                     Marking this Complete will automatically create the next occurrence.
@@ -670,13 +796,10 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                         checked={subtask.completed}
                         onCheckedChange={(checked) => toggleSubtask(subtask.id, checked === true)}
                       />
-                      <span
-                        className={
-                          subtask.completed ? "flex-1 truncate text-muted-foreground line-through" : "flex-1 truncate"
-                        }
-                      >
-                        {subtask.title}
-                      </span>
+                      <TruncateTooltip
+                        text={subtask.title}
+                        className={subtask.completed ? "flex-1 text-muted-foreground line-through" : "flex-1"}
+                      />
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -754,10 +877,10 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-1 items-center gap-1.5 truncate text-primary underline-offset-4 hover:underline"
+                        className="flex flex-1 min-w-0 items-center gap-1.5 truncate text-primary underline-offset-4 hover:underline"
                       >
                         <ExternalLink className="size-3.5 shrink-0" />
-                        <span className="truncate">{link.label}</span>
+                        <TruncateTooltip text={link.label} />
                       </a>
                       <Button
                         variant="ghost"
@@ -825,6 +948,8 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
               </div>
             </div>
 
+            <TaskActivityDigest events={activity} onSeeAll={() => openTab("activity")} />
+
             <div className="mt-auto flex items-center gap-2 border-t pt-4">
               <Button variant="outline" onClick={handleDuplicate} disabled={isDuplicating}>
                 {isDuplicating ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
@@ -834,6 +959,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                 <Trash2 className="size-4" />
                 Delete task
               </Button>
+            </div>
             </div>
           </>
         ) : (

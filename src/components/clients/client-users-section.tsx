@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClientUserFormDialog } from "@/components/clients/client-user-form-dialog";
 import { DeleteClientUserButton } from "@/components/clients/delete-client-user-button";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 export type ClientUserRow = { id: string; name: string; email: string };
 
@@ -51,8 +52,8 @@ export function ClientUsersSection({
           {clientUsers.map((cu) => (
             <li key={cu.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{cu.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{cu.email}</p>
+                <TruncateTooltip as="p" text={cu.name} className="text-sm font-medium" />
+                <TruncateTooltip as="p" text={cu.email} className="text-xs text-muted-foreground" />
               </div>
               {canManage ? (
                 <div className="flex shrink-0 items-center gap-1">

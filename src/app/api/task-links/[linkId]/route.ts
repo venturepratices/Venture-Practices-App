@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import type { TaskActivityDetails } from "@/lib/task-activity";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ linkId: string }> }) {
   const session = await auth();
@@ -37,6 +38,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       clientId: link.task.clientId,
       action: "link_removed",
       description: `${session.user.name ?? "Someone"} removed the link "${link.label}" from "${link.task.title}"`,
+      details: { link: { label: link.label } } satisfies TaskActivityDetails,
     });
   }
 

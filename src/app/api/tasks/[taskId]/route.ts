@@ -15,15 +15,29 @@ import { isValidPriorityLevelId } from "@/lib/priority-level";
 import { getTaskStatusOptions, isCompleteStatusId, isValidStatusId } from "@/lib/task-status";
 import { priorityLevelLabelMap, statusLabelMap } from "@/lib/task-status-utils";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
-import { updateTaskSchema } from "@/lib/validations/task";
+import type { TaskActivityDetails, TaskChange } from "@/lib/task-activity";
+import { TASK_KIND_LABELS, updateTaskSchema } from "@/lib/validations/task";
+
+const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
 
 const OCCURRENCE_LABELS: Record<string, string> = {
   RECURRING_WEEKLY: "Recurring Weekly",
   RECURRING_MONTHLY: "Recurring Monthly",
+  RECURRING_BIMONTHLY: "Recurring Bi-Monthly",
   RECURRING_QUARTERLY: "Recurring Quarterly",
+  RECURRING_CUSTOM: "Custom",
   PROJECT: "Project",
   NON_RECURRING: "Non Recurring",
 };
+
+const RECURRENCE_UNIT_PLURAL: Record<string, string> = { DAY: "days", WEEK: "weeks", MONTH: "months" };
+
+function occurrenceLabel(occurrence: string, interval: number | null, unit: string | null): string {
+  if (occurrence === "RECURRING_CUSTOM" && interval && unit) {
+    return `Custom (every ${interval} ${interval === 1 ? unit.toLowerCase() : RECURRENCE_UNIT_PLURAL[unit]})`;
+  }
+  return OCCURRENCE_LABELS[occurrence] ?? occurrence;
+}
 
 export const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
@@ -82,7 +96,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
 
   const before = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { assignees: { select: { teamMemberId: true } }, client: { select: { name: true } } },
+    include: {
+      assignees: { select: { teamMemberId: true, teamMember: { select: { name: true } } } },
+      client: { select: { name: true } },
+      workflowInstance: { select: { name: true } },
+    },
   });
   if (!before || (before.isPrivate && before.createdById !== session.user.id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -152,13 +170,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
 
   if (before) {
     const changes: string[] = [];
+    // Same edits as `changes`, but with before → after values for the task
+    // popup's Activity tab. `changes` stays as-is for the global Activity page.
+    const structured: TaskChange[] = [];
     if (parsed.data.title !== undefined && parsed.data.title !== before.title) {
       changes.push(`renamed to "${parsed.data.title}"`);
+      structured.push({ field: "title", from: { label: before.title }, to: { label: parsed.data.title } });
+    }
+    if (parsed.data.description !== undefined && (parsed.data.description ?? "") !== (before.description ?? "")) {
+      changes.push("description edited");
+      structured.push({ field: "description", from: null, to: null });
     }
     if (status !== undefined && status !== before.statusId) {
-      const statusLabels = statusLabelMap(await getTaskStatusOptions());
+      const statusOptions = await getTaskStatusOptions();
+      const statusLabels = statusLabelMap(statusOptions);
       const newStatusLabel = statusLabels[status] ?? status;
       changes.push(`status changed to ${newStatusLabel}`);
+      const fromStatus = statusOptions.find((o) => o.id === before.statusId);
+      const toStatus = statusOptions.find((o) => o.id === status);
+      structured.push({
+        field: "status",
+        from: fromStatus ? { label: fromStatus.label, tone: fromStatus.tone, color: fromStatus.color } : null,
+        to: { label: newStatusLabel, tone: toStatus?.tone ?? null, color: toStatus?.color ?? null },
+      });
       for (const a of task.assignees) {
         if (a.teamMemberId === session.user.id) continue;
         await notify({
@@ -182,18 +216,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       }
     }
     if (priorityLevelId !== undefined && priorityLevelId !== before.priorityLevelId) {
-      const priorityLabels = priorityLevelLabelMap(await getPriorityLevelOptions());
+      const priorityOptions = await getPriorityLevelOptions();
+      const priorityLabels = priorityLevelLabelMap(priorityOptions);
       const newPriorityLabel = priorityLevelId ? (priorityLabels[priorityLevelId] ?? priorityLevelId) : "No priority";
       changes.push(`priority changed to ${newPriorityLabel}`);
+      const fromPriority = priorityOptions.find((o) => o.id === before.priorityLevelId);
+      const toPriority = priorityOptions.find((o) => o.id === priorityLevelId);
+      structured.push({
+        field: "priority",
+        from: fromPriority ? { label: fromPriority.label, color: fromPriority.color } : null,
+        to: toPriority ? { label: toPriority.label, color: toPriority.color } : null,
+      });
     }
     if (assigneeIds !== undefined) {
       const beforeIds = new Set(before.assignees.map((a) => a.teamMemberId));
       const added = task.assignees.filter((a) => !beforeIds.has(a.teamMemberId));
       const afterIds = new Set(task.assignees.map((a) => a.teamMemberId));
-      const changed = added.length > 0 || before.assignees.some((a) => !afterIds.has(a.teamMemberId));
+      const removed = before.assignees.filter((a) => !afterIds.has(a.teamMemberId));
+      const changed = added.length > 0 || removed.length > 0;
       if (changed) {
         const names = task.assignees.map((a) => a.teamMember.name);
         changes.push(`assignees changed to ${names.length > 0 ? names.join(", ") : "Unassigned"}`);
+        const beforeNames = before.assignees.map((a) => a.teamMember.name);
+        structured.push({
+          field: "assignees",
+          from: beforeNames.length > 0 ? { label: beforeNames.join(", ") } : null,
+          to: names.length > 0 ? { label: names.join(", ") } : null,
+          added: added.map((a) => a.teamMember.name),
+          removed: removed.map((a) => a.teamMember.name),
+        });
       }
       for (const a of added) {
         if (a.teamMemberId === session.user.id) continue;
@@ -226,9 +277,49 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
     }
     if (parsed.data.clientId !== undefined && parsed.data.clientId !== before.clientId) {
       changes.push(`client changed to ${task.client?.name ?? "Internal / Agency"}`);
+      structured.push({
+        field: "client",
+        from: { label: before.client?.name ?? "Internal / Agency" },
+        to: { label: task.client?.name ?? "Internal / Agency" },
+      });
     }
-    if (parsed.data.occurrence !== undefined && parsed.data.occurrence !== before.occurrence) {
-      changes.push(`occurrence changed to ${OCCURRENCE_LABELS[parsed.data.occurrence]}`);
+    if (
+      (parsed.data.occurrence !== undefined && parsed.data.occurrence !== before.occurrence) ||
+      (before.occurrence === "RECURRING_CUSTOM" &&
+        task.occurrence === "RECURRING_CUSTOM" &&
+        (parsed.data.customRecurrenceInterval !== undefined || parsed.data.customRecurrenceUnit !== undefined) &&
+        (task.customRecurrenceInterval !== before.customRecurrenceInterval || task.customRecurrenceUnit !== before.customRecurrenceUnit))
+    ) {
+      const toLabel = occurrenceLabel(task.occurrence, task.customRecurrenceInterval, task.customRecurrenceUnit);
+      changes.push(`occurrence changed to ${toLabel}`);
+      structured.push({
+        field: "occurrence",
+        from: { label: occurrenceLabel(before.occurrence, before.customRecurrenceInterval, before.customRecurrenceUnit) },
+        to: { label: toLabel },
+      });
+    }
+    if (parsed.data.kind !== undefined && parsed.data.kind !== before.kind) {
+      changes.push(`related to changed to ${TASK_KIND_LABELS[parsed.data.kind] ?? parsed.data.kind}`);
+      structured.push({
+        field: "relatedTo",
+        from: { label: TASK_KIND_LABELS[before.kind] ?? before.kind },
+        to: { label: TASK_KIND_LABELS[parsed.data.kind] ?? parsed.data.kind },
+      });
+    }
+    if (parsed.data.workflowInstanceId !== undefined && parsed.data.workflowInstanceId !== before.workflowInstanceId) {
+      const project = parsed.data.workflowInstanceId
+        ? await prisma.workflowInstance.findUnique({ where: { id: parsed.data.workflowInstanceId }, select: { name: true } })
+        : null;
+      changes.push(project ? `project changed to ${project.name}` : "removed from project");
+      structured.push({
+        field: "project",
+        from: before.workflowInstance ? { label: before.workflowInstance.name } : null,
+        to: project ? { label: project.name } : null,
+      });
+    }
+    if (isPrivate !== undefined && canTogglePrivacy && isPrivate !== before.isPrivate) {
+      changes.push(isPrivate ? "made private" : "made visible to everyone");
+      structured.push({ field: "private", from: null, to: { label: isPrivate ? "Private" : "Everyone" } });
     }
     if (deadline !== undefined) {
       const newTime = deadline ? new Date(deadline).getTime() : null;
@@ -236,6 +327,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       if (newTime !== oldTime) {
         const deadlineLabel = deadline ? formatDate(deadline) : "none";
         changes.push(`deadline changed to ${deadlineLabel}`);
+        structured.push({
+          field: "deadline",
+          from: before.deadline ? { label: formatDate(before.deadline, SHORT_DATE) } : null,
+          to: deadline ? { label: formatDate(deadline, SHORT_DATE) } : null,
+        });
         for (const a of task.assignees) {
           if (a.teamMemberId === session.user.id) continue;
           await notify({
@@ -270,6 +366,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         clientId: task.clientId,
         action: "updated",
         description: `${session.user.name ?? "Someone"} updated "${task.title}": ${changes.join(", ")}`,
+        details: { changes: structured } satisfies TaskActivityDetails,
       });
     }
 

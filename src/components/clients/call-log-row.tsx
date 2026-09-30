@@ -1,5 +1,6 @@
 import { PhoneIncoming, PhoneOutgoing, Voicemail } from "lucide-react";
 
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { formatDateTime } from "@/lib/utils";
 
 export type CallRow = {
@@ -30,7 +31,7 @@ export function CallLogRow({ call, delayMs }: { call: CallRow; delayMs?: number 
             {isVoicemail ? "Voicemail" : `${inbound ? "Inbound" : "Outbound"} call`}
           </span>
         </div>
-        {call.body ? <p className="truncate text-sm text-muted-foreground">{call.body}</p> : null}
+        {call.body ? <TruncateTooltip as="p" text={call.body} className="text-sm text-muted-foreground" /> : null}
       </div>
       <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(call.ghlTimestamp)}</span>
     </li>

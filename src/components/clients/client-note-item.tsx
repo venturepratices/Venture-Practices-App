@@ -10,6 +10,7 @@ import type { MentionItem } from "@/components/ui/mention-list";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { stripHtml } from "@/lib/text-format";
 import { formatDateTime } from "@/lib/utils";
 
@@ -89,8 +90,8 @@ export function ClientNoteItem({ clientId, note, teamMembers, delayMs }: Props) 
         style={{ animationDelay: delayMs ? `${delayMs}ms` : undefined }}
         className="flex w-full animate-in items-center gap-3 px-4 py-3 text-left text-sm fade-in slide-in-from-bottom-1 transition-colors duration-300 hover:bg-muted/50"
       >
-        <span className="w-32 shrink-0 truncate font-medium">{note.author?.name ?? "Former team member"}</span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">{previewOf(note.body)}</span>
+        <TruncateTooltip text={note.author?.name ?? "Former team member"} className="w-32 shrink-0 font-medium" />
+        <TruncateTooltip text={previewOf(note.body)} className="min-w-0 flex-1 text-muted-foreground" />
         <span className="shrink-0 text-xs text-muted-foreground">
           {formatDateTime(note.createdAt)}
           {wasEdited ? " (edited)" : ""}

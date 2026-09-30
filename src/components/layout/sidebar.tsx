@@ -9,6 +9,7 @@ import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
 import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type SidebarClient = {
   id: string;
@@ -169,13 +170,13 @@ export function Sidebar({
                       key={client.id}
                       href={href}
                       className={cn(
-                        "block truncate rounded-md px-3 py-1.5 text-sm transition-colors",
+                        "block rounded-md px-3 py-1.5 text-sm transition-colors",
                         active
                           ? "bg-sidebar-primary text-sidebar-primary-foreground"
                           : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                       )}
                     >
-                      {client.name}
+                      <TruncateTooltip text={client.name} className="block" />
                     </Link>
                   );
                 })
@@ -196,10 +197,11 @@ export function Sidebar({
                 {userName ? initialsOf(userName) : "?"}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-sidebar-foreground">
-                  {userName ?? "Team member"}
-                </span>
-                <span className="block truncate text-xs text-sidebar-foreground/60">{userEmail}</span>
+                <TruncateTooltip
+                  text={userName ?? "Team member"}
+                  className="block text-sm font-medium text-sidebar-foreground"
+                />
+                <TruncateTooltip text={userEmail ?? ""} className="block text-xs text-sidebar-foreground/60" />
               </span>
             </button>
           }

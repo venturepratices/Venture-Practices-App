@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { NotificationIcon } from "@/components/notifications/notification-icon";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import type { Notification } from "@/generated/prisma/client";
 
 export function NotificationRow({ notification, delayMs }: { notification: Notification; delayMs?: number }) {
@@ -40,7 +41,7 @@ export function NotificationRow({ notification, delayMs }: { notification: Notif
     >
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <NotificationIcon type={notification.type} unread={isUnread} />
-        <span className={cn("min-w-0 truncate", isUnread && "font-medium")}>{notification.message}</span>
+        <TruncateTooltip text={notification.message} className={cn("min-w-0", isUnread && "font-medium")} />
       </div>
       <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
         {formatDateTime(notification.createdAt)}

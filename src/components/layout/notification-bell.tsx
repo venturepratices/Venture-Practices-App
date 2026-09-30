@@ -8,6 +8,7 @@ import { Bell } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { NotificationIcon } from "@/components/notifications/notification-icon";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import type { Notification } from "@/generated/prisma/client";
 
 export function NotificationBell({
@@ -134,7 +135,7 @@ function NotificationItem({ notification, onOpen }: { notification: Notification
     >
       <NotificationIcon type={notification.type} unread={isUnread} />
       <span className="min-w-0 flex-1">
-        <span className={cn("block truncate", isUnread && "font-medium")}>{notification.message}</span>
+        <TruncateTooltip text={notification.message} className={cn("block", isUnread && "font-medium")} />
         <span className="text-xs text-muted-foreground">{formatDateTime(notification.createdAt)}</span>
       </span>
       {isUnread ? <span className="size-2 shrink-0 rounded-full bg-primary" /> : null}

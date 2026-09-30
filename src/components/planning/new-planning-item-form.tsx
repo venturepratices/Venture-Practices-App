@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { PlanningStatusPill } from "@/components/planning/planning-status-pill";
 
 const CREATABLE_STATUSES = ["IDEA", "STRATEGY"] as const;
@@ -136,7 +137,7 @@ export function NewPlanningItemForm({ clientId }: { clientId: string }) {
               <li key={`${link.url}-${index}`} className="flex items-center gap-2 text-sm">
                 <span className="flex flex-1 items-center gap-1.5 truncate text-muted-foreground">
                   <ExternalLink className="size-3.5 shrink-0" />
-                  <span className="truncate">{link.label}</span>
+                  <TruncateTooltip text={link.label} />
                 </span>
                 <Button
                   type="button"

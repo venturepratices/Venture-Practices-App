@@ -3,6 +3,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CalendarIcon, Lock } from "lucide-react";
 
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { KindPill } from "@/components/tasks/kind-pill";
 import { PriorityPill } from "@/components/tasks/priority-pill";
 import { stripHtml } from "@/lib/text-format";
@@ -35,9 +36,9 @@ export function TaskCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="flex min-w-0 items-center gap-1.5 truncate font-medium">
+        <p className="flex min-w-0 items-center gap-1.5 font-medium">
           {task.isPrivate ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="Private" /> : null}
-          <span className="truncate">{task.title}</span>
+          <TruncateTooltip text={task.title} />
         </p>
         <KindPill kind={task.kind} label={task.kind === "PROJECT" ? task.workflowInstance?.name : undefined} className="shrink-0" />
       </div>

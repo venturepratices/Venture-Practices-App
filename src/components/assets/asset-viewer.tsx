@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { ShareLinkDialog } from "@/components/assets/share-link-dialog";
 import { UploadVersionDialog } from "@/components/assets/upload-version-dialog";
 import { VersionCompareDialog } from "@/components/assets/version-compare-dialog";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn, formatDateTime } from "@/lib/utils";
 
 const NO_FOLDER = "NONE";
@@ -339,7 +340,7 @@ export function AssetViewer(props: Props) {
             </Link>
           ) : null}
           <div className="mt-1 flex items-center gap-2">
-            <h1 className="truncate text-lg font-semibold">{props.title}</h1>
+            <TruncateTooltip as="h1" text={props.title} className="text-lg font-semibold" />
             <AssetStatusPill status={props.status} />
           </div>
           {props.description ? (
@@ -893,7 +894,7 @@ function CommentCard({
               {comment.marker}
             </span>
           ) : null}
-          <span className="truncate text-sm font-semibold">{comment.author}</span>
+          <TruncateTooltip text={comment.author} className="text-sm font-semibold" />
         </div>
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{formatDateTime(comment.createdAt)}</span>
       </div>

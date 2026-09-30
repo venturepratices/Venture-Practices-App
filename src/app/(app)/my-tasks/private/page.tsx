@@ -12,6 +12,7 @@ import { PrivatePriorityFilter } from "@/components/tasks/private-priority-filte
 import { PrivateTabToggle } from "@/components/tasks/private-tab-toggle";
 import { PrivateTaskQuickAdd } from "@/components/tasks/private-task-quick-add";
 import { TaskRow } from "@/components/tasks/task-row";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 const TASK_INCLUDE = {
   assignees: { include: { teamMember: { select: { id: true, name: true } } } },
@@ -97,7 +98,7 @@ export default async function PrivateTasksProjectsPage({
                         className="flex items-center gap-2.5 px-4 py-3 text-sm transition-colors hover:bg-muted"
                       >
                         <Lock className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 truncate font-medium">{project.label}</span>
+                        <TruncateTooltip text={project.label} className="min-w-0 flex-1 font-medium" />
                         <span className={isComplete ? "text-xs font-semibold text-emerald-600 dark:text-emerald-400" : "text-xs text-muted-foreground"}>
                           {tasks.length === 0 ? "No tasks yet" : isComplete ? "Complete" : `${done} of ${tasks.length} done`}
                         </span>

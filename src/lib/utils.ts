@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 // app is displayed in this zone, regardless of the server's or viewer's own
 // local timezone, so "due 7/31" always means 7/31 in Ben's timezone for
 // everyone looking at it.
-const APP_TIME_ZONE = "America/New_York";
+export const APP_TIME_ZONE = "America/New_York";
 
 export function formatDate(date: Date | string, options?: Intl.DateTimeFormatOptions) {
   const d = typeof date === "string" ? new Date(date) : date;
