@@ -31,13 +31,42 @@ Last updated: 2026-10-06
   the DB).
 - Also fixed along the way: `endOfDay()` in `src/lib/utils.ts` was landing on
   the NEXT day's 00:00:00.998 (milliseconds dropped in `tzLeadMs`).
-- Spotted, NOT fixed (separate task): task deadlines picked in the task UI are
-  stored at UTC midnight, and `formatDate()` renders them in ET, so lists may
-  show a due date one day early.
+- The task due-date-off-by-one bug spotted during this work was fixed
+  straight after — see its own section below.
 - Local testing ran with Slack blanked out (a temporary
   `.env.development.local`, since deleted), so the Monday reminder and the
   off-track post were never seen in real Slack — check them after deploy. Test
   accounts and data were removed from the dev DB.
+
+## Task due dates were a day early — fixed 2026-10-06 (not pushed yet)
+
+- **The rule now, in one line:** a deadline is a calendar DATE, stored as the
+  last millisecond of that day in `America/New_York`. Always write one with
+  `deadlineFromDateInput()` and read it back into a date input with
+  `dateInputValue()` — both in `src/lib/utils.ts`, which is where the
+  convention is documented.
+- **Never** read a deadline back with `.toISOString().slice(0, 10)` again.
+  That was the original bug's other half: end-of-day locally is the NEXT day
+  in UTC, so a UTC slice silently re-introduces the off-by-one.
+- What was wrong: the date picker stored UTC midnight, every display renders
+  in ET, so `2026-10-12T00:00:00Z` showed as 10/11 — and the overdue check
+  fired at 8pm the evening BEFORE the task was due.
+- Migration `20261006120000_fix_deadline_timezone` backfills `Task` and
+  `ArchivedTask`, matching only rows at exact UTC midnight (the picker was the
+  only thing that produced those) so computed deadlines are left alone. It is
+  idempotent. Applied to dev; production gets it on deploy.
+- Also moved onto the convention: recurring-task advance (which additionally
+  used `setDate`/`setMonth`, so it had been doing calendar math in the
+  SERVER's timezone — different results locally vs. on Vercel), direct-mail
+  template tasks, and the `Due between` filters on both `/tasks` and
+  `/my-tasks` (whose `from` end would otherwise have started matching the
+  previous day).
+- `tests/lib/dates.test.ts` locks all of this in, including DST crossings.
+- Known remaining inconsistencies, deliberately NOT touched: `/my-tasks`
+  duplicates the filter logic in `src/lib/task-filter-where.ts` instead of
+  calling it (and is missing its `TODAY` branch); campaign `mailDate` and the
+  meeting-note/share-link date inputs still use the UTC-slice pattern for
+  their own (non-deadline) fields.
 
 ## Waiting on the user (do these first when picking this back up)
 

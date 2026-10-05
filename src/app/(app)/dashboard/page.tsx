@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { accessibleClientFilter, loadPermissions, taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
+import { addDaysToDateString, endOfDay, todayDateString } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,8 +16,9 @@ import { StatCard } from "@/components/ui/stat-card";
 import { TaskRow } from "@/components/tasks/task-row";
 
 export default async function DashboardPage() {
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  // Through the end of the seventh day in the app's timezone, so a task due
+  // that day still counts as "due soon" regardless of the time of day now.
+  const dueSoonCutoff = endOfDay(addDaysToDateString(todayDateString(), 7));
 
   // Scope the rollup to the viewer's accessible clients (+ internal tasks).
   const perms = await loadPermissions();
@@ -35,7 +37,7 @@ export default async function DashboardPage() {
     prisma.client.count({ where: clientScope }),
     prisma.client.count({ where: { ...clientScope, status: "ACTIVE" } }),
     prisma.task.findMany({
-      where: { ...taskScope, statusId: { not: completeStatusId }, deadline: { lte: sevenDaysFromNow } },
+      where: { ...taskScope, statusId: { not: completeStatusId }, deadline: { lte: dueSoonCutoff } },
       include: {
         assignees: { include: { teamMember: { select: { id: true, name: true } } } },
         client: { select: { id: true, name: true } },

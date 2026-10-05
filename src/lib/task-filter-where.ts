@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { endOfDay, startOfDay, todayDateString } from "@/lib/utils";
+import { addDaysToDateString, endOfDay, startOfDay, todayDateString } from "@/lib/utils";
 
 /**
  * The one place the Tasks filter query-string is turned into a Prisma `where`.
@@ -83,9 +83,13 @@ export function buildTaskFilterWhere(
 
   // An explicit date range always beats the preset dropdown — the UI clears
   // one when the other is set, but a hand-edited URL could carry both.
+  // Both ends of the range are day boundaries in the app's timezone. Using a
+  // bare `new Date(from)` here would be UTC midnight, which sits INSIDE the
+  // previous day now that a deadline means end-of-day locally — so "from the
+  // 12th" would quietly also match the 11th.
   if (params.deadlineFrom || params.deadlineTo) {
     filters.deadline = {
-      ...(params.deadlineFrom ? { gte: new Date(params.deadlineFrom) } : {}),
+      ...(params.deadlineFrom ? { gte: startOfDay(params.deadlineFrom) } : {}),
       ...(params.deadlineTo ? { lte: endOfDay(params.deadlineTo) } : {}),
     };
   } else if (params.deadline === "OVERDUE") {
@@ -94,9 +98,9 @@ export function buildTaskFilterWhere(
     const today = todayDateString();
     filters.deadline = { gte: startOfDay(today), lte: endOfDay(today) };
   } else if (params.deadline === "SOON") {
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    filters.deadline = { gte: new Date(), lte: sevenDaysFromNow };
+    // Through the END of the seventh day, not this time of day a week out —
+    // otherwise a task due that day is dropped for being a few hours late.
+    filters.deadline = { gte: new Date(), lte: endOfDay(addDaysToDateString(todayDateString(), 7)) };
   } else if (params.deadline === "NONE") {
     filters.deadline = null;
   }

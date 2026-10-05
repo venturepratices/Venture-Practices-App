@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { requireCapability, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { deadlineFromDateInput, formatDate } from "@/lib/utils";
 import { issueToTaskSchema } from "@/lib/validations/leadership";
 
 // "Turn into task" — creates a real, visible Task from an issue (the dialog
@@ -32,9 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ iss
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
   const assigneeIds = [...new Set(parsed.data.assigneeIds)];
-  // Same storage convention as a deadline picked in the task UI's date input
-  // (new-task-input / task-detail-panel): that calendar date at UTC midnight.
-  const deadline = new Date(parsed.data.deadline);
+  const deadline = deadlineFromDateInput(parsed.data.deadline);
 
   const decision = issue.recommendations[0]?.body;
   const description = [issue.description, decision ? `Decision: ${decision}` : null].filter(Boolean).join("\n\n") || null;

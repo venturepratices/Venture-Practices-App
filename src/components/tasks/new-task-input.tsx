@@ -15,6 +15,7 @@ import { PriorityPill } from "@/components/tasks/priority-pill";
 import { ProjectPicker, type ProjectOption } from "@/components/tasks/project-picker";
 import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
+import { deadlineFromDateInput } from "@/lib/utils";
 import {
   RECURRENCE_UNIT_LABELS,
   RECURRENCE_UNIT_VALUES,
@@ -125,7 +126,7 @@ export function NewTaskInput({
         ...(occurrence === "RECURRING_CUSTOM" ? { customRecurrenceInterval, customRecurrenceUnit } : {}),
         kind,
         isPrivate,
-        deadline: deadline ? new Date(deadline).toISOString() : null,
+        deadline: deadline ? deadlineFromDateInput(deadline).toISOString() : null,
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(campaignStage !== undefined ? { campaignStage } : {}),
         ...(workflowInstanceId !== undefined

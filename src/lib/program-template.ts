@@ -1,3 +1,4 @@
+import { normalizeDeadline } from "@/lib/utils";
 import type { Prisma } from "@/generated/prisma/client";
 import type { CampaignStageValue } from "@/lib/campaign-stage";
 import type { RoleTagValue } from "@/lib/role-tag";
@@ -70,9 +71,11 @@ export async function spawnCampaignTasks(
       campaignId: params.campaignId,
       clientId: params.clientId,
       campaignStage: task.stage,
+      // Snapped onto the deadline convention (end of that day locally) so a
+      // template-spawned task shows the same day as a hand-picked one.
       deadline:
         params.mailDate && task.daysBeforeMailDate != null
-          ? new Date(params.mailDate.getTime() - task.daysBeforeMailDate * DAY_MS)
+          ? normalizeDeadline(new Date(params.mailDate.getTime() - task.daysBeforeMailDate * DAY_MS))
           : null,
     })),
   });

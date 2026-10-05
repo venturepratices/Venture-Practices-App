@@ -34,7 +34,7 @@ import {
 import type { PriorityLevelOptionLite, StatusOptionLite } from "@/lib/task-status-utils";
 import { resolvePriorityLevelOption, resolveStatusOption } from "@/lib/task-status-utils";
 import type { TaskActivityEvent } from "@/lib/task-activity";
-import { cn, formatDateTime } from "@/lib/utils";
+import { cn, dateInputValue, deadlineFromDateInput, formatDateTime } from "@/lib/utils";
 import type { TaskDetail } from "@/types/task";
 
 const NO_CLIENT = "__none__";
@@ -72,7 +72,7 @@ function draftFromTask(task: TaskDetail): Draft {
     occurrence: task.occurrence,
     customRecurrenceInterval: task.customRecurrenceInterval ?? 1,
     customRecurrenceUnit: task.customRecurrenceUnit ?? "WEEK",
-    deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : "",
+    deadline: task.deadline ? dateInputValue(task.deadline) : "",
     campaignId: task.campaignId ?? NO_CAMPAIGN,
     campaignStage: task.campaignStage ?? (task.campaign?.currentStage ?? "PLANNING"),
     kind: task.kind,
@@ -269,7 +269,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
       fields.customRecurrenceUnit = null;
     }
     if (draft.deadline !== base.deadline) {
-      fields.deadline = draft.deadline ? new Date(draft.deadline).toISOString() : null;
+      fields.deadline = draft.deadline ? deadlineFromDateInput(draft.deadline).toISOString() : null;
     }
     if (draft.campaignId !== base.campaignId) {
       fields.campaignId = draft.campaignId === NO_CAMPAIGN ? null : draft.campaignId;

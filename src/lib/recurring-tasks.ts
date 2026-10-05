@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { addDaysToDateString, addMonthsToDateString, dateInputValue, deadlineFromDateInput } from "@/lib/utils";
 import type { RecurrenceUnit, Task, TaskOccurrence } from "@/generated/prisma/client";
 
 const RECURRING_OCCURRENCES: TaskOccurrence[] = [
@@ -9,6 +10,15 @@ const RECURRING_OCCURRENCES: TaskOccurrence[] = [
   "RECURRING_CUSTOM",
 ];
 
+/**
+ * Advances a deadline by one cadence, as CALENDAR math in the app's timezone:
+ * the current deadline's date is stepped forward, then stored back as the end
+ * of that day (see the deadline convention in src/lib/utils.ts).
+ *
+ * It deliberately does not use setDate/setMonth on the deadline itself —
+ * those read the SERVER's local timezone, so the same task advanced to a
+ * different day on a developer's machine than on the UTC production box.
+ */
 function computeNextDeadline(
   current: Date | null,
   occurrence: TaskOccurrence,
@@ -16,19 +26,21 @@ function computeNextDeadline(
   customRecurrenceUnit: RecurrenceUnit | null
 ): Date | null {
   if (!RECURRING_OCCURRENCES.includes(occurrence)) return null;
-  const next = new Date(current ?? new Date());
-  if (occurrence === "RECURRING_WEEKLY") next.setDate(next.getDate() + 7);
-  if (occurrence === "RECURRING_MONTHLY") next.setMonth(next.getMonth() + 1);
-  if (occurrence === "RECURRING_BIMONTHLY") next.setMonth(next.getMonth() + 2);
-  if (occurrence === "RECURRING_QUARTERLY") next.setMonth(next.getMonth() + 3);
+  const currentDate = dateInputValue(current ?? new Date());
+
+  let nextDate = currentDate;
+  if (occurrence === "RECURRING_WEEKLY") nextDate = addDaysToDateString(currentDate, 7);
+  if (occurrence === "RECURRING_MONTHLY") nextDate = addMonthsToDateString(currentDate, 1);
+  if (occurrence === "RECURRING_BIMONTHLY") nextDate = addMonthsToDateString(currentDate, 2);
+  if (occurrence === "RECURRING_QUARTERLY") nextDate = addMonthsToDateString(currentDate, 3);
   if (occurrence === "RECURRING_CUSTOM") {
     const interval = customRecurrenceInterval ?? 1;
     const unit = customRecurrenceUnit ?? "WEEK";
-    if (unit === "DAY") next.setDate(next.getDate() + interval);
-    if (unit === "WEEK") next.setDate(next.getDate() + interval * 7);
-    if (unit === "MONTH") next.setMonth(next.getMonth() + interval);
+    if (unit === "DAY") nextDate = addDaysToDateString(currentDate, interval);
+    if (unit === "WEEK") nextDate = addDaysToDateString(currentDate, interval * 7);
+    if (unit === "MONTH") nextDate = addMonthsToDateString(currentDate, interval);
   }
-  return next;
+  return deadlineFromDateInput(nextDate);
 }
 
 /**

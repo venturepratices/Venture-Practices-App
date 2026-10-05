@@ -101,6 +101,68 @@ export function daysUntilDue(deadline: Date): number {
 }
 
 /**
+ * --- The deadline convention ---
+ *
+ * A deadline is a CALENDAR DATE someone picked, not an instant. It's stored
+ * as the last millisecond of that date in the app's timezone, so that:
+ *   - `formatDate()` (which renders in the app's timezone) shows the day the
+ *     person actually picked, and
+ *   - "overdue" means the day has genuinely ended for the team.
+ *
+ * Storing UTC midnight instead — the old `new Date("2026-10-12")` — displayed
+ * as the day before for everyone east of UTC-0 and tripped the overdue check
+ * at 8pm the previous evening.
+ *
+ * Always pair these two: `deadlineFromDateInput` on the way in from an
+ * `<input type="date">`, `dateInputValue` on the way back out to one. Reading
+ * a stored deadline with `.toISOString().slice(0, 10)` re-introduces the bug,
+ * because end-of-day here is the NEXT day in UTC.
+ */
+export function deadlineFromDateInput(dateString: string): Date {
+  return endOfDay(dateString);
+}
+
+/** The "YYYY-MM-DD" for an `<input type="date">`, read in the app's timezone. */
+export function dateInputValue(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+}
+
+/**
+ * Snaps a deadline that was COMPUTED as an instant (a recurring task's next
+ * occurrence, a workflow/campaign stage offset) onto the convention above, so
+ * computed and hand-picked deadlines behave identically.
+ */
+export function normalizeDeadline(date: Date): Date {
+  return endOfDay(dateInputValue(date));
+}
+
+// Calendar math on a "YYYY-MM-DD" string. Deliberately done with Date.UTC
+// rather than setDate/setMonth on a real deadline: those read the SERVER's
+// local timezone, so the same recurring task advanced differently on a
+// developer's machine than on the UTC production box.
+export function addDaysToDateString(dateString: string, days: number): string {
+  const [y, m, d] = dateString.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Adding months clamps to the end of the target month, so a task repeating
+ * monthly on the 31st lands on Feb 28 rather than skidding into March (which
+ * is what plain `setMonth` does).
+ */
+export function addMonthsToDateString(dateString: string, months: number): string {
+  const [y, m, d] = dateString.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, 1));
+  dt.setUTCMonth(dt.getUTCMonth() + months);
+  const lastDayOfTargetMonth = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0)).getUTCDate();
+  dt.setUTCDate(Math.min(d, lastDayOfTargetMonth));
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
  * A wall-clock date + time (e.g. "2026-08-05", "14:30") interpreted in the
  * given IANA timezone (defaults to the app's Charlotte, NC zone), converted
  * to the correct UTC instant — same technique as endOfDay(). Used by the Team

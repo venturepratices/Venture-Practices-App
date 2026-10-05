@@ -7,7 +7,7 @@ import { taskVisibilityFilter } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getCompleteStatusId, getTaskStatusOptions } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
-import { endOfDay, todayDateString } from "@/lib/utils";
+import { addDaysToDateString, endOfDay, startOfDay, todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTip } from "@/components/info-tip";
@@ -84,16 +84,16 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   if (params.deadlineFrom || params.deadlineTo) {
     filterClauses.push({
       deadline: {
-        ...(params.deadlineFrom ? { gte: new Date(params.deadlineFrom) } : {}),
+        // Day boundaries in the app's timezone — see the same filter in
+        // src/lib/task-filter-where.ts for why `from` can't be a bare Date.
+        ...(params.deadlineFrom ? { gte: startOfDay(params.deadlineFrom) } : {}),
         ...(params.deadlineTo ? { lte: endOfDay(params.deadlineTo) } : {}),
       },
     });
   } else if (params.deadline === "OVERDUE") {
     filterClauses.push({ deadline: { lt: new Date() } });
   } else if (params.deadline === "SOON") {
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    filterClauses.push({ deadline: { gte: new Date(), lte: sevenDaysFromNow } });
+    filterClauses.push({ deadline: { gte: new Date(), lte: endOfDay(addDaysToDateString(todayDateString(), 7)) } });
   } else if (params.deadline === "NONE") {
     filterClauses.push({ deadline: null });
   }
