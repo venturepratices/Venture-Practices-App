@@ -38,7 +38,31 @@ Last updated: 2026-10-06
   off-track post were never seen in real Slack — check them after deploy. Test
   accounts and data were removed from the dev DB.
 
-## Task due dates were a day early — fixed 2026-10-06 (not pushed yet)
+## Issues page redesigned as Planning-style cards — built 2026-10-06, NOT committed
+
+- The user asked for the Issues page to work like a client's **Planning**
+  section: "in the card you can put things and recommendations." They picked
+  **Option A** from the in-app mockups
+  (`scratch/eos-mockup/issue-cards-mockup.html`,
+  `scratch/eos-mockup/issue-cards-in-app.html`): cards that **open in place**,
+  holding the detail, the recommendations and every action, with a
+  Planning-style **inline add form** instead of a dialog.
+- New: `src/components/leadership/issue-card.tsx` (the whole card) and
+  `src/components/leadership/new-issue-form.tsx`. `issues-board.tsx` rewritten
+  from a table to a card list. **Deleted:** `issue-detail-panel.tsx` and
+  `add-issue-dialog.tsx` (the side panel and the add dialog they replace).
+- More than one card can be open at once; the Top-3 #1 issue starts open, and
+  an `?issueId=` deep link opens that one instead. Recommendations now load
+  with the list (`src/app/(app)/issues/page.tsx`) because the cards expand in
+  place rather than fetching on open.
+- **Everything was clicked live** on the dev copy with Slack blanked: expand,
+  add recommendation, mark as decision, title edit, type toggle, description
+  save-on-blur, inline add, Turn into task, Make it a Rock, Mark solved, all
+  five filter chips, and 375px mobile. All four checks pass.
+- Open question the user hasn't answered: whether Issues should also get a
+  Planning-style **folder sidebar**, or stay one list.
+
+## Task due dates were a day early — fixed and pushed 2026-10-06 (`f24a668`)
 
 - **The rule now, in one line:** a deadline is a calendar DATE, stored as the
   last millisecond of that day in `America/New_York`. Always write one with
@@ -54,7 +78,8 @@ Last updated: 2026-10-06
 - Migration `20261006120000_fix_deadline_timezone` backfills `Task` and
   `ArchivedTask`, matching only rows at exact UTC midnight (the picker was the
   only thing that produced those) so computed deadlines are left alone. It is
-  idempotent. Applied to dev; production gets it on deploy.
+  idempotent. Applied to dev; production got it on the `f24a668` deploy —
+  confirm it ran.
 - Also moved onto the convention: recurring-task advance (which additionally
   used `setDate`/`setMonth`, so it had been doing calendar math in the
   SERVER's timezone — different results locally vs. on Vercel), direct-mail
@@ -220,6 +245,17 @@ Last updated: 2026-10-06
     long-standing habit in this project) will miss lint errors every time.
     Run all four — `tsc --noEmit`, `npm run lint`, `npm run build:ci`,
     `npm test` — before calling a change verified.
+- **Two testing gotchas in the in-app browser**, both of which looked like real
+  bugs before being chased down: a synthetic `new Event('blur')` does **not**
+  fire React's `onBlur` (React listens to `focusout`), so save-on-blur has to be
+  tested with a real click + Tab; and `window.confirm()` is suppressed and
+  always returns false, so anything gated behind a confirm (Sign out, for one)
+  silently does nothing until `window.confirm = () => true` is set first.
+- **`react-hooks/refs` bans the `useRef` "previous props" trick.** Re-seeding a
+  local draft when a prop changes must use the `useState` form
+  (`const [seen, setSeen] = useState(prop); if (seen !== prop) { setSeen(prop); ... }`)
+  — reading or writing `ref.current` during render is a *blocking* lint error,
+  so it passes `tsc` and fails CI.
 - **`npm run build` runs out of memory on this machine** — needs
   `NODE_OPTIONS="--max-old-space-size=6144"`, which is NOT baked into
   `package.json`'s build script or `vercel.json`. Every build has to type it by
