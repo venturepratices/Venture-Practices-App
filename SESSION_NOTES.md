@@ -5,7 +5,39 @@ sessions (and refreshed before any context compaction) so nothing here gets
 silently dropped. It is NOT a feature spec — see the Claude Code plan file for
 full build history and detailed designs. This is just the punch list.
 
-Last updated: 2026-08-18
+Last updated: 2026-10-06
+
+## In progress — Issues List & Rocks (Andrea's EOS request, DJ's Q4 Week-1 item)
+
+- **Built, verified locally, and pushed 2026-10-06 on the user's "push it"**
+  (after they viewed it on the dev copy). Needs to be live before the next
+  Monday leadership meeting (~2026-10-12, 10:30am ET) — confirm the deploy
+  and the production migration succeeded.
+- Approved design: mockup Option A (`scratch/eos-mockup/issues-rocks-mockup.html`)
+  plus four extras the user said yes to: Problem vs "Just watching" tag,
+  "Turn into task" defaulting to one week out, Monday-morning Slack reminder to
+  Rock owners (`/api/cron/rock-checkin`, `0 12 * * 1`), and an off-track post to
+  the internal channel.
+- New migration `20261006000000_add_issues_and_rocks` (Issue,
+  IssueRecommendation, Rock, `TeamMember.canUseLeadership`, `ROCK_CHECKIN`
+  notification type). **Applied to the dev branch only** — pushing applies it
+  to production via the build script.
+- **After deploy, an admin must tick "Issues List & Rocks" (Team → member →
+  Leadership) for each non-admin who should see it** — new permissions
+  default off. Rock owners can only be picked from people with that access.
+- Deliberately deferred: the guided Meeting screen, People Headlines,
+  Scorecard, quarter rollover, deleting a recommendation, a restore UI for
+  removed issues/Rocks (they're soft-archived via `archivedAt`, recoverable in
+  the DB).
+- Also fixed along the way: `endOfDay()` in `src/lib/utils.ts` was landing on
+  the NEXT day's 00:00:00.998 (milliseconds dropped in `tzLeadMs`).
+- Spotted, NOT fixed (separate task): task deadlines picked in the task UI are
+  stored at UTC midnight, and `formatDate()` renders them in ET, so lists may
+  show a due date one day early.
+- Local testing ran with Slack blanked out (a temporary
+  `.env.development.local`, since deleted), so the Monday reminder and the
+  off-track post were never seen in real Slack — check them after deploy. Test
+  accounts and data were removed from the dev DB.
 
 ## Waiting on the user (do these first when picking this back up)
 

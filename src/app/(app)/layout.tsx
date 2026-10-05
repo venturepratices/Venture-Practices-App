@@ -45,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canViewWorkflows={!!perms?.caps.canViewWorkflows}
           canManageWorkflows={!!perms?.caps.canManageWorkflows}
           canManageOrders={!!perms?.caps.canManageOrders}
+          canUseLeadership={!!perms?.caps.canUseLeadership}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar unreadCount={unreadCount} recentNotifications={recentNotifications} canUseAiAssistant={!!perms?.isAdmin} />

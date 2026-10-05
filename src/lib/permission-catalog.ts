@@ -106,6 +106,10 @@ export const PERMISSION_GROUPS = [
       { key: "canManageOrders", label: "Create orders & change orders" },
     ],
   },
+  {
+    title: "Leadership",
+    items: [{ key: "canUseLeadership", label: "Issues List & Rocks (view and edit)" }],
+  },
 ] as const;
 
 export const CAPABILITIES = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));

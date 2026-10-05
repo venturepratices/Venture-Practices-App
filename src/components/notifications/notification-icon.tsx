@@ -6,6 +6,7 @@ import {
   Clock,
   DollarSign,
   MessageSquarePlus,
+  Mountain,
   Newspaper,
   RefreshCw,
   Upload,
@@ -39,6 +40,7 @@ const ICON_FOR: Record<NotificationType, LucideIcon> = {
   ORDER_ADDED: DollarSign,
   ORDER_CHANGED: DollarSign,
   DAILY_BRIEFING: Newspaper,
+  ROCK_CHECKIN: Mountain,
 };
 
 export function iconFor(type: NotificationType): LucideIcon {

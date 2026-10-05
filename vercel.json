@@ -33,6 +33,10 @@
       "schedule": "0 12 * * 1-5"
     },
     {
+      "path": "/api/cron/rock-checkin",
+      "schedule": "0 12 * * 1"
+    },
+    {
       "path": "/api/cron/notification-digest",
       "schedule": "0 13 * * *"
     },

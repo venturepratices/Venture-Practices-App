@@ -167,6 +167,7 @@ async function MembersTab() {
         canManagePlanning: true,
         canViewOrders: true,
         canManageOrders: true,
+        canUseLeadership: true,
       },
       orderBy: { name: "asc" },
     }),

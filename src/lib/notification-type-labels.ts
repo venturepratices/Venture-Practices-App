@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   ORDER_ADDED: "Order added",
   ORDER_CHANGED: "Change order added",
   DAILY_BRIEFING: "Daily briefing",
+  ROCK_CHECKIN: "Rock check-in",
 };
 
 /** Friendlier names for the raw `entityType` strings ActivityLog/Notification already use. */
@@ -40,6 +41,8 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   ClientOrder: "Order",
   ClientNote: "Note",
   MeetingNote: "Meeting note",
+  Issue: "Issue",
+  Rock: "Rock",
 };
 
 /** Friendly label for a raw `entityType` string — falls back to the string itself for anything unmapped. */

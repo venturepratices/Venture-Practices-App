@@ -114,6 +114,7 @@ enum NotificationType {
   ORDER_ADDED
   ORDER_CHANGED
   DAILY_BRIEFING
+  ROCK_CHECKIN
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -271,6 +272,11 @@ model TeamMember {
   canViewOrders   Boolean @default(false)
   canManageOrders Boolean @default(false)
 
+  // Leadership — the EOS Issues List and quarterly Rocks. Discussed in the
+  // weekly leadership meeting and can touch finances, so it's NOT in the
+  // "Full member access" preset; one switch covers viewing and editing both.
+  canUseLeadership Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -302,6 +308,10 @@ model TeamMember {
   calendarConnection           TeamMemberCalendarConnection?
   busyBlocks                   TeamMemberBusyBlock[]
   aiConversations              AiConversation[]
+  raisedIssues                 Issue[]                        @relation("IssueRaisedBy")
+  issueRecommendations         IssueRecommendation[]          @relation("IssueRecommendationAuthor")
+  ownedRocks                   Rock[]                         @relation("RockOwner")
+  createdRocks                 Rock[]                         @relation("RockCreatedBy")
 }
 
 /**
@@ -465,6 +475,7 @@ model Client {
   planningItems        PlanningItem[]
   planningFolders      PlanningFolder[]
   orders               ClientOrder[]
+  issues               Issue[]
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
@@ -607,6 +618,91 @@ model ClientNote {
   updatedAt DateTime    @updatedAt
 
   @@index([clientId])
+}
+
+// --- Leadership: EOS Issues List & Rocks (gated by canUseLeadership) ---
+
+// PROBLEM = something actively wrong that needs solving; SITUATION = "just
+// watching" — worth keeping an eye on, not yet a problem.
+enum IssueKind {
+  PROBLEM
+  SITUATION
+}
+
+enum IssueStatus {
+  OPEN
+  SOLVED
+}
+
+enum RockStatus {
+  ON_TRACK
+  OFF_TRACK
+  DONE
+}
+
+// One entry on the leadership Issues List — anything that needs attention,
+// company-wide or tied to one client. Removing one sets archivedAt (kept for
+// history, hidden from the list) rather than hard-deleting it.
+model Issue {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     @db.Text
+  kind        IssueKind   @default(PROBLEM)
+  status      IssueStatus @default(OPEN)
+  // 1–3 = this week's "Top 3" to discuss first; null = the rest of the list.
+  topRank     Int?
+  clientId    String?
+  client      Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  raisedById  String?
+  raisedBy    TeamMember? @relation("IssueRaisedBy", fields: [raisedById], references: [id], onDelete: SetNull)
+  // Provenance only — set when "Turn into task" / "Make it a Rock" ran.
+  convertedTaskId String?
+  rockId          String?
+  solvedAt    DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  recommendations IssueRecommendation[]
+
+  @@index([status])
+}
+
+// A suggested fix on an Issue. At most one per issue is marked the decision
+// (enforced in the API, not the schema).
+model IssueRecommendation {
+  id         String      @id @default(cuid())
+  issueId    String
+  issue      Issue       @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     TeamMember? @relation("IssueRecommendationAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body       String      @db.Text
+  isDecision Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  @@index([issueId])
+}
+
+// A 90-day priority. `quarter` is a "2026-Q4" key so the page can show one
+// quarter at a time; isCompany splits Company vs Individual Rocks.
+model Rock {
+  id              String      @id @default(cuid())
+  title           String
+  doneDefinition  String?     @db.Text
+  quarter         String
+  dueDate         DateTime
+  isCompany       Boolean     @default(false)
+  status          RockStatus  @default(ON_TRACK)
+  statusUpdatedAt DateTime?
+  ownerId         String?
+  owner           TeamMember? @relation("RockOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       TeamMember? @relation("RockCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  archivedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([quarter])
 }
 
 enum PlanningStatus {

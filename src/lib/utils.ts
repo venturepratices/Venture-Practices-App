@@ -55,7 +55,12 @@ function tzLeadMs(date: Date, timeZone: string): number {
       .map((p) => [p.type, p.value])
   );
   const hour = Number(parts.hour) % 24; // Intl can report "24" for midnight
-  const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hour, Number(parts.minute), Number(parts.second));
+  // formatToParts has no milliseconds, so carry them over from `date` —
+  // otherwise endOfDay()'s 23:59:59.999 loses ~1s here and lands on the
+  // NEXT day's 00:00:00.998.
+  const asUtc =
+    Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hour, Number(parts.minute), Number(parts.second)) +
+    date.getUTCMilliseconds();
   return asUtc - date.getTime();
 }
 

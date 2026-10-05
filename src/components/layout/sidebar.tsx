@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, Settings, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, CircleAlert, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, Mountain, Settings, Users, Building2, Mail, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -51,6 +51,18 @@ const AGENCY_LINKS = [
   },
 ];
 
+// EOS leadership tools — their own small group, shown only to people with the
+// Leadership permission (or admins). Enforced server-side too.
+const LEADERSHIP_LINKS = [
+  { href: "/issues", label: "Issues List", icon: CircleAlert },
+  { href: "/rocks", label: "Rocks", icon: Mountain },
+];
+
+const NAV_LINK = "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors";
+const NAV_LINK_ACTIVE =
+  "bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2),0_1px_3px_0_rgba(0,0,0,0.3)]";
+const NAV_LINK_IDLE = "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground";
+
 export function Sidebar({
   clients,
   userName,
@@ -62,6 +74,7 @@ export function Sidebar({
   canViewWorkflows = false,
   canManageWorkflows = false,
   canManageOrders = false,
+  canUseLeadership = false,
 }: {
   clients: SidebarClient[];
   userName?: string | null;
@@ -73,6 +86,7 @@ export function Sidebar({
   canViewWorkflows?: boolean;
   canManageWorkflows?: boolean;
   canManageOrders?: boolean;
+  canUseLeadership?: boolean;
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
@@ -132,21 +146,30 @@ export function Sidebar({
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2),0_1px_3px_0_rgba(0,0,0,0.3)]"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              )}
-            >
+            <Link key={href} href={href} className={cn(NAV_LINK, active ? NAV_LINK_ACTIVE : NAV_LINK_IDLE)}>
               <Icon className="size-4" />
               {label}
             </Link>
           );
         })}
+
+        {isAdmin || canUseLeadership ? (
+          <div className="space-y-1 pt-4">
+            <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+              Leadership
+            </p>
+            {LEADERSHIP_LINKS.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(NAV_LINK, pathname === href ? NAV_LINK_ACTIVE : NAV_LINK_IDLE)}
+              >
+                <Icon className="size-4" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
 
         <div className="pt-4">
           <button

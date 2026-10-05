@@ -71,6 +71,7 @@ function member(overrides: Partial<Record<string, unknown>> = {}) {
     canManagePlanning: false,
     canViewOrders: false,
     canManageOrders: false,
+    canUseLeadership: false,
     ...overrides,
   };
 }

@@ -95,6 +95,7 @@ export const loadPermissions = cache(async (): Promise<Permissions | null> => {
       canManagePlanning: true,
       canViewOrders: true,
       canManageOrders: true,
+      canUseLeadership: true,
     },
   });
   if (!member) return null;
