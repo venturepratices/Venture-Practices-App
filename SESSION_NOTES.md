@@ -38,7 +38,23 @@ Last updated: 2026-10-06
   off-track post were never seen in real Slack — check them after deploy. Test
   accounts and data were removed from the dev DB.
 
-## Issues page redesigned as Planning-style cards — built 2026-10-06, NOT committed
+## "Bi-Monthly" now repeats every 2 weeks — pushed 2026-10-16
+
+- Ashley reported (email, 2026-10-15) that completing a Bi-Monthly task made
+  the next one 2 months out. Confirmed in the live app's task history: her two
+  "November Social Media" tasks (Journey Smiles, Shelby Dental Care Center) due
+  Oct 28 came back as Dec 28; she moved both to Nov 11 herself within a minute.
+- The team means every 2 WEEKS. `computeNextDeadline` now adds 14 days, and
+  the option is relabeled "Recurring Every 2 Weeks". The enum keeps the name
+  `RECURRING_BIMONTHLY` (no migration). Counting still starts from the old due
+  date, which matches what Ashley did by hand.
+- All 10 Bi-Monthly tasks in production were Ashley's, so nobody relied on the
+  2-month meaning. 8 are still due Oct 28, so they hit the bug if completed
+  before this deploys.
+- **After deploy: send Ashley the reply** (drafted in chat, held until the fix
+  is live). No production data was touched.
+
+## Issues page redesigned as Planning-style cards — pushed 2026-10-06 (`8e6d9a0`)
 
 - The user asked for the Issues page to work like a client's **Planning**
   section: "in the card you can put things and recommendations." They picked

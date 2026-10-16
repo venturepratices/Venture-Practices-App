@@ -19,7 +19,7 @@ const RECURRING_OCCURRENCES: TaskOccurrence[] = [
  * those read the SERVER's local timezone, so the same task advanced to a
  * different day on a developer's machine than on the UTC production box.
  */
-function computeNextDeadline(
+export function computeNextDeadline(
   current: Date | null,
   occurrence: TaskOccurrence,
   customRecurrenceInterval: number | null,
@@ -31,7 +31,10 @@ function computeNextDeadline(
   let nextDate = currentDate;
   if (occurrence === "RECURRING_WEEKLY") nextDate = addDaysToDateString(currentDate, 7);
   if (occurrence === "RECURRING_MONTHLY") nextDate = addMonthsToDateString(currentDate, 1);
-  if (occurrence === "RECURRING_BIMONTHLY") nextDate = addMonthsToDateString(currentDate, 2);
+  // Every 2 weeks, not every 2 months: the team reads "bi-monthly" as twice a
+  // month, and the option is labeled "Every 2 Weeks" so it can't be misread.
+  // The enum keeps its old name to avoid a migration.
+  if (occurrence === "RECURRING_BIMONTHLY") nextDate = addDaysToDateString(currentDate, 14);
   if (occurrence === "RECURRING_QUARTERLY") nextDate = addMonthsToDateString(currentDate, 3);
   if (occurrence === "RECURRING_CUSTOM") {
     const interval = customRecurrenceInterval ?? 1;

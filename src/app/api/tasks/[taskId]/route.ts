@@ -23,7 +23,7 @@ const SHORT_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric",
 const OCCURRENCE_LABELS: Record<string, string> = {
   RECURRING_WEEKLY: "Recurring Weekly",
   RECURRING_MONTHLY: "Recurring Monthly",
-  RECURRING_BIMONTHLY: "Recurring Bi-Monthly",
+  RECURRING_BIMONTHLY: "Recurring Every 2 Weeks",
   RECURRING_QUARTERLY: "Recurring Quarterly",
   RECURRING_CUSTOM: "Custom",
   PROJECT: "Project",

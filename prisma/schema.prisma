@@ -25,6 +25,7 @@ enum ClientStatus {
 enum TaskOccurrence {
   RECURRING_WEEKLY
   RECURRING_MONTHLY
+  // Every 2 WEEKS (shown as "Recurring Every 2 Weeks"). The name is historical.
   RECURRING_BIMONTHLY
   RECURRING_QUARTERLY
   // Repeats every Task.customRecurrenceInterval Task.customRecurrenceUnit —
