@@ -111,7 +111,7 @@ export function NewWorkflowDialog({
           {startBlank ? (
             <p className="text-sm text-muted-foreground">
               {templates.length === 0
-                ? "No templates yet — start blank and add stages/tasks yourself, or create a template in Settings → Project Templates first."
+                ? "No templates yet — start blank and add stages/tasks yourself, or create a template in Templates → Project first."
                 : "No stages to start — you'll add them from the project's own page once it's created."}
             </p>
           ) : (

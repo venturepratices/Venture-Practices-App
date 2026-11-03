@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Archive, ChevronRight, CircleAlert, DollarSign, GitBranch, LayoutDashboard, LayoutList, ListChecks, Mountain, Settings, Users, Building2, Mail, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Settings, Users, Building2, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -25,30 +25,15 @@ const AGENCY_LINKS = [
   { href: "/team", label: "Team", icon: Users },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
-  {
-    href: "/settings/direct-mail-templates",
-    label: "Direct Mail Templates",
-    icon: Mail,
-    needs: "canManageDirectMail" as const,
-  },
-  {
-    href: "/settings/workflow-templates",
-    label: "Project Templates",
-    icon: GitBranch,
-    needs: "canManageWorkflows" as const,
-  },
-  {
-    href: "/settings/order-templates",
-    label: "Order Templates",
-    icon: DollarSign,
-    needs: "canManageOrders" as const,
-  },
-  {
-    href: "/settings",
-    label: "Settings",
-    icon: Settings,
-    adminOnly: true,
-  },
+];
+
+// Every kind of reusable template, folded under one "Templates" item so the
+// menu doesn't grow a new top-level link each time a template type is added.
+// Each still needs its own capability, so someone may see only some of them.
+const TEMPLATE_LINKS = [
+  { href: "/settings/workflow-templates", label: "Project", needs: "canManageWorkflows" as const },
+  { href: "/settings/direct-mail-templates", label: "Direct Mail", needs: "canManageDirectMail" as const },
+  { href: "/settings/order-templates", label: "Order", needs: "canManageOrders" as const },
 ];
 
 // EOS leadership tools — their own small group, shown only to people with the
@@ -90,20 +75,30 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [clientsOpen, setClientsOpen] = useState(true);
+  const onTemplatePage = TEMPLATE_LINKS.some((link) => pathname === link.href);
+  const [templatesOpen, setTemplatesOpen] = useState(onTemplatePage);
+  // Landing on a template page (from a link, the back button, anywhere) opens
+  // the group so the current page is visible; it never forces it shut.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    if (onTemplatePage) setTemplatesOpen(true);
+  }
   const { isOpen, close } = useMobileSidebar();
 
-  // Hide nav items the viewer can't use — Team is admin-only; Activity/Archive/
-  // Direct Mail Templates each need their own specific capability. (These are
-  // also enforced server-side; hiding is just so people don't see dead links.)
+  // Hide nav items the viewer can't use — Activity/Archive/Projects and each
+  // kind of template need their own specific capability. (These are also
+  // enforced server-side; hiding is just so people don't see dead links.)
   const links = AGENCY_LINKS.filter((link) => {
-    if ("adminOnly" in link && link.adminOnly) return isAdmin;
     if ("needs" in link && link.needs === "canViewActivity") return isAdmin || canViewActivity;
     if ("needs" in link && link.needs === "canViewArchive") return isAdmin || canViewArchive;
-    if ("needs" in link && link.needs === "canManageDirectMail") return isAdmin || canManageDirectMail;
     if ("needs" in link && link.needs === "canViewWorkflows") return isAdmin || canViewWorkflows || canManageWorkflows;
-    if ("needs" in link && link.needs === "canManageWorkflows") return isAdmin || canManageWorkflows;
-    if ("needs" in link && link.needs === "canManageOrders") return isAdmin || canManageOrders;
     return true;
+  });
+  const templateLinks = TEMPLATE_LINKS.filter((link) => {
+    if (link.needs === "canManageWorkflows") return isAdmin || canManageWorkflows;
+    if (link.needs === "canManageDirectMail") return isAdmin || canManageDirectMail;
+    return isAdmin || canManageOrders;
   });
 
   // Auto-close the mobile drawer whenever the route changes, instead of closing
@@ -152,6 +147,44 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {templateLinks.length > 0 ? (
+          <>
+            <button
+              type="button"
+              aria-expanded={templatesOpen}
+              onClick={() => setTemplatesOpen((open) => !open)}
+              className={cn(
+                NAV_LINK,
+                "w-full",
+                onTemplatePage && !templatesOpen ? NAV_LINK_ACTIVE : NAV_LINK_IDLE,
+                onTemplatePage && templatesOpen && "text-sidebar-foreground"
+              )}
+            >
+              <LayoutTemplate className="size-4" />
+              Templates
+              <ChevronRight className={cn("ml-auto size-3.5 transition-transform", templatesOpen && "rotate-90")} />
+            </button>
+            {templatesOpen
+              ? templateLinks.map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(NAV_LINK, "pl-9", pathname === href ? NAV_LINK_ACTIVE : NAV_LINK_IDLE)}
+                  >
+                    {label}
+                  </Link>
+                ))
+              : null}
+          </>
+        ) : null}
+
+        {isAdmin ? (
+          <Link href="/settings" className={cn(NAV_LINK, pathname === "/settings" ? NAV_LINK_ACTIVE : NAV_LINK_IDLE)}>
+            <Settings className="size-4" />
+            Settings
+          </Link>
+        ) : null}
 
         {isAdmin || canUseLeadership ? (
           <div className="space-y-1 pt-4">

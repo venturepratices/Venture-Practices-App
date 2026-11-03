@@ -38,7 +38,16 @@ Last updated: 2026-10-06
   off-track post were never seen in real Slack — check them after deploy. Test
   accounts and data were removed from the dev DB.
 
-## "Bi-Monthly" now repeats every 2 weeks — pushed 2026-10-16
+## Templates grouped under one sidebar menu — pushed 2026-11-04
+
+- User asked to put all the template links in one place. Mockup option A was
+  approved: a collapsible "Templates" item in the left sidebar with Project /
+  Direct Mail / Order underneath (`src/components/layout/sidebar.tsx`,
+  `TEMPLATE_LINKS`). Each sub-link still needs its own capability, so an
+  orders-only user sees just Templates → Order. Opening any template page
+  auto-expands the group. The template pages themselves are unchanged.
+
+## "Bi-Monthly" now repeats every 2 weeks — LIVE 2026-11-04
 
 - Ashley reported (email, 2026-10-15) that completing a Bi-Monthly task made
   the next one 2 months out. Confirmed in the live app's task history: her two
@@ -51,6 +60,12 @@ Last updated: 2026-10-06
 - All 10 Bi-Monthly tasks in production were Ashley's, so nobody relied on the
   2-month meaning. 8 are still due Oct 28, so they hit the bug if completed
   before this deploys.
+- **Vercel silently skipped the first deploy.** `34b5124` reached GitHub and
+  passed CI on 2026-10-17, but Vercel never created a deployment, so production
+  ran the old code until 2026-11-04 (Ashley re-dated ~12 tasks by hand in the
+  meantime). An empty commit (`7a67477`) re-triggered it. **After every push,
+  confirm the change is actually visible in the live app** — a green push is
+  not a deploy.
 - **After deploy: send Ashley the reply** (drafted in chat, held until the fix
   is live). No production data was touched.
 
