@@ -168,3 +168,21 @@ describe("Sales tables in the restore script", () => {
     expect(at("await tx.salesPipeline.createMany")).toBeGreaterThan(at("await tx.teamMember.createMany"));
   });
 });
+
+describe("Sales history log in the restore script", () => {
+  const script = readFileSync(join(__dirname, "../../scripts/restore-from-backup.ts"), "utf8");
+
+  it("never wipes the locked history log", () => {
+    expect(script).not.toMatch(/salesAuditLog.deleteMany/);
+  });
+
+  it("adds missing history rows back without failing on rows that already exist", () => {
+    expect(script).toContain(
+      "await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });",
+    );
+  });
+
+  it("counts the history log after the restore", () => {
+    expect(script).toContain("salesAuditLogs: await prisma.salesAuditLog.count(),");
+  });
+});

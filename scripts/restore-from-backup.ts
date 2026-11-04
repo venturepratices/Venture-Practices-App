@@ -70,6 +70,8 @@ async function main() {
         // Sales tables (all onDelete: Restrict against TeamMember) are always wiped,
         // even when the snapshot has no Sales data: TeamMember is wiped below, and a
         // surviving Sales row would block that delete and roll the whole restore back.
+        // SalesAuditLog is never wiped: a database trigger forbids deleting history,
+        // and it has no foreign keys, so nothing here depends on it (see the insert below).
         await tx.salesCustomFieldValue.deleteMany();
         await tx.salesCustomField.deleteMany();
         await tx.salesFile.deleteMany();
@@ -250,6 +252,8 @@ async function main() {
         if (t.salesFiles?.length) await tx.salesFile.createMany({ data: t.salesFiles as never });
         if (t.salesCustomFields?.length) await tx.salesCustomField.createMany({ data: t.salesCustomFields as never });
         if (t.salesCustomFieldValues?.length) await tx.salesCustomFieldValue.createMany({ data: t.salesCustomFieldValues as never });
+        // History rows already in the database stay; only ones missing from it are added back.
+        if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
       },
       { timeout: 120_000 }
     );
@@ -328,10 +332,15 @@ async function main() {
       salesFiles: await prisma.salesFile.count(),
       salesCustomFields: await prisma.salesCustomField.count(),
       salesCustomFieldValues: await prisma.salesCustomFieldValue.count(),
+      salesAuditLogs: await prisma.salesAuditLog.count(),
     };
     console.log("Row counts after restore:", restored);
 
-    const mismatches = Object.entries(snapshot.counts).filter(([key, expected]) => restored[key] !== expected);
+    // The history log is never wiped, so the target may hold newer rows than the
+    // snapshot: for it, "at least the snapshot's rows" is a correct restore.
+    const mismatches = Object.entries(snapshot.counts).filter(([key, expected]) =>
+      key === "salesAuditLogs" ? restored[key] < expected : restored[key] !== expected,
+    );
     if (mismatches.length > 0) {
       console.error("MISMATCH — these tables did not restore to their snapshot counts:", mismatches);
       process.exitCode = 1;

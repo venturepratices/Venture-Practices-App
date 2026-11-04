@@ -17,7 +17,7 @@ const TABLE_MODELS = [
   "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
   "teamMemberBusyBlock",
   "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
-  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue",
+  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
 ];
 const prismaMock: Record<string, { findMany: (...args: unknown[]) => Promise<unknown[]> }> = {};
 for (const model of TABLE_MODELS) {
@@ -93,6 +93,15 @@ describe("createDatabaseSnapshot", () => {
     expect(snapshot.tables.salesDeals).toHaveLength(2);
     expect(snapshot.counts.salesPipelines).toBe(0);
     expect(snapshot.counts.salesCustomFieldValues).toBe(0);
+  });
+
+  it("includes the Sales history log as salesAuditLogs", async () => {
+    findManyMocks.salesAuditLog.mockResolvedValue([{ id: "h1" }, { id: "h2" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.salesAuditLogs).toBe(2);
+    expect(snapshot.tables.salesAuditLogs).toHaveLength(2);
   });
 
   it("computes counts that match each table's row array length", async () => {

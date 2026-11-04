@@ -2087,3 +2087,33 @@ model SalesCustomFieldValue {
   @@unique([fieldId, dealId])
   @@unique([fieldId, leadId])
 }
+
+// ---------------------------------------------------------------------------
+// Sales history log. Append-only: database triggers (see the
+// add_sales_audit_log migration) reject any UPDATE, DELETE or TRUNCATE.
+// actorId and botTokenId are plain strings, not relations, so removing a team
+// member or a bot key never touches history.
+// ---------------------------------------------------------------------------
+
+enum SalesActorType {
+  USER
+  BOT
+  SYSTEM
+  WEBHOOK
+}
+
+model SalesAuditLog {
+  id         String         @id @default(cuid())
+  at         DateTime       @default(now())
+  actorType  SalesActorType
+  actorId    String?
+  botTokenId String?
+  entityType String
+  entityId   String
+  action     String
+  before     Json?
+  after      Json?
+  requestId  String?
+
+  @@index([entityType, entityId, at])
+}

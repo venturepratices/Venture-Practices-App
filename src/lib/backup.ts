@@ -38,7 +38,7 @@ export const BACKUP_MODEL_KEYS: readonly string[] = [
   "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
   "teamMemberBusyBlock",
   "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
-  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue",
+  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
 ];
 
 export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
@@ -118,6 +118,7 @@ type SnapshotTables = {
   salesFiles: unknown[];
   salesCustomFields: unknown[];
   salesCustomFieldValues: unknown[];
+  salesAuditLogs: unknown[];
 };
 
 export type DatabaseSnapshot = {
@@ -202,6 +203,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     salesFiles,
     salesCustomFields,
     salesCustomFieldValues,
+    salesAuditLogs,
   ] = await Promise.all([
     prisma.teamMember.findMany(),
     prisma.clientAccess.findMany(),
@@ -275,6 +277,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     prisma.salesFile.findMany(),
     prisma.salesCustomField.findMany(),
     prisma.salesCustomFieldValue.findMany(),
+    prisma.salesAuditLog.findMany(),
   ]);
 
   const tables: SnapshotTables = {
@@ -350,6 +353,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     salesFiles,
     salesCustomFields,
     salesCustomFieldValues,
+    salesAuditLogs,
   };
 
   const counts = Object.fromEntries(
