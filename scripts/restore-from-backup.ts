@@ -7,7 +7,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 
-import { reviveDates, topologicalBatches } from "../src/lib/restore-helpers";
+import { missingV3Tables, reviveDates, snapshotHasTable, topologicalBatches } from "../src/lib/restore-helpers";
 
 /**
  * Restores a database snapshot produced by src/lib/backup.ts back into a
@@ -49,43 +49,56 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   const t = snapshot.tables;
+  const has = (key: string) => snapshotHasTable(t, key);
+
+  // Snapshots from before v3 lack the 16 newer tables. Those tables are left
+  // untouched (not wiped) rather than emptied with nothing to refill them.
+  const missing = missingV3Tables(t);
+  if (missing.length > 0) {
+    console.warn(
+      `WARNING: this snapshot (v${snapshot.version}) has no data for ${missing.length} newer table(s): ${missing.join(", ")}. ` +
+        "They are left as they are in the target database (not wiped, not restored). " +
+        "Rows that cascade from a wiped parent (e.g. subtasks, AI chats, calendar data) are still removed. " +
+        "If the target database is empty, the Task insert will fail on the status foreign key: restore into a copy of the current database, or use a v3 snapshot."
+    );
+  }
 
   try {
     await prisma.$transaction(
       async (tx) => {
         // Wipe in reverse-dependency order so FKs never block a delete.
-        await tx.teamMemberBusyBlock.deleteMany();
-        await tx.teamMemberCalendarConnection.deleteMany();
-        await tx.archivedMeetingNote.deleteMany();
-        await tx.archivedClientNote.deleteMany();
-        await tx.archivedWorkflowInstance.deleteMany();
-        await tx.archivedCampaign.deleteMany();
-        await tx.issueRecommendation.deleteMany();
-        await tx.issue.deleteMany();
-        await tx.rock.deleteMany();
-        await tx.aiMessage.deleteMany();
-        await tx.aiConversation.deleteMany();
+        if (has("teamMemberBusyBlocks")) await tx.teamMemberBusyBlock.deleteMany();
+        if (has("teamMemberCalendarConnections")) await tx.teamMemberCalendarConnection.deleteMany();
+        if (has("archivedMeetingNotes")) await tx.archivedMeetingNote.deleteMany();
+        if (has("archivedClientNotes")) await tx.archivedClientNote.deleteMany();
+        if (has("archivedWorkflowInstances")) await tx.archivedWorkflowInstance.deleteMany();
+        if (has("archivedCampaigns")) await tx.archivedCampaign.deleteMany();
+        if (has("issueRecommendations")) await tx.issueRecommendation.deleteMany();
+        if (has("issues")) await tx.issue.deleteMany();
+        if (has("rocks")) await tx.rock.deleteMany();
+        if (has("aiMessages")) await tx.aiMessage.deleteMany();
+        if (has("aiConversations")) await tx.aiConversation.deleteMany();
         await tx.notification.deleteMany();
         await tx.activityLog.deleteMany();
         await tx.archivedTask.deleteMany();
         await tx.taskLink.deleteMany();
         await tx.comment.deleteMany();
         await tx.taskAssignee.deleteMany();
-        await tx.taskSubtask.deleteMany();
+        if (has("taskSubtasks")) await tx.taskSubtask.deleteMany();
         await tx.task.deleteMany();
         // Parents of Task (statusId is onDelete: Restrict) — only after Task is gone.
-        await tx.privateProject.deleteMany();
-        await tx.priorityLevelOption.deleteMany();
+        if (has("privateProjects")) await tx.privateProject.deleteMany();
+        if (has("priorityLevelOptions")) await tx.priorityLevelOption.deleteMany();
         await tx.workflowInstance.deleteMany();
         await tx.workflowFolder.deleteMany();
         await tx.workflowTaskTemplateAssignee.deleteMany();
         await tx.workflowTaskTemplateLink.deleteMany();
         await tx.workflowTaskTemplate.deleteMany();
         // WorkflowTaskTemplate.defaultStatusId points here, so after the line above.
-        await tx.taskStatusOption.deleteMany();
+        if (has("taskStatusOptions")) await tx.taskStatusOption.deleteMany();
         await tx.workflowStageTemplate.deleteMany();
         await tx.workflowTemplate.deleteMany();
-        await tx.workflowTemplateFolder.deleteMany();
+        if (has("workflowTemplateFolders")) await tx.workflowTemplateFolder.deleteMany();
         await tx.campaign.deleteMany();
         await tx.taskTemplate.deleteMany();
         await tx.stageTemplate.deleteMany();

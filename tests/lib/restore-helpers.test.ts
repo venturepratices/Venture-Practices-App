@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { reviveDates, topologicalBatches } from "@/lib/restore-helpers";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { BACKUP_MODEL_KEYS } from "@/lib/backup";
+import {
+  missingV3Tables,
+  reviveDates,
+  snapshotHasTable,
+  topologicalBatches,
+  V3_SNAPSHOT_TABLES,
+} from "@/lib/restore-helpers";
 
 describe("reviveDates", () => {
   it("turns an ISO date string into a real Date", () => {
@@ -85,5 +95,32 @@ describe("topologicalBatches", () => {
 
   it("returns nothing for an empty row set", () => {
     expect(topologicalBatches([], "parentId")).toEqual([]);
+  });
+});
+
+describe("older snapshots (v1/v2) without the v3 tables", () => {
+  const v2Tables = { teamMembers: [], tasks: [] } as Record<string, unknown>;
+  const v3Tables = Object.fromEntries(V3_SNAPSHOT_TABLES.map(({ key }) => [key, []])) as Record<string, unknown>;
+
+  it("reports every v3 table as missing from a v2 snapshot", () => {
+    expect(missingV3Tables(v2Tables)).toHaveLength(V3_SNAPSHOT_TABLES.length);
+    expect(snapshotHasTable(v2Tables, "taskStatusOptions")).toBe(false);
+  });
+
+  it("reports nothing missing from a v3 snapshot, even when the tables are empty", () => {
+    expect(missingV3Tables(v3Tables)).toEqual([]);
+    expect(snapshotHasTable(v3Tables, "issues")).toBe(true);
+  });
+
+  it("only lists keys that the backup actually writes", () => {
+    for (const { model } of V3_SNAPSHOT_TABLES) expect(BACKUP_MODEL_KEYS).toContain(model);
+  });
+
+  it("restore script wipes each v3 table only when the snapshot has it", () => {
+    const script = readFileSync(join(__dirname, "../../scripts/restore-from-backup.ts"), "utf8");
+    for (const { key, model } of V3_SNAPSHOT_TABLES) {
+      expect(script, key).toContain(`if (has("${key}")) await tx.${model}.deleteMany();`);
+      expect(script, key).not.toMatch(new RegExp(String.raw`^\s*await tx\.${model}\.deleteMany\(\);`, "m"));
+    }
   });
 });

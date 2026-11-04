@@ -44,3 +44,40 @@ export function topologicalBatches<T extends { id: string }>(rows: T[], parentFi
 
   return batches;
 }
+
+/**
+ * Tables added in snapshot v3. Snapshots taken before v3 (v1/v2) have no key for
+ * these, so the restore script must NOT wipe them when the key is absent: wiping
+ * a table the snapshot cannot refill would empty it (and, for the Task parents
+ * TaskStatusOption / PriorityLevelOption / PrivateProject, make the Task insert
+ * fail its foreign key and roll the whole restore back).
+ * `key` is the snapshot JSON key, `model` the Prisma client delegate name.
+ */
+export const V3_SNAPSHOT_TABLES = [
+  { key: "aiConversations", model: "aiConversation" },
+  { key: "aiMessages", model: "aiMessage" },
+  { key: "issues", model: "issue" },
+  { key: "issueRecommendations", model: "issueRecommendation" },
+  { key: "rocks", model: "rock" },
+  { key: "taskStatusOptions", model: "taskStatusOption" },
+  { key: "priorityLevelOptions", model: "priorityLevelOption" },
+  { key: "privateProjects", model: "privateProject" },
+  { key: "taskSubtasks", model: "taskSubtask" },
+  { key: "workflowTemplateFolders", model: "workflowTemplateFolder" },
+  { key: "archivedCampaigns", model: "archivedCampaign" },
+  { key: "archivedWorkflowInstances", model: "archivedWorkflowInstance" },
+  { key: "archivedClientNotes", model: "archivedClientNote" },
+  { key: "archivedMeetingNotes", model: "archivedMeetingNote" },
+  { key: "teamMemberCalendarConnections", model: "teamMemberCalendarConnection" },
+  { key: "teamMemberBusyBlocks", model: "teamMemberBusyBlock" },
+] as const;
+
+/** True when the snapshot actually contains this table (even if it has zero rows). */
+export function snapshotHasTable(tables: Record<string, unknown>, key: string): boolean {
+  return tables[key] !== undefined;
+}
+
+/** Keys of v3 tables that an older snapshot does not contain (left untouched by the restore). */
+export function missingV3Tables(tables: Record<string, unknown>): string[] {
+  return V3_SNAPSHOT_TABLES.filter(({ key }) => !snapshotHasTable(tables, key)).map(({ key }) => key);
+}
