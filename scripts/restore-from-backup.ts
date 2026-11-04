@@ -67,6 +67,20 @@ async function main() {
     await prisma.$transaction(
       async (tx) => {
         // Wipe in reverse-dependency order so FKs never block a delete.
+        // Sales tables (all onDelete: Restrict against TeamMember) are always wiped,
+        // even when the snapshot has no Sales data: TeamMember is wiped below, and a
+        // surviving Sales row would block that delete and roll the whole restore back.
+        await tx.salesCustomFieldValue.deleteMany();
+        await tx.salesCustomField.deleteMany();
+        await tx.salesFile.deleteMany();
+        await tx.salesNote.deleteMany();
+        await tx.salesActivity.deleteMany();
+        await tx.salesLead.deleteMany();
+        await tx.salesDeal.deleteMany();
+        await tx.salesPerson.deleteMany();
+        await tx.salesOrganization.deleteMany();
+        await tx.salesStage.deleteMany();
+        await tx.salesPipeline.deleteMany();
         if (has("teamMemberBusyBlocks")) await tx.teamMemberBusyBlock.deleteMany();
         if (has("teamMemberCalendarConnections")) await tx.teamMemberCalendarConnection.deleteMany();
         if (has("archivedMeetingNotes")) await tx.archivedMeetingNote.deleteMany();
@@ -222,6 +236,20 @@ async function main() {
         if (t.teamMemberCalendarConnections?.length)
           await tx.teamMemberCalendarConnection.createMany({ data: t.teamMemberCalendarConnections as never });
         if (t.teamMemberBusyBlocks?.length) await tx.teamMemberBusyBlock.createMany({ data: t.teamMemberBusyBlocks as never });
+
+        // Sales (after TeamMember). Deals go in before Leads because
+        // SalesLead.convertedDealId points at a deal.
+        if (t.salesPipelines?.length) await tx.salesPipeline.createMany({ data: t.salesPipelines as never });
+        if (t.salesStages?.length) await tx.salesStage.createMany({ data: t.salesStages as never });
+        if (t.salesOrganizations?.length) await tx.salesOrganization.createMany({ data: t.salesOrganizations as never });
+        if (t.salesPeople?.length) await tx.salesPerson.createMany({ data: t.salesPeople as never });
+        if (t.salesDeals?.length) await tx.salesDeal.createMany({ data: t.salesDeals as never });
+        if (t.salesLeads?.length) await tx.salesLead.createMany({ data: t.salesLeads as never });
+        if (t.salesActivities?.length) await tx.salesActivity.createMany({ data: t.salesActivities as never });
+        if (t.salesNotes?.length) await tx.salesNote.createMany({ data: t.salesNotes as never });
+        if (t.salesFiles?.length) await tx.salesFile.createMany({ data: t.salesFiles as never });
+        if (t.salesCustomFields?.length) await tx.salesCustomField.createMany({ data: t.salesCustomFields as never });
+        if (t.salesCustomFieldValues?.length) await tx.salesCustomFieldValue.createMany({ data: t.salesCustomFieldValues as never });
       },
       { timeout: 120_000 }
     );
@@ -289,6 +317,17 @@ async function main() {
       archivedMeetingNotes: await prisma.archivedMeetingNote.count(),
       teamMemberCalendarConnections: await prisma.teamMemberCalendarConnection.count(),
       teamMemberBusyBlocks: await prisma.teamMemberBusyBlock.count(),
+      salesPipelines: await prisma.salesPipeline.count(),
+      salesStages: await prisma.salesStage.count(),
+      salesOrganizations: await prisma.salesOrganization.count(),
+      salesPeople: await prisma.salesPerson.count(),
+      salesDeals: await prisma.salesDeal.count(),
+      salesLeads: await prisma.salesLead.count(),
+      salesActivities: await prisma.salesActivity.count(),
+      salesNotes: await prisma.salesNote.count(),
+      salesFiles: await prisma.salesFile.count(),
+      salesCustomFields: await prisma.salesCustomField.count(),
+      salesCustomFieldValues: await prisma.salesCustomFieldValue.count(),
     };
     console.log("Row counts after restore:", restored);
 

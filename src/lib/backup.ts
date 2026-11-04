@@ -37,6 +37,8 @@ export const BACKUP_MODEL_KEYS: readonly string[] = [
   "priorityLevelOption", "privateProject", "taskSubtask", "workflowTemplateFolder", "archivedCampaign",
   "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
   "teamMemberBusyBlock",
+  "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
+  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue",
 ];
 
 export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
@@ -105,6 +107,17 @@ type SnapshotTables = {
   archivedMeetingNotes: unknown[];
   teamMemberCalendarConnections: unknown[];
   teamMemberBusyBlocks: unknown[];
+  salesPipelines: unknown[];
+  salesStages: unknown[];
+  salesOrganizations: unknown[];
+  salesPeople: unknown[];
+  salesLeads: unknown[];
+  salesDeals: unknown[];
+  salesActivities: unknown[];
+  salesNotes: unknown[];
+  salesFiles: unknown[];
+  salesCustomFields: unknown[];
+  salesCustomFieldValues: unknown[];
 };
 
 export type DatabaseSnapshot = {
@@ -178,6 +191,17 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     archivedMeetingNotes,
     teamMemberCalendarConnections,
     teamMemberBusyBlocks,
+    salesPipelines,
+    salesStages,
+    salesOrganizations,
+    salesPeople,
+    salesLeads,
+    salesDeals,
+    salesActivities,
+    salesNotes,
+    salesFiles,
+    salesCustomFields,
+    salesCustomFieldValues,
   ] = await Promise.all([
     prisma.teamMember.findMany(),
     prisma.clientAccess.findMany(),
@@ -240,6 +264,17 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     prisma.archivedMeetingNote.findMany(),
     prisma.teamMemberCalendarConnection.findMany(),
     prisma.teamMemberBusyBlock.findMany(),
+    prisma.salesPipeline.findMany(),
+    prisma.salesStage.findMany(),
+    prisma.salesOrganization.findMany(),
+    prisma.salesPerson.findMany(),
+    prisma.salesLead.findMany(),
+    prisma.salesDeal.findMany(),
+    prisma.salesActivity.findMany(),
+    prisma.salesNote.findMany(),
+    prisma.salesFile.findMany(),
+    prisma.salesCustomField.findMany(),
+    prisma.salesCustomFieldValue.findMany(),
   ]);
 
   const tables: SnapshotTables = {
@@ -304,6 +339,17 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     archivedMeetingNotes,
     teamMemberCalendarConnections,
     teamMemberBusyBlocks,
+    salesPipelines,
+    salesStages,
+    salesOrganizations,
+    salesPeople,
+    salesLeads,
+    salesDeals,
+    salesActivities,
+    salesNotes,
+    salesFiles,
+    salesCustomFields,
+    salesCustomFieldValues,
   };
 
   const counts = Object.fromEntries(

@@ -320,6 +320,13 @@ model TeamMember {
   issueRecommendations         IssueRecommendation[]          @relation("IssueRecommendationAuthor")
   ownedRocks                   Rock[]                         @relation("RockOwner")
   createdRocks                 Rock[]                         @relation("RockCreatedBy")
+  salesOrganizations           SalesOrganization[]            @relation("SalesOrganizationOwner")
+  salesPeople                  SalesPerson[]                  @relation("SalesPersonOwner")
+  salesLeads                   SalesLead[]                    @relation("SalesLeadOwner")
+  salesDeals                   SalesDeal[]                    @relation("SalesDealOwner")
+  salesActivities              SalesActivity[]                @relation("SalesActivityOwner")
+  salesNotes                   SalesNote[]                    @relation("SalesNoteAuthor")
+  salesFiles                   SalesFile[]                    @relation("SalesFileUploader")
 }
 
 /**
@@ -1795,4 +1802,288 @@ model TeamMemberBusyBlock {
   lastSyncAt   DateTime   @default(now())
 
   @@index([teamMemberId, startTime, endTime])
+}
+
+// ---------------------------------------------------------------------------
+// Sales Command: the deals / leads / activities module (a Pipedrive
+// replacement). Money is stored as integer cents, never floats. Deals and
+// leads are archived (archivedAt), never hard-deleted, so every relation below
+// is onDelete: Restrict: a person who owns deals cannot be removed from the
+// team until those deals are reassigned.
+// ---------------------------------------------------------------------------
+
+enum SalesPipelineKind {
+  SALES
+  CONSULTING
+  DELIVERY
+}
+
+enum SalesLeadStatus {
+  OPEN
+  CONVERTED
+  ARCHIVED
+}
+
+enum SalesDealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum SalesActivityType {
+  CALL
+  MEETING
+  TASK
+  DEADLINE
+  EMAIL
+  LUNCH
+}
+
+enum SalesCustomFieldEntity {
+  DEAL
+  LEAD
+}
+
+enum SalesCustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+}
+
+// One pipeline, e.g. key "direct-mail". Seeded config, edited by admins.
+model SalesPipeline {
+  id        String            @id @default(cuid())
+  key       String            @unique
+  name      String
+  kind      SalesPipelineKind
+  position  Int
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  stages SalesStage[]
+  deals  SalesDeal[]
+}
+
+// One column of a pipeline. requiresValue is true on every "Proposal Sent";
+// isNoShow is true on "No Show" and "No Show/Cancel".
+model SalesStage {
+  id            String        @id @default(cuid())
+  pipelineId    String
+  pipeline      SalesPipeline @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  key           String
+  name          String
+  position      Int
+  probability   Int
+  isWon         Boolean       @default(false)
+  isLost        Boolean       @default(false)
+  requiresValue Boolean       @default(false)
+  isNoShow      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  deals SalesDeal[]
+
+  @@unique([pipelineId, key])
+}
+
+model SalesOrganization {
+  id         String     @id @default(cuid())
+  name       String
+  ownerId    String
+  owner      TeamMember @relation("SalesOrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  address    String?
+  website    String?
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  people SalesPerson[]
+  leads  SalesLead[]
+  deals  SalesDeal[]
+  notes  SalesNote[]
+}
+
+model SalesPerson {
+  id             String             @id @default(cuid())
+  // First name plus last initial, by house rule (e.g. "Sarah K.").
+  name           String
+  organizationId String?
+  organization   SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerId        String
+  owner          TeamMember         @relation("SalesPersonOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  email          String?
+  phone          String?
+  archivedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  leads      SalesLead[]
+  deals      SalesDeal[]
+  activities SalesActivity[]
+  notes      SalesNote[]
+}
+
+model SalesLead {
+  id              String             @id @default(cuid())
+  title           String
+  personId        String?
+  person          SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId  String?
+  organization    SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerId         String
+  owner           TeamMember         @relation("SalesLeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  source          String
+  status          SalesLeadStatus    @default(OPEN)
+  // Set when the lead is converted; the deal can never be hard-deleted while
+  // a lead points at it.
+  convertedDealId String?            @unique
+  convertedDeal   SalesDeal?         @relation("SalesLeadConvertedDeal", fields: [convertedDealId], references: [id], onDelete: Restrict)
+  ghlContactId    String?
+  archivedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  activities   SalesActivity[]
+  notes        SalesNote[]
+  files        SalesFile[]
+  customValues SalesCustomFieldValue[]
+
+  @@index([status, createdAt])
+}
+
+model SalesDeal {
+  id                String             @id @default(cuid())
+  title             String
+  pipelineId        String
+  pipeline          SalesPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stageId           String
+  stage             SalesStage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  ownerId           String
+  owner             TeamMember         @relation("SalesDealOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  personId          String?
+  person            SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId    String?
+  organization      SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  // Integer cents. Never floats.
+  valueCents        Int                @default(0)
+  mrrCents          Int                @default(0)
+  status            SalesDealStatus    @default(OPEN)
+  lostReason        String?
+  stageEnteredAt    DateTime
+  wonAt             DateTime?
+  lostAt            DateTime?
+  expectedCloseDate DateTime?
+  // Id of the deal in Pipedrive, for the one-time import.
+  pipedriveId       Int?               @unique
+  archivedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  convertedFromLead SalesLead?              @relation("SalesLeadConvertedDeal")
+  activities        SalesActivity[]
+  notes             SalesNote[]
+  files             SalesFile[]
+  customValues      SalesCustomFieldValue[]
+
+  @@index([pipelineId, status, stageId])
+  @@index([ownerId, status])
+}
+
+model SalesActivity {
+  id         String            @id @default(cuid())
+  type       SalesActivityType
+  subject    String
+  dueAt      DateTime
+  // False for activities that only have a date, no time of day.
+  hasTime    Boolean           @default(true)
+  doneAt     DateTime?
+  ownerId    String
+  owner      TeamMember        @relation("SalesActivityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  dealId     String?
+  deal       SalesDeal?        @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId     String?
+  lead       SalesLead?        @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  personId   String?
+  person     SalesPerson?      @relation(fields: [personId], references: [id], onDelete: Restrict)
+  note       String?
+  // "rule:no-show", "rule:territory-hold", or a team member id.
+  createdBy  String
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([ownerId, doneAt, dueAt])
+  @@index([dealId, doneAt])
+}
+
+model SalesNote {
+  id             String             @id @default(cuid())
+  body           String
+  authorId       String
+  author         TeamMember         @relation("SalesNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  dealId         String?
+  deal           SalesDeal?         @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId         String?
+  lead           SalesLead?         @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  personId       String?
+  person         SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId String?
+  organization   SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pinned         Boolean            @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model SalesFile {
+  id           String     @id @default(cuid())
+  name         String
+  blobPathname String
+  contentType  String
+  sizeBytes    Int
+  sha256       String
+  uploadedById String
+  uploadedBy   TeamMember @relation("SalesFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  dealId       String?
+  deal         SalesDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId       String?
+  lead         SalesLead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  archivedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// An admin-defined extra field on deals or leads. pipelineKeys empty = shown
+// on every pipeline.
+model SalesCustomField {
+  id           String                 @id @default(cuid())
+  key          String                 @unique
+  label        String
+  entity       SalesCustomFieldEntity
+  fieldType    SalesCustomFieldType
+  options      String[]
+  pipelineKeys String[]
+  position     Int
+  archivedAt   DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  values SalesCustomFieldValue[]
+}
+
+model SalesCustomFieldValue {
+  id        String           @id @default(cuid())
+  fieldId   String
+  field     SalesCustomField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  dealId    String?
+  deal      SalesDeal?       @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId    String?
+  lead      SalesLead?       @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  value     String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([fieldId, dealId])
+  @@unique([fieldId, leadId])
 }

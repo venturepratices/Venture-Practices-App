@@ -124,3 +124,47 @@ describe("older snapshots (v1/v2) without the v3 tables", () => {
     }
   });
 });
+
+describe("Sales tables in the restore script", () => {
+  const script = readFileSync(join(__dirname, "../../scripts/restore-from-backup.ts"), "utf8");
+  // [snapshot key, Prisma delegate], in the order they must be inserted.
+  const SALES = [
+    ["salesPipelines", "salesPipeline"],
+    ["salesStages", "salesStage"],
+    ["salesOrganizations", "salesOrganization"],
+    ["salesPeople", "salesPerson"],
+    ["salesDeals", "salesDeal"],
+    ["salesLeads", "salesLead"],
+    ["salesActivities", "salesActivity"],
+    ["salesNotes", "salesNote"],
+    ["salesFiles", "salesFile"],
+    ["salesCustomFields", "salesCustomField"],
+    ["salesCustomFieldValues", "salesCustomFieldValue"],
+  ] as const;
+  const at = (needle: string) => {
+    const i = script.indexOf(needle);
+    expect(i, needle).toBeGreaterThan(-1);
+    return i;
+  };
+
+  it("wipes, inserts and counts every Sales table", () => {
+    for (const [key, model] of SALES) {
+      expect(BACKUP_MODEL_KEYS, model).toContain(model);
+      at(`await tx.${model}.deleteMany();`);
+      at(`await tx.${model}.createMany({ data: t.${key} as never });`);
+      at(`${key}: await prisma.${model}.count(),`);
+    }
+  });
+
+  it("inserts parents before children and wipes children before parents", () => {
+    const inserts = SALES.map(([key, model]) => at(`await tx.${model}.createMany({ data: t.${key} as never });`));
+    const wipes = SALES.map(([, model]) => at(`await tx.${model}.deleteMany();`));
+    expect(inserts).toEqual([...inserts].sort((a, b) => a - b));
+    expect(wipes).toEqual([...wipes].sort((a, b) => b - a));
+  });
+
+  it("wipes Sales before TeamMember and inserts it after, because every Sales owner link is Restrict", () => {
+    expect(at("await tx.salesPipeline.deleteMany();")).toBeLessThan(at("await tx.teamMember.deleteMany();"));
+    expect(at("await tx.salesPipeline.createMany")).toBeGreaterThan(at("await tx.teamMember.createMany"));
+  });
+});
