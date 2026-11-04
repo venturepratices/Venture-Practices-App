@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Who is acting on Sales data. A person signed in through the app (`via: "user"`)
- * is limited only by their capabilities; a bot key (`via: "bot"`, added later)
+ * is limited only by their capabilities; a bot key (`via: "bot"`, see bot-tokens.ts)
  * also carries scopes.
  */
 export type SalesActor = {
@@ -14,6 +14,8 @@ export type SalesActor = {
   via: "user" | "bot";
   botTokenId?: string;
   scopes?: readonly string[];
+  /** Bots only: the pipelines this key may work in. Empty = every pipeline. */
+  pipelineKeys?: readonly string[];
 };
 
 const SALES_DENIED_MESSAGE = "You don't have access to Sales.";

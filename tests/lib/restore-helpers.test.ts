@@ -186,3 +186,25 @@ describe("Sales history log in the restore script", () => {
     expect(script).toContain("salesAuditLogs: await prisma.salesAuditLog.count(),");
   });
 });
+
+describe("Bot keys in the restore script", () => {
+  const script = readFileSync(join(__dirname, "../../scripts/restore-from-backup.ts"), "utf8");
+  const at = (needle: string) => {
+    const i = script.indexOf(needle);
+    expect(i, needle).toBeGreaterThan(-1);
+    return i;
+  };
+
+  it("wipes bot keys before TeamMember and puts them back after it", () => {
+    expect(BACKUP_MODEL_KEYS).toContain("botToken");
+    expect(at("await tx.botToken.deleteMany();")).toBeLessThan(at("await tx.teamMember.deleteMany();"));
+    expect(at("await tx.botToken.createMany({ data: t.botTokens as never });")).toBeGreaterThan(
+      at("await tx.teamMember.createMany"),
+    );
+    at("botTokens: await prisma.botToken.count(),");
+  });
+
+  it("never restores rate-limit counters", () => {
+    expect(script).not.toMatch(/botTokenUsage/);
+  });
+});

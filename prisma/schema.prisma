@@ -327,6 +327,7 @@ model TeamMember {
   salesActivities              SalesActivity[]                @relation("SalesActivityOwner")
   salesNotes                   SalesNote[]                    @relation("SalesNoteAuthor")
   salesFiles                   SalesFile[]                    @relation("SalesFileUploader")
+  botTokens                    BotToken[]                     @relation("BotTokenActingFor")
 }
 
 /**
@@ -2116,4 +2117,38 @@ model SalesAuditLog {
   requestId  String?
 
   @@index([entityType, entityId, at])
+}
+
+// A key an outside bot uses to work in Sales on behalf of one person. Only the
+// SHA-256 hash of the key is stored; the key itself is shown once, on create or
+// rotate. Deleting the person deletes their bots. pipelineKeys empty = every pipeline.
+model BotToken {
+  id           String          @id @default(cuid())
+  name         String
+  actingForId  String
+  actingFor    TeamMember      @relation("BotTokenActingFor", fields: [actingForId], references: [id], onDelete: Cascade)
+  scopes       String[]
+  pipelineKeys String[]
+  tokenHash    String          @unique
+  tokenLast4   String
+  enabled      Boolean         @default(true)
+  createdById  String
+  createdAt    DateTime        @default(now())
+  lastUsedAt   DateTime?
+  rotatedAt    DateTime?
+  usage        BotTokenUsage[]
+
+  @@index([actingForId])
+}
+
+// Rate-limit counters for a bot key, one row per key per window. kind is
+// "minute" or "day" (UTC days). Not backed up: rebuilt by use.
+model BotTokenUsage {
+  tokenId     String
+  token       BotToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  kind        String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([tokenId, kind, windowStart])
 }

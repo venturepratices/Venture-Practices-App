@@ -18,6 +18,7 @@ const TABLE_MODELS = [
   "teamMemberBusyBlock",
   "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
   "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
+  "botToken",
 ];
 const prismaMock: Record<string, { findMany: (...args: unknown[]) => Promise<unknown[]> }> = {};
 for (const model of TABLE_MODELS) {
@@ -35,8 +36,15 @@ vi.mock("@vercel/blob", () => ({
   del: (...args: unknown[]) => delMock(...args),
 }));
 
-const { createDatabaseSnapshot, backupDateKey, writeBackupToBlob, pruneOldBackups, BACKUP_VERSION, BACKUP_MODEL_KEYS } =
-  await import("@/lib/backup");
+const {
+  createDatabaseSnapshot,
+  backupDateKey,
+  writeBackupToBlob,
+  pruneOldBackups,
+  BACKUP_VERSION,
+  BACKUP_MODEL_KEYS,
+  BACKUP_EXCLUDED_MODELS,
+} = await import("@/lib/backup");
 
 beforeEach(() => {
   for (const mock of Object.values(findManyMocks)) mock.mockClear().mockResolvedValue([]);
@@ -102,6 +110,16 @@ describe("createDatabaseSnapshot", () => {
 
     expect(snapshot.counts.salesAuditLogs).toBe(2);
     expect(snapshot.tables.salesAuditLogs).toHaveLength(2);
+  });
+
+  it("includes bot keys as botTokens and leaves out their rate-limit counters", async () => {
+    findManyMocks.botToken.mockResolvedValue([{ id: "b1" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.botTokens).toBe(1);
+    expect(snapshot.tables.botTokens).toHaveLength(1);
+    expect(BACKUP_EXCLUDED_MODELS.BotTokenUsage).toBe("Short-lived rate-limit counters, rebuilt by use");
   });
 
   it("computes counts that match each table's row array length", async () => {

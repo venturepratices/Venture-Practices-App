@@ -72,6 +72,9 @@ async function main() {
         // surviving Sales row would block that delete and roll the whole restore back.
         // SalesAuditLog is never wiped: a database trigger forbids deleting history,
         // and it has no foreign keys, so nothing here depends on it (see the insert below).
+        // Bot keys would cascade away with TeamMember anyway; wiping them first keeps the order explicit.
+        // Their rate-limit counters (BotTokenUsage) are not backed up and go with them.
+        await tx.botToken.deleteMany();
         await tx.salesCustomFieldValue.deleteMany();
         await tx.salesCustomField.deleteMany();
         await tx.salesFile.deleteMany();
@@ -254,6 +257,7 @@ async function main() {
         if (t.salesCustomFieldValues?.length) await tx.salesCustomFieldValue.createMany({ data: t.salesCustomFieldValues as never });
         // History rows already in the database stay; only ones missing from it are added back.
         if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
+        if (t.botTokens?.length) await tx.botToken.createMany({ data: t.botTokens as never });
       },
       { timeout: 120_000 }
     );
@@ -333,6 +337,7 @@ async function main() {
       salesCustomFields: await prisma.salesCustomField.count(),
       salesCustomFieldValues: await prisma.salesCustomFieldValue.count(),
       salesAuditLogs: await prisma.salesAuditLog.count(),
+      botTokens: await prisma.botToken.count(),
     };
     console.log("Row counts after restore:", restored);
 
