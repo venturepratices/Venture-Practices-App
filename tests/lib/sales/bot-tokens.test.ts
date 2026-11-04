@@ -18,7 +18,7 @@ type UsageKey = { tokenId: string; kind: string; windowStart: Date };
 const db = { tokens: [] as FakeToken[], usage: new Map<string, number>() };
 const usageKey = (k: UsageKey) => `${k.tokenId}|${k.kind}|${k.windowStart.toISOString()}`;
 
-const usageDeleteMany = vi.fn(async () => ({ count: 0 }));
+const usageDeleteMany = vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 0 }));
 const tokenUpdate = vi.fn(async (args: { where: { id: string }; data: Partial<FakeToken> }) => {
   const token = db.tokens.find((t) => t.id === args.where.id);
   if (!token) throw new Error("not found");
