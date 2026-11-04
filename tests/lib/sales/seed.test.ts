@@ -120,6 +120,17 @@ describe("seed data", () => {
     ]);
   });
 
+  it("rots every open stage after 14 days and never a won or lost stage", () => {
+    for (const p of SALES_SEED_PIPELINES) {
+      for (const s of p.stages) {
+        expect(s.rottingDays, `${p.key}:${s.name}`).toBe(s.isWon || s.isLost ? null : 14);
+      }
+    }
+    expect(byKey("direct-mail").stages.find((s) => s.name === "Contract Signed")!.rottingDays).toBeNull();
+    expect(byKey("direct-mail").stages.find((s) => s.name === "Follow-Up")!.rottingDays).toBe(14);
+    expect(byKey("marketing-agency").stages.find((s) => s.name === "Deal Lost Nurture")!.rottingDays).toBeNull();
+  });
+
   it("uses kebab-case stage keys that are unique within a pipeline", () => {
     for (const p of SALES_SEED_PIPELINES) {
       const keys = p.stages.map((s) => s.key);
@@ -189,6 +200,11 @@ describe("ensureSalesSeed", () => {
     // Stages land in the right pipeline.
     const directMailId = pipelines.find((p) => p.key === "direct-mail")!.id;
     expect(stages.filter((s) => s.pipelineId === directMailId)).toHaveLength(8);
+
+    // The rotting threshold reaches the database row.
+    const directMail = stages.filter((s) => s.pipelineId === directMailId);
+    expect(directMail.find((s) => s.key === "follow-up")!.rottingDays).toBe(14);
+    expect(directMail.find((s) => s.key === "contract-signed")!.rottingDays).toBeNull();
   });
 
   it("reports zero created on a second run and never overwrites existing rows", async () => {

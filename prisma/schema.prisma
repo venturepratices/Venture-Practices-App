@@ -284,6 +284,8 @@ model TeamMember {
   // sales user's deals; false = sees only the deals they own.
   canUseSales       Boolean @default(false)
   salesSeesAllDeals Boolean @default(true)
+  // Remembered Deals view: { pipeline, view, scope }. A preference, not Sales data.
+  salesDefaultView  Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1882,6 +1884,8 @@ model SalesStage {
   isLost        Boolean       @default(false)
   requiresValue Boolean       @default(false)
   isNoShow      Boolean       @default(false)
+  // Days an open deal can sit here before its card turns amber. Null on won/lost stages.
+  rottingDays   Int?
   archivedAt    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -1974,6 +1978,10 @@ model SalesDeal {
   mrrCents          Int                @default(0)
   status            SalesDealStatus    @default(OPEN)
   lostReason        String?
+  // Optional free text that goes with lostReason.
+  lostComment       String?
+  // Where the deal came from (Check Availability form, Referral, ...).
+  source            String?
   stageEnteredAt    DateTime
   wonAt             DateTime?
   lostAt            DateTime?
@@ -1991,6 +1999,7 @@ model SalesDeal {
   customValues      SalesCustomFieldValue[]
 
   @@index([pipelineId, status, stageId])
+  @@index([pipelineId, status, updatedAt])
   @@index([ownerId, status])
 }
 
@@ -2018,6 +2027,7 @@ model SalesActivity {
   updatedAt  DateTime          @updatedAt
 
   @@index([ownerId, doneAt, dueAt])
+  @@index([doneAt, dueAt])
   @@index([dealId, doneAt])
   @@index([leadId])
   @@index([personId])

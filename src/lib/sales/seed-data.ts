@@ -1,6 +1,9 @@
 // The pipelines, stages and custom fields Sales starts with (spec sections 5 and 6).
-// Pure data with no imports, so it is safe to load anywhere, client or server.
+// Pure data whose only import is the client-safe constants file, so it is safe
+// to load anywhere, client or server.
 // Admins edit these rows later; the seed never overwrites an existing row.
+
+import { DEFAULT_ROTTING_DAYS } from "@/lib/sales/constants";
 
 export type SeedStage = {
   /** kebab-case of the name, unique within its pipeline */
@@ -13,6 +16,8 @@ export type SeedStage = {
   isLost: boolean;
   requiresValue: boolean;
   isNoShow: boolean;
+  /** Days an open deal can sit here before it rots. null on won and lost stages. */
+  rottingDays: number | null;
 };
 
 export type SeedPipeline = {
@@ -54,6 +59,7 @@ function buildStages(specs: StageSpec[]): SeedStage[] {
     isLost: flag === "lost",
     requiresValue: name === "Proposal Sent",
     isNoShow: flag === "noShow",
+    rottingDays: flag === "won" || flag === "lost" ? null : DEFAULT_ROTTING_DAYS,
   }));
 }
 
