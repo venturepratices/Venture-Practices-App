@@ -202,6 +202,24 @@ export async function updateTeamMemberAction(
   return { error: null };
 }
 
+// How many Sales rows still point at this person: deals, leads, people,
+// organizations and activities they own, notes they wrote, files they uploaded.
+// Archived rows count too. Every one of those links is onDelete: Restrict, so
+// any of them would make the delete fail. (Not exported: in a "use server"
+// file every export becomes a callable action.)
+async function countOwnedSalesRecords(memberId: string): Promise<number> {
+  const counts = await Promise.all([
+    prisma.salesDeal.count({ where: { ownerId: memberId } }),
+    prisma.salesLead.count({ where: { ownerId: memberId } }),
+    prisma.salesPerson.count({ where: { ownerId: memberId } }),
+    prisma.salesOrganization.count({ where: { ownerId: memberId } }),
+    prisma.salesActivity.count({ where: { ownerId: memberId } }),
+    prisma.salesNote.count({ where: { authorId: memberId } }),
+    prisma.salesFile.count({ where: { uploadedById: memberId } }),
+  ]);
+  return counts.reduce((total, count) => total + count, 0);
+}
+
 export async function deleteTeamMemberAction(memberId: string) {
   await requireAdmin();
 
@@ -214,6 +232,11 @@ export async function deleteTeamMemberAction(memberId: string) {
     if (adminCount <= 1) {
       throw new PermissionError(400, "This is the only admin — promote someone else before removing them.");
     }
+  }
+
+  // Checked before Slack is touched, so a refused delete leaves their channels as they were.
+  if ((await countOwnedSalesRecords(memberId)) > 0) {
+    throw new PermissionError(400, "This person still owns Sales records. Reassign them first.");
   }
 
   await removeTeamMemberFromAllClientChannels(memberId);
