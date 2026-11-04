@@ -88,7 +88,7 @@ event.
 ## Optional integrations degrade silently
 
 Every integration that depends on a third-party credential (Slack, Sentry, Vercel Blob,
-HighLevel, Google Calendar, the Anthropic API) checks whether its env var is set before doing
+HighLevel, Google Calendar) checks whether its env var is set before doing
 anything, and if it's not, logs a warning and skips — it never throws and never blocks the
 request that triggered it. This is why the app runs fine locally with a near-empty `.env`.
 Follow this convention for any new external integration rather than making it a hard
