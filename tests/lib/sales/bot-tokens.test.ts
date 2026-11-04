@@ -18,6 +18,7 @@ type UsageKey = { tokenId: string; kind: string; windowStart: Date };
 const db = { tokens: [] as FakeToken[], usage: new Map<string, number>() };
 const usageKey = (k: UsageKey) => `${k.tokenId}|${k.kind}|${k.windowStart.toISOString()}`;
 
+const usageDeleteMany = vi.fn(async () => ({ count: 0 }));
 const tokenUpdate = vi.fn(async (args: { where: { id: string }; data: Partial<FakeToken> }) => {
   const token = db.tokens.find((t) => t.id === args.where.id);
   if (!token) throw new Error("not found");
@@ -39,7 +40,7 @@ vi.mock("@/lib/prisma", () => ({
         db.usage.set(key, count);
         return { ...args.create, count };
       },
-      deleteMany: async () => ({ count: 0 }),
+      deleteMany: (args: unknown) => usageDeleteMany(args),
     },
   },
 }));
@@ -72,6 +73,7 @@ beforeEach(() => {
   db.tokens = [];
   db.usage.clear();
   tokenUpdate.mockClear();
+  usageDeleteMany.mockClear();
 });
 
 describe("generateBotSecret", () => {
@@ -197,5 +199,26 @@ describe("authenticateBot", () => {
     await authenticateBot(header, at(60_000));
     expect(tokenUpdate).toHaveBeenCalledTimes(2);
     expect(db.tokens[0].lastUsedAt).toEqual(at(60_000));
+  });
+});
+
+describe("rate-limit counter cleanup", () => {
+  it("clears the key's finished windows on the same once-a-minute beat", async () => {
+    const header = addToken();
+    await authenticateBot(header, T0);
+    await authenticateBot(header, at(10_000));
+    expect(usageDeleteMany).toHaveBeenCalledTimes(1);
+
+    await authenticateBot(header, at(90_000));
+    expect(usageDeleteMany).toHaveBeenCalledTimes(2);
+    expect(usageDeleteMany).toHaveBeenLastCalledWith({
+      where: {
+        tokenId: "bot1",
+        OR: [
+          { kind: "minute", windowStart: { lt: at(60_000) } },
+          { kind: "day", windowStart: { lt: new Date("2026-11-05T00:00:00.000Z") } },
+        ],
+      },
+    });
   });
 });
