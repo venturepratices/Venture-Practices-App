@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { dateInputValue, endOfDay } from "@/lib/utils";
-import { activitiesOnStageEntry, checkStageMove, isStalled, territoryHoldCheckDate } from "@/lib/sales/rules";
+import {
+  activitiesOnStageEntry,
+  checkStageMove,
+  isStalled,
+  territoryHoldCheckDate,
+  territoryHoldCheckDueAt,
+} from "@/lib/sales/rules";
 
 describe("checkStageMove", () => {
   const needsValue = { requiresValue: true };
@@ -75,6 +81,25 @@ describe("territoryHoldCheckDate", () => {
     const check = territoryHoldCheckDate(endOfDay("2026-03-08"));
     expect(dateInputValue(check)).toBe("2026-03-01");
     expect(check.getTime()).toBe(endOfDay("2026-03-01").getTime());
+  });
+});
+
+describe("territoryHoldCheckDueAt", () => {
+  // 10 AM Eastern on Nov 5.
+  const now = new Date("2026-11-05T15:00:00Z");
+
+  it("reads the stored YYYY-MM-DD expiry in app time and checks 7 days before", () => {
+    expect(territoryHoldCheckDueAt("2026-11-19", now)).toEqual(endOfDay("2026-11-12"));
+  });
+
+  it("is the end of today when 7 days before has already passed", () => {
+    expect(territoryHoldCheckDueAt("2026-11-08", now)).toEqual(endOfDay("2026-11-05"));
+    expect(territoryHoldCheckDueAt("2026-11-01", now)).toEqual(endOfDay("2026-11-05"));
+  });
+
+  it("uses the app calendar day late in the evening, not the UTC day", () => {
+    // 04:30Z on Nov 6 is 11:30 PM on Nov 5 in New York.
+    expect(territoryHoldCheckDueAt("2026-11-08", new Date("2026-11-06T04:30:00Z"))).toEqual(endOfDay("2026-11-05"));
   });
 });
 

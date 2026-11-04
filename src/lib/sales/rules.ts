@@ -48,6 +48,17 @@ export function territoryHoldCheckDate(expiry: Date): Date {
   return endOfDay(addDaysToDateString(dateInputValue(expiry), -7));
 }
 
+/**
+ * When the territory hold check for a stored expiry ("YYYY-MM-DD") is due: 7 days
+ * before, or the end of today when that day has already passed, so a short hold
+ * still shows up as work rather than as an overdue check nobody saw coming.
+ */
+export function territoryHoldCheckDueAt(expiry: string, now: Date): Date {
+  const check = territoryHoldCheckDate(endOfDay(expiry));
+  const endOfToday = endOfDay(dateInputValue(now));
+  return check.getTime() > endOfToday.getTime() ? check : endOfToday;
+}
+
 /** An open deal with nothing scheduled is stalled. Won and lost deals never are. */
 export function isStalled(openActivityCount: number, status: "OPEN" | "WON" | "LOST"): boolean {
   return status === "OPEN" && openActivityCount === 0;
