@@ -68,7 +68,7 @@ async function main() {
   if (!has("salesDeals")) {
     console.warn(
       "WARNING: this snapshot has no Sales data. Every Sales record and every bot key in the target database will be emptied, " +
-        "because the team members who own them are being replaced. Only the locked Sales history log is kept."
+        "because the team members who own them are being replaced. The locked Sales history log and the lead-assignment settings are kept."
     );
   }
 

@@ -219,6 +219,7 @@ describe("Bot keys in the restore script", () => {
     expect(warning).toBeGreaterThan(check);
     expect(script).toContain("every bot key in the target database will be emptied");
     expect(script).toContain("because the team members who own them are being replaced");
+    expect(script).toContain("The locked Sales history log and the lead-assignment settings are kept.");
     // Before anything is wiped.
     expect(warning).toBeLessThan(at("await tx.botToken.deleteMany();"));
   });
