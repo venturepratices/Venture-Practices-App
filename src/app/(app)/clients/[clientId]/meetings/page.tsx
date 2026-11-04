@@ -57,8 +57,7 @@ export default async function ClientMeetingsPage({
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           Meeting Notes
           <InfoTip>
-            Paste a Fathom (or any) meeting transcript and it&apos;s automatically summarized into key points, decisions,
-            and action items. Newest meeting first.
+            Paste a Fathom (or any) meeting transcript or type your own notes. Newest meeting first.
           </InfoTip>
         </h2>
       </div>

@@ -24,7 +24,7 @@ load-bearing patterns worth understanding before making non-trivial changes.
 | UI | Tailwind CSS v4 + [Base UI](https://base-ui.com) primitives (shadcn-style, not Radix) |
 | File storage | Vercel Blob (two stores: archive/backups, and asset uploads) |
 | Hosting | Vercel — every push to `master` auto-deploys |
-| Integrations | Slack (notifications), HighLevel/LeadConnector (conversations + calls), Google Calendar (team availability), Sentry (error tracking), Anthropic API (meeting transcript summaries) |
+| Integrations | Slack (notifications), HighLevel/LeadConnector (conversations + calls), Google Calendar (team availability), Sentry (error tracking) |
 
 ## Getting started
 

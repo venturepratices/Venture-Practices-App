@@ -3,10 +3,9 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { summarizeMeetingTranscript } from "@/lib/meeting-summary";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { extractMentionedTeamMemberIds, stripHtml } from "@/lib/text-format";
+import { extractMentionedTeamMemberIds } from "@/lib/text-format";
 import { notify } from "@/lib/notify";
 
 const createMeetingNoteSchema = z.object({
@@ -15,7 +14,6 @@ const createMeetingNoteSchema = z.object({
   // Stores Tiptap-produced HTML (bold/lists/@mentions) — 100000 already has
   // ample headroom for the markup overhead.
   transcript: z.string().trim().min(1, "Transcript can't be empty").max(100000),
-  summarize: z.boolean().optional().default(false),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
@@ -38,16 +36,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  let summary: string | null = null;
-  if (parsed.data.summarize) {
-    try {
-      summary = await summarizeMeetingTranscript(stripHtml(parsed.data.transcript));
-    } catch (error) {
-      console.error("Meeting transcript summarization failed:", error);
-      return NextResponse.json({ error: "Failed to summarize transcript" }, { status: 502 });
-    }
-  }
-
   const meetingNote = await prisma.meetingNote.create({
     data: {
       clientId,
@@ -55,7 +43,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cli
       title: parsed.data.title,
       meetingDate: parsed.data.meetingDate,
       transcript: parsed.data.transcript,
-      summary,
     },
     include: { author: { select: { id: true, name: true } } },
   });
