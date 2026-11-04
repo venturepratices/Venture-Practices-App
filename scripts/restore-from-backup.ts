@@ -54,20 +54,38 @@ async function main() {
     await prisma.$transaction(
       async (tx) => {
         // Wipe in reverse-dependency order so FKs never block a delete.
+        await tx.teamMemberBusyBlock.deleteMany();
+        await tx.teamMemberCalendarConnection.deleteMany();
+        await tx.archivedMeetingNote.deleteMany();
+        await tx.archivedClientNote.deleteMany();
+        await tx.archivedWorkflowInstance.deleteMany();
+        await tx.archivedCampaign.deleteMany();
+        await tx.issueRecommendation.deleteMany();
+        await tx.issue.deleteMany();
+        await tx.rock.deleteMany();
+        await tx.aiMessage.deleteMany();
+        await tx.aiConversation.deleteMany();
         await tx.notification.deleteMany();
         await tx.activityLog.deleteMany();
         await tx.archivedTask.deleteMany();
         await tx.taskLink.deleteMany();
         await tx.comment.deleteMany();
         await tx.taskAssignee.deleteMany();
+        await tx.taskSubtask.deleteMany();
         await tx.task.deleteMany();
+        // Parents of Task (statusId is onDelete: Restrict) — only after Task is gone.
+        await tx.privateProject.deleteMany();
+        await tx.priorityLevelOption.deleteMany();
         await tx.workflowInstance.deleteMany();
         await tx.workflowFolder.deleteMany();
         await tx.workflowTaskTemplateAssignee.deleteMany();
         await tx.workflowTaskTemplateLink.deleteMany();
         await tx.workflowTaskTemplate.deleteMany();
+        // WorkflowTaskTemplate.defaultStatusId points here, so after the line above.
+        await tx.taskStatusOption.deleteMany();
         await tx.workflowStageTemplate.deleteMany();
         await tx.workflowTemplate.deleteMany();
+        await tx.workflowTemplateFolder.deleteMany();
         await tx.campaign.deleteMany();
         await tx.taskTemplate.deleteMany();
         await tx.stageTemplate.deleteMany();
@@ -147,6 +165,14 @@ async function main() {
         if (t.taskTemplates?.length) await tx.taskTemplate.createMany({ data: t.taskTemplates as never });
         if (t.campaigns?.length) await tx.campaign.createMany({ data: t.campaigns as never });
 
+        // Referenced by Task / WorkflowTaskTemplate / WorkflowTemplate, so they
+        // must exist before the workflow + task sections below.
+        if (t.taskStatusOptions?.length) await tx.taskStatusOption.createMany({ data: t.taskStatusOptions as never });
+        if (t.priorityLevelOptions?.length) await tx.priorityLevelOption.createMany({ data: t.priorityLevelOptions as never });
+        if (t.privateProjects?.length) await tx.privateProject.createMany({ data: t.privateProjects as never });
+        if (t.workflowTemplateFolders?.length)
+          await tx.workflowTemplateFolder.createMany({ data: t.workflowTemplateFolders as never });
+
         if (t.workflowTemplates?.length) await tx.workflowTemplate.createMany({ data: t.workflowTemplates as never });
         if (t.workflowStageTemplates?.length)
           await tx.workflowStageTemplate.createMany({ data: t.workflowStageTemplates as never });
@@ -162,10 +188,27 @@ async function main() {
         if (t.tasks?.length) await tx.task.createMany({ data: t.tasks as never });
         if (t.taskAssignees?.length) await tx.taskAssignee.createMany({ data: t.taskAssignees as never });
         if (t.comments?.length) await tx.comment.createMany({ data: t.comments as never });
+        if (t.taskSubtasks?.length) await tx.taskSubtask.createMany({ data: t.taskSubtasks as never });
         if (t.taskLinks?.length) await tx.taskLink.createMany({ data: t.taskLinks as never });
         if (t.activityLogs?.length) await tx.activityLog.createMany({ data: t.activityLogs as never });
         if (t.notifications?.length) await tx.notification.createMany({ data: t.notifications as never });
         if (t.archivedTasks?.length) await tx.archivedTask.createMany({ data: t.archivedTasks as never });
+        if (t.archivedCampaigns?.length) await tx.archivedCampaign.createMany({ data: t.archivedCampaigns as never });
+        if (t.archivedWorkflowInstances?.length)
+          await tx.archivedWorkflowInstance.createMany({ data: t.archivedWorkflowInstances as never });
+        if (t.archivedClientNotes?.length) await tx.archivedClientNote.createMany({ data: t.archivedClientNotes as never });
+        if (t.archivedMeetingNotes?.length) await tx.archivedMeetingNote.createMany({ data: t.archivedMeetingNotes as never });
+
+        // Issue.convertedTaskId / rockId are plain provenance strings, not FKs,
+        // so Issues/Rocks only need their TeamMember + Client parents (above).
+        if (t.issues?.length) await tx.issue.createMany({ data: t.issues as never });
+        if (t.issueRecommendations?.length) await tx.issueRecommendation.createMany({ data: t.issueRecommendations as never });
+        if (t.rocks?.length) await tx.rock.createMany({ data: t.rocks as never });
+        if (t.aiConversations?.length) await tx.aiConversation.createMany({ data: t.aiConversations as never });
+        if (t.aiMessages?.length) await tx.aiMessage.createMany({ data: t.aiMessages as never });
+        if (t.teamMemberCalendarConnections?.length)
+          await tx.teamMemberCalendarConnection.createMany({ data: t.teamMemberCalendarConnections as never });
+        if (t.teamMemberBusyBlocks?.length) await tx.teamMemberBusyBlock.createMany({ data: t.teamMemberBusyBlocks as never });
       },
       { timeout: 120_000 }
     );
@@ -217,6 +260,22 @@ async function main() {
       activityLogs: await prisma.activityLog.count(),
       notifications: await prisma.notification.count(),
       archivedTasks: await prisma.archivedTask.count(),
+      aiConversations: await prisma.aiConversation.count(),
+      aiMessages: await prisma.aiMessage.count(),
+      issues: await prisma.issue.count(),
+      issueRecommendations: await prisma.issueRecommendation.count(),
+      rocks: await prisma.rock.count(),
+      taskStatusOptions: await prisma.taskStatusOption.count(),
+      priorityLevelOptions: await prisma.priorityLevelOption.count(),
+      privateProjects: await prisma.privateProject.count(),
+      taskSubtasks: await prisma.taskSubtask.count(),
+      workflowTemplateFolders: await prisma.workflowTemplateFolder.count(),
+      archivedCampaigns: await prisma.archivedCampaign.count(),
+      archivedWorkflowInstances: await prisma.archivedWorkflowInstance.count(),
+      archivedClientNotes: await prisma.archivedClientNote.count(),
+      archivedMeetingNotes: await prisma.archivedMeetingNote.count(),
+      teamMemberCalendarConnections: await prisma.teamMemberCalendarConnection.count(),
+      teamMemberBusyBlocks: await prisma.teamMemberBusyBlock.count(),
     };
     console.log("Row counts after restore:", restored);
 

@@ -12,6 +12,10 @@ const TABLE_MODELS = [
   "workflowTemplate", "workflowStageTemplate", "workflowTaskTemplate", "workflowTaskTemplateLink",
   "workflowTaskTemplateAssignee", "workflowFolder", "workflowInstance", "task", "taskAssignee", "comment",
   "taskLink", "activityLog", "notification", "archivedTask",
+  "aiConversation", "aiMessage", "issue", "issueRecommendation", "rock", "taskStatusOption",
+  "priorityLevelOption", "privateProject", "taskSubtask", "workflowTemplateFolder", "archivedCampaign",
+  "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
+  "teamMemberBusyBlock",
 ];
 const prismaMock: Record<string, { findMany: (...args: unknown[]) => Promise<unknown[]> }> = {};
 for (const model of TABLE_MODELS) {
@@ -29,7 +33,7 @@ vi.mock("@vercel/blob", () => ({
   del: (...args: unknown[]) => delMock(...args),
 }));
 
-const { createDatabaseSnapshot, backupDateKey, writeBackupToBlob, pruneOldBackups, BACKUP_VERSION } =
+const { createDatabaseSnapshot, backupDateKey, writeBackupToBlob, pruneOldBackups, BACKUP_VERSION, BACKUP_MODEL_KEYS } =
   await import("@/lib/backup");
 
 beforeEach(() => {
@@ -51,6 +55,27 @@ describe("createDatabaseSnapshot", () => {
     for (const model of TABLE_MODELS) {
       expect(findManyMocks[model]).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it("snapshots exactly the models listed in BACKUP_MODEL_KEYS", async () => {
+    // TABLE_MODELS is what the snapshot is observed to read; BACKUP_MODEL_KEYS is
+    // what the coverage guard trusts. If they drift, the guard is lying.
+    expect([...BACKUP_MODEL_KEYS].sort()).toEqual([...TABLE_MODELS].sort());
+    const snapshot = await createDatabaseSnapshot();
+    expect(Object.keys(snapshot.tables)).toHaveLength(TABLE_MODELS.length);
+    expect(Object.keys(snapshot.counts)).toHaveLength(TABLE_MODELS.length);
+  });
+
+  it("includes the tables added in v3 (e.g. issues, rocks, task statuses)", async () => {
+    findManyMocks.issue.mockResolvedValue([{ id: "i1" }]);
+    findManyMocks.taskStatusOption.mockResolvedValue([{ id: "NEXT_UP" }, { id: "COMPLETE" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(BACKUP_VERSION).toBe(3);
+    expect(snapshot.counts.issues).toBe(1);
+    expect(snapshot.counts.taskStatusOptions).toBe(2);
+    expect(snapshot.counts.rocks).toBe(0);
   });
 
   it("computes counts that match each table's row array length", async () => {
