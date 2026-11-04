@@ -38,19 +38,21 @@ export async function assignLeadOwner(tx: Prisma.TransactionClient): Promise<str
 
   // The row lock this UPDATE takes is held until the caller's transaction ends,
   // which is what makes simultaneous leads take turns instead of sharing a cursor.
-  const [row] = await tx.$queryRaw<{ rrCursor: number; roundRobinMemberIds: string[] }[]>`
+  const [row] = await tx.$queryRaw<{ rrCursor: number; roundRobinMemberIds: string[] | null }[]>`
     UPDATE "SalesSettings" SET "rrCursor" = "rrCursor" + 1 WHERE id = 'singleton'
     RETURNING "rrCursor", "roundRobinMemberIds"
   `;
+  // A raw read hands back the column as stored, and an old row may hold NULL. Treat that as an empty list.
+  const savedIds = row?.roundRobinMemberIds ?? [];
 
-  if (row && row.roundRobinMemberIds.length > 0) {
+  if (row && savedIds.length > 0) {
     const stillMembers = await tx.teamMember.findMany({
-      where: { id: { in: row.roundRobinMemberIds }, ...SALES_MEMBER_WHERE },
+      where: { id: { in: savedIds }, ...SALES_MEMBER_WHERE },
       select: { id: true },
     });
     const allowed = new Set(stillMembers.map((member) => member.id));
     // Keep the saved order: the database does not return rows in list order.
-    const eligible = row.roundRobinMemberIds.filter((id) => allowed.has(id));
+    const eligible = savedIds.filter((id) => allowed.has(id));
     // The cursor was already moved up by one, so this lead's turn is the one before it.
     const next = nextInRotation(eligible, row.rrCursor - 1);
     if (next) return next.ownerId;

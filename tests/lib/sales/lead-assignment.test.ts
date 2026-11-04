@@ -12,7 +12,8 @@ const { assignLeadOwner, nextInRotation } = await import("@/lib/sales/lead-assig
 type Member = { id: string; isAdmin: boolean; canUseSales: boolean; createdAt: Date };
 type Settings = {
   leadAssignMode: "ROUND_ROBIN" | "SINGLE";
-  roundRobinMemberIds: string[];
+  // null is what a row made without a list used to store in the database.
+  roundRobinMemberIds: string[] | null;
   singleAssigneeId: string | null;
   rrCursor: number;
 };
@@ -179,6 +180,15 @@ describe("assignLeadOwner in round-robin mode", () => {
     expect(await assignLeadOwner(tx)).toBe("first");
   });
 
+  it("falls back to the first admin when the saved list is NULL in the database", async () => {
+    const { tx } = fakeTx({
+      settings: { roundRobinMemberIds: null },
+      members: [admin("late", day(20)), admin("first", day(2)), salesMember("b")],
+    });
+
+    expect(await assignLeadOwner(tx)).toBe("first");
+  });
+
   it("falls back to the first admin when there is no settings row yet", async () => {
     const { tx } = fakeTx({ settings: null, members: [admin("late", day(20)), admin("first", day(2))] });
 
@@ -224,6 +234,15 @@ describe("assignLeadOwner in single-person mode", () => {
     });
 
     expect(await assignLeadOwner(tx)).toBe("r");
+  });
+
+  it("ends at the first admin when the chosen person is gone and the rotation list is NULL", async () => {
+    const { tx } = fakeTx({
+      settings: { leadAssignMode: "SINGLE", singleAssigneeId: "gone", roundRobinMemberIds: null },
+      members,
+    });
+
+    expect(await assignLeadOwner(tx)).toBe("first");
   });
 
   it("ends at the first admin when the chosen person is gone and the rotation is empty", async () => {

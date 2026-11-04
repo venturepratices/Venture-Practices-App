@@ -68,7 +68,8 @@ export async function PATCH(request: Request) {
       const changes = { leadAssignMode, roundRobinMemberIds, singleAssigneeId };
       const after = await tx.salesSettings.upsert({
         where: { id: "singleton" },
-        create: { id: "singleton", ...changes },
+        // A new row always gets a real list (never NULL), even when this save leaves it out.
+        create: { id: "singleton", ...changes, roundRobinMemberIds: roundRobinMemberIds ?? [] },
         update: changes,
         select: SETTINGS_SELECT,
       });

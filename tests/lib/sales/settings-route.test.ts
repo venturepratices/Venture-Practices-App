@@ -30,7 +30,9 @@ const settingsDelegate = {
     if (db.settings) {
       Object.assign(db.settings, defined(args.update));
     } else {
-      db.settings = { rrCursor: 0, leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: null, ...defined(args.create) };
+      // Like the real column before it had a default: a list left out is stored as NULL.
+      // The route has to send the list itself, or a later raw read gets null back.
+      db.settings = { rrCursor: 0, leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: null, singleAssigneeId: null, ...defined(args.create) };
     }
     return selected(db.settings, args.select);
   }),
@@ -181,6 +183,28 @@ describe("PATCH", () => {
     db.settings = { id: "singleton", leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: "r", rrCursor: 0 };
 
     expect((await patch({ leadAssignMode: "SINGLE" })).status).toBe(200);
+  });
+
+  it("never stores a NULL rotation list when the first save leaves the list out", async () => {
+    for (const body of [{ leadAssignMode: "ROUND_ROBIN" }, { singleAssigneeId: "r" }, { leadAssignMode: "SINGLE", singleAssigneeId: "r" }]) {
+      db.settings = null;
+      settingsDelegate.upsert.mockClear();
+
+      const res = await patch(body);
+
+      expect(res.status, JSON.stringify(body)).toBe(200);
+      expect(settingsDelegate.upsert.mock.calls[0][0].create.roundRobinMemberIds, JSON.stringify(body)).toEqual([]);
+      expect((db.settings as Row | null)?.roundRobinMemberIds, JSON.stringify(body)).toEqual([]);
+    }
+  });
+
+  it("leaves the saved list alone when a later save does not mention it", async () => {
+    db.settings = { id: "singleton", leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: ["b", "r"], singleAssigneeId: null, rrCursor: 3 };
+
+    await patch({ singleAssigneeId: "s" });
+
+    expect(settingsDelegate.upsert.mock.calls[0][0].update.roundRobinMemberIds).toBeUndefined();
+    expect(db.settings.roundRobinMemberIds).toEqual(["b", "r"]);
   });
 
   it("never lets the caller set the rotation cursor", async () => {

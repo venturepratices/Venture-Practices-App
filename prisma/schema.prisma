@@ -2166,7 +2166,7 @@ enum SalesLeadAssignMode {
 model SalesSettings {
   id                  String              @id @default("singleton")
   leadAssignMode      SalesLeadAssignMode @default(ROUND_ROBIN)
-  roundRobinMemberIds String[]
+  roundRobinMemberIds String[]            @default([])
   singleAssigneeId    String?
   rrCursor            Int                 @default(0)
   updatedAt           DateTime            @updatedAt
