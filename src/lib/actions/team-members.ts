@@ -38,6 +38,8 @@ function readPermissionFields(formData: FormData) {
   return {
     isAdmin: bool("isAdmin"),
     allClientsAccess: bool("allClientsAccess"),
+    // The Sales who-can-see setting (not a capability); absent = the default, true.
+    salesSeesAllDeals: formData.has("salesSeesAllDeals") ? bool("salesSeesAllDeals") : true,
     clientIds: formData.getAll("clientIds").map(String).filter(Boolean),
     caps: Object.fromEntries(CAPABILITIES.map((cap) => [cap, bool(cap)])) as Record<
       (typeof CAPABILITIES)[number],
@@ -78,6 +80,7 @@ export async function createTeamMemberAction(
       slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
+      salesSeesAllDeals: perms.salesSeesAllDeals,
       ...perms.caps,
       clientAccess: perms.clientIds.length
         ? { create: perms.clientIds.map((clientId) => ({ clientId })) }
@@ -152,6 +155,7 @@ export async function updateTeamMemberAction(
       slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
+      salesSeesAllDeals: perms.salesSeesAllDeals,
       ...perms.caps,
       // An admin setting someone else's password here is a recovery/temporary
       // password by definition — force them to set their own on next login.
@@ -176,6 +180,7 @@ export async function updateTeamMemberAction(
   // trail shows *that* access changed without spelling out every flag.
   const accessChanged =
     before.allClientsAccess !== member.allClientsAccess ||
+    before.salesSeesAllDeals !== member.salesSeesAllDeals ||
     CAPABILITIES.some((cap) => before[cap] !== member[cap]);
   if (accessChanged) changes.push("access updated");
   if (changes.length > 0) {

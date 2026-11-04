@@ -278,6 +278,13 @@ model TeamMember {
   // "Full member access" preset; one switch covers viewing and editing both.
   canUseLeadership Boolean @default(false)
 
+  // Sales — the deals/leads/activities module. Off for everyone until an admin
+  // checks it (admins pass automatically). NOT in the "Full member access"
+  // preset. salesSeesAllDeals is the who-can-see setting: true = sees every
+  // sales user's deals; false = sees only the deals they own.
+  canUseSales       Boolean @default(false)
+  salesSeesAllDeals Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

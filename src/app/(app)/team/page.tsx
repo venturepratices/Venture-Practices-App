@@ -168,6 +168,8 @@ async function MembersTab() {
         canViewOrders: true,
         canManageOrders: true,
         canUseLeadership: true,
+        canUseSales: true,
+        salesSeesAllDeals: true,
       },
       orderBy: { name: "asc" },
     }),
@@ -233,6 +235,7 @@ async function MembersTab() {
                     defaultSlackUserId={member.slackUserId}
                     defaultIsAdmin={member.isAdmin}
                     defaultAllClientsAccess={member.allClientsAccess}
+                    defaultSalesSeesAllDeals={member.salesSeesAllDeals}
                     defaultCaps={defaultCaps}
                     defaultClientIds={member.clientAccess.map((c) => c.clientId)}
                     trigger={
