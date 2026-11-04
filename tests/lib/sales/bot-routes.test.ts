@@ -35,7 +35,9 @@ const botDelegate = {
     return withPerson(row, args.select);
   },
   update: async (args: { where: { id: string }; data: Row; select?: Row }) => {
-    const row = db.bots.find((b) => b.id === args.where.id)!;
+    const row = db.bots.find((b) => b.id === args.where.id);
+    // Like Prisma: P2025 when the row to update is gone.
+    if (!row) throw Object.assign(new Error("No record was found for an update."), { code: "P2025" });
     // Prisma leaves a field alone when its value is undefined.
     Object.assign(row, Object.fromEntries(Object.entries(args.data).filter(([, value]) => value !== undefined)));
     return withPerson(row, args.select);
@@ -74,6 +76,16 @@ const ctx = (botId: string) => ({ params: Promise.resolve({ botId }) });
 async function createBot(body: Row = {}) {
   const res = await listRoute.POST(req("POST", { name: "Muse", actingForId: "p1", role: "helper", ...body }));
   return { res, body: (await res.json()) as Row };
+}
+
+/** Another admin deletes the bot right after the route has looked it up. */
+function deleteBotRightAfterLookup() {
+  const lookup = botDelegate.findUnique;
+  return vi.spyOn(botDelegate, "findUnique").mockImplementationOnce(async (args) => {
+    const row = await lookup(args);
+    db.bots = db.bots.filter((b) => b.id !== args.where.id);
+    return row;
+  });
 }
 
 beforeEach(() => {
@@ -205,6 +217,35 @@ describe("PATCH /api/sales/bots/[botId]", () => {
   it("gives 404 for an unknown bot", async () => {
     expect((await botRoute.PATCH(req("PATCH", { enabled: false }), ctx("missing"))).status).toBe(404);
   });
+
+  it("gives the same 404 when the bot is deleted while the change is being made", async () => {
+    await createBot();
+    const spy = deleteBotRightAfterLookup();
+
+    const res = await botRoute.PATCH(req("PATCH", { enabled: false }), ctx("b1"));
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Bot not found." });
+    expect(db.audits).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it("opens a bot to every pipeline when sent an empty pipeline list", async () => {
+    await createBot({ pipelineKeys: ["direct-mail"] });
+    pipelineFindMany.mockClear();
+
+    const res = await botRoute.PATCH(req("PATCH", { pipelineKeys: [] }), ctx("b1"));
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { bot: Row }).bot.pipelineKeys).toEqual([]);
+    expect(db.bots[0].pipelineKeys).toEqual([]);
+    expect(pipelineFindMany).not.toHaveBeenCalled();
+    expect(db.audits[1]).toMatchObject({
+      action: "updated",
+      before: { pipelineKeys: ["direct-mail"] },
+      after: { pipelineKeys: [] },
+    });
+  });
 });
 
 describe("POST /api/sales/bots/[botId]?action=rotate", () => {
@@ -222,6 +263,8 @@ describe("POST /api/sales/bots/[botId]?action=rotate", () => {
     expect(db.bots[0].tokenHash).toBe(sha256(secret));
     expect(db.bots[0].rotatedAt).toBeInstanceOf(Date);
     expect(db.audits[1]).toMatchObject({ entityType: "BotToken", entityId: "b1", action: "rotated" });
+    // Stored in the history as an ISO string, the way Json keeps it, not as a Date.
+    expect(db.audits[1].after).toEqual({ rotatedAt: (db.bots[0].rotatedAt as Date).toISOString() });
     expect(json(db.audits[1])).not.toContain(secret);
     expect(json(db.audits[1])).not.toContain(sha256(secret));
   });
@@ -233,6 +276,18 @@ describe("POST /api/sales/bots/[botId]?action=rotate", () => {
 
   it("gives 404 for an unknown bot", async () => {
     expect((await rotate("missing")).status).toBe(404);
+  });
+
+  it("gives the same 404 when the bot is deleted while the key is being swapped", async () => {
+    await createBot();
+    const spy = deleteBotRightAfterLookup();
+
+    const res = await rotate("b1");
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Bot not found." });
+    expect(db.audits).toHaveLength(1);
+    spy.mockRestore();
   });
 });
 

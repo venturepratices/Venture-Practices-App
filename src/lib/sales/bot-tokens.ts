@@ -1,12 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
+import { isPrismaError } from "@/lib/prisma-errors";
 import type { SalesActor } from "@/lib/sales/access";
 import { BOT_LIMITS, BOT_SECRET_PREFIX, type BotScope } from "@/lib/sales/bot-scopes";
 
 export { BOT_LIMITS, BOT_ROLE_PRESETS, BOT_ROLES, BOT_SCOPES, type BotRole, type BotScope } from "@/lib/sales/bot-scopes";
 
-const BEARER_PATTERN = new RegExp(`^Bearer (${BOT_SECRET_PREFIX}[A-Za-z0-9_-]{43})$`);
+// The scheme name is case-insensitive ("bearer" works too); the key itself is not.
+const BEARER_PATTERN = /^bearer (\S+)$/i;
+const SECRET_PATTERN = new RegExp(`^${BOT_SECRET_PREFIX}[A-Za-z0-9_-]{43}$`);
 const LAST_USED_EVERY_MS = 60_000;
 
 // Missing, malformed and unknown keys all get this one message, so a caller
@@ -37,27 +40,64 @@ function windowStarts(now: Date): { minute: Date; day: Date } {
   return { minute, day };
 }
 
-async function countCall(tokenId: string, kind: "minute" | "day", windowStart: Date): Promise<number> {
-  const row = await prisma.botTokenUsage.upsert({
-    where: { tokenId_kind_windowStart: { tokenId, kind, windowStart } },
-    create: { tokenId, kind, windowStart, count: 1 },
-    update: { count: { increment: 1 } },
-    select: { count: true },
-  });
-  return row.count;
+/** The vpb_ key from an `Authorization: Bearer ...` header, or null when there isn't a well-formed one. */
+function secretFromHeader(authorizationHeader: string | null): string | null {
+  const secret = authorizationHeader ? BEARER_PATTERN.exec(authorizationHeader)?.[1] : undefined;
+  return secret && SECRET_PATTERN.test(secret) ? secret : null;
+}
+
+/**
+ * Adds one call to the key's counter for this window and returns the new count,
+ * or null when the key was deleted while the call was being checked (its
+ * counters go with it, so there is nothing left to count against).
+ */
+async function countCall(tokenId: string, kind: "minute" | "day", windowStart: Date): Promise<number | null> {
+  const where = { tokenId_kind_windowStart: { tokenId, kind, windowStart } };
+  const increment = { count: { increment: 1 } };
+  try {
+    const row = await prisma.botTokenUsage.upsert({
+      where,
+      create: { tokenId, kind, windowStart, count: 1 },
+      update: increment,
+      select: { count: true },
+    });
+    return row.count;
+  } catch (error) {
+    if (isPrismaError(error, "P2003")) return null;
+    if (!isPrismaError(error, "P2002")) throw error;
+  }
+  // Two first calls in a new window both tried to create its counter and this one
+  // lost. The row exists now, so add to it with one atomic UPDATE (count + 1).
+  try {
+    const row = await prisma.botTokenUsage.update({ where, data: increment, select: { count: true } });
+    return row.count;
+  } catch (error) {
+    if (isPrismaError(error, "P2025")) return null;
+    throw error;
+  }
+}
+
+/** Bookkeeping only: a failure here must never turn an allowed call into an error. */
+async function bestEffort(label: string, write: () => Promise<unknown>): Promise<void> {
+  try {
+    await write();
+  } catch (error) {
+    console.warn(`Bot key bookkeeping failed (${label}):`, error);
+  }
 }
 
 /**
  * Checks the `Authorization: Bearer vpb_...` header of a bot call and, if it may
  * go ahead, counts it against the key's limits. The person the bot works for is
  * re-checked on every call, so a bot stops the moment that person loses Sales.
+ * A refused key (unknown, turned off, person without Sales) is never counted.
  */
 export async function authenticateBot(authorizationHeader: string | null, now = new Date()): Promise<BotAuthResult> {
-  const match = authorizationHeader ? BEARER_PATTERN.exec(authorizationHeader) : null;
-  if (!match) return { ok: false, status: 401, error: INVALID_KEY };
+  const secret = secretFromHeader(authorizationHeader);
+  if (!secret) return { ok: false, status: 401, error: INVALID_KEY };
 
   const token = await prisma.botToken.findUnique({
-    where: { tokenHash: hashBotSecret(match[1]) },
+    where: { tokenHash: hashBotSecret(secret) },
     select: {
       id: true,
       enabled: true,
@@ -76,32 +116,43 @@ export async function authenticateBot(authorizationHeader: string | null, now = 
   }
 
   const windows = windowStarts(now);
-  if ((await countCall(token.id, "minute", windows.minute)) > BOT_LIMITS.perMinute) {
+  const minuteCount = await countCall(token.id, "minute", windows.minute);
+  if (minuteCount === null) return { ok: false, status: 401, error: INVALID_KEY };
+  if (minuteCount > BOT_LIMITS.perMinute) {
     return { ok: false, status: 429, error: "Too many calls this minute. Try again in a minute." };
   }
-  if ((await countCall(token.id, "day", windows.day)) > BOT_LIMITS.perDay) {
+  const dayCount = await countCall(token.id, "day", windows.day);
+  if (dayCount === null) return { ok: false, status: 401, error: INVALID_KEY };
+  if (dayCount > BOT_LIMITS.perDay) {
     return { ok: false, status: 429, error: "Daily call limit reached. Try again tomorrow (UTC)." };
   }
 
   if (!token.lastUsedAt || now.getTime() - token.lastUsedAt.getTime() >= LAST_USED_EVERY_MS) {
-    await prisma.botToken.update({ where: { id: token.id }, data: { lastUsedAt: now } });
+    // updateMany, so a key deleted a moment ago is a no-op rather than an error.
+    await bestEffort("lastUsedAt", () =>
+      prisma.botToken.updateMany({ where: { id: token.id }, data: { lastUsedAt: now } }),
+    );
     // Same once-a-minute beat: clear this key's finished windows so the table stays small.
-    await prisma.botTokenUsage.deleteMany({
-      where: {
-        tokenId: token.id,
-        OR: [
-          { kind: "minute", windowStart: { lt: windows.minute } },
-          { kind: "day", windowStart: { lt: windows.day } },
-        ],
-      },
-    });
+    await bestEffort("old counters", () =>
+      prisma.botTokenUsage.deleteMany({
+        where: {
+          tokenId: token.id,
+          OR: [
+            { kind: "minute", windowStart: { lt: windows.minute } },
+            { kind: "day", windowStart: { lt: windows.day } },
+          ],
+        },
+      }),
+    );
   }
 
   return {
     ok: true,
     actor: {
       userId: person.id,
-      isAdmin: person.isAdmin,
+      // A bot never counts as an admin, even for an admin: what it can reach comes
+      // from its person's who-can-see setting, what they own, and the key's scopes.
+      isAdmin: false,
       seesAllDeals: person.salesSeesAllDeals,
       via: "bot",
       botTokenId: token.id,
