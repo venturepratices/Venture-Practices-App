@@ -13,6 +13,8 @@ const SETTINGS_SELECT = { leadAssignMode: true, roundRobinMemberIds: true, singl
 
 const DEFAULT_SETTINGS = { leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: null } as const;
 
+const SALES_ACCESS_ERROR = "Choose team members with Sales access.";
+
 const updateSettingsSchema = z
   .object({
     leadAssignMode: z.enum(["ROUND_ROBIN", "SINGLE"]).optional(),
@@ -54,7 +56,7 @@ export async function PATCH(request: Request) {
       });
       const allowed = new Set(found.map((person) => person.id));
       if (named.some((id) => !allowed.has(id))) {
-        return NextResponse.json({ error: "Choose team members with Sales access." }, { status: 400 });
+        return NextResponse.json({ error: SALES_ACCESS_ERROR }, { status: 400 });
       }
     }
 
@@ -64,6 +66,15 @@ export async function PATCH(request: Request) {
       const finalMode = leadAssignMode ?? before.leadAssignMode;
       const finalPerson = singleAssigneeId === undefined ? before.singleAssigneeId : singleAssigneeId;
       if (finalMode === "SINGLE" && !finalPerson) return { error: "Choose the person who gets every new lead." };
+      // A person named in this request was checked above; one kept from the saved
+      // row may have lost Sales access since, so check them again.
+      if (finalMode === "SINGLE" && finalPerson && singleAssigneeId === undefined) {
+        const stillMember = await tx.teamMember.findFirst({
+          where: { id: finalPerson, ...SALES_MEMBER_WHERE },
+          select: { id: true },
+        });
+        if (!stillMember) return { error: SALES_ACCESS_ERROR };
+      }
 
       const changes = { leadAssignMode, roundRobinMemberIds, singleAssigneeId };
       const after = await tx.salesSettings.upsert({

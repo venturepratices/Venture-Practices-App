@@ -16,6 +16,9 @@ const db = { settings: null as Row | null, audits: [] as Row[], salesMemberIds: 
 const memberFindMany = vi.fn(async (args: { where: { id: { in: string[] } } }) =>
   args.where.id.in.filter((id) => db.salesMemberIds.has(id)).map((id) => ({ id })),
 );
+const memberFindFirst = vi.fn(async (args: { where: { id: string } }) =>
+  db.salesMemberIds.has(args.where.id) ? { id: args.where.id } : null,
+);
 
 // Like Prisma: undefined fields are left alone, and only the selected fields come back
 // (so the internal cursor never leaves unless a route asks for it).
@@ -39,6 +42,7 @@ const settingsDelegate = {
 };
 const tx = {
   salesSettings: settingsDelegate,
+  teamMember: { findFirst: (...args: unknown[]) => memberFindFirst(...(args as [never])) },
   salesAuditLog: { create: async (args: { data: Row }) => db.audits.push(args.data) },
 };
 
@@ -68,6 +72,7 @@ beforeEach(() => {
   db.audits = [];
   db.salesMemberIds = new Set(["b", "r", "s"]);
   memberFindMany.mockClear();
+  memberFindFirst.mockClear();
   settingsDelegate.upsert.mockClear();
   requireAdminMock.mockReset().mockResolvedValue({ userId: "admin1", isAdmin: true });
 });
@@ -197,6 +202,35 @@ describe("PATCH", () => {
     db.settings = { id: "singleton", leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: "r", rrCursor: 0 };
 
     expect((await patch({ leadAssignMode: "SINGLE" })).status).toBe(200);
+    expect(memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "r", ...SALES_MEMBER_WHERE } }));
+  });
+
+  it("refuses single-person mode when the saved person no longer has Sales access", async () => {
+    db.settings = { id: "singleton", leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: "gone", rrCursor: 0 };
+
+    const res = await patch({ leadAssignMode: "SINGLE" });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Choose team members with Sales access.");
+    expect(memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "gone", ...SALES_MEMBER_WHERE } }));
+    expect(settingsDelegate.upsert).not.toHaveBeenCalled();
+    expect(db.audits).toEqual([]);
+  });
+
+  it("re-checks the saved person on any save that stays in single-person mode", async () => {
+    db.settings = { id: "singleton", leadAssignMode: "SINGLE", roundRobinMemberIds: [], singleAssigneeId: "gone", rrCursor: 0 };
+
+    const res = await patch({ roundRobinMemberIds: ["b"] });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Choose team members with Sales access.");
+    expect(settingsDelegate.upsert).not.toHaveBeenCalled();
+  });
+
+  it("does not re-check the single person when the request names them (they were already checked)", async () => {
+    await patch({ leadAssignMode: "SINGLE", singleAssigneeId: "r" });
+
+    expect(memberFindFirst).not.toHaveBeenCalled();
   });
 
   it("never stores a NULL rotation list when the first save leaves the list out", async () => {
