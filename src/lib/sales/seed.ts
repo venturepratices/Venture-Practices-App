@@ -7,8 +7,9 @@ type SeedDb = Pick<typeof prisma, "salesPipeline" | "salesStage" | "salesCustomF
 /**
  * Makes sure the starting pipelines, stages and custom fields exist. Safe to run
  * any number of times: it creates only what is missing and never changes a row
- * that already exists, so edits admins make later are kept. Returns how many
- * rows this run created.
+ * that already exists, so edits admins make later are kept. An archived pipeline
+ * or stage still exists (it is found by its key), so it stays archived and is
+ * never made again. Returns how many rows this run created.
  */
 export async function ensureSalesSeed(db: SeedDb = prisma): Promise<{ pipelines: number; stages: number; fields: number }> {
   let pipelines = 0;

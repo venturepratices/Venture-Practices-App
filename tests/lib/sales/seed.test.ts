@@ -220,4 +220,24 @@ describe("ensureSalesSeed", () => {
     expect(result).toEqual({ pipelines: 0, stages: 1, fields: 1 });
     expect(pipelines.find((p) => p.key === "direct-mail")!.name).toBe("Renamed by admin");
   });
+
+  it("leaves archived pipelines and stages archived instead of making new ones", async () => {
+    const { db, pipelines, stages } = fakeDb();
+    await ensureSalesSeed(db as never);
+    const archivedAt = new Date("2026-11-01T00:00:00.000Z");
+    const pipeline = pipelines.find((p) => p.key === "new-mover-mail")!;
+    pipeline.archivedAt = archivedAt;
+    const stage = stages.find((s) => s.pipelineId === pipeline.id && s.key === "no-show-cancel")!;
+    stage.archivedAt = archivedAt;
+
+    const result = await ensureSalesSeed(db as never);
+
+    expect(result).toEqual({ pipelines: 0, stages: 0, fields: 0 });
+    expect(pipelines).toHaveLength(5);
+    expect(stages).toHaveLength(33);
+    expect(pipelines.filter((p) => p.key === "new-mover-mail")).toEqual([pipeline]);
+    expect(pipeline.archivedAt).toBe(archivedAt);
+    expect(stages.filter((s) => s.pipelineId === pipeline.id && s.key === "no-show-cancel")).toEqual([stage]);
+    expect(stage.archivedAt).toBe(archivedAt);
+  });
 });

@@ -1853,14 +1853,16 @@ enum SalesCustomFieldType {
 }
 
 // One pipeline, e.g. key "direct-mail". Seeded config, edited by admins.
+// Archived (archivedAt), never hard-deleted; the seed leaves archived rows alone.
 model SalesPipeline {
-  id        String            @id @default(cuid())
-  key       String            @unique
-  name      String
-  kind      SalesPipelineKind
-  position  Int
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id         String            @id @default(cuid())
+  key        String            @unique
+  name       String
+  kind       SalesPipelineKind
+  position   Int
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   stages SalesStage[]
   deals  SalesDeal[]
@@ -1880,6 +1882,7 @@ model SalesStage {
   isLost        Boolean       @default(false)
   requiresValue Boolean       @default(false)
   isNoShow      Boolean       @default(false)
+  archivedAt    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -2016,6 +2019,8 @@ model SalesActivity {
 
   @@index([ownerId, doneAt, dueAt])
   @@index([dealId, doneAt])
+  @@index([leadId])
+  @@index([personId])
 }
 
 model SalesNote {
@@ -2035,6 +2040,11 @@ model SalesNote {
   archivedAt     DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
+
+  @@index([dealId])
+  @@index([leadId])
+  @@index([personId])
+  @@index([organizationId])
 }
 
 model SalesFile {
@@ -2053,6 +2063,9 @@ model SalesFile {
   archivedAt   DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  @@index([dealId])
+  @@index([leadId])
 }
 
 // An admin-defined extra field on deals or leads. pipelineKeys empty = shown
@@ -2087,6 +2100,8 @@ model SalesCustomFieldValue {
 
   @@unique([fieldId, dealId])
   @@unique([fieldId, leadId])
+  @@index([dealId])
+  @@index([leadId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2115,6 +2130,9 @@ model SalesAuditLog {
   before     Json?
   after      Json?
   requestId  String?
+  // Where the change came from, when it came through a web request.
+  ipAddress  String?
+  userAgent  String?
 
   @@index([entityType, entityId, at])
 }
