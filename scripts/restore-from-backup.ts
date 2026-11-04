@@ -75,6 +75,8 @@ async function main() {
         // Bot keys would cascade away with TeamMember anyway; wiping them first keeps the order explicit.
         // Their rate-limit counters (BotTokenUsage) are not backed up and go with them.
         await tx.botToken.deleteMany();
+        // The settings row has no foreign keys, so an older snapshot without it leaves it as it is.
+        if (has("salesSettings")) await tx.salesSettings.deleteMany();
         await tx.salesCustomFieldValue.deleteMany();
         await tx.salesCustomField.deleteMany();
         await tx.salesFile.deleteMany();
@@ -258,6 +260,7 @@ async function main() {
         // History rows already in the database stay; only ones missing from it are added back.
         if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
         if (t.botTokens?.length) await tx.botToken.createMany({ data: t.botTokens as never });
+        if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });
       },
       { timeout: 120_000 }
     );
@@ -338,6 +341,7 @@ async function main() {
       salesCustomFieldValues: await prisma.salesCustomFieldValue.count(),
       salesAuditLogs: await prisma.salesAuditLog.count(),
       botTokens: await prisma.botToken.count(),
+      salesSettings: await prisma.salesSettings.count(),
     };
     console.log("Row counts after restore:", restored);
 

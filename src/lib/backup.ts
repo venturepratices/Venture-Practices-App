@@ -39,7 +39,7 @@ export const BACKUP_MODEL_KEYS: readonly string[] = [
   "teamMemberBusyBlock",
   "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
   "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
-  "botToken",
+  "botToken", "salesSettings",
 ];
 
 export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
@@ -122,6 +122,7 @@ type SnapshotTables = {
   salesCustomFieldValues: unknown[];
   salesAuditLogs: unknown[];
   botTokens: unknown[];
+  salesSettings: unknown[];
 };
 
 export type DatabaseSnapshot = {
@@ -208,6 +209,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     salesCustomFieldValues,
     salesAuditLogs,
     botTokens,
+    salesSettings,
   ] = await Promise.all([
     prisma.teamMember.findMany(),
     prisma.clientAccess.findMany(),
@@ -283,6 +285,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     prisma.salesCustomFieldValue.findMany(),
     prisma.salesAuditLog.findMany(),
     prisma.botToken.findMany(),
+    prisma.salesSettings.findMany(),
   ]);
 
   const tables: SnapshotTables = {
@@ -360,6 +363,7 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     salesCustomFieldValues,
     salesAuditLogs,
     botTokens,
+    salesSettings,
   };
 
   const counts = Object.fromEntries(

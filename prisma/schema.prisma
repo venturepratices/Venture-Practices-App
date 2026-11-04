@@ -2152,3 +2152,22 @@ model BotTokenUsage {
 
   @@id([tokenId, kind, windowStart])
 }
+
+// Who gets a new lead. One row, id "singleton". ROUND_ROBIN deals leads out in
+// the order of roundRobinMemberIds; rrCursor counts how many have been dealt and
+// is moved only by assignLeadOwner. SINGLE sends every lead to singleAssigneeId.
+// The ids are plain strings, not relations: someone who leaves the team or loses
+// Sales access is skipped when a lead is assigned, so nothing here blocks removing a person.
+enum SalesLeadAssignMode {
+  ROUND_ROBIN
+  SINGLE
+}
+
+model SalesSettings {
+  id                  String              @id @default("singleton")
+  leadAssignMode      SalesLeadAssignMode @default(ROUND_ROBIN)
+  roundRobinMemberIds String[]
+  singleAssigneeId    String?
+  rrCursor            Int                 @default(0)
+  updatedAt           DateTime            @updatedAt
+}

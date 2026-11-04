@@ -18,7 +18,7 @@ const TABLE_MODELS = [
   "teamMemberBusyBlock",
   "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
   "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
-  "botToken",
+  "botToken", "salesSettings",
 ];
 const prismaMock: Record<string, { findMany: (...args: unknown[]) => Promise<unknown[]> }> = {};
 for (const model of TABLE_MODELS) {
@@ -120,6 +120,15 @@ describe("createDatabaseSnapshot", () => {
     expect(snapshot.counts.botTokens).toBe(1);
     expect(snapshot.tables.botTokens).toHaveLength(1);
     expect(BACKUP_EXCLUDED_MODELS.BotTokenUsage).toBe("Short-lived rate-limit counters, rebuilt by use");
+  });
+
+  it("includes the Sales settings row", async () => {
+    findManyMocks.salesSettings.mockResolvedValue([{ id: "singleton" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.salesSettings).toBe(1);
+    expect(snapshot.tables.salesSettings).toHaveLength(1);
   });
 
   it("computes counts that match each table's row array length", async () => {

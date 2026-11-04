@@ -208,3 +208,16 @@ describe("Bot keys in the restore script", () => {
     expect(script).not.toMatch(/botTokenUsage/);
   });
 });
+
+describe("Sales settings in the restore script", () => {
+  const script = readFileSync(join(__dirname, "../../scripts/restore-from-backup.ts"), "utf8");
+
+  it("wipes, refills and counts the settings row", () => {
+    expect(BACKUP_MODEL_KEYS).toContain("salesSettings");
+    expect(script).toContain('if (has("salesSettings")) await tx.salesSettings.deleteMany();');
+    expect(script).toContain(
+      "if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });",
+    );
+    expect(script).toContain("salesSettings: await prisma.salesSettings.count(),");
+  });
+});
