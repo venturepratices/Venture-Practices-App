@@ -37,13 +37,9 @@ function signIn(overrides: Partial<Record<string, unknown>> = {}) {
   findUniqueMock.mockResolvedValue(member(overrides));
 }
 
-const actor = (overrides: Partial<import("@/lib/sales/access").SalesActor> = {}) => ({
-  userId: "u1",
-  isAdmin: false,
-  seesAllDeals: true,
-  via: "user" as const,
-  ...overrides,
-});
+type SalesActor = import("@/lib/sales/access").SalesActor;
+const actor = (overrides: Partial<SalesActor> = {}) =>
+  ({ userId: "u1", isAdmin: false, seesAllDeals: true, via: "user", ...overrides }) as SalesActor;
 
 beforeEach(() => {
   authMock.mockReset();
@@ -120,7 +116,7 @@ describe("canDeleteSalesRecords", () => {
     expect(canDeleteSalesRecords(actor())).toBe(false);
   });
   it("never allows a bot, even when admin", () => {
-    expect(canDeleteSalesRecords(actor({ isAdmin: true, via: "bot" }))).toBe(false);
+    expect(canDeleteSalesRecords(actor({ isAdmin: true, via: "bot", botTokenId: "bot1" }))).toBe(false);
   });
 });
 

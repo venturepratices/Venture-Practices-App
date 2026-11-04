@@ -62,8 +62,13 @@ const { SALES_MEMBER_WHERE } = await import("@/lib/sales/access");
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 const json = (body: unknown) => JSON.stringify(body);
+const CALLER_HEADERS = { "x-forwarded-for": "203.0.113.7, 10.0.0.1", "user-agent": "Admin browser" };
 const req = (method: string, body?: unknown, url = "http://localhost/api/sales/bots") =>
-  new Request(url, { method, body: body === undefined ? undefined : json(body), headers: { "content-type": "application/json" } });
+  new Request(url, {
+    method,
+    body: body === undefined ? undefined : json(body),
+    headers: { "content-type": "application/json", ...CALLER_HEADERS },
+  });
 const ctx = (botId: string) => ({ params: Promise.resolve({ botId }) });
 
 async function createBot(body: Row = {}) {
@@ -228,5 +233,18 @@ describe("POST /api/sales/bots/[botId]?action=rotate", () => {
 
   it("gives 404 for an unknown bot", async () => {
     expect((await rotate("missing")).status).toBe(404);
+  });
+});
+
+describe("history rows from the Bots routes", () => {
+  it("record the caller's IP address and user agent on create, change and rotate", async () => {
+    await createBot();
+    await botRoute.PATCH(req("PATCH", { enabled: false }), ctx("b1"));
+    await botRoute.POST(req("POST", undefined, "http://localhost/api/sales/bots/b1?action=rotate"), ctx("b1"));
+
+    expect(db.audits.map((row) => row.action)).toEqual(["created", "updated", "rotated"]);
+    for (const row of db.audits) {
+      expect(row).toMatchObject({ ipAddress: "203.0.113.7", userAgent: "Admin browser" });
+    }
   });
 });

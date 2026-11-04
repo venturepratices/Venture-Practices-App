@@ -1,22 +1,24 @@
 import { PermissionError, requireCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-/**
- * Who is acting on Sales data. A person signed in through the app (`via: "user"`)
- * is limited only by their capabilities; a bot key (`via: "bot"`, see bot-tokens.ts)
- * also carries scopes.
- */
-export type SalesActor = {
+type SalesActorBase = {
   userId: string;
   isAdmin: boolean;
   /** The who-can-see setting: false = this person sees only deals they own. */
   seesAllDeals: boolean;
-  via: "user" | "bot";
-  botTokenId?: string;
   scopes?: readonly string[];
   /** Bots only: the pipelines this key may work in. Empty = every pipeline. */
   pipelineKeys?: readonly string[];
 };
+
+/**
+ * Who is acting on Sales data. A person signed in through the app (`via: "user"`)
+ * is limited only by their capabilities; a bot key (`via: "bot"`, see bot-tokens.ts)
+ * also carries scopes, and always names its key so history can say which key acted.
+ */
+export type SalesActor =
+  | (SalesActorBase & { via: "user"; botTokenId?: undefined })
+  | (SalesActorBase & { via: "bot"; botTokenId: string });
 
 const SALES_DENIED_MESSAGE = "You don't have access to Sales.";
 

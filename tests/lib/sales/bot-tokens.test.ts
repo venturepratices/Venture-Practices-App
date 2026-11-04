@@ -102,7 +102,14 @@ describe("bot roles", () => {
   });
 
   it("botCan follows the token's scopes", () => {
-    const helper = { userId: "p1", isAdmin: false, seesAllDeals: true, via: "bot" as const, scopes: BOT_ROLE_PRESETS.helper };
+    const helper = {
+      userId: "p1",
+      isAdmin: false,
+      seesAllDeals: true,
+      via: "bot" as const,
+      botTokenId: "bot1",
+      scopes: BOT_ROLE_PRESETS.helper,
+    };
     expect(botCan(helper, "move")).toBe(false);
     expect(botCan(helper, "notes")).toBe(true);
     expect(botCan({ ...helper, scopes: undefined }, "read")).toBe(false);

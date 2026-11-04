@@ -122,8 +122,22 @@ describe("PATCH", () => {
         action: "updated",
         before: { roundRobinMemberIds: [] },
         after: { roundRobinMemberIds: ["b", "r"] },
+        ipAddress: null,
+        userAgent: null,
       },
     ]);
+  });
+
+  it("records the caller's IP address and user agent on the history row", async () => {
+    await route.PATCH(
+      new Request("http://localhost/api/sales/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ roundRobinMemberIds: ["b"] }),
+        headers: { "content-type": "application/json", "x-real-ip": "198.51.100.4", "user-agent": "Admin browser" },
+      }),
+    );
+
+    expect(db.audits[0]).toMatchObject({ ipAddress: "198.51.100.4", userAgent: "Admin browser" });
   });
 
   it("checks everyone named, in one lookup, against the shared Sales-member rule", async () => {

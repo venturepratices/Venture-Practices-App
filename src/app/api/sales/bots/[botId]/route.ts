@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAdmin, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { auditDiff, recordSalesAudit } from "@/lib/sales/audit";
+import { auditDiff, recordSalesAudit, requestMeta } from "@/lib/sales/audit";
 import {
   adminActor,
   BOT_PUBLIC_SELECT,
@@ -42,7 +42,12 @@ export async function PATCH(request: Request, { params }: Context) {
       });
       const diff = auditDiff(botAuditView(before), botAuditView(row));
       if (Object.keys(diff.after).length > 0) {
-        await recordSalesAudit(tx, adminActor(admin), { entityType: "BotToken", entityId: botId, action: "updated", ...diff });
+        await recordSalesAudit(
+          tx,
+          adminActor(admin),
+          { entityType: "BotToken", entityId: botId, action: "updated", ...diff },
+          requestMeta(request),
+        );
       }
       return row;
     });
@@ -73,12 +78,12 @@ export async function POST(request: Request, { params }: Context) {
         data: { tokenHash: hash, tokenLast4: last4, rotatedAt },
         select: BOT_PUBLIC_SELECT,
       });
-      await recordSalesAudit(tx, adminActor(admin), {
-        entityType: "BotToken",
-        entityId: botId,
-        action: "rotated",
-        after: { rotatedAt },
-      });
+      await recordSalesAudit(
+        tx,
+        adminActor(admin),
+        { entityType: "BotToken", entityId: botId, action: "rotated", after: { rotatedAt } },
+        requestMeta(request),
+      );
       return row;
     });
 

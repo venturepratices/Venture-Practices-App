@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAdmin, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { recordSalesAudit } from "@/lib/sales/audit";
+import { recordSalesAudit, requestMeta } from "@/lib/sales/audit";
 import {
   adminActor,
   BOT_PUBLIC_SELECT,
@@ -54,12 +54,12 @@ export async function POST(request: Request) {
         },
         select: BOT_PUBLIC_SELECT,
       });
-      await recordSalesAudit(tx, adminActor(admin), {
-        entityType: "BotToken",
-        entityId: row.id,
-        action: "created",
-        after: botAuditView(row),
-      });
+      await recordSalesAudit(
+        tx,
+        adminActor(admin),
+        { entityType: "BotToken", entityId: row.id, action: "created", after: botAuditView(row) },
+        requestMeta(request),
+      );
       return row;
     });
 

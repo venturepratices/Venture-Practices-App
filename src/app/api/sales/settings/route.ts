@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAdmin, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE } from "@/lib/sales/access";
-import { auditDiff, recordSalesAudit } from "@/lib/sales/audit";
+import { auditDiff, recordSalesAudit, requestMeta } from "@/lib/sales/audit";
 import { adminActor } from "@/lib/sales/bot-admin";
 
 // The rotation cursor is deliberately not part of this: it moves only when a lead
@@ -76,12 +76,12 @@ export async function PATCH(request: Request) {
 
       const diff = auditDiff(before, after);
       if (Object.keys(diff.after).length > 0) {
-        await recordSalesAudit(tx, adminActor(admin), {
-          entityType: "SalesSettings",
-          entityId: "singleton",
-          action: "updated",
-          ...diff,
-        });
+        await recordSalesAudit(
+          tx,
+          adminActor(admin),
+          { entityType: "SalesSettings", entityId: "singleton", action: "updated", ...diff },
+          requestMeta(request),
+        );
       }
       return { settings: after };
     });
