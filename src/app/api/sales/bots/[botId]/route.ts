@@ -14,6 +14,7 @@ import {
   updateBotSchema,
 } from "@/lib/sales/bot-admin";
 import { generateBotSecret } from "@/lib/sales/bot-tokens";
+import { assertSameOrigin, failResponse } from "@/lib/sales/http";
 
 type Context = { params: Promise<{ botId: string }> };
 
@@ -29,6 +30,8 @@ function nullIfDeleted(error: unknown): null {
 export async function PATCH(request: Request, { params }: Context) {
   try {
     const admin = await requireAdmin();
+    const blocked = assertSameOrigin(request);
+    if (blocked) return failResponse(blocked);
     const { botId } = await params;
 
     const parsed = updateBotSchema.safeParse(await request.json().catch(() => null));
@@ -72,6 +75,8 @@ export async function PATCH(request: Request, { params }: Context) {
 export async function POST(request: Request, { params }: Context) {
   try {
     const admin = await requireAdmin();
+    const blocked = assertSameOrigin(request);
+    if (blocked) return failResponse(blocked);
     const { botId } = await params;
 
     if (new URL(request.url).searchParams.get("action") !== "rotate") {

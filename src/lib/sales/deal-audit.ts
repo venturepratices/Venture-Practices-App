@@ -1,0 +1,85 @@
+import type { Prisma } from "@/generated/prisma/client";
+import type { SalesActivityType, SalesDealStatus } from "@/generated/prisma/enums";
+import type { SalesActor } from "@/lib/sales/access";
+import { recordSalesAudit, type SalesRequestMeta, type SalesSystemActor } from "@/lib/sales/audit";
+
+// Every deal-related change (the deal itself, its custom fields, the activities
+// and notes on it) is written to the locked history log against the deal, with
+// one of these typed actions. The deal panel's History reads them back in
+// timeline.ts, so the payloads here are what that page can say. Dates are ISO
+// strings, the form the Json column stores.
+
+type StageRef = { stageId: string; stageName: string };
+type ActivityRef = { activityId: string; type: SalesActivityType; subject: string };
+type FieldRef = { fieldKey: string; label: string; value: string | null };
+type Money = { valueCents: number; mrrCents: number };
+type Editable = { title: string; source: string | null };
+
+export type DealAuditEvent =
+  | {
+      action: "created";
+      after: {
+        title: string;
+        pipelineId: string;
+        stageId: string;
+        stageName: string;
+        ownerId: string;
+        valueCents: number;
+        mrrCents: number;
+        organizationId: string | null;
+        personId: string | null;
+        source: string | null;
+      };
+    }
+  /** Only the keys that changed. */
+  | { action: "updated"; before: Partial<Editable>; after: Partial<Editable> }
+  | { action: "stage_changed"; before: StageRef; after: StageRef }
+  | {
+      action: "status_changed";
+      before: { status: SalesDealStatus };
+      after: { status: SalesDealStatus; lostReason?: string; lostComment?: string };
+    }
+  | { action: "value_changed"; before: Money; after: Money }
+  | {
+      action: "owner_changed";
+      before: { ownerId: string };
+      /** `movedActivityIds` only when open activities moved to the new owner with the deal. */
+      after: { ownerId: string; movedActivityIds?: string[] };
+    }
+  | { action: "field_changed"; before: FieldRef; after: FieldRef }
+  | { action: "archived"; before: { archivedAt: null }; after: { archivedAt: string } }
+  /** No payload: the row itself (who, when, from where) is the record of the attempt. */
+  | { action: "delete_refused" }
+  | {
+      action: "activity_added";
+      after: { activityId: string; type: SalesActivityType; subject: string; dueAt: string; hasTime: boolean; createdBy: string };
+    }
+  | { action: "activity_done" | "activity_reopened" | "activity_missed"; after: ActivityRef }
+  | { action: "activity_removed"; before: ActivityRef }
+  | { action: "note_added"; after: { noteId: string } }
+  /** Keeps the old text, so an edit never loses what the note said. */
+  | { action: "note_edited"; before: { noteId: string; body: string }; after: { noteId: string; body: string } };
+
+export type DealAuditAction = DealAuditEvent["action"];
+
+/** One history row for a deal, inside the caller's transaction. Pass `requestMeta(request)` from a route. */
+export async function recordDealAudit(
+  tx: Prisma.TransactionClient,
+  actor: SalesActor | SalesSystemActor,
+  dealId: string,
+  event: DealAuditEvent,
+  meta?: Partial<SalesRequestMeta>,
+): Promise<void> {
+  await recordSalesAudit(
+    tx,
+    actor,
+    {
+      entityType: "SalesDeal",
+      entityId: dealId,
+      action: event.action,
+      before: "before" in event ? event.before : undefined,
+      after: "after" in event ? event.after : undefined,
+    },
+    meta,
+  );
+}

@@ -287,6 +287,33 @@ describe("PATCH", () => {
     expect(settingsDelegate.upsert).not.toHaveBeenCalled();
   });
 
+  it("blocks a change sent from another site and saves nothing", async () => {
+    const res = await route.PATCH(
+      new Request("http://localhost/api/sales/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ roundRobinMemberIds: ["b"] }),
+        headers: { "content-type": "application/json", host: "localhost", origin: "https://evil.example" },
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Request blocked." });
+    expect(settingsDelegate.upsert).not.toHaveBeenCalled();
+    expect(db.audits).toEqual([]);
+  });
+
+  it("accepts a change sent from this site", async () => {
+    const res = await route.PATCH(
+      new Request("http://localhost/api/sales/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ roundRobinMemberIds: ["b"] }),
+        headers: { "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+  });
+
   it("lets the single person be cleared", async () => {
     db.settings = { id: "singleton", leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: [], singleAssigneeId: "r", rrCursor: 0 };
 

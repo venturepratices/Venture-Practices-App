@@ -13,6 +13,7 @@ import {
   toPublicBot,
 } from "@/lib/sales/bot-admin";
 import { generateBotSecret } from "@/lib/sales/bot-tokens";
+import { assertSameOrigin, failResponse } from "@/lib/sales/http";
 
 /** Admin: every bot key, with only the last 4 characters of each key. */
 export async function GET() {
@@ -29,6 +30,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const admin = await requireAdmin();
+    const blocked = assertSameOrigin(request);
+    if (blocked) return failResponse(blocked);
 
     const parsed = createBotSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

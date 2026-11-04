@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE } from "@/lib/sales/access";
 import { auditDiff, recordSalesAudit, requestMeta } from "@/lib/sales/audit";
 import { adminActor } from "@/lib/sales/bot-admin";
+import { assertSameOrigin, failResponse } from "@/lib/sales/http";
 
 // The rotation cursor is deliberately not part of this: it moves only when a lead
 // is assigned (see lead-assignment.ts), never from here, and never in the history log.
@@ -42,6 +43,8 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const admin = await requireAdmin();
+    const blocked = assertSameOrigin(request);
+    if (blocked) return failResponse(blocked);
 
     const parsed = updateSettingsSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
