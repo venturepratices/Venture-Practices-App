@@ -103,7 +103,12 @@ const db = {
       if (args.where.ownerId !== undefined && deal.ownerId !== args.where.ownerId) return null;
       return deal;
     }),
-    update: vi.fn(async (args: Args) => selected({ ...storedDeal(), ...args.data }, args.select)),
+    // Like Postgres: the write lands only when the stored deal still matches its `where`.
+    updateMany: vi.fn(async (args: Args) => {
+      if (!state.deal || !matches(state.deal, args.where)) return { count: 0 };
+      state.deal = { ...state.deal, ...args.data };
+      return { count: 1 };
+    }),
   },
   salesStage: {
     findFirst: vi.fn(
@@ -119,7 +124,11 @@ const db = {
   salesActivity: {
     findMany: vi.fn(async (args: Args) => state.activities.filter((a) => matches(a, args.where))),
     create: vi.fn(async (args: Args) => ({ id: "act-new", ...args.data })),
-    updateMany: vi.fn(async () => ({ count: 1 })),
+    updateManyAndReturn: vi.fn(async (args: Args) => {
+      const rows = state.activities.filter((a) => matches(a, args.where));
+      for (const row of rows) Object.assign(row, args.data);
+      return rows.map((row) => selected(row, args.select));
+    }),
   },
   salesAuditLog: { create: vi.fn(async (args: { data: Row }) => state.audits.push(args.data)) },
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
@@ -148,12 +157,24 @@ const setStatus = (body: unknown, dealId = "d1") =>
 
 const asActor = (actor: SalesActor) => requireSalesUserMock.mockResolvedValue(actor);
 const writes = () => [
-  ...db.salesDeal.update.mock.calls,
+  ...db.salesDeal.updateMany.mock.calls,
   ...db.salesActivity.create.mock.calls,
-  ...db.salesActivity.updateMany.mock.calls,
+  ...db.salesActivity.updateManyAndReturn.mock.calls,
   ...db.salesAuditLog.create.mock.calls,
 ];
 const actions = () => state.audits.map((row) => row.action);
+
+/**
+ * Another request commits `change` to the deal after this one read it and just
+ * before this one's guarded write, as a double-click's first request would.
+ */
+const otherRequestCommitsFirst = (change: Row) => {
+  const write = db.salesDeal.updateMany.getMockImplementation()!;
+  db.salesDeal.updateMany.mockImplementationOnce(async (args: Args) => {
+    state.deal = { ...state.deal, ...change };
+    return write(args);
+  });
+};
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -219,9 +240,18 @@ describe("POST /api/sales/deals/[dealId]/move: the money rule", () => {
     });
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(db.salesStage.findFirst.mock.calls[0][0].where).toEqual({ id: "s5", pipelineId: "p1", archivedAt: null });
-    expect(db.salesDeal.update).toHaveBeenCalledTimes(1);
-    expect(db.salesDeal.update.mock.calls[0][0].where).toEqual({ id: "d1" });
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+    expect(db.salesDeal.updateMany).toHaveBeenCalledTimes(1);
+    // The write lands only on the deal exactly as it was checked.
+    expect(db.salesDeal.updateMany.mock.calls[0][0].where).toEqual({
+      id: "d1",
+      archivedAt: null,
+      ownerId: "r",
+      status: "OPEN",
+      stageId: "s4",
+      valueCents: 0,
+      mrrCents: 0,
+    });
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
       stageId: "s5",
       stageEnteredAt: now,
       valueCents: 1_440_000,
@@ -252,7 +282,7 @@ describe("POST /api/sales/deals/[dealId]/move: the money rule", () => {
     const res = await move({ stageId: "s5" });
 
     expect(res.status).toBe(200);
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ stageId: "s5", stageEnteredAt: now });
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s5", stageEnteredAt: now });
     expect(actions()).toEqual(["stage_changed"]);
   });
 });
@@ -343,6 +373,75 @@ describe("POST /api/sales/deals/[dealId]/move: doing it twice (Review Focus 4)",
   });
 });
 
+describe("POST /api/sales/deals/[dealId]/move: two requests at the same time (Review Focus 4)", () => {
+  const firstCommit = new Date("2026-11-05T14:59:59Z");
+
+  it("answers a double-click's second Save and move as unchanged, with no second history row", async () => {
+    otherRequestCommitsFirst({ stageId: "s5", stageEnteredAt: firstCommit, valueCents: 1_440_000, mrrCents: 120_000 });
+    const res = await move({ stageId: "s5", valueCents: 1_440_000, mrrCents: 120_000 });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      changed: false,
+      deal: { id: "d1", stageId: "s5", stageEnteredAt: firstCommit.toISOString(), valueCents: 1_440_000, mrrCents: 120_000 },
+      previousStageId: "s5",
+      enteredStage: { id: "s5", name: "Proposal Sent", isWon: false, isLost: false, isNoShow: false },
+      createdActivityIds: [],
+    });
+    // Its own write matched nothing; it then read the deal again, inside the same transaction.
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.salesDeal.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.salesDeal.findFirst).toHaveBeenCalledTimes(2);
+    expect(state.audits).toEqual([]);
+  });
+
+  it("adds no second reschedule call when two moves into No Show land together", async () => {
+    state.deal = baseDeal({ stageId: "s2" });
+    state.activities = [{ id: "call-1", dealId: "d1", createdBy: "rule:no-show", doneAt: null, archivedAt: null }];
+    otherRequestCommitsFirst({ stageId: "s3", stageEnteredAt: firstCommit });
+    const res = await move({ stageId: "s3" });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).changed).toBe(false);
+    expect(db.salesActivity.create).not.toHaveBeenCalled();
+    expect(state.audits).toEqual([]);
+  });
+
+  it("refuses a move that lost to a Won click as closed, and writes nothing (Decision 4)", async () => {
+    otherRequestCommitsFirst({ status: "WON", wonAt: firstCommit });
+    const res = await move({ stageId: "s6" });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This deal is closed. Reopen it first." });
+    expect(state.deal).toMatchObject({ stageId: "s4", status: "WON" });
+    expect(state.audits).toEqual([]);
+  });
+
+  it("checks the money rule again when the values changed before the write (Review Focus 1)", async () => {
+    state.deal = baseDeal({ valueCents: 1_440_000, mrrCents: 120_000 });
+    otherRequestCommitsFirst({ mrrCents: 0 });
+    const res = await move({ stageId: "s5" });
+
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual(PROPOSAL_RULE);
+    expect(state.deal).toMatchObject({ stageId: "s4", mrrCents: 0 });
+    expect(state.audits).toEqual([]);
+  });
+
+  it("answers 409 when the deal keeps changing under it, with no history row", async () => {
+    db.salesDeal.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 0 });
+    const res = await move({ stageId: "s3" });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This deal just changed. Refresh and try again." });
+    expect(db.salesDeal.updateMany).toHaveBeenCalledTimes(2);
+    expect(db.salesActivity.create).not.toHaveBeenCalled();
+    expect(db.salesActivity.updateManyAndReturn).not.toHaveBeenCalled();
+    expect(state.audits).toEqual([]);
+  });
+});
+
 describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
   it("adds the reschedule call for the deal owner when an admin moves the deal into No Show", async () => {
     asActor(admin);
@@ -413,9 +512,20 @@ describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
     const res = await move({ stageId: "s2", undoActivityIds: ["a1", "a2", "a3"] });
 
     expect(res.status).toBe(200);
-    expect(db.salesActivity.updateMany).toHaveBeenCalledTimes(1);
-    expect(db.salesActivity.updateMany.mock.calls[0]).toEqual([
-      { where: { id: { in: ["a1"] } }, data: { archivedAt: now } },
+    // One guarded write picks and removes the calls, so a call ticked done meanwhile is never removed.
+    expect(db.salesActivity.findMany).not.toHaveBeenCalled();
+    expect(db.salesActivity.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(db.salesActivity.updateManyAndReturn.mock.calls[0]).toEqual([
+      {
+        where: { id: { in: ["a1", "a2", "a3"] }, dealId: "d1", createdBy: "rule:no-show", doneAt: null, archivedAt: null },
+        data: { archivedAt: now },
+        select: { id: true, type: true, subject: true },
+      },
+    ]);
+    expect(state.activities.map((a) => [a.id, a.archivedAt])).toEqual([
+      ["a1", now],
+      ["a2", null],
+      ["a3", null],
     ]);
     expect(actions()).toEqual(["stage_changed", "activity_removed"]);
     expect(state.audits[0].after).toEqual({ stageId: "s2", stageName: "Appointment Scheduled" });
@@ -423,12 +533,15 @@ describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
     expect(state.audits[1].before).toEqual({ activityId: "a1", type: "CALL", subject: "Reschedule the missed demo" });
   });
 
-  it("removes nothing when no undo id matches", async () => {
+  it("removes nothing when no undo id names an open rule-made call, a done one included", async () => {
     state.deal = baseDeal({ stageId: "s3" });
-    const res = await move({ stageId: "s2", undoActivityIds: ["gone"] });
+    state.activities = [
+      { id: "done-call", dealId: "d1", type: "CALL", subject: "Reschedule the missed demo", createdBy: "rule:no-show", doneAt: now, archivedAt: null },
+    ];
+    const res = await move({ stageId: "s2", undoActivityIds: ["gone", "done-call"] });
 
     expect(res.status).toBe(200);
-    expect(db.salesActivity.updateMany).not.toHaveBeenCalled();
+    expect(state.activities[0].archivedAt).toBeNull();
     expect(actions()).toEqual(["stage_changed"]);
   });
 });
@@ -466,8 +579,9 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
       changed: true,
       deal: { id: "d1", status: "LOST", wonAt: null, lostAt: now.toISOString(), lostReason: "Price" },
     });
-    expect(db.salesDeal.update.mock.calls[0][0].where).toEqual({ id: "d1" });
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+    // The write lands only on the deal exactly as it was checked.
+    expect(db.salesDeal.updateMany.mock.calls[0][0].where).toEqual({ id: "d1", archivedAt: null, ownerId: "r", status: "OPEN" });
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
       status: "LOST",
       lostAt: now,
       lostReason: "Price",
@@ -484,7 +598,7 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
     const res = await setStatus({ status: "LOST", lostReason: "No response", lostComment: "   " });
 
     expect(res.status).toBe(200);
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
       status: "LOST",
       lostAt: now,
       lostReason: "No response",
@@ -503,7 +617,7 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
       changed: true,
       deal: { id: "d1", status: "WON", wonAt: now.toISOString(), lostAt: null, lostReason: null },
     });
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
       status: "WON",
       wonAt: now,
       lostAt: null,
@@ -514,7 +628,7 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
       ["status_changed", { status: "OPEN" }, { status: "WON" }],
     ]);
 
-    db.salesDeal.update.mockClear();
+    db.salesDeal.updateMany.mockClear();
     state.audits = [];
     state.deal = baseDeal({ status: "WON", wonAt: now });
     const again = await setStatus({ status: "WON" });
@@ -525,7 +639,7 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
       changed: false,
       deal: { id: "d1", status: "WON", wonAt: now.toISOString(), lostAt: null, lostReason: null },
     });
-    expect(db.salesDeal.update).not.toHaveBeenCalled();
+    expect(db.salesDeal.updateMany).not.toHaveBeenCalled();
     expect(state.audits).toEqual([]);
   });
 
@@ -539,7 +653,7 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
       changed: true,
       deal: { id: "d1", status: "OPEN", wonAt: null, lostAt: null, lostReason: null },
     });
-    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
       status: "OPEN",
       wonAt: null,
       lostAt: null,
@@ -561,5 +675,32 @@ describe("POST /api/sales/deals/[dealId]/status", () => {
     const notYours = await setStatus({ status: "WON" });
     expect(notYours.status).toBe(403);
     expect(writes()).toEqual([]);
+  });
+});
+
+describe("POST /api/sales/deals/[dealId]/status: two requests at the same time (Review Focus 4)", () => {
+  it("answers a double-click's second Won as unchanged, with no second history row", async () => {
+    otherRequestCommitsFirst({ status: "WON", wonAt: now });
+    const res = await setStatus({ status: "WON" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      changed: false,
+      deal: { id: "d1", status: "WON", wonAt: now.toISOString(), lostAt: null, lostReason: null },
+    });
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.salesDeal.updateMany).toHaveBeenCalledTimes(1);
+    expect(state.audits).toEqual([]);
+  });
+
+  it("answers 409 when the deal keeps changing under it, with no history row", async () => {
+    db.salesDeal.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 0 });
+    const res = await setStatus({ status: "LOST", lostReason: "Price" });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This deal just changed. Refresh and try again." });
+    expect(db.salesDeal.updateMany).toHaveBeenCalledTimes(2);
+    expect(state.audits).toEqual([]);
   });
 });

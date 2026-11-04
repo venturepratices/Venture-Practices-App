@@ -16,10 +16,19 @@ import { activitiesOnStageEntry, checkStageMove } from "@/lib/sales/rules";
 // transaction (which then commits), so nothing may have been written by then.
 // The stage rules (the proposal money rule, the No Show reschedule call) are
 // checked here on the server, against what is stored, never what a screen shows.
+//
+// The first write is the deal itself, and it only lands on the deal exactly as
+// it was checked (the `where` repeats what was read). Two requests at once (a
+// double-click, two tabs) both pass the checks, but Postgres re-checks that
+// `where` after the second waits for the first one's row lock, so the second
+// matches nothing and writes nothing. It then decides again on a fresh read
+// (see `retryIfRaced`), which also holds the deal's row lock for the rest of
+// the transaction, so the stage-entry rule never runs twice at once for one deal.
 
 type Meta = Partial<SalesRequestMeta>;
 
 const DEAL_CLOSED = "This deal is closed. Reopen it first.";
+const DEAL_JUST_CHANGED = "This deal just changed. Refresh and try again.";
 const STAGE_NOT_IN_PIPELINE = "That stage is not part of this deal's pipeline.";
 const VALUE_TOO_BIG = "Values can be up to $10,000,000.";
 /** The rule whose call an undo may take back (Decision 24). Matches the `createdBy` in rules.ts. */
@@ -28,6 +37,29 @@ const RULE = { system: "rule" } as const;
 const ID_MAX = 64;
 /** Undo only ever sends the ids the move just answered with; one stage adds at most a few. */
 const UNDO_IDS_MAX = 10;
+
+/** What an attempt answers when its guarded deal write matched nothing: another request changed the deal first. */
+const RACED = Symbol("raced");
+
+/**
+ * Runs an attempt, and once more when it lost a race. The second attempt reads
+ * the deal again (Postgres's default READ COMMITTED gives each statement in the
+ * transaction a fresh view), so it answers exactly as if the two requests had
+ * come one after the other: a double-click's second Won is unchanged, a move
+ * that lost to Won is refused as closed. Losing twice answers 409. Nothing is
+ * written by an attempt that lost, so no history row can repeat.
+ */
+async function retryIfRaced<T>(attempt: () => Promise<T | typeof RACED>): Promise<T | SalesFail> {
+  for (let tries = 0; tries < 2; tries++) {
+    const result = await attempt();
+    if (result !== RACED) return result;
+  }
+  return fail(409, DEAL_JUST_CHANGED);
+}
+
+/** The `where` for a deal write that lands only while the deal is still visible and owned as it was when checked. */
+const asChecked = (deal: { id: string; ownerId: string }) =>
+  ({ id: deal.id, archivedAt: null, ownerId: deal.ownerId }) satisfies Prisma.SalesDealWhereInput;
 
 // --- Input ---
 
@@ -106,8 +138,9 @@ const TARGET_STAGE_SELECT = {
  * with the move. Proposal Sent needs both values, checked against what is
  * stored when the screen sends none (Review Focus 1). Entering No Show adds the
  * reschedule call unless one is still open; the stage the deal is already in
- * changes nothing (Review Focus 4). An undo names the rule-made calls to take
- * back: only this deal's open No Show calls are removed (Decision 24).
+ * changes nothing (Review Focus 4), also when two moves arrive at once. An
+ * undo names the rule-made calls to take back: only this deal's open No Show
+ * calls are removed (Decision 24).
  */
 export async function moveDealStage(
   actor: SalesActor,
@@ -116,87 +149,109 @@ export async function moveDealStage(
   meta: Meta,
   now: Date,
 ): Promise<MoveResult | SalesFail> {
-  return prisma.$transaction(async (tx): Promise<MoveResult | SalesFail> => {
-    const found = await findDealForEdit(tx, actor, dealId, MOVE_DEAL_SELECT);
-    if (!found.ok) return found;
-    const deal = found.deal;
-    if (deal.status !== "OPEN") return fail(409, DEAL_CLOSED);
+  return prisma.$transaction((tx) => retryIfRaced(() => attemptMove(tx, actor, dealId, input, meta, now)));
+}
 
-    const target = await tx.salesStage.findFirst({
-      where: { id: input.stageId, pipelineId: deal.pipelineId, archivedAt: null },
-      select: TARGET_STAGE_SELECT,
-    });
-    if (!target) return fail(400, STAGE_NOT_IN_PIPELINE);
-    const enteredStage = {
-      id: target.id,
-      name: target.name,
-      isWon: target.isWon,
-      isLost: target.isLost,
-      isNoShow: target.isNoShow,
+/** One try at a move: every check on a fresh read, then the guarded write, its history and the rule's follow-ups. */
+async function attemptMove(
+  tx: Prisma.TransactionClient,
+  actor: SalesActor,
+  dealId: string,
+  input: MoveDealInput,
+  meta: Meta,
+  now: Date,
+): Promise<MoveResult | SalesFail | typeof RACED> {
+  const found = await findDealForEdit(tx, actor, dealId, MOVE_DEAL_SELECT);
+  if (!found.ok) return found;
+  const deal = found.deal;
+  if (deal.status !== "OPEN") return fail(409, DEAL_CLOSED);
+
+  const target = await tx.salesStage.findFirst({
+    where: { id: input.stageId, pipelineId: deal.pipelineId, archivedAt: null },
+    select: TARGET_STAGE_SELECT,
+  });
+  if (!target) return fail(400, STAGE_NOT_IN_PIPELINE);
+  const enteredStage = {
+    id: target.id,
+    name: target.name,
+    isWon: target.isWon,
+    isLost: target.isLost,
+    isNoShow: target.isNoShow,
+  };
+
+  if (target.id === deal.stageId) {
+    return {
+      ok: true,
+      changed: false,
+      deal: {
+        id: deal.id,
+        stageId: deal.stageId,
+        stageEnteredAt: deal.stageEnteredAt.toISOString(),
+        valueCents: deal.valueCents,
+        mrrCents: deal.mrrCents,
+      },
+      previousStageId: deal.stageId,
+      enteredStage,
+      createdActivityIds: [],
     };
+  }
 
-    if (target.id === deal.stageId) {
-      return {
-        ok: true,
-        changed: false,
-        deal: {
-          id: deal.id,
-          stageId: deal.stageId,
-          stageEnteredAt: deal.stageEnteredAt.toISOString(),
-          valueCents: deal.valueCents,
-          mrrCents: deal.mrrCents,
-        },
-        previousStageId: deal.stageId,
-        enteredStage,
-        createdActivityIds: [],
-      };
-    }
+  const value = { valueCents: input.valueCents ?? deal.valueCents, mrrCents: input.mrrCents ?? deal.mrrCents };
+  const violation = checkStageMove(value, target);
+  if (violation) return fail(422, violation.message, violation.code);
 
-    const value = { valueCents: input.valueCents ?? deal.valueCents, mrrCents: input.mrrCents ?? deal.mrrCents };
-    const violation = checkStageMove(value, target);
-    if (violation) return fail(422, violation.message, violation.code);
+  // Checks done. The write lands only on the deal as checked (still open, in
+  // the same stage, with the same values the money rule saw); otherwise another
+  // request got there first, nothing is written, and the move is decided again.
+  const data: Prisma.SalesDealUncheckedUpdateManyInput = { stageId: target.id, stageEnteredAt: now };
+  if (value.valueCents !== deal.valueCents) data.valueCents = value.valueCents;
+  if (value.mrrCents !== deal.mrrCents) data.mrrCents = value.mrrCents;
+  const { count } = await tx.salesDeal.updateMany({
+    where: {
+      ...asChecked(deal),
+      status: "OPEN",
+      stageId: deal.stageId,
+      valueCents: deal.valueCents,
+      mrrCents: deal.mrrCents,
+    },
+    data,
+  });
+  if (count === 0) return RACED;
 
-    // Checks done; from here on everything is written.
-    const data: Prisma.SalesDealUncheckedUpdateInput = { stageId: target.id, stageEnteredAt: now };
-    if (value.valueCents !== deal.valueCents) data.valueCents = value.valueCents;
-    if (value.mrrCents !== deal.mrrCents) data.mrrCents = value.mrrCents;
-    await tx.salesDeal.update({ where: { id: deal.id }, data, select: { id: true } });
-
-    if (value.valueCents !== deal.valueCents || value.mrrCents !== deal.mrrCents) {
-      await recordDealAudit(
-        tx,
-        actor,
-        deal.id,
-        { action: "value_changed", before: { valueCents: deal.valueCents, mrrCents: deal.mrrCents }, after: value },
-        meta,
-      );
-    }
+  if (value.valueCents !== deal.valueCents || value.mrrCents !== deal.mrrCents) {
     await recordDealAudit(
       tx,
       actor,
       deal.id,
-      {
-        action: "stage_changed",
-        before: { stageId: deal.stageId, stageName: deal.stage.name },
-        after: { stageId: target.id, stageName: target.name },
-      },
+      { action: "value_changed", before: { valueCents: deal.valueCents, mrrCents: deal.mrrCents }, after: value },
       meta,
     );
+  }
+  await recordDealAudit(
+    tx,
+    actor,
+    deal.id,
+    {
+      action: "stage_changed",
+      before: { stageId: deal.stageId, stageName: deal.stage.name },
+      after: { stageId: target.id, stageName: target.name },
+    },
+    meta,
+  );
 
-    const createdActivityIds = await addStageEntryActivities(tx, deal, target, now);
-    if (input.undoActivityIds && input.undoActivityIds.length > 0) {
-      await removeUndoneRuleActivities(tx, actor, deal.id, input.undoActivityIds, meta, now);
-    }
+  const createdActivityIds = await addStageEntryActivities(tx, deal, target, now);
+  if (input.undoActivityIds && input.undoActivityIds.length > 0) {
+    await removeUndoneRuleActivities(tx, actor, deal.id, input.undoActivityIds, meta, now);
+  }
 
-    return {
-      ok: true,
-      changed: true,
-      deal: { id: deal.id, stageId: target.id, stageEnteredAt: now.toISOString(), ...value },
-      previousStageId: deal.stageId,
-      enteredStage,
-      createdActivityIds,
-    };
-  });
+  return {
+    ok: true,
+    changed: true,
+    deal: { id: deal.id, stageId: target.id, stageEnteredAt: now.toISOString(), ...value },
+    previousStageId: deal.stageId,
+    enteredStage,
+    createdActivityIds,
+  };
 }
 
 /**
@@ -204,7 +259,10 @@ export async function moveDealStage(
  * the deal owner (Decision 15) and recorded as the rule's doing. A rule activity
  * is skipped while an open one from the same rule is already on the deal, so
  * moving into No Show twice never makes a second reschedule call. Shared by the
- * stage move and the daily missed-meeting job. Answers with the new ids.
+ * stage move and the daily missed-meeting job, which both call it only after
+ * their guarded write to the deal: that write holds the deal's row lock until
+ * commit, so two callers never check and add for the same deal at once.
+ * Answers with the new ids.
  */
 export async function addStageEntryActivities(
   tx: Prisma.TransactionClient,
@@ -249,7 +307,11 @@ export async function addStageEntryActivities(
   return createdIds;
 }
 
-/** Undo of a move: removes the named activities that are this deal's still-open No Show calls, and nothing else. */
+/**
+ * Undo of a move: removes the named activities that are this deal's still-open
+ * No Show calls, and nothing else. One guarded write picks and removes them, so
+ * a call ticked done a moment earlier is neither removed nor logged as removed.
+ */
 async function removeUndoneRuleActivities(
   tx: Prisma.TransactionClient,
   actor: SalesActor,
@@ -258,13 +320,11 @@ async function removeUndoneRuleActivities(
   meta: Meta,
   now: Date,
 ): Promise<void> {
-  const undone = await tx.salesActivity.findMany({
+  const undone = await tx.salesActivity.updateManyAndReturn({
     where: { id: { in: activityIds }, dealId, createdBy: NO_SHOW_RULE, doneAt: null, archivedAt: null },
+    data: { archivedAt: now },
     select: { id: true, type: true, subject: true },
   });
-  if (undone.length === 0) return;
-
-  await tx.salesActivity.updateMany({ where: { id: { in: undone.map((activity) => activity.id) } }, data: { archivedAt: now } });
   for (const activity of undone) {
     await recordDealAudit(
       tx,
@@ -295,7 +355,8 @@ const STATUS_DEAL_SELECT = {
  * through these, never by entering a stage). Lost always carries a reason,
  * and may carry a comment. Each status clears the dates and reason of the
  * others, so a reopened deal is plainly open. The status it already has
- * changes nothing (Review Focus 4). The deal stays in its stage throughout.
+ * changes nothing (Review Focus 4), also when two clicks arrive at once. The
+ * deal stays in its stage throughout.
  */
 export async function setDealStatus(
   actor: SalesActor,
@@ -304,55 +365,67 @@ export async function setDealStatus(
   meta: Meta,
   now: Date,
 ): Promise<SetStatusResult> {
-  return prisma.$transaction(async (tx): Promise<SetStatusResult> => {
-    const found = await findDealForEdit(tx, actor, dealId, STATUS_DEAL_SELECT);
-    if (!found.ok) return found;
-    const deal = found.deal;
+  return prisma.$transaction((tx) => retryIfRaced(() => attemptStatus(tx, actor, dealId, input, meta, now)));
+}
 
-    if (deal.status === input.status) {
-      return {
-        ok: true,
-        changed: false,
-        deal: {
-          id: deal.id,
-          status: deal.status,
-          wonAt: deal.wonAt?.toISOString() ?? null,
-          lostAt: deal.lostAt?.toISOString() ?? null,
-          lostReason: deal.lostReason,
-        },
-      };
-    }
+/** One try at a status change: the checks on a fresh read, then the guarded write and its history row. */
+async function attemptStatus(
+  tx: Prisma.TransactionClient,
+  actor: SalesActor,
+  dealId: string,
+  input: DealStatusInput,
+  meta: Meta,
+  now: Date,
+): Promise<SetStatusResult | typeof RACED> {
+  const found = await findDealForEdit(tx, actor, dealId, STATUS_DEAL_SELECT);
+  if (!found.ok) return found;
+  const deal = found.deal;
 
-    let data: Prisma.SalesDealUncheckedUpdateInput;
-    let after: { status: "OPEN" | "WON" | "LOST"; lostReason?: string; lostComment?: string };
-    if (input.status === "LOST") {
-      // A blank comment is no comment.
-      const lostComment = input.lostComment || null;
-      data = { status: "LOST", lostAt: now, lostReason: input.lostReason, lostComment, wonAt: null };
-      after = lostComment
-        ? { status: "LOST", lostReason: input.lostReason, lostComment }
-        : { status: "LOST", lostReason: input.lostReason };
-    } else if (input.status === "WON") {
-      data = { status: "WON", wonAt: now, lostAt: null, lostReason: null, lostComment: null };
-      after = { status: "WON" };
-    } else {
-      data = { status: "OPEN", wonAt: null, lostAt: null, lostReason: null, lostComment: null };
-      after = { status: "OPEN" };
-    }
-
-    await tx.salesDeal.update({ where: { id: deal.id }, data, select: { id: true } });
-    await recordDealAudit(tx, actor, deal.id, { action: "status_changed", before: { status: deal.status }, after }, meta);
-
+  if (deal.status === input.status) {
     return {
       ok: true,
-      changed: true,
+      changed: false,
       deal: {
         id: deal.id,
-        status: input.status,
-        wonAt: input.status === "WON" ? now.toISOString() : null,
-        lostAt: input.status === "LOST" ? now.toISOString() : null,
-        lostReason: input.status === "LOST" ? input.lostReason : null,
+        status: deal.status,
+        wonAt: deal.wonAt?.toISOString() ?? null,
+        lostAt: deal.lostAt?.toISOString() ?? null,
+        lostReason: deal.lostReason,
       },
     };
-  });
+  }
+
+  let data: Prisma.SalesDealUncheckedUpdateManyInput;
+  let after: { status: "OPEN" | "WON" | "LOST"; lostReason?: string; lostComment?: string };
+  if (input.status === "LOST") {
+    // A blank comment is no comment.
+    const lostComment = input.lostComment || null;
+    data = { status: "LOST", lostAt: now, lostReason: input.lostReason, lostComment, wonAt: null };
+    after = lostComment
+      ? { status: "LOST", lostReason: input.lostReason, lostComment }
+      : { status: "LOST", lostReason: input.lostReason };
+  } else if (input.status === "WON") {
+    data = { status: "WON", wonAt: now, lostAt: null, lostReason: null, lostComment: null };
+    after = { status: "WON" };
+  } else {
+    data = { status: "OPEN", wonAt: null, lostAt: null, lostReason: null, lostComment: null };
+    after = { status: "OPEN" };
+  }
+
+  // Lands only while the deal still has the status it was read with; otherwise it is decided again.
+  const { count } = await tx.salesDeal.updateMany({ where: { ...asChecked(deal), status: deal.status }, data });
+  if (count === 0) return RACED;
+  await recordDealAudit(tx, actor, deal.id, { action: "status_changed", before: { status: deal.status }, after }, meta);
+
+  return {
+    ok: true,
+    changed: true,
+    deal: {
+      id: deal.id,
+      status: input.status,
+      wonAt: input.status === "WON" ? now.toISOString() : null,
+      lostAt: input.status === "LOST" ? now.toISOString() : null,
+      lostReason: input.status === "LOST" ? input.lostReason : null,
+    },
+  };
 }

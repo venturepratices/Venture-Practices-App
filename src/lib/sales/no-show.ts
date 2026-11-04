@@ -11,12 +11,23 @@ import { dateInputValue, startOfDay } from "@/lib/utils";
 // missed, and gets the reschedule call. Deals already at or past No Show are
 // never moved back. The rule acts as `{ system: "rule" }`: no person, no
 // request, and nothing is sent to Slack, email or anywhere else.
+//
+// A person may act on the deal while the rule runs. So the rule's writes land
+// only on what it checked: the move only while the deal is still open in the
+// stage it read (Postgres re-checks that `where` after waiting for a person's
+// row lock), and the meetings only while still not done.
 
 type NoShowDb = Pick<typeof prisma, "salesStage" | "salesActivity" | "$transaction">;
 type NoShowStage = { id: string; pipelineId: string; name: string; position: number };
 type MissedMeeting = { id: string; subject: string };
 
 const RULE = { system: "rule" } as const;
+
+/**
+ * Thrown inside a deal's transaction to roll its move back: every meeting was
+ * ticked done after the rule read it, so the deal no longer has a missed meeting.
+ */
+class MeetingsDoneMeanwhile extends Error {}
 
 /**
  * Finds up to MISSED_MEETING_BATCH missed meetings (oldest first, in one indexed
@@ -73,6 +84,8 @@ export async function applyMissedMeetingRule(
         meetingsMarked += marked;
       }
     } catch (error) {
+      // Rolled back on purpose: nothing was missed after all.
+      if (error instanceof MeetingsDoneMeanwhile) continue;
       // Logged and skipped; the meeting is still open, so tomorrow's run tries this deal again.
       console.error(`Sales No Show rule failed for deal ${dealId}:`, error);
     }
@@ -83,8 +96,9 @@ export async function applyMissedMeetingRule(
 /**
  * One deal's share of the rule, inside its own transaction. Re-reads the deal
  * (still open, still before No Show) and its meetings (still not done), since
- * either may have changed since the meeting query. Answers with the number of
- * meetings marked missed, 0 when the deal was left alone.
+ * either may have changed since the meeting query, and writes only while both
+ * still hold. Answers with the number of meetings marked missed, 0 when the
+ * deal was left alone.
  */
 async function moveDealToNoShow(
   tx: Prisma.TransactionClient,
@@ -116,19 +130,29 @@ async function moveDealToNoShow(
   const missed = meetings.filter((meeting) => openIds.has(meeting.id));
   if (missed.length === 0) return 0;
 
-  await tx.salesDeal.update({
-    where: { id: deal.id },
+  // A person moved, closed or deleted the deal since the re-read: leave it alone (it is never moved back), nothing written.
+  const { count } = await tx.salesDeal.updateMany({
+    where: { id: deal.id, status: "OPEN", archivedAt: null, stageId: deal.stageId },
     data: { stageId: noShow.id, stageEnteredAt: now },
+  });
+  if (count === 0) return 0;
+
+  // Only meetings still not done are marked; one ticked done since the re-read is neither marked nor logged.
+  const marked = await tx.salesActivity.updateManyAndReturn({
+    where: { id: { in: missed.map((meeting) => meeting.id) }, type: "MEETING", doneAt: null, archivedAt: null },
+    data: { archivedAt: now },
     select: { id: true },
   });
+  if (marked.length === 0) throw new MeetingsDoneMeanwhile();
+  const markedIds = new Set(marked.map((meeting) => meeting.id));
+  const markedMeetings = missed.filter((meeting) => markedIds.has(meeting.id));
+
   await recordDealAudit(tx, RULE, deal.id, {
     action: "stage_changed",
     before: { stageId: deal.stageId, stageName: deal.stage.name },
     after: { stageId: noShow.id, stageName: noShow.name },
   });
-
-  await tx.salesActivity.updateMany({ where: { id: { in: missed.map((meeting) => meeting.id) } }, data: { archivedAt: now } });
-  for (const meeting of missed) {
+  for (const meeting of markedMeetings) {
     await recordDealAudit(tx, RULE, deal.id, {
       action: "activity_missed",
       after: { activityId: meeting.id, type: "MEETING", subject: meeting.subject },
@@ -136,5 +160,5 @@ async function moveDealToNoShow(
   }
 
   await addStageEntryActivities(tx, deal, { isNoShow: true }, now);
-  return missed.length;
+  return markedMeetings.length;
 }
