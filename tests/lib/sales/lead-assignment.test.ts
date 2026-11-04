@@ -8,6 +8,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
 const { assignLeadOwner, nextInRotation } = await import("@/lib/sales/lead-assignment");
+const { SALES_MEMBER_WHERE } = await import("@/lib/sales/access");
 
 type Member = { id: string; isAdmin: boolean; canUseSales: boolean; createdAt: Date };
 type Settings = {
@@ -18,6 +19,7 @@ type Settings = {
   rrCursor: number;
 };
 type Where = { id?: string | { in: string[] }; isAdmin?: boolean; OR?: Record<string, unknown>[] };
+type OrderBy = { createdAt?: "asc" | "desc"; id?: "asc" | "desc" }[];
 
 const day = (n: number) => new Date(Date.UTC(2026, 0, n));
 const salesMember = (id: string, extra: Partial<Member> = {}): Member => ({
@@ -38,6 +40,20 @@ function matches(member: Member, where: Where): boolean {
     return false;
   }
   return true;
+}
+
+/** Sorts like an ORDER BY over createdAt and id, clause by clause. */
+function compareBy(orderBy: OrderBy) {
+  return (a: Member, b: Member): number => {
+    for (const clause of orderBy) {
+      for (const [field, direction] of Object.entries(clause)) {
+        const diff =
+          field === "createdAt" ? a.createdAt.getTime() - b.createdAt.getTime() : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+        if (diff !== 0) return direction === "desc" ? -diff : diff;
+      }
+    }
+    return 0;
+  };
 }
 
 function fakeTx(input: { settings: Partial<Settings> | null; members: Member[] }) {
@@ -62,10 +78,11 @@ function fakeTx(input: { settings: Partial<Settings> | null; members: Member[] }
   const memberFindMany = vi.fn(async (args: { where: Where }) =>
     input.members.filter((m) => matches(m, args.where)).map((m) => ({ id: m.id })),
   );
-  const memberFindFirst = vi.fn(async (args: { where: Where; orderBy?: unknown }) => {
-    const found = input.members
-      .filter((m) => matches(m, args.where))
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  // Like the database: rows come back in no particular order (here, the order the
+  // test listed them) unless the query asks for one with orderBy.
+  const memberFindFirst = vi.fn(async (args: { where: Where; orderBy?: OrderBy }) => {
+    const matching = input.members.filter((m) => matches(m, args.where));
+    const found = args.orderBy ? [...matching].sort(compareBy(args.orderBy)) : matching;
     return found[0] ? { id: found[0].id } : null;
   });
 
@@ -140,10 +157,7 @@ describe("assignLeadOwner in round-robin mode", () => {
     await assignLeadOwner(tx);
 
     expect(memberFindMany).toHaveBeenCalledTimes(1);
-    expect(memberFindMany.mock.calls[0][0].where).toEqual({
-      id: { in: ["b", "r"] },
-      OR: [{ isAdmin: true }, { canUseSales: true }],
-    });
+    expect(memberFindMany.mock.calls[0][0].where).toEqual({ id: { in: ["b", "r"] }, ...SALES_MEMBER_WHERE });
   });
 
   it("follows the saved list order, not the order the database returns people in", async () => {
