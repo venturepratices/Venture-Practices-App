@@ -195,13 +195,32 @@ describe("Bot keys in the restore script", () => {
     return i;
   };
 
+  const BOT_INSERT =
+    "await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false })) as never });";
+
   it("wipes bot keys before TeamMember and puts them back after it", () => {
     expect(BACKUP_MODEL_KEYS).toContain("botToken");
     expect(at("await tx.botToken.deleteMany();")).toBeLessThan(at("await tx.teamMember.deleteMany();"));
-    expect(at("await tx.botToken.createMany({ data: t.botTokens as never });")).toBeGreaterThan(
-      at("await tx.teamMember.createMany"),
-    );
+    expect(at(BOT_INSERT)).toBeGreaterThan(at("await tx.teamMember.createMany"));
     at("botTokens: await prisma.botToken.count(),");
+  });
+
+  it("puts bot keys back turned off and says so", () => {
+    expect(script).not.toContain("await tx.botToken.createMany({ data: t.botTokens as never });");
+    at(BOT_INSERT);
+    const notice = at('"Bot keys were restored turned off. Rotate each key, then turn it back on."');
+    // Printed once the restore has committed, not from inside the transaction.
+    expect(notice).toBeGreaterThan(at("{ timeout: 120_000 }"));
+  });
+
+  it("warns separately that Sales data and bot keys are emptied when the snapshot has no Sales data", () => {
+    const check = at('if (!has("salesDeals")) {');
+    const warning = at("WARNING: this snapshot has no Sales data.");
+    expect(warning).toBeGreaterThan(check);
+    expect(script).toContain("every bot key in the target database will be emptied");
+    expect(script).toContain("because the team members who own them are being replaced");
+    // Before anything is wiped.
+    expect(warning).toBeLessThan(at("await tx.botToken.deleteMany();"));
   });
 
   it("never restores rate-limit counters", () => {

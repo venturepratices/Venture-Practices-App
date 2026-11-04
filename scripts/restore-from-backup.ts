@@ -63,6 +63,15 @@ async function main() {
     );
   }
 
+  // Sales rows and bot keys are wiped whatever the snapshot holds (see the wipe below),
+  // so a snapshot from before Sales existed leaves nothing to put back.
+  if (!has("salesDeals")) {
+    console.warn(
+      "WARNING: this snapshot has no Sales data. Every Sales record and every bot key in the target database will be emptied, " +
+        "because the team members who own them are being replaced. Only the locked Sales history log is kept."
+    );
+  }
+
   try {
     await prisma.$transaction(
       async (tx) => {
@@ -259,11 +268,17 @@ async function main() {
         if (t.salesCustomFieldValues?.length) await tx.salesCustomFieldValue.createMany({ data: t.salesCustomFieldValues as never });
         // History rows already in the database stay; only ones missing from it are added back.
         if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
-        if (t.botTokens?.length) await tx.botToken.createMany({ data: t.botTokens as never });
+        // Bot keys come back turned off: a restored key may be one that was meant to be dead.
+        if (t.botTokens?.length)
+          await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false })) as never });
         if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });
       },
       { timeout: 120_000 }
     );
+
+    if (t.botTokens?.length) {
+      console.warn("Bot keys were restored turned off. Rotate each key, then turn it back on.");
+    }
 
     // Confirm the restore round-tripped by counting rows back out.
     const restored: Record<string, number> = {
