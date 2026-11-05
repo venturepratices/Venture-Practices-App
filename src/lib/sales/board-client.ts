@@ -226,7 +226,7 @@ export function checkDealValues(total: string, monthly: string, requireBoth: boo
   return { ok: true, values: { valueCents, mrrCents } };
 }
 
-/** Avatar letters: first and last initial ("Ben Shaver" -> "BS", "Sarah K." -> "SK"). */
+/** Avatar letters: first and last initial ("Dana Example" -> "DE", "Sarah K." -> "SK"). */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

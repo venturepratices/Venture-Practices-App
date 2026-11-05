@@ -46,7 +46,7 @@ export function formatMoney(cents: number): string {
 
 // --- Names ---
 
-/** "Robert Ortiz" -> "Robert O." (first name and last initial). A single word, or a last name that is already an initial, stays as is. */
+/** "Dana Example" -> "Dana E." (first name and last initial). A single word, or a last name that is already an initial, stays as is. */
 export function shortName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] ?? "";
