@@ -375,8 +375,8 @@ function ContactPicker({
             </ComboboxTrigger>
           </div>
         </ComboboxInputGroup>
-        {/* One steady width while typing (22rem, or the room on screen), never narrower than the box; longer text wraps. */}
-        <ComboboxContent className="w-[min(22rem,var(--available-width))] min-w-(--anchor-width)">
+        {/* Exactly the box's width (the shared popup's own), so it never runs past the dialog and never follows the options; long names wrap. */}
+        <ComboboxContent>
           <ComboboxEmpty>Type a name to search.</ComboboxEmpty>
           <ComboboxList>
             {(choice: ContactChoice) => (

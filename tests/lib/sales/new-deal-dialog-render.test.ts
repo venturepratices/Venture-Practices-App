@@ -1,14 +1,18 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { cn } from "@/lib/utils";
 
-// Add deal's Person and Organization pickers (C6). Their popups were exactly
-// as wide as the input and every option truncated, so "Add new person: Dana
-// Q." read "Add new person: Da…". The popups and the dialog are portals, which
-// a server render leaves out, so the dialog and the combobox parts render in
-// place here: what this checks is the classes and markup Add deal gives them.
+// Add deal's Person and Organization pickers (C6, M2, K1). Every option was
+// truncated, so "Add new person: Dana Q." read "Add new person: Da…"; options
+// now wrap inside a popup exactly as wide as the box. The popups and the dialog
+// are portals, which a server render leaves out, so the dialog and the combobox
+// parts render in place here: what this checks is the classes and markup Add
+// deal gives them.
 
 const choices = vi.hoisted(() => [
   { key: "person:p1", kind: "existing" as const, id: "p1", name: "Dr. Alexandria M.", detail: "Bright Smile Family and Cosmetic Dentistry" },
@@ -69,27 +73,42 @@ function render() {
 
 const classList = (value: string) => value.split(/\s+/).filter(Boolean);
 
+// The shared popup's own classes (src/components/ui/combobox.tsx), which Add
+// deal's classes merge over in the real ComboboxContent.
+const COMBOBOX_SOURCE = fs.readFileSync(path.join(process.cwd(), "src", "components", "ui", "combobox.tsx"), "utf8");
+const SHARED_POPUP = /data-slot="combobox-content"\s+className=\{cn\(\s*"([^"]*)"/.exec(COMBOBOX_SOURCE)?.[1] ?? "";
+
+/** Each picker's popup classes as the browser gets them: the shared ones with Add deal's (if any) merged over. */
+function popups(): string[][] {
+  return [...render().matchAll(/data-slot="combobox-content"(?: class="([^"]*)")?/g)].map((match) =>
+    classList(cn(SHARED_POPUP, match[1] ?? "")),
+  );
+}
+
+const isWidth = (name: string) => /^(?:min-|max-)?w-/.test(name);
+
 describe("Add deal's Person and Organization pickers (server render)", () => {
-  it("open a popup at least as wide as the box, with room for long names", () => {
-    const popups = [...render().matchAll(/data-slot="combobox-content" class="([^"]*)"/g)].map((match) => match[1]);
-    expect(popups).toHaveLength(2);
-    for (const popup of popups) {
-      // The shared popup is exactly the anchor's width; Add deal's override must win over it.
-      const merged = classList(cn("w-(--anchor-width)", popup));
-      expect(merged).toContain("min-w-(--anchor-width)");
-      expect(merged).not.toContain("w-(--anchor-width)");
+  it("reads the shared popup's width: exactly the box it opens from", () => {
+    expect(classList(SHARED_POPUP).filter(isWidth)).toEqual(["w-(--anchor-width)"]);
+  });
+
+  it("open a popup exactly as wide as the box (K1)", () => {
+    // M2's fixed 22rem popup was 344px under a 206px Organization box at
+    // 1280px and ran 124px past the dialog's right edge; at 375px it was wider
+    // than its box on both sides. The popup is the box's width and nothing else.
+    const merged = popups();
+    expect(merged).toHaveLength(2);
+    for (const classes of merged) {
+      expect(classes.filter(isWidth)).toEqual(["w-(--anchor-width)"]);
     }
   });
 
   it("keep that width while the person types (M2)", () => {
     // `w-max` sized the popup to its widest option, so its right edge grew with
-    // every key pressed and moved again when search results arrived. The width
-    // must not depend on the options; it stays within the room on screen.
-    for (const popup of [...render().matchAll(/data-slot="combobox-content" class="([^"]*)"/g)].map((match) => match[1])) {
-      const widths = classList(cn("w-(--anchor-width)", popup)).filter((name) => /^w-/.test(name));
-      expect(widths).toHaveLength(1);
-      expect(widths[0]).not.toMatch(/^w-(max|fit|min|auto)$/);
-      expect(widths[0]).toContain("var(--available-width)");
+    // every key pressed and moved again when search results arrived. No width
+    // may follow the options.
+    for (const classes of popups()) {
+      expect(classes.filter((name) => /^(?:min-|max-)?w-(?:max|fit|min|auto)$/.test(name))).toEqual([]);
     }
   });
 
