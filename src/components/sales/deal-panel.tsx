@@ -112,7 +112,7 @@ type PanelLoad =
   | { kind: "error"; message: string }
   | { kind: "ready"; data: DealPanelData; now: Date };
 
-const BODY = "flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-[18px]";
+const BODY = "relative flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-[18px]";
 
 function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; titleId: string; startInComposer: boolean }) {
   const router = useRouter();

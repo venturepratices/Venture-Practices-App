@@ -230,7 +230,7 @@ export function DealsBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={endDrag}
     >
-      <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain px-4 pt-2.5 pb-4 max-sm:snap-x max-sm:snap-mandatory max-sm:gap-2.5">
+      <div className="relative flex min-h-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain px-4 pt-2.5 pb-4 max-sm:snap-x max-sm:snap-mandatory max-sm:gap-2.5">
         {columns.map((column, index) => (
           <StageColumn
             key={column.stage.id}
@@ -311,7 +311,7 @@ function StageColumn({
           style={{ width: `${stage.probability}%` }}
         />
       </header>
-      <div className="flex min-h-[120px] flex-1 flex-col overflow-y-auto overscroll-y-contain p-2">
+      <div className="relative flex min-h-[120px] flex-1 flex-col overflow-y-auto overscroll-y-contain p-2">
         {cards.length > 0 ? (
           <ul className="flex flex-col gap-[7px]">{children}</ul>
         ) : (

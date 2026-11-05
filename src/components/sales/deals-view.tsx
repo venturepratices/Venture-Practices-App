@@ -174,7 +174,7 @@ export function DealsView({
             />
           </>
         ) : data.list ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-6">
+          <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-6">
             {/* An empty filtered list has only the bar above; an empty pipeline gets its empty state. */}
             {empty ? (
               pipelineEmpty

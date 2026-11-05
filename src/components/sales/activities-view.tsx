@@ -293,7 +293,7 @@ function ActivitiesTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-[10px] border bg-card">
+      <div className="relative overflow-x-auto rounded-[10px] border bg-card">
         <table ref={tableRef} aria-label="Activities" className="w-full border-collapse text-[13px] max-sm:block">
           <thead className="max-sm:hidden">
             <tr>

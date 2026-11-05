@@ -325,7 +325,7 @@ function StageBar({
   const currentIndex = stages.findIndex((stage) => stage.id === shownId);
 
   return (
-    <div role="group" aria-label="Stage" aria-disabled={disabled || undefined} className="mt-3 flex gap-0.5">
+    <div role="group" aria-label="Stage" aria-disabled={disabled || undefined} className="relative mt-3 flex gap-0.5">
       {stages.map((stage, index) => (
         <button
           key={stage.id}
