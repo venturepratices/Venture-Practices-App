@@ -13,7 +13,7 @@ import { getActivitiesPage } from "@/lib/sales/api-client";
 import { appendPage, canChangeDeal } from "@/lib/sales/board-client";
 import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES } from "@/lib/sales/constants";
-import { shortName } from "@/lib/sales/format";
+import { dueLabel, shortName } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -389,7 +389,11 @@ function ActivitiesTable({
                   <td className={CELL}>
                     <CardLabel>Due:</CardLabel>
                     {row.doneAt ? (
-                      <span className="text-muted-foreground">Done</span>
+                      // When it was due, then when it was done (C7): the Done list reads late or on time at a glance.
+                      <>
+                        {dueLabel(new Date(row.dueAt), row.hasTime, now)}
+                        <span className="text-muted-foreground"> · Done {dueLabel(new Date(row.doneAt), true, now)}</span>
+                      </>
                     ) : (
                       <NextStepPill next={{ type: row.type, dueAt: row.dueAt, hasTime: row.hasTime }} now={now} />
                     )}

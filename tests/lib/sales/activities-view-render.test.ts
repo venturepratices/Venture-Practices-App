@@ -60,6 +60,11 @@ function render(data: ActivitiesPageData, viewer = { userId: "u1", isAdmin: fals
   return renderToString(createElement(ActivitiesView, { data, viewer, now: NOW })).replaceAll("<!-- -->", "");
 }
 
+/** Each row's Due cell as read out, tags dropped: "Due: Nov 3, 10:00 AM · Done Yesterday, 10:00 AM". */
+function dueCells(html: string): string[] {
+  return [...html.matchAll(/<td[^>]*>(<span[^>]*>Due: <\/span>[\s\S]*?)<\/td>/g)].map((match) => match[1].replace(/<[^>]+>/g, ""));
+}
+
 describe("Activities screen (server render)", () => {
   it("renders the header like the mockup", () => {
     const html = render(pageData());
@@ -122,12 +127,27 @@ describe("Activities screen (server render)", () => {
     expect(render(pageData(), { userId: "u9", isAdmin: true })).not.toContain('aria-disabled="true"');
   });
 
-  it("shows done rows with a success check and a muted Done instead of a due pill", () => {
+  it("shows done rows with a success check instead of a due pill", () => {
     const done: ActivityRow = { ...CALL, id: "a3", subject: "Intro call", doneAt: "2026-11-04T15:00:00.000Z" };
     const html = render(pageData({ query: { when: "done", type: "all", scope: "everyone", cursor: null }, rows: [done] }));
     expect(html).not.toContain("Mark done: Intro call");
     expect(html).toContain("bg-status-success");
     expect(html).not.toContain("Overdue 2d");
+  });
+
+  it("says when a done row was due and when it was done, not just the word Done (C7)", () => {
+    // Due Nov 3 at 10 AM Eastern, done yesterday (Nov 4) at 10 AM; and one with no time, done today at 9:05 AM.
+    const late: ActivityRow = { ...CALL, id: "a3", subject: "Intro call", doneAt: "2026-11-04T15:00:00.000Z" };
+    const anyTime: ActivityRow = {
+      ...CALL,
+      id: "a4",
+      subject: "Send the proposal",
+      hasTime: false,
+      dueAt: "2026-11-06T04:59:59.999Z",
+      doneAt: "2026-11-05T14:05:00.000Z",
+    };
+    const html = render(pageData({ query: { when: "done", type: "all", scope: "everyone", cursor: null }, rows: [late, anyTime] }));
+    expect(dueCells(html)).toEqual(["Due: Nov 3, 10:00 AM · Done Yesterday, 10:00 AM", "Due: Today · Done Today, 9:05 AM"]);
   });
 
   it("offers Show more when there is another page", () => {
