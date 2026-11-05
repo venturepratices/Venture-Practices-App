@@ -40,6 +40,25 @@ export type CardActions = {
   changed(): void;
 };
 
+/**
+ * Open state for a submenu that opens on hover and also on a press. Base UI's
+ * SubmenuTrigger ignores a mouse press while it opens on hover (useClick with
+ * ignoreMouse, @base-ui/react 1.6.0), so a click on "Move to" did nothing; on
+ * touch a tap is the only way in. Hover and the arrow keys still open it
+ * through Base UI (`onOpenChange`); a press on the trigger only ever opens it,
+ * so it never closes on the same gesture that, or whose hover, just opened it.
+ * It closes with the card menu too, so the next right-click starts closed.
+ */
+export function pressOpensSubmenu(setOpen: (open: boolean) => void) {
+  return {
+    onOpenChange: (open: boolean) => setOpen(open),
+    onTriggerClick: () => setOpen(true),
+    onMenuOpenChange: (open: boolean) => {
+      if (!open) setOpen(false);
+    },
+  };
+}
+
 export function DealQuickActions({
   card,
   stages,
@@ -56,6 +75,8 @@ export function DealQuickActions({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const moveTo = pressOpensSubmenu(setMoveOpen);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const canChange = canChangeDeal(viewer, card);
   const isOpenDeal = card.status === "OPEN";
@@ -72,7 +93,7 @@ export function DealQuickActions({
 
   return (
     <>
-      <ContextMenu>
+      <ContextMenu onOpenChange={moveTo.onMenuOpenChange}>
         <ContextMenuTrigger render={children} />
         <ContextMenuContent aria-label={`Actions for ${card.title}`}>
           <ContextMenuItem onClick={() => actions.open(card.id)}>
@@ -87,8 +108,8 @@ export function DealQuickActions({
               </ContextMenuItem>
               {isOpenDeal ? (
                 <>
-                  <ContextMenuSub>
-                    <ContextMenuSubTrigger>
+                  <ContextMenuSub open={moveOpen} onOpenChange={moveTo.onOpenChange}>
+                    <ContextMenuSubTrigger onClick={moveTo.onTriggerClick}>
                       <ArrowRight aria-hidden="true" />
                       Move to
                     </ContextMenuSubTrigger>
