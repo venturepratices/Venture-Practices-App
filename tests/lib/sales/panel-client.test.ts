@@ -6,6 +6,7 @@ import {
   DEAL_PANEL_SHEET_CLASS,
   dealPanelOpen,
   groupTimelineByDay,
+  holdEscapeForDraft,
   lostHeadline,
   needsNextStepPrompt,
   stageCaption,
@@ -146,5 +147,54 @@ describe("centeredScrollLeft (the stage bar on phones, C4)", () => {
 
   it("does not scroll a bar that fits (desktop)", () => {
     expect(centeredScrollLeft({ start: 300, width: 80 }, { width: 524, scrollWidth: 524 })).toBe(0);
+  });
+});
+
+describe("holdEscapeForDraft (Esc in the composer, F3)", () => {
+  // A key press as React hands it to the composer, recording whether it was stopped before the panel's own Esc handler.
+  function press(key: string, isComposing = false) {
+    const seen = { stopped: false, prevented: false };
+    const event = {
+      key,
+      nativeEvent: { isComposing },
+      stopPropagation: () => {
+        seen.stopped = true;
+      },
+      preventDefault: () => {
+        seen.prevented = true;
+      },
+    };
+    return { event, seen };
+  }
+
+  it("holds Esc while a subject is typed: the panel stays open and the draft stays", () => {
+    // Typed a note, pressed Esc: the whole panel closed and the note was gone.
+    const { event, seen } = press("Escape");
+    expect(holdEscapeForDraft(event, ["Call about the proposal", ""])).toBe(true);
+    expect(seen).toEqual({ stopped: true, prevented: true });
+  });
+
+  it("holds Esc while a note is typed on the other tab too", () => {
+    const { event, seen } = press("Escape");
+    expect(holdEscapeForDraft(event, ["", "Asked for a second quote"])).toBe(true);
+    expect(seen.stopped).toBe(true);
+  });
+
+  it("lets Esc close the panel as before when nothing is typed (spaces count as nothing)", () => {
+    const { event, seen } = press("Escape");
+    expect(holdEscapeForDraft(event, ["", "  \n "])).toBe(false);
+    expect(seen).toEqual({ stopped: false, prevented: false });
+  });
+
+  it("leaves every other key alone", () => {
+    const { event, seen } = press("Enter");
+    expect(holdEscapeForDraft(event, ["Call about the proposal", ""])).toBe(false);
+    expect(seen).toEqual({ stopped: false, prevented: false });
+  });
+
+  it("leaves Esc to the keyboard while it is composing a word (IME)", () => {
+    const { event, seen } = press("Escape", true);
+    expect(holdEscapeForDraft(event, ["電話", ""])).toBe(false);
+    expect(seen).toEqual({ stopped: false, prevented: false });
   });
 });

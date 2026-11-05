@@ -64,6 +64,30 @@ export function composerDueDate(choice: DueChoice, today: string, picked: string
   return addDaysToDateString(today, offset);
 }
 
+/** What holdEscapeForDraft reads from a key press; React's KeyboardEvent has all of it. */
+type EscapeKeyPress = {
+  key: string;
+  nativeEvent: { isComposing: boolean };
+  preventDefault(): void;
+  stopPropagation(): void;
+};
+
+/**
+ * Esc inside the deal panel's composer while it holds unsaved text (F3). The
+ * press stops there, before the panel's own Esc handler further up (Base UI's
+ * dialog, on the popup and the document), so the panel stays open and the
+ * draft stays. With nothing typed (spaces count as nothing) Esc goes on and
+ * closes the panel as before; while an IME is composing a word, Esc belongs to
+ * the keyboard. `drafts` is every text box's value, both tabs. True when held.
+ */
+export function holdEscapeForDraft(event: EscapeKeyPress, drafts: readonly string[]): boolean {
+  if (event.key !== "Escape" || event.nativeEvent.isComposing) return false;
+  if (!drafts.some((text) => text.trim() !== "")) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
 /** After a to-do is ticked done: an open deal with nothing else scheduled asks for its next step (spec rule 1). */
 export function needsNextStepPrompt(deal: { status: string; openActivityCount: number }): boolean {
   return deal.status === "OPEN" && deal.openActivityCount === 0;

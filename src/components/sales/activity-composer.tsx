@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { SalesActivityType } from "@/generated/prisma/enums";
 import { addNoteRequest, createActivityRequest } from "@/lib/sales/api-client";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES, DUE_CHOICES, NOTE_MAX_CHARS, SUBJECT_MAX, TIME_SLOTS } from "@/lib/sales/constants";
-import { composerDueDate, type DueChoice } from "@/lib/sales/panel-client";
+import { composerDueDate, holdEscapeForDraft, type DueChoice } from "@/lib/sales/panel-client";
 import { todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,9 @@ import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
 // typed note survives a look at the Activity tab. The `t` and `e` keys open
 // the Activity tab on Task or Email with the subject focused; the panel's
 // "Schedule" button and the card menu's "Add activity" do the same through the
-// handle. Only the deal owner or an admin sees it (Decision 15).
+// handle. Only the deal owner or an admin sees it (Decision 15). While it
+// holds unsaved text, Esc inside it never closes the panel (F3): from a text
+// box it moves focus out to the tab, so a half typed note is never lost to Esc.
 
 export type ComposerHandle = { openActivity(type?: SalesActivityType): void };
 
@@ -60,6 +62,7 @@ export function ActivityComposer({
   // Bumped to move focus to the subject once the Activity tab is showing.
   const [focusRequest, setFocusRequest] = useState(0);
   const subjectRef = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ activity: null, note: null });
 
   useImperativeHandle(ref, () => ({
@@ -142,11 +145,17 @@ export function ActivityComposer({
     tabRefs.current[next]?.focus();
   }
 
+  /** Esc with a draft stays in the composer; from a text box it lands on the tab, where `e` and `t` work again. */
+  function onComposerKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!holdEscapeForDraft(event, [subject, note])) return;
+    if (event.target === subjectRef.current || event.target === noteRef.current) tabRefs.current[tab]?.focus();
+  }
+
   const errorFor = (which: Tab) => (error?.tab === which ? error.message : null);
   const typeLabel = ACTIVITY_TYPE_LABELS[type];
 
   return (
-    <div className="rounded-[10px] border bg-card">
+    <div className="rounded-[10px] border bg-card" onKeyDown={onComposerKeyDown}>
       <div role="tablist" aria-label="Add to this deal" onKeyDown={onTabKeyDown} className="flex border-b px-1.5">
         {(["activity", "note"] as const).map((which) => (
           <button
@@ -279,6 +288,7 @@ export function ActivityComposer({
         className="grid gap-2.5 p-3"
       >
         <Textarea
+          ref={noteRef}
           aria-label="Note"
           placeholder="Write a note. Everyone on the deal can see it."
           maxLength={NOTE_MAX_CHARS}
