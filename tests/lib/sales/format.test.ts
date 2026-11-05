@@ -188,6 +188,30 @@ describe("dayLabel", () => {
     expect(dayLabel(new Date("2026-11-03T15:00:00Z"), lateNov5)).toBe("Nov 3");
     expect(dayLabel(new Date("2026-11-06T15:00:00Z"), lateNov5)).toBe("Tomorrow");
   });
+
+  // History groups and the Done list can hold last year's items: "Nov 3" alone
+  // would name two different days (M14).
+  it("adds the year when the day is in another app-time year", () => {
+    expect(dayLabel(new Date("2025-11-03T15:00:00Z"), lateNov5)).toBe("Nov 3, 2025");
+    expect(dayLabel(new Date("2027-01-12T15:00:00Z"), lateNov5)).toBe("Jan 12, 2027");
+  });
+
+  it("reads the year in app time across New Year", () => {
+    // 03:00 UTC on Jan 1 is still 10 PM on Dec 31 in Eastern time: the same year as Dec 20.
+    const newYearsEveLate = new Date("2027-01-01T03:00:00Z");
+    expect(dayLabel(zonedDateTime("2026-12-20", "12:00"), newYearsEveLate)).toBe("Dec 20");
+    expect(dayLabel(zonedDateTime("2027-01-02", "12:00"), newYearsEveLate)).toBe("Jan 2, 2027");
+    // 06:00 UTC on Jan 1 is 1 AM on Jan 1 in Eastern time: Dec 20 is now last year.
+    const newYearsDayEarly = new Date("2027-01-01T06:00:00Z");
+    expect(dayLabel(zonedDateTime("2026-12-20", "12:00"), newYearsDayEarly)).toBe("Dec 20, 2026");
+    expect(dayLabel(zonedDateTime("2026-12-31", "23:30"), newYearsDayEarly)).toBe("Yesterday");
+    // 11:30 PM on Dec 30 Eastern is already Dec 31 in UTC; it is still 2026 here.
+    expect(dayLabel(zonedDateTime("2026-12-30", "23:30"), newYearsDayEarly)).toBe("Dec 30, 2026");
+  });
+
+  it("puts the year on a timed due label too", () => {
+    expect(dueLabel(zonedDateTime("2025-11-03", "14:05"), true, lateNov5)).toBe("Nov 3, 2025, 2:05 PM");
+  });
 });
 
 describe("avatarTone", () => {

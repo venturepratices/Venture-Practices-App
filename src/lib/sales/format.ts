@@ -88,14 +88,19 @@ export function nextStepPill(dueAt: Date | null, now: Date, hasTime = false): { 
   return { tone: daysLate === 0 ? "today" : "future", label: dueLabel(dueAt, hasTime, now) };
 }
 
-/** "Today", "Yesterday", "Tomorrow", or the short date ("Nov 3"), read in app time. */
+/**
+ * "Today", "Yesterday", "Tomorrow", or the short date ("Nov 3"), read in app
+ * time. A day in another year than now's (app time again) carries its year,
+ * "Nov 3, 2025", so last year's history never reads as this year's.
+ */
 export function dayLabel(date: Date, now: Date): string {
   const today = dateInputValue(now);
   const day = dateInputValue(date);
   if (day === today) return "Today";
   if (day === addDaysToDateString(today, -1)) return "Yesterday";
   if (day === addDaysToDateString(today, 1)) return "Tomorrow";
-  return formatDate(date, { month: "short", day: "numeric" });
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  return formatDate(date, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
 }
 
 /**
