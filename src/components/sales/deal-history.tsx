@@ -22,6 +22,7 @@ import { toast } from "sonner";
 
 import { editNoteRequest } from "@/lib/sales/api-client";
 import { NOTE_MAX_CHARS } from "@/lib/sales/constants";
+import { clockTime } from "@/lib/sales/format";
 import { groupTimelineByDay } from "@/lib/sales/panel-client";
 import type { TimelineEntry, TimelineIcon } from "@/lib/sales/timeline";
 import { formatDateTime } from "@/lib/utils";
@@ -157,9 +158,11 @@ function HistoryLine({ entry, onSaved }: { entry: TimelineEntry; onSaved: () => 
       </span>
       <div className="min-w-0 flex-1">
         <p className="m-0 break-words">{entry.text}</p>
+        {/* Who and when (spec 7.8): the day is the group's header, the time is here, readable on touch and by screen readers. */}
         <p className="m-0 text-xs text-muted-foreground">
-          <time dateTime={entry.at} title={formatDateTime(entry.at)}>
-            {actorLabel(entry)}
+          {actorLabel(entry)} ·{" "}
+          <time dateTime={entry.at} title={formatDateTime(entry.at)} className="tabular-nums">
+            {clockTime(new Date(entry.at))}
           </time>
         </p>
         {entry.note ? <NoteBox note={entry.note} onSaved={onSaved} /> : null}
