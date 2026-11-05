@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   composerDueDate,
   DEAL_PANEL_SHEET_CLASS,
+  dealPanelOpen,
   groupTimelineByDay,
   needsNextStepPrompt,
   stageCaption,
@@ -76,6 +77,28 @@ describe("stageCaption", () => {
 
   it("says 0 days for a deal that entered today", () => {
     expect(stageCaption("New Lead", 0, 10)).toBe("New Lead · 0 days in this stage · 10% win chance");
+  });
+});
+
+describe("dealPanelOpen", () => {
+  it("opens while the URL names a deal and no close is on its way", () => {
+    expect(dealPanelOpen("deal-a", false)).toBe(true);
+    expect(dealPanelOpen(null, false)).toBe(false);
+  });
+
+  it("hides at once when closed, before the URL has caught up", () => {
+    // Esc pressed: the URL still says deal-a until the server answers the close.
+    expect(dealPanelOpen("deal-a", true)).toBe(false);
+    expect(dealPanelOpen(null, true)).toBe(false);
+  });
+
+  it("opens a deal again when it is reopened before its close landed", () => {
+    // Esc on deal A, then a click on card A before the close came back. The
+    // reopen replaces the close, so the URL never loses deal=A. Once the router
+    // settles the close is no longer on its way, and A must show again; a
+    // remembered "this deal was dismissed" would keep it shut for good.
+    const seen = [dealPanelOpen("deal-a", false), dealPanelOpen("deal-a", true), dealPanelOpen("deal-a", false)];
+    expect(seen).toEqual([true, false, true]);
   });
 });
 

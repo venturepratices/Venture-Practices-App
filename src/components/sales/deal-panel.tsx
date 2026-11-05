@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, useTransition } from "react";
 import { Flag, Lock, SearchX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ import { getDealPanel, getDealTimeline } from "@/lib/sales/api-client";
 import { appendPage } from "@/lib/sales/board-client";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { shortName } from "@/lib/sales/format";
-import { DEAL_PANEL_SHEET_CLASS } from "@/lib/sales/panel-client";
+import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen } from "@/lib/sales/panel-client";
 import type { TimelineCursor } from "@/lib/sales/timeline";
 import { cn, endOfDay, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,19 +44,20 @@ export function DealPanel() {
   // The last deal shown stays rendered while the panel slides away.
   const [shownId, setShownId] = useState(dealId);
   if (dealId !== null && dealId !== shownId) setShownId(dealId);
-  // Closing hides the panel at once; the URL catches up a moment later.
-  const [dismissedId, setDismissedId] = useState<string | null>(null);
-  if (dealId === null && dismissedId !== null) setDismissedId(null);
-  const open = dealId !== null && dealId !== dismissedId;
+  // Closing hides the panel at once (`closing` turns true straight away); the
+  // URL catches up when the server answers. `closing` ends when the router
+  // settles, also when a reopen of the same deal (a click on its card while
+  // the close was on its way) replaced the close, so that deal opens again.
+  const [closing, startClosing] = useTransition();
+  const open = dealPanelOpen(dealId, closing);
 
   function close() {
     if (dealId === null) return;
-    setDismissedId(dealId);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("deal");
     params.delete("compose");
     const search = params.toString();
-    router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
+    startClosing(() => router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false }));
   }
 
   return (

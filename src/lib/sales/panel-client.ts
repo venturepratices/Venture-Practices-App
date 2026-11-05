@@ -5,9 +5,10 @@ import { addDaysToDateString, dateInputValue } from "@/lib/utils";
 
 // Pure helpers for the slide-in deal panel (deal-panel.tsx and its parts):
 // History grouped by day, the composer's due date, when to ask for a next
-// step, the stage caption and the Sheet width. No database and no React, so
-// they are unit-tested here and safe in the browser. Days are app-time
-// (Eastern) days, never UTC or the viewer's own zone.
+// step, the stage caption, the Sheet width and when the panel shows. No
+// database and no React, so they are unit-tested here and safe in the
+// browser. Days are app-time (Eastern) days, never UTC or the viewer's own
+// zone.
 
 /**
  * The panel's width on the shared Sheet. SheetContent sets its own width with
@@ -18,6 +19,18 @@ import { addDaysToDateString, dateInputValue } from "@/lib/utils";
  * 384px on desktop. Full screen under 640px, 560px above (Decision 5).
  */
 export const DEAL_PANEL_SHEET_CLASS = "gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[560px]";
+
+/**
+ * Whether the deal panel shows: the URL names a deal (`?deal=`) and no close
+ * is on its way. `closing` is the pending state of the transition that
+ * replaced the URL on close, so the panel hides at once and the URL catches
+ * up later. It ends when the router settles, whether the close landed or a
+ * reopen of the same deal replaced it, so the panel never remembers a
+ * dismissed deal and a deal reopened mid-close opens again.
+ */
+export function dealPanelOpen(dealId: string | null, closing: boolean): boolean {
+  return dealId !== null && !closing;
+}
 
 /**
  * History entries in day groups for the sticky day headers: "Today",
