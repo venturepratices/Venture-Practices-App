@@ -74,9 +74,9 @@ type EscapeKeyPress = {
 
 /**
  * Esc inside the deal panel's composer while it holds unsaved text (F3). The
- * press is marked handled (preventDefault), which keeps the panel open
- * (escapeHandledInside) so the draft stays, and stopped before the panel's
- * popup sees it. With nothing typed (spaces count as nothing) Esc goes on and
+ * press stops there, before the panel's own Esc handler further up (Base UI's
+ * dialog, on the popup and the document), so the panel stays open and the
+ * draft stays. With nothing typed (spaces count as nothing) Esc goes on and
  * closes the panel as before; while an IME is composing a word, Esc belongs to
  * the keyboard. `drafts` is every text box's value, both tabs. True when held.
  */
@@ -86,24 +86,6 @@ export function holdEscapeForDraft(event: EscapeKeyPress, drafts: readonly strin
   event.preventDefault();
   event.stopPropagation();
   return true;
-}
-
-/** What escapeHandledInside reads from Base UI's request to close the panel. */
-type PanelCloseRequest = { reason: string; event?: { defaultPrevented: boolean } | null };
-
-/**
- * True when Base UI asks to close the deal panel for an Esc that something
- * inside the panel already used and marked handled (preventDefault): the
- * composer keeping a typed draft, a field or the title putting its stored
- * value back, the history note editor leaving its edit, an open select
- * closing. The panel then stays open (F3). Stopping the press is not enough:
- * Base UI's dialog also listens for Esc on the document, the node React
- * listens on, and never checks whether the press was handled. A plain Esc
- * still closes, because Base UI's own handler on the panel asks to close
- * before it marks the press handled.
- */
-export function escapeHandledInside(request: PanelCloseRequest): boolean {
-  return request.reason === "escape-key" && request.event?.defaultPrevented === true;
 }
 
 /** After a to-do is ticked done: an open deal with nothing else scheduled asks for its next step (spec rule 1). */
