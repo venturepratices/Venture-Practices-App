@@ -20,7 +20,7 @@ import {
   type KeyboardCoordinateGetter,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
-import { Check, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 
 import type { BoardCard, BoardColumn, BoardStage } from "@/lib/sales/board";
 import {
@@ -66,6 +66,7 @@ export function DealsBoard({
   onChanged,
   onOpenList,
   emptyState,
+  onNewDeal,
 }: {
   columns: BoardColumn[];
   now: Date;
@@ -77,6 +78,8 @@ export function DealsBoard({
   onOpenList: () => void;
   /** Shown in the first column when the whole pipeline has no deals yet. */
   emptyState: React.ReactNode | null;
+  /** Opens Add deal from an empty column; null keeps empty columns to the mockup line (filters on). */
+  onNewDeal: (() => void) | null;
 }) {
   // Local copy for optimistic moves. A new board from the server (a filter
   // change or a refresh after a move) replaces it, adjusted during render
@@ -238,6 +241,9 @@ export function DealsBoard({
             highlight={activeCard !== null && activeCard.stageId !== column.stage.id}
             onOpenList={onOpenList}
             empty={index === 0 && emptyState ? emptyState : null}
+            first={index === 0}
+            // The empty pipeline already offers "+ Deal" once, in the first column.
+            onNewDeal={emptyState ? null : onNewDeal}
           >
             {column.cards.map((card) => (
               <li key={card.id}>
@@ -280,6 +286,8 @@ function StageColumn({
   highlight,
   onOpenList,
   empty,
+  first,
+  onNewDeal,
   children,
 }: {
   column: BoardColumn;
@@ -287,6 +295,9 @@ function StageColumn({
   highlight: boolean;
   onOpenList: () => void;
   empty: React.ReactNode | null;
+  /** The pipeline's first stage, where a new deal starts. */
+  first: boolean;
+  onNewDeal: (() => void) | null;
   children: React.ReactNode;
 }) {
   const { stage, count, totalCents, cards } = column;
@@ -315,11 +326,7 @@ function StageColumn({
         {cards.length > 0 ? (
           <ul className="flex flex-col gap-[7px]">{children}</ul>
         ) : (
-          (empty ?? (
-            <p className="px-2 py-[18px] text-center text-xs leading-normal text-muted-foreground">
-              No deals in {stage.name} yet.
-            </p>
-          ))
+          (empty ?? <EmptyColumn stageName={stage.name} first={first} onNewDeal={onNewDeal} />)
         )}
       </div>
       {count > cards.length && cards.length > 0 ? (
@@ -333,6 +340,33 @@ function StageColumn({
         </footer>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * An empty column: the mockup's line, then (Decision 20, spec 7.12) what
+ * belongs here and a small "+ Deal". Add deal starts a deal in the first
+ * stage (spec rule 1), so later stages say how deals arrive instead.
+ */
+function EmptyColumn({ stageName, first, onNewDeal }: { stageName: string; first: boolean; onNewDeal: (() => void) | null }) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-2 py-[18px] text-center text-xs leading-normal text-muted-foreground">
+      <p>
+        No deals in {stageName} yet.
+        {onNewDeal ? (
+          <>
+            <br />
+            {first ? "New deals start here." : "Move a deal here when it reaches this stage."}
+          </>
+        ) : null}
+      </p>
+      {onNewDeal ? (
+        <Button variant="outline" size="xs" onClick={onNewDeal} aria-label="Add deal" className="pointer-coarse:min-h-10">
+          <Plus aria-hidden="true" />
+          Deal
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

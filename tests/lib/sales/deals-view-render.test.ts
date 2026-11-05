@@ -86,6 +86,13 @@ function render(data: BoardPageData, viewer = { userId: "u1", isAdmin: false }) 
   return renderToString(createElement(DealsView, { data, viewer, openNew: false, now: NOW })).replaceAll("<!-- -->", "");
 }
 
+/** One stage's column (its <section>) in the board HTML. */
+function column(html: string, stageName: string) {
+  const start = html.indexOf(`aria-label="${stageName},`);
+  expect(start, stageName).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf("</section>", start));
+}
+
 describe("Deals screen (server render)", () => {
   it("renders the toolbar, the columns and a card", () => {
     const html = render(pageData());
@@ -99,7 +106,6 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("$14,400 · 51 deals");
     expect(html).toContain('aria-label="Demo Complete, 51 deals"');
     expect(html).toContain('title="Win chance 30%"');
-    expect(html).toContain("No deals in Proposal Sent yet.");
     expect(html).toContain("Showing 1 of 51.");
     expect(html).toContain("Open list view");
     expect(html).toContain("Swipe sideways for more stages. Press and hold a deal to move it.");
@@ -126,6 +132,39 @@ describe("Deals screen (server render)", () => {
       expect(rem, classes.join(" ")).toBeGreaterThanOrEqual(8);
     }
     expect(html).toMatch(/aria-label="Pipeline"[^>]*class="[^"]*max-sm:min-w-/);
+  });
+
+  it("explains an empty column and offers to add a deal from it (Decision 20, spec 7.12)", () => {
+    const html = render(pageData());
+    const proposal = column(html, "Proposal Sent");
+    expect(proposal).toContain("No deals in Proposal Sent yet.");
+    expect(proposal).toContain("Move a deal here when it reaches this stage.");
+    expect(proposal).toMatch(/<button[^>]*aria-label="Add deal"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Deal<\/button>/);
+    // The first stage is where a new deal starts.
+    const first = column(
+      render(
+        pageData({
+          columns: [
+            { stage: DEMO, count: 0, totalCents: 0, cards: [] },
+            { stage: PROPOSAL, count: 1, totalCents: 1440000, cards: [{ ...CARD, stageId: "s4" }] },
+          ],
+        }),
+      ),
+      "Demo Complete",
+    );
+    expect(first).toContain("New deals start here.");
+    expect(first).toMatch(/aria-label="Add deal"/);
+  });
+
+  it("keeps empty columns to the mockup line while filters are on (the filter bar has the action)", () => {
+    const html = render(
+      pageData({
+        query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "overdue", q: "", cursor: null },
+      }),
+    );
+    const proposal = column(html, "Proposal Sent");
+    expect(proposal).toContain("No deals in Proposal Sent yet.");
+    expect(proposal).not.toContain("Add deal");
   });
 
   it("draws the card like the mockup: value, monthly value, overdue pill, rotting days, owner", () => {
@@ -214,7 +253,10 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("No deals in Direct Mail yet.");
     expect(html).toContain("Add a deal by hand to get started.");
     expect(html).not.toContain("No deals in Demo Complete yet.");
-    expect(html).toContain("No deals in Proposal Sent yet.");
+    // The other columns keep just the mockup line: one way to add a deal is enough.
+    const proposal = column(html, "Proposal Sent");
+    expect(proposal).toContain("No deals in Proposal Sent yet.");
+    expect(proposal).not.toContain("Add deal");
   });
 
   it("renders the list view with its columns, stacked-card labels and Show more", () => {
