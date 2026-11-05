@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusPillBase } from "@/components/ui/status-pill";
-import { TeamMemberFormDialog } from "@/components/team/team-member-form-dialog";
+import { LazyTeamMemberFormDialog } from "@/components/team/team-member-form-dialog-lazy";
 import { DeleteTeamMemberButton } from "@/components/team/delete-team-member-button";
 import { AvailabilityFilters } from "@/components/team/availability-filters";
 import { AvailabilityDayTimeline } from "@/components/team/availability-day-timeline";
@@ -180,7 +180,7 @@ async function MembersTab() {
     <div>
       <div className="mt-4 flex items-center justify-between">
         <p className="text-muted-foreground">Add, edit, and manage team member accounts and access.</p>
-        <TeamMemberFormDialog
+        <LazyTeamMemberFormDialog
           mode="create"
           clients={clients}
           trigger={
@@ -226,7 +226,7 @@ async function MembersTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <TeamMemberFormDialog
+                  <LazyTeamMemberFormDialog
                     mode="edit"
                     clients={clients}
                     memberId={member.id}
