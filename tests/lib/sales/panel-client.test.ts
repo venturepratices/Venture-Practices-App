@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  centeredScrollLeft,
   composerDueDate,
   DEAL_PANEL_SHEET_CLASS,
   dealPanelOpen,
@@ -128,5 +129,22 @@ describe("DEAL_PANEL_SHEET_CLASS", () => {
     expect(merged).not.toContain("data-[side=right]:w-3/4");
     expect(merged).not.toContain("data-[side=right]:sm:max-w-sm");
     expect(merged).toEqual(expect.arrayContaining(["data-[side=right]:w-full", "data-[side=right]:sm:max-w-[560px]"]));
+  });
+});
+
+describe("centeredScrollLeft (the stage bar on phones, C4)", () => {
+  // A 343px wide bar whose chevrons run to 760px: it scrolls 417px at most.
+  it("scrolls the current stage to the middle of the bar", () => {
+    // A chevron 120px wide starting at 400px: its middle (460) sits at the bar's middle (171.5).
+    expect(centeredScrollLeft({ start: 400, width: 120 }, { width: 343, scrollWidth: 760 })).toBe(288.5);
+  });
+
+  it("stays at the start for an early stage, and stops at the end for a late one", () => {
+    expect(centeredScrollLeft({ start: 0, width: 100 }, { width: 343, scrollWidth: 760 })).toBe(0);
+    expect(centeredScrollLeft({ start: 660, width: 100 }, { width: 343, scrollWidth: 760 })).toBe(417);
+  });
+
+  it("does not scroll a bar that fits (desktop)", () => {
+    expect(centeredScrollLeft({ start: 300, width: 80 }, { width: 524, scrollWidth: 524 })).toBe(0);
   });
 });

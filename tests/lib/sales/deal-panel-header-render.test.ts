@@ -95,3 +95,35 @@ describe("deal panel header: the caption under the stage bar", () => {
     expect(render(panel({ status: "WON", stageId: "s5" }))).toContain(">Won · Contract Signed</p>");
   });
 });
+
+/** The stage bar's own classes, and each chevron's classes with its visible name's classes. */
+function stageBar(html: string) {
+  const bar = /<div role="group" aria-label="Stage"[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/div>/.exec(html);
+  expect(bar).not.toBeNull();
+  const chevrons = [...bar![2].matchAll(/<button[^>]*class="([^"]*)"[^>]*><span class="([^"]*)">([^<]*)<\/span><\/button>/g)].map(
+    (match) => ({ button: match[1].split(/\s+/), label: match[2].split(/\s+/), name: match[3] }),
+  );
+  return { classes: bar![1].split(/\s+/), chevrons };
+}
+
+describe("deal panel header: the stage bar on phones (C4)", () => {
+  it("shows every stage's name at every screen size, never as screen-reader-only text", () => {
+    // At 375px the chevrons used to be bare colours: tapping a stage to move the deal was blind.
+    const { chevrons } = stageBar(render(panel()));
+    expect(chevrons.map((chevron) => chevron.name)).toEqual(STAGES.map((s) => s.name));
+    for (const { label, name } of chevrons) {
+      expect(label.filter((className) => className.includes("sr-only")), name).toEqual([]);
+    }
+  });
+
+  it("scrolls sideways inside itself on phones, with each chevron as wide as its name", () => {
+    const { classes, chevrons } = stageBar(render(panel()));
+    // Its own scroller: the page itself never scrolls sideways.
+    expect(classes).toEqual(expect.arrayContaining(["max-sm:overflow-x-auto", "relative"]));
+    for (const { button, name } of chevrons) {
+      // A chevron that grows but never shrinks keeps its whole name, and a short pipeline still fills the bar;
+      // desktop shares the width out (flex-1).
+      expect(button, name).toEqual(expect.arrayContaining(["flex-1", "max-sm:flex-[1_0_auto]"]));
+    }
+  });
+});

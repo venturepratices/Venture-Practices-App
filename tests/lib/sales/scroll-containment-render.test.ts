@@ -161,7 +161,7 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     expectScrollersContain(html, 1);
   });
 
-  it("the deal panel's stage bar (stage names are screen-reader-only on phones) is relative", () => {
+  it("the deal panel's stage bar (it scrolls sideways on phones) is relative", () => {
     const moves = { move: vi.fn(), setStatus: vi.fn(), editValue: vi.fn() };
     // The header's close button belongs to the panel's Sheet, so it renders inside one.
     const html = clean(

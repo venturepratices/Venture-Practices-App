@@ -76,6 +76,20 @@ export function lostHeadline(reason: string | null): string {
 }
 
 /**
+ * Where the stage bar scrolls to when it opens on a phone, where it is wider
+ * than the screen (C4): the current stage in the middle of the bar, held
+ * between the bar's start and its end. `item` is the current chevron's offset
+ * and width inside the bar; a bar that fits stays at 0.
+ */
+export function centeredScrollLeft(
+  item: { start: number; width: number },
+  bar: { width: number; scrollWidth: number },
+): number {
+  const most = Math.max(0, bar.scrollWidth - bar.width);
+  return Math.min(most, Math.max(0, item.start + item.width / 2 - bar.width / 2));
+}
+
+/**
  * The line under the stage bar: "Demo Complete · 1 day in this stage · 30%
  * win chance" for an open deal. A won or lost deal says its status and where
  * it sits ("Lost · Contract Signed"): the stage's win chance and clock no

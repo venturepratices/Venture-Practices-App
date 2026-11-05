@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, User, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ import type { BoardStage } from "@/lib/sales/board";
 import { TITLE_MAX } from "@/lib/sales/constants";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { daysInStage, formatMoney, shortName } from "@/lib/sales/format";
-import { stageCaption } from "@/lib/sales/panel-client";
+import { centeredScrollLeft, stageCaption } from "@/lib/sales/panel-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -303,14 +303,20 @@ function OwnerPicker({ data, onChanged }: { data: DealPanelData; onChanged: () =
   );
 }
 
+// Phones (under 640px): each chevron keeps its whole name at 12px (growing to
+// fill a short pipeline, never shrinking) and the bar scrolls sideways inside
+// itself, instead of squeezing every stage into the screen as bare colours
+// (C4). Desktop shares the width out as in the mockup.
 const STAGE_BUTTON =
-  "h-6 min-w-0 flex-1 px-2.5 text-[10.5px] font-semibold whitespace-nowrap outline-none transition-[filter,background-color,color] duration-150 [clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%,7px_50%)] first:rounded-l-[5px] first:[clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%)] enabled:hover:brightness-95 focus-visible:brightness-90 focus-visible:inset-ring-2 focus-visible:inset-ring-ring disabled:cursor-default motion-reduce:transition-none pointer-coarse:h-10";
+  "h-6 min-w-0 flex-1 px-2.5 text-[10.5px] font-semibold whitespace-nowrap outline-none transition-[filter,background-color,color] duration-150 [clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%,7px_50%)] first:rounded-l-[5px] first:[clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%)] enabled:hover:brightness-95 focus-visible:brightness-90 focus-visible:inset-ring-2 focus-visible:inset-ring-ring disabled:cursor-default motion-reduce:transition-none pointer-coarse:h-10 max-sm:min-w-20 max-sm:flex-[1_0_auto] max-sm:px-3.5 max-sm:text-xs";
 
 /**
  * One chevron per stage (mockup `.stagebar`): passed stages green, the current
  * one a darker green (green-700 and green-800, so their white names pass AA,
  * Decision 34). A click moves the deal there, shown at once and taken back if
- * the move is refused. Locked while the deal is closed or read-only.
+ * the move is refused. Locked while the deal is closed or read-only. On a
+ * phone the bar is wider than the screen and opens scrolled to the deal's
+ * stage; it is keyed by the stored stage, so it does so again after a move.
  */
 function StageBar({
   stages,
@@ -325,9 +331,28 @@ function StageBar({
 }) {
   const [shownId, setShownId] = useState(currentId);
   const currentIndex = stages.findIndex((stage) => stage.id === shownId);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // Before the first paint, so the bar never shows its start and then jumps.
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const current = bar?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!bar || !current) return;
+    bar.scrollLeft = centeredScrollLeft(
+      { start: current.offsetLeft, width: current.offsetWidth },
+      { width: bar.clientWidth, scrollWidth: bar.scrollWidth },
+    );
+  }, []);
 
   return (
-    <div role="group" aria-label="Stage" aria-disabled={disabled || undefined} className="relative mt-3 flex gap-0.5">
+    <div
+      ref={barRef}
+      role="group"
+      aria-label="Stage"
+      aria-disabled={disabled || undefined}
+      // `relative` also makes the bar the chevrons' offset parent, which the scroll above measures from.
+      className="relative mt-3 flex gap-0.5 max-sm:overflow-x-auto max-sm:overscroll-x-contain"
+    >
       {stages.map((stage, index) => (
         <button
           key={stage.id}
@@ -348,7 +373,7 @@ function StageBar({
                 : "bg-muted text-muted-foreground",
           )}
         >
-          <span className="block truncate max-sm:sr-only">{stage.name}</span>
+          <span className="block truncate">{stage.name}</span>
         </button>
       ))}
     </div>
