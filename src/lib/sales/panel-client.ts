@@ -76,7 +76,10 @@ type EscapeKeyPress = {
  * Esc inside the deal panel's composer while it holds unsaved text (F3). The
  * press stops there, before the panel's own Esc handler further up (Base UI's
  * dialog, on the popup and the document), so the panel stays open and the
- * draft stays. With nothing typed (spaces count as nothing) Esc goes on and
+ * draft stays. Stopping is enough for the document one too: the panel renders
+ * in Base UI's portal, and React handles a portal's events on the portal's
+ * own node (inside <body>), so the stopped press never reaches the document.
+ * With nothing typed (spaces count as nothing) Esc goes on and
  * closes the panel as before; while an IME is composing a word, Esc belongs to
  * the keyboard. `drafts` is every text box's value, both tabs. True when held.
  */
