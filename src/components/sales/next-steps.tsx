@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 
 import { ACTIVITY_TYPE_LABELS } from "@/lib/sales/constants";
 import type { PanelActivity } from "@/lib/sales/deal-panel";
-import { dayLabel, nextStepPill } from "@/lib/sales/format";
+import { dueLabel, nextStepPill } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_ICONS } from "@/components/sales/sales-pills";
 
@@ -75,7 +75,7 @@ export function NextSteps({
                     className={cn(
                       "flex size-5 items-center justify-center rounded-full border-2 border-input text-transparent transition-[color,background-color,border-color,scale] duration-150 ease-out group-active/check:scale-90 motion-reduce:transition-none",
                       canEdit && "group-hover/check:border-green-600 group-hover/check:text-green-600",
-                      done && "border-green-600 bg-green-600 text-white",
+                      done && "border-green-700 bg-green-700 text-white",
                     )}
                   >
                     <Check className="size-3" strokeWidth={3} />
@@ -97,7 +97,7 @@ export function NextSteps({
                 <div className="min-w-0 flex-1">
                   <p className={cn("m-0 truncate text-[13px] font-semibold", done && "line-through")}>{activity.subject}</p>
                   <p className="m-0 text-xs text-muted-foreground">
-                    {ACTIVITY_TYPE_LABELS[activity.type]} · {dayLabel(due, now)}
+                    {ACTIVITY_TYPE_LABELS[activity.type]} · {dueLabel(due, activity.hasTime, now)}
                     {tone === "overdue" ? " (overdue)" : ""}
                   </p>
                 </div>

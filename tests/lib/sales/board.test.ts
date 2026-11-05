@@ -257,8 +257,8 @@ describe("board view", () => {
     const db = fakeDb({
       dealsByStage: { s1: [deal("d1"), deal("d2", { person: null, organization: null })] },
       activities: [
-        { dealId: "d1", type: "MEETING", subject: "Demo", dueAt: endOfDay("2026-11-07") },
-        { dealId: "d1", type: "CALL", subject: "First call", dueAt: endOfDay("2026-11-06") },
+        { dealId: "d1", type: "MEETING", subject: "Demo", dueAt: endOfDay("2026-11-07"), hasTime: true },
+        { dealId: "d1", type: "CALL", subject: "First call", dueAt: endOfDay("2026-11-06"), hasTime: false },
       ],
     });
     const page = await loadBoardPage(rep, query(), now, db as never);
@@ -268,6 +268,14 @@ describe("board view", () => {
       dealId: { in: ["d1", "d2"] },
       doneAt: null,
       archivedAt: null,
+    });
+    // The card's pill says the chosen time, so the query brings whether there is one.
+    expect(db.salesActivity.findMany.mock.calls[0][0].select).toEqual({
+      dealId: true,
+      type: true,
+      subject: true,
+      dueAt: true,
+      hasTime: true,
     });
     expect(page?.columns?.[0].cards).toEqual([
       {
@@ -281,7 +289,7 @@ describe("board view", () => {
         ownerId: "r",
         personName: "Sarah K.",
         organizationName: "Oak Creek Dental",
-        next: { type: "CALL", subject: "First call", dueAt: endOfDay("2026-11-06").toISOString() },
+        next: { type: "CALL", subject: "First call", dueAt: endOfDay("2026-11-06").toISOString(), hasTime: false },
       },
       expect.objectContaining({ id: "d2", personName: null, organizationName: null, next: null }),
     ]);

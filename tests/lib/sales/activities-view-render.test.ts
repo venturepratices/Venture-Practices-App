@@ -106,6 +106,14 @@ describe("Activities screen (server render)", () => {
     for (const label of ["Deal:", "Due:", "Owner:"]) expect(html).toContain(label);
   });
 
+  it("says the chosen time in the Due column, and only the day when none was chosen", () => {
+    // Robert's demo is today at 19:00 UTC: 2 PM Eastern.
+    expect(render(pageData())).toContain("Today, 2:00 PM");
+    const anyTime = render(pageData({ rows: [{ ...MEETING_ON_ROBERTS_DEAL, hasTime: false, dueAt: "2026-11-06T04:59:59.999Z" }] }));
+    expect(anyTime).toContain(">Today</span>");
+    expect(anyTime).not.toContain("Today,");
+  });
+
   it("keeps someone else's check visible but not usable", () => {
     const html = render(pageData());
     expect(html).toMatch(/aria-label="Mark done: Demo"[^>]*aria-disabled="true"/);

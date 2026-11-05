@@ -3,8 +3,10 @@ import { endOfDay, zonedDateTime } from "@/lib/utils";
 import {
   activityDueAt,
   avatarTone,
+  clockTime,
   dayLabel,
   daysInStage,
+  dueLabel,
   formatMoney,
   isRotting,
   isValidDateString,
@@ -79,6 +81,60 @@ describe("nextStepPill", () => {
     expect(nextStepPill(endOfDay("2026-11-04"), lateNov5)).toEqual({ tone: "overdue", label: "Overdue 1d" });
     // Oct 30 to Nov 2 spans the Nov 1 clock change, still 3 calendar days
     expect(nextStepPill(endOfDay("2026-10-30"), zonedDateTime("2026-11-02", "08:00")).label).toBe("Overdue 3d");
+  });
+
+  it("adds the chosen time to Today, Tomorrow and dates, but not to Overdue", () => {
+    const tomorrow2pm = zonedDateTime("2026-11-06", "14:00");
+    expect(nextStepPill(tomorrow2pm, lateNov5, true)).toEqual({ tone: "future", label: "Tomorrow, 2:00 PM" });
+    expect(nextStepPill(tomorrow2pm, lateNov5, false)).toEqual({ tone: "future", label: "Tomorrow" });
+    // Still amber all day once the time has passed, and it says when it was.
+    expect(nextStepPill(zonedDateTime("2026-11-05", "09:00"), lateNov5, true)).toEqual({ tone: "today", label: "Today, 9:00 AM" });
+    expect(nextStepPill(zonedDateTime("2026-11-12", "10:30"), lateNov5, true).label).toBe("Nov 12, 10:30 AM");
+    expect(nextStepPill(zonedDateTime("2026-11-04", "09:00"), lateNov5, true)).toEqual({ tone: "overdue", label: "Overdue 1d" });
+  });
+
+  it("keeps day-only labels when nothing says a time was chosen", () => {
+    expect(nextStepPill(zonedDateTime("2026-11-06", "14:00"), lateNov5).label).toBe("Tomorrow");
+  });
+});
+
+describe("clockTime", () => {
+  it("reads the time in Eastern time, with a plain space before AM or PM", () => {
+    // 19:00 UTC on Nov 5 is 2 PM Eastern standard time.
+    expect(clockTime(new Date("2026-11-05T19:00:00Z"))).toBe("2:00 PM");
+    expect(clockTime(zonedDateTime("2026-11-05", "09:30"))).toBe("9:30 AM");
+    expect(clockTime(zonedDateTime("2026-11-05", "00:00"))).toBe("12:00 AM");
+    // No narrow no-break space (newer Intl): the same text on the server and in every browser.
+    expect(clockTime(new Date("2026-11-05T19:00:00Z"))).toMatch(/^[\d:]+ [AP]M$/);
+  });
+
+  it("follows the March DST Sunday (2026-03-08) on both sides of the jump", () => {
+    // 1:30 AM is still standard time (UTC-5); 9:30 AM is daylight time (UTC-4).
+    expect(clockTime(new Date("2026-03-08T06:30:00Z"))).toBe("1:30 AM");
+    expect(clockTime(new Date("2026-03-08T07:30:00Z"))).toBe("3:30 AM");
+    expect(clockTime(activityDueAt("2026-03-08", "09:30"))).toBe("9:30 AM");
+  });
+
+  it("follows the November DST Sunday (2026-11-01), where 1:30 AM happens twice", () => {
+    expect(clockTime(new Date("2026-11-01T05:30:00Z"))).toBe("1:30 AM");
+    expect(clockTime(new Date("2026-11-01T06:30:00Z"))).toBe("1:30 AM");
+    expect(clockTime(activityDueAt("2026-11-01", "09:30"))).toBe("9:30 AM");
+  });
+});
+
+describe("dueLabel", () => {
+  const saturday = zonedDateTime("2026-03-07", "12:00");
+
+  it("adds the clock time only when one was chosen", () => {
+    expect(dueLabel(activityDueAt("2026-03-08", "09:30"), true, saturday)).toBe("Tomorrow, 9:30 AM");
+    expect(dueLabel(activityDueAt("2026-03-08", null), false, saturday)).toBe("Tomorrow");
+  });
+
+  it("names the DST Sunday's own day and time on that Sunday", () => {
+    const sundayMorning = zonedDateTime("2026-03-08", "08:00");
+    expect(dueLabel(activityDueAt("2026-03-08", "14:00"), true, sundayMorning)).toBe("Today, 2:00 PM");
+    expect(dueLabel(activityDueAt("2026-03-09", "08:00"), true, sundayMorning)).toBe("Tomorrow, 8:00 AM");
+    expect(dueLabel(activityDueAt("2026-03-07", "17:00"), true, sundayMorning)).toBe("Yesterday, 5:00 PM");
   });
 });
 

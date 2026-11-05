@@ -126,8 +126,11 @@ export function describeAuditRow(
       const status = str(after, "status");
       if (status === "WON") return { icon: "won", text: "Marked as won" };
       if (status === "LOST") {
+        // The comment typed into the Lost dialog follows the reason: "Marked as lost: Price. Went with a cheaper printer".
         const reason = str(after, "lostReason");
-        return { icon: "lost", text: reason ? `Marked as lost: ${reason}` : "Marked as lost" };
+        const comment = str(after, "lostComment");
+        const line = reason ? `Marked as lost: ${reason}` : "Marked as lost";
+        return { icon: "lost", text: comment ? `${line}. ${comment}` : line };
       }
       if (status === "OPEN") return { icon: "reopened", text: "Reopened" };
       return FALLBACK;

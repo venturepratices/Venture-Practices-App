@@ -48,7 +48,15 @@ const CARD: BoardCard = {
   ownerId: "u1",
   personName: "Sarah K.",
   organizationName: "Bright Smile Dental",
-  next: { type: "CALL", subject: "Follow-up call", dueAt: "2026-11-03T15:00:00.000Z" },
+  next: { type: "CALL", subject: "Follow-up call", dueAt: "2026-11-03T15:00:00.000Z", hasTime: true },
+};
+
+// A demo booked for tomorrow at 2 PM Eastern (19:00 UTC in November).
+const BOOKED: BoardCard = {
+  ...CARD,
+  id: "d3",
+  title: "Oak Family Dentistry",
+  next: { type: "MEETING", subject: "Demo", dueAt: "2026-11-06T19:00:00.000Z", hasTime: true },
 };
 
 function pageData(extra: Partial<BoardPageData> = {}): BoardPageData {
@@ -107,6 +115,40 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain(">BS<");
     // Only the owner or an admin may drag it: the owner's card is draggable.
     expect(html).toContain('aria-roledescription="deal"');
+  });
+
+  it("says the chosen time on the card's next-step pill and in its label", () => {
+    const html = render(
+      pageData({
+        columns: [
+          { stage: DEMO, count: 1, totalCents: 1440000, cards: [BOOKED] },
+          { stage: PROPOSAL, count: 0, totalCents: 0, cards: [] },
+        ],
+      }),
+    );
+    expect(html).toContain("Tomorrow, 2:00 PM");
+    expect(html).toContain("Meeting Tomorrow, 2:00 PM");
+    // A 240px column leaves about 200px inside a card: with a time and an idle-days
+    // pill the row can be wider, so it wraps (the avatar drops a line) instead of spilling out.
+    expect(html).toMatch(/<div class="mt-1 flex flex-wrap items-center gap-1\.5"><span[^>]*bg-status-success/);
+  });
+
+  it("shows the chosen time in the list view's Next activity too", () => {
+    const html = render(
+      pageData({
+        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+        columns: null,
+        list: { rows: [{ ...BOOKED, stageName: "Demo Complete" }], nextCursor: null },
+      }),
+    );
+    expect(html).toContain("Tomorrow, 2:00 PM");
+  });
+
+  it("labels the Won drop zone in a green dark enough to read on white (spec 7.11)", () => {
+    const html = render(pageData());
+    // green-600 text on white is 3.2:1; green-700 is 4.9:1.
+    expect(html).toMatch(/class="[^"]*border-green-700 text-green-700[^"]*"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Won</);
+    expect(html).not.toContain("border-green-600 text-green-600");
   });
 
   it("does not make someone else's card draggable", () => {

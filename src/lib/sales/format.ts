@@ -1,5 +1,5 @@
 import { MAX_DEAL_CENTS } from "@/lib/sales/constants";
-import { addDaysToDateString, dateInputValue, endOfDay, formatDate, zonedDateTime } from "@/lib/utils";
+import { addDaysToDateString, APP_TIME_ZONE, dateInputValue, endOfDay, formatDate, zonedDateTime } from "@/lib/utils";
 
 // Money, names and dates as the Sales screens show them. Pure functions with no
 // database access, safe for client components. Every day comparison reads
@@ -75,15 +75,17 @@ export type NextStepTone = "overdue" | "today" | "future" | "none";
 /**
  * The next-step pill on a card. Colours are day-level: an activity due earlier
  * today is still "Today" all day, and turns overdue only once its day has ended
- * for the team (spec 7.4). No next step is its own state.
+ * for the team (spec 7.4). No next step is its own state. When a time was
+ * chosen (`hasTime`), the label also says it ("Tomorrow, 2:00 PM"); an overdue
+ * one counts days instead.
  */
-export function nextStepPill(dueAt: Date | null, now: Date): { tone: NextStepTone; label: string } {
+export function nextStepPill(dueAt: Date | null, now: Date, hasTime = false): { tone: NextStepTone; label: string } {
   if (!dueAt) return { tone: "none", label: "No next step" };
   const today = dateInputValue(now);
   const dueDay = dateInputValue(dueAt);
   const daysLate = calendarDaysBetween(dueDay, today);
   if (daysLate > 0) return { tone: "overdue", label: `Overdue ${daysLate}d` };
-  return { tone: daysLate === 0 ? "today" : "future", label: dayLabel(dueAt, now) };
+  return { tone: daysLate === 0 ? "today" : "future", label: dueLabel(dueAt, hasTime, now) };
 }
 
 /** "Today", "Yesterday", "Tomorrow", or the short date ("Nov 3"), read in app time. */
@@ -94,6 +96,23 @@ export function dayLabel(date: Date, now: Date): string {
   if (day === addDaysToDateString(today, -1)) return "Yesterday";
   if (day === addDaysToDateString(today, 1)) return "Tomorrow";
   return formatDate(date, { month: "short", day: "numeric" });
+}
+
+/**
+ * "2:00 PM": the clock time in app time. Newer Intl puts a narrow no-break
+ * space before AM/PM and older engines a plain one; it is always a plain space
+ * here, so the server's render and the browser's agree.
+ */
+export function clockTime(date: Date): string {
+  return date
+    .toLocaleTimeString("en-US", { timeZone: APP_TIME_ZONE, hour: "numeric", minute: "2-digit" })
+    .replace(/\s/g, " ");
+}
+
+/** When an activity is due: "Tomorrow", or "Tomorrow, 2:00 PM" when a time was chosen (`hasTime`). App time. */
+export function dueLabel(dueAt: Date, hasTime: boolean, now: Date): string {
+  const day = dayLabel(dueAt, now);
+  return hasTime ? `${day}, ${clockTime(dueAt)}` : day;
 }
 
 /** Calendar days a deal has been in its stage. 0 when it entered today (or, from clock drift, later). */

@@ -49,7 +49,8 @@ export function DealCardFace({
           ) : null}
         </div>
       ) : null}
-      <div className="mt-1 flex items-center gap-1.5">
+      {/* Wraps when a timed next step and an idle-days pill do not fit a narrow column: the avatar drops a line instead of spilling out. */}
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <NextStepPill next={card.next} now={now} />
         <DaysPill days={days} rotting={rotting} />
         <OwnerAvatar id={card.ownerId} name={ownerName} className="ml-auto" />
@@ -102,7 +103,7 @@ export function DealCard({
   const days = daysInStage(new Date(card.stageEnteredAt), now);
   const rotting = card.status === "OPEN" && isRotting(days, stage.rottingDays);
   const next = card.next
-    ? `${ACTIVITY_TYPE_LABELS[card.next.type]} ${nextStepPill(new Date(card.next.dueAt), now).label}`
+    ? `${ACTIVITY_TYPE_LABELS[card.next.type]} ${nextStepPill(new Date(card.next.dueAt), now, card.next.hasTime).label}`
     : "No next step";
   const label = [
     card.title,

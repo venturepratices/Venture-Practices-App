@@ -5,6 +5,7 @@ import {
   DEAL_PANEL_SHEET_CLASS,
   dealPanelOpen,
   groupTimelineByDay,
+  lostHeadline,
   needsNextStepPrompt,
   stageCaption,
 } from "@/lib/sales/panel-client";
@@ -77,6 +78,18 @@ describe("stageCaption", () => {
 
   it("says 0 days for a deal that entered today", () => {
     expect(stageCaption("New Lead", 0, 10)).toBe("New Lead · 0 days in this stage · 10% win chance");
+  });
+});
+
+describe("lostHeadline", () => {
+  it("names the reason picked in the Lost dialog", () => {
+    expect(lostHeadline("Price")).toBe("Lost: Price.");
+    expect(lostHeadline("Chose a competitor")).toBe("Lost: Chose a competitor.");
+  });
+
+  it("still says Lost when no reason was stored (an imported deal)", () => {
+    expect(lostHeadline(null)).toBe("Lost.");
+    expect(lostHeadline("  ")).toBe("Lost.");
   });
 });
 

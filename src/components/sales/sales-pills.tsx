@@ -29,17 +29,21 @@ const TONE_CLASS: Record<NextStepTone, string> = {
   none: "bg-status-warning text-status-warning-foreground",
 };
 
-/** Next step: red when late, amber today, green later; "No next step" (amber, warning icon) when nothing is planned. */
+/**
+ * Next step: red when late, amber today, green later; "No next step" (amber,
+ * warning icon) when nothing is planned. A chosen time shows after the day
+ * ("Tomorrow, 2:00 PM"), so the rep sees when the demo is without opening it.
+ */
 export function NextStepPill({
   next,
   now,
   className,
 }: {
-  next: { type: SalesActivityType; dueAt: string; subject?: string } | null;
+  next: { type: SalesActivityType; dueAt: string; hasTime: boolean; subject?: string } | null;
   now: Date;
   className?: string;
 }) {
-  const pill = nextStepPill(next ? new Date(next.dueAt) : null, now);
+  const pill = nextStepPill(next ? new Date(next.dueAt) : null, now, next?.hasTime ?? false);
   const Icon = next ? ACTIVITY_ICONS[next.type] : TriangleAlert;
   return (
     <span className={cn(PILL, TONE_CLASS[pill.tone], className)} title={next?.subject}>

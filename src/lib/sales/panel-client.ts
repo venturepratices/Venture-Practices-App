@@ -69,6 +69,12 @@ export function needsNextStepPrompt(deal: { status: string; openActivityCount: n
   return deal.status === "OPEN" && deal.openActivityCount === 0;
 }
 
+/** The first words of a lost deal's strip: "Lost: Price.", or "Lost." when no reason was stored (an imported deal). */
+export function lostHeadline(reason: string | null): string {
+  const trimmed = reason?.trim();
+  return trimmed ? `Lost: ${trimmed}.` : "Lost.";
+}
+
 /** The line under the stage bar: "Demo Complete · 1 day in this stage · 30% win chance". */
 export function stageCaption(stageName: string, days: number, probability: number): string {
   return `${stageName} · ${days} ${days === 1 ? "day" : "days"} in this stage · ${probability}% win chance`;

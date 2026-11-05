@@ -40,8 +40,8 @@ export type BoardCard = {
   ownerId: string;
   personName: string | null;
   organizationName: string | null;
-  /** The earliest open activity, or null when nothing is scheduled (a stalled deal). */
-  next: { type: SalesActivityType; subject: string; dueAt: string } | null;
+  /** The earliest open activity, or null when nothing is scheduled (a stalled deal). `hasTime`: a clock time was chosen, so the pill shows it. */
+  next: { type: SalesActivityType; subject: string; dueAt: string; hasTime: boolean } | null;
 };
 
 export type BoardColumn = { stage: BoardStage; count: number; totalCents: number; cards: BoardCard[] };
@@ -177,7 +177,7 @@ async function loadNextSteps(db: BoardDb, dealIds: string[]): Promise<Map<string
   if (dealIds.length === 0) return next;
   const activities = await db.salesActivity.findMany({
     where: { dealId: { in: dealIds }, ...OPEN_ACTIVITY },
-    select: { dealId: true, type: true, subject: true, dueAt: true },
+    select: { dealId: true, type: true, subject: true, dueAt: true, hasTime: true },
   });
   const earliest = new Map<string, (typeof activities)[number]>();
   for (const activity of activities) {
@@ -186,7 +186,12 @@ async function loadNextSteps(db: BoardDb, dealIds: string[]): Promise<Map<string
     if (!current || activity.dueAt < current.dueAt) earliest.set(activity.dealId, activity);
   }
   for (const [dealId, activity] of earliest) {
-    next.set(dealId, { type: activity.type, subject: activity.subject, dueAt: activity.dueAt.toISOString() });
+    next.set(dealId, {
+      type: activity.type,
+      subject: activity.subject,
+      dueAt: activity.dueAt.toISOString(),
+      hasTime: activity.hasTime,
+    });
   }
   return next;
 }

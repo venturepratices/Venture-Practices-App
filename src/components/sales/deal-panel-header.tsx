@@ -128,7 +128,8 @@ export function DealPanelHeader({
                 disabled={!canEdit || statusBusy}
                 aria-disabled={!canEdit || undefined}
                 onClick={() => void setStatus("WON")}
-                className="bg-green-600 text-white hover:bg-green-600/90 focus-visible:ring-green-600/40 max-sm:flex-1 pointer-coarse:min-h-10"
+                // green-700, not the mockup's green-600: white on green-600 is 3.2:1, under spec 7.11's 4.5:1 (Decision 34).
+                className="bg-green-700 text-white hover:bg-green-800 focus-visible:ring-green-700/40 max-sm:flex-1 pointer-coarse:min-h-10"
               >
                 Won
               </Button>
@@ -305,8 +306,9 @@ const STAGE_BUTTON =
 
 /**
  * One chevron per stage (mockup `.stagebar`): passed stages green, the current
- * one a darker green. A click moves the deal there, shown at once and taken
- * back if the move is refused. Locked while the deal is closed or read-only.
+ * one a darker green (green-700 and green-800, so their white names pass AA,
+ * Decision 34). A click moves the deal there, shown at once and taken back if
+ * the move is refused. Locked while the deal is closed or read-only.
  */
 function StageBar({
   stages,
@@ -338,9 +340,9 @@ function StageBar({
           className={cn(
             STAGE_BUTTON,
             index < currentIndex
-              ? "bg-green-600 text-white"
+              ? "bg-green-700 text-white"
               : index === currentIndex
-                ? "bg-green-700 text-white"
+                ? "bg-green-800 text-white"
                 : "bg-muted text-muted-foreground",
           )}
         >

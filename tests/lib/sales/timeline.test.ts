@@ -33,6 +33,7 @@ describe("describeAuditRow", () => {
     ["stage by the rule", describe_("stage_changed", { stageId: "s3", stageName: "No Show" }, { stageId: "s2", stageName: "Demo" }, "SYSTEM"), "stage", "Moved to No Show (No Show rule)"],
     ["won", describe_("status_changed", { status: "WON" }, { status: "OPEN" }), "won", "Marked as won"],
     ["lost", describe_("status_changed", { status: "LOST", lostReason: "Price" }, { status: "OPEN" }), "lost", "Marked as lost: Price"],
+    ["lost with a comment", describe_("status_changed", { status: "LOST", lostReason: "Price", lostComment: "Went with a cheaper printer" }, { status: "OPEN" }), "lost", "Marked as lost: Price. Went with a cheaper printer"],
     ["reopened", describe_("status_changed", { status: "OPEN" }, { status: "LOST" }), "reopened", "Reopened"],
     ["value with monthly", describe_("value_changed", { valueCents: 1_440_000, mrrCents: 120_000 }, { valueCents: 0, mrrCents: 0 }), "value", "Value set to $14,400 ($1,200/mo)"],
     ["value without monthly", describe_("value_changed", { valueCents: 1_440_000, mrrCents: 0 }, { valueCents: 0, mrrCents: 0 }), "value", "Value set to $14,400"],
@@ -70,6 +71,9 @@ describe("describeAuditRow", () => {
     expect(describe_("something_new", { x: 1 })).toEqual({ icon: "field", text: "Deal updated" });
     expect(describe_("owner_changed", { ownerId: "gone" }).text).toBe("Owner changed");
     expect(describe_("status_changed", { status: "LOST" }).text).toBe("Marked as lost");
+    expect(describe_("status_changed", { status: "LOST", lostComment: "Closed the practice" }).text).toBe(
+      "Marked as lost. Closed the practice",
+    );
     expect(describe_("activity_done", null).text).toBe("Activity done");
     expect(describe_("stage_changed", "junk").text).toBe("Moved to another stage");
   });

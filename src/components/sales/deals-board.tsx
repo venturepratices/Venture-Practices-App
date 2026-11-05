@@ -362,10 +362,11 @@ function StatusZone({ id, label }: { id: ZoneId; label: string }) {
       ref={setNodeRef}
       className={cn(
         "flex h-[54px] flex-[0_1_220px] items-center justify-center gap-2 rounded-[10px] border-2 border-dashed font-bold transition-colors duration-100 max-sm:h-12",
+        // Won is green-700 on light (4.9:1 for its label; green-600 is 3.2:1) and when filled (Decision 34).
         won
-          ? "border-green-600 text-green-600 dark:border-green-500 dark:text-green-500"
+          ? "border-green-700 text-green-700 dark:border-green-500 dark:text-green-500"
           : "border-red-600 text-red-600 dark:border-red-400 dark:text-red-400",
-        isOver && (won ? "bg-green-600 text-white dark:bg-green-600 dark:text-white" : "bg-red-600 text-white dark:bg-red-600 dark:text-white"),
+        isOver && (won ? "bg-green-700 text-white dark:bg-green-700 dark:text-white" : "bg-red-600 text-white dark:bg-red-600 dark:text-white"),
       )}
     >
       <Icon aria-hidden="true" className="size-4" />

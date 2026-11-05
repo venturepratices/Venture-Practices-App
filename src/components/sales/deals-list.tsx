@@ -107,6 +107,11 @@ export function DealsList({
                       href={dealHref(row.id)}
                       scroll={false}
                       onClick={(event) => event.stopPropagation()}
+                      // A plain click opens the panel like the row does (no board reload); Ctrl or Cmd still opens a tab.
+                      onNavigate={(event) => {
+                        event.preventDefault();
+                        onOpen(row.id);
+                      }}
                       className="rounded-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       {row.title}

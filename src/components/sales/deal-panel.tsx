@@ -2,14 +2,15 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useId, useRef, useState, useTransition } from "react";
-import { Flag, Lock, SearchX, TriangleAlert, type LucideIcon } from "lucide-react";
+import { CircleX, Flag, Lock, SearchX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getDealPanel, getDealTimeline } from "@/lib/sales/api-client";
 import { appendPage } from "@/lib/sales/board-client";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { shortName } from "@/lib/sales/format";
-import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen } from "@/lib/sales/panel-client";
+import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, lostHeadline } from "@/lib/sales/panel-client";
+import { changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
 import type { TimelineCursor } from "@/lib/sales/timeline";
 import { cn, endOfDay, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,9 +46,11 @@ export function DealPanel() {
   const [shownId, setShownId] = useState(dealId);
   if (dealId !== null && dealId !== shownId) setShownId(dealId);
   // Closing hides the panel at once (`closing` turns true straight away); the
-  // URL catches up when the server answers. `closing` ends when the router
-  // settles, also when a reopen of the same deal (a click on its card while
-  // the close was on its way) replaced the close, so that deal opens again.
+  // URL catches up a moment later (straight from the history API, or from the
+  // server when a change just saved here must bring the page behind back
+  // fresh, panel-url.ts). `closing` ends when the router settles, also when a
+  // reopen of the same deal (a click on its card while the close was on its
+  // way) replaced the close, so that deal opens again.
   const [closing, startClosing] = useTransition();
   const open = dealPanelOpen(dealId, closing);
 
@@ -57,7 +60,7 @@ export function DealPanel() {
     params.delete("deal");
     params.delete("compose");
     const search = params.toString();
-    startClosing(() => router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false }));
+    startClosing(() => changePanelUrl(search ? `${pathname}?${search}` : pathname, "replace", router));
   }
 
   return (
@@ -171,7 +174,7 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
   /** After every saved change: load the deal and its history again, and refresh the page behind. */
   function changed() {
     void reload();
-    router.refresh();
+    refreshAfterWrite(router);
   }
 
   async function showOlder() {
@@ -263,6 +266,8 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
       <DealPanelHeader data={data} now={now} moves={moves} titleId={titleId} onChanged={changed} />
 
       <div className={BODY}>
+        {deal.status === "LOST" ? <LostBar reason={deal.lostReason} comment={deal.lostComment} /> : null}
+
         {!canEdit ? (
           <Bar tone="info" icon={Lock}>
             Only {shortName(deal.owner.name)} or an admin can change this deal.
@@ -330,26 +335,54 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
   );
 }
 
-/** The mockup's `.warnbar` (amber) and `.infobar` (accent) strip with an icon and an optional button on the right. */
+/**
+ * A lost deal's reason and the comment typed into the Lost dialog, at the top
+ * of the panel body. The "Lost" pill in the header only carries the reason as
+ * a hover title, which phones and tablets never show. The comment keeps its
+ * line breaks.
+ */
+export function LostBar({ reason, comment }: { reason: string | null; comment: string | null }) {
+  return (
+    // A comment can run to several lines: the icon then stays beside the first one.
+    <Bar tone="danger" icon={CircleX} alignTop={!!comment}>
+      <strong className="font-semibold">{lostHeadline(reason)}</strong>
+      {comment ? (
+        <span className="mt-0.5 block whitespace-pre-wrap [overflow-wrap:anywhere]">{comment}</span>
+      ) : null}
+    </Bar>
+  );
+}
+
+const BAR_TONES = {
+  warning: "bg-status-warning text-status-warning-foreground",
+  info: "bg-accent text-accent-foreground",
+  danger: "bg-status-danger text-status-danger-foreground",
+} as const;
+
+/** The mockup's `.warnbar` (amber) and `.infobar` (accent) strip, plus a red one for a lost deal, with an icon and an optional button on the right. */
 function Bar({
   tone,
   icon: Icon,
   action,
+  alignTop = false,
   children,
 }: {
-  tone: "warning" | "info";
+  tone: keyof typeof BAR_TONES;
   icon: LucideIcon;
   action?: React.ReactNode;
+  /** For text that may wrap: the icon sits beside the first line instead of the middle. */
+  alignTop?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[9px] px-3 py-[9px] text-[13px]",
-        tone === "warning" ? "bg-status-warning text-status-warning-foreground" : "bg-accent text-accent-foreground",
+        "flex flex-wrap gap-x-2.5 gap-y-2 rounded-[9px] px-3 py-[9px] text-[13px]",
+        alignTop ? "items-start" : "items-center",
+        BAR_TONES[tone],
       )}
     >
-      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      <Icon aria-hidden="true" className={cn("size-4 shrink-0", alignTop && "mt-0.5")} />
       <p className="m-0 min-w-0 flex-1">{children}</p>
       {action}
     </div>

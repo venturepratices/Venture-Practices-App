@@ -11,6 +11,7 @@ import type { ActivitiesPageData, ActivityRow } from "@/lib/sales/activities-pag
 import { activitiesQueryToSearch, type ActivitiesQuery } from "@/lib/sales/activities-query";
 import { getActivitiesPage } from "@/lib/sales/api-client";
 import { appendPage, canChangeDeal } from "@/lib/sales/board-client";
+import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES } from "@/lib/sales/constants";
 import { shortName } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,8 @@ import { useActivityDone } from "@/components/sales/use-activity-done";
 // Everyone / Just me, the day and type filters, and the activities on deals the
 // viewer may see. A filter replaces the URL (never with a page cursor); "Show
 // more" appends the next page (Decision 33); a row opens its deal in the panel
-// (`?deal=<id>` on this page). The round check ticks an activity done and, when
+// (`?deal=<id>` on this page, set with the history API so the list is not
+// loaded again, panel-url.ts). The round check ticks an activity done and, when
 // that leaves an open deal with nothing planned, asks for the next step. Under
 // 640px each row becomes a stacked card with labels (mockup `.t.cards`).
 
@@ -58,8 +60,10 @@ export function ActivitiesView({
   const [controls, setControls] = useOptimistic(data.query);
   // Held here, not in the table: ticking the last row empties the list, and
   // the next-step prompt must outlive the table it was ticked in.
-  const done = useActivityDone(() => router.refresh());
+  const done = useActivityDone(() => refreshAfterWrite(router));
   const now = new Date(nowIso);
+  // Each render from the server carries its own time: a new one means the list is fresh.
+  useEffect(() => pageRendered(), [nowIso]);
 
   function navigate(patch: ActivitiesPatch) {
     const next: ActivitiesQuery = { ...controls, ...patch, cursor: null };
@@ -177,7 +181,7 @@ export function ActivitiesView({
             viewer={viewer}
             now={now}
             dealHref={dealHref}
-            onOpen={(dealId) => router.push(dealHref(dealId), { scroll: false })}
+            onOpen={(dealId) => changePanelUrl(dealHref(dealId), "push", router)}
             markDone={done.markDone}
           />
         )}
@@ -348,7 +352,7 @@ function ActivitiesTable({
                             "flex size-5 items-center justify-center rounded-full border-2 border-input text-transparent transition-[color,background-color,border-color,scale] duration-150 ease-out motion-reduce:transition-none",
                             canEdit && !ticked &&
                               "group-hover/check:border-green-600 group-hover/check:text-green-600 group-active/check:scale-90",
-                            ticked && "border-green-600 bg-green-600 text-white",
+                            ticked && "border-green-700 bg-green-700 text-white",
                             !canEdit && "opacity-50",
                           )}
                         >
@@ -372,6 +376,11 @@ function ActivitiesTable({
                       href={dealHref(row.deal.id)}
                       scroll={false}
                       onClick={(event) => event.stopPropagation()}
+                      // A plain click opens the panel like the row does (no page reload); Ctrl or Cmd still opens a tab.
+                      onNavigate={(event) => {
+                        event.preventDefault();
+                        onOpen(row.deal.id);
+                      }}
                       className="rounded-sm [overflow-wrap:anywhere] outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       {row.deal.title}
@@ -382,7 +391,7 @@ function ActivitiesTable({
                     {row.doneAt ? (
                       <span className="text-muted-foreground">Done</span>
                     ) : (
-                      <NextStepPill next={{ type: row.type, dueAt: row.dueAt }} now={now} />
+                      <NextStepPill next={{ type: row.type, dueAt: row.dueAt, hasTime: row.hasTime }} now={now} />
                     )}
                   </td>
                   <td className={CELL}>

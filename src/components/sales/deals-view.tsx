@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { Plus, SearchX, SquareKanban } from "lucide-react";
 
 import { saveDefaultViewRequest } from "@/lib/sales/api-client";
 import type { BoardPageData } from "@/lib/sales/board";
 import { hasActiveFilters, nextBoardQuery } from "@/lib/sales/board-client";
 import { boardQueryToSearch } from "@/lib/sales/board-query";
+import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,7 +24,8 @@ import { useDealMoves } from "@/components/sales/use-deal-moves";
 // fills the space under the top bar (the board scrolls sideways inside itself,
 // never the page). Every toolbar change replaces the URL with nextBoardQuery,
 // and a pipeline, view or scope change is also remembered for next time
-// (Decision 13). A deal opens in the panel through `?deal=<id>`.
+// (Decision 13). A deal opens in the panel through `?deal=<id>`, set with the
+// history API so browsing deals does not reload the board (panel-url.ts).
 
 export function DealsView({
   data,
@@ -43,7 +45,9 @@ export function DealsView({
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [newDealOpen, setNewDealOpen] = useState(openNew);
-  const moves = useDealMoves(() => router.refresh());
+  const moves = useDealMoves(() => refreshAfterWrite(router));
+  // Each render from the server carries its own time: a new one means the board is fresh.
+  useEffect(() => pageRendered(), [nowIso]);
 
   const now = new Date(nowIso);
   const { query } = data;
@@ -81,7 +85,7 @@ export function DealsView({
     return `${pathname}?${params}`;
   }
 
-  const openDeal = (dealId: string, compose = false) => router.push(dealHref(dealId, compose), { scroll: false });
+  const openDeal = (dealId: string, compose = false) => changePanelUrl(dealHref(dealId, compose), "push", router);
 
   function setNewDeal(open: boolean) {
     setNewDealOpen(open);
@@ -97,7 +101,7 @@ export function DealsView({
 
   function created(pipelineKey: string) {
     if (pipelineKey !== data.pipeline.key) navigate({ pipeline: pipelineKey });
-    else router.refresh();
+    else refreshAfterWrite(router);
   }
 
   const addDealButton = (
@@ -164,7 +168,7 @@ export function DealsView({
               ownerNames={ownerNames}
               moves={moves}
               onOpen={openDeal}
-              onChanged={() => router.refresh()}
+              onChanged={() => refreshAfterWrite(router)}
               onOpenList={() => navigate({ view: "list" })}
               emptyState={pipelineEmpty}
             />
