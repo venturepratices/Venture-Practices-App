@@ -42,12 +42,16 @@ type EditDefaults = {
   defaultSlackUserId: string | null;
 };
 
-type Props =
+type Props = (
   | ({ mode: "create"; trigger: React.ReactElement; clients: ClientOption[] })
-  | ({ mode: "edit"; trigger: React.ReactElement; clients: ClientOption[] } & EditDefaults);
+  | ({ mode: "edit"; trigger: React.ReactElement; clients: ClientOption[] } & EditDefaults)
+) & {
+  /** Open as soon as it mounts: its button was clicked while it was still loading (team-member-form-dialog-lazy.tsx). */
+  defaultOpen?: boolean;
+};
 
 export function TeamMemberFormDialog(props: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.defaultOpen ?? false);
   const action = props.mode === "create" ? createTeamMemberAction : updateTeamMemberAction.bind(null, props.memberId);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
