@@ -312,6 +312,11 @@ function OwnerPicker({ data, onChanged }: { data: DealPanelData; onChanged: () =
 const STAGE_BUTTON =
   "h-6 min-w-0 flex-1 px-2.5 text-[10.5px] font-semibold whitespace-nowrap outline-none transition-[filter,background-color,color] duration-150 [clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%,7px_50%)] first:rounded-l-[5px] first:[clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%)] enabled:hover:brightness-95 focus-visible:brightness-90 focus-visible:inset-ring-2 focus-visible:inset-ring-ring disabled:cursor-default motion-reduce:transition-none pointer-coarse:h-10 max-md:min-w-20 max-md:flex-[1_0_auto] max-md:px-3.5 max-md:text-xs pointer-coarse:min-w-20 pointer-coarse:flex-[1_0_auto] pointer-coarse:px-3.5 pointer-coarse:text-xs";
 
+// A stage not reached yet. On the muted fill the muted grey is 4.32:1 in light,
+// under spec 7.11's 4.5:1, so light uses slate-600, one step darker in the same
+// hue (6.9:1); dark keeps the muted grey (5.5:1) (M12).
+const NOT_REACHED_STAGE = "bg-muted text-slate-600 dark:text-muted-foreground";
+
 /**
  * One chevron per stage (mockup `.stagebar`): passed stages green, the current
  * one a darker green (green-700 and green-800, so their white names pass AA,
@@ -373,7 +378,7 @@ function StageBar({
               ? "bg-green-700 text-white"
               : index === currentIndex
                 ? "bg-green-800 text-white"
-                : "bg-muted text-muted-foreground",
+                : NOT_REACHED_STAGE,
           )}
         >
           <span className="block truncate">{stage.name}</span>
