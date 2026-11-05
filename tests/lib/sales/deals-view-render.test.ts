@@ -177,6 +177,66 @@ describe("Deals screen (server render)", () => {
     expect(proposal).not.toContain("Add deal");
   });
 
+  describe("with Just me on (K2)", () => {
+    // Teammates may have deals in a stage that is empty for you: "No deals in
+    // Proposal Sent yet." said the stage was empty for everyone.
+    const MINE = { pipeline: "direct-mail", view: "board", scope: "mine", status: "open", next: "any", q: "", cursor: null } as const;
+
+    it("says an empty later column has no deals of yours, with the same note", () => {
+      const proposal = column(render(pageData({ query: MINE })), "Proposal Sent");
+      expect(proposal).toContain("No deals of yours in Proposal Sent yet.");
+      expect(proposal).not.toContain("No deals in Proposal Sent yet.");
+      expect(proposal).toContain("New deals start in Demo Complete. Move them here when they reach this stage.");
+      expect(proposal).not.toContain("<button");
+    });
+
+    it("says an empty first column has no deals of yours and still offers + Deal", () => {
+      const first = column(
+        render(
+          pageData({
+            query: MINE,
+            columns: [
+              { stage: DEMO, count: 0, totalCents: 0, cards: [] },
+              { stage: PROPOSAL, count: 1, totalCents: 1440000, cards: [{ ...CARD, stageId: "s4" }] },
+            ],
+          }),
+        ),
+        "Demo Complete",
+      );
+      expect(first).toContain("No deals of yours in Demo Complete yet.");
+      expect(first).toContain("New deals start here.");
+      expect(first).toMatch(/<button[^>]*aria-label="Add deal"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Deal<\/button>/);
+    });
+
+    it("matches the empty pipeline's line in the other columns", () => {
+      const html = render(
+        pageData({
+          query: MINE,
+          columns: [
+            { stage: DEMO, count: 0, totalCents: 0, cards: [] },
+            { stage: PROPOSAL, count: 0, totalCents: 0, cards: [] },
+          ],
+          totals: { count: 0, valueCents: 0 },
+        }),
+      );
+      expect(html).toContain("No deals of yours in Direct Mail yet.");
+      expect(column(html, "Proposal Sent")).toContain("No deals of yours in Proposal Sent yet.");
+    });
+
+    it("still says no matching deals while filters are on", () => {
+      const proposal = column(render(pageData({ query: { ...MINE, next: "overdue" } })), "Proposal Sent");
+      expect(proposal).toContain("No matching deals in Proposal Sent.");
+      expect(proposal).not.toContain("of yours");
+    });
+
+    it("keeps the plain line for someone who only ever sees their own deals", () => {
+      // No Everyone to switch to: "of yours" would hint at deals they cannot see.
+      const proposal = column(render(pageData({ query: MINE, canSeeEveryone: false })), "Proposal Sent");
+      expect(proposal).toContain("No deals in Proposal Sent yet.");
+      expect(proposal).not.toContain("of yours");
+    });
+  });
+
   it("draws the card like the mockup: value, monthly value, overdue pill, rotting days, owner", () => {
     const html = render(pageData());
     expect(html).toContain("Bright Smile Dental");

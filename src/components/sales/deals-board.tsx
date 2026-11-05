@@ -67,6 +67,7 @@ export function DealsBoard({
   onOpenList,
   emptyState,
   filtered,
+  justMine,
   onNewDeal,
 }: {
   columns: BoardColumn[];
@@ -81,6 +82,8 @@ export function DealsBoard({
   emptyState: React.ReactNode | null;
   /** Filters are on: an empty column may hold deals the filters hide. */
   filtered: boolean;
+  /** Just me is on for someone who can see everyone's deals: teammates may have deals in an empty column. */
+  justMine: boolean;
   /** Opens Add deal from an empty first column. */
   onNewDeal: () => void;
 }) {
@@ -112,7 +115,8 @@ export function DealsBoard({
     // Filters on, the stage may still hold deals they hide; clearing the filters is the action then, not Add deal.
     if (filtered) return <EmptyColumn title={`No matching deals in ${stageName}.`} />;
     if (index === 0 && emptyState) return emptyState;
-    const title = `No deals in ${stageName} yet.`;
+    // Just me: the stage is empty of your deals, not everyone's (matches the empty pipeline's line).
+    const title = justMine ? `No deals of yours in ${stageName} yet.` : `No deals in ${stageName} yet.`;
     // The empty pipeline already offers "+ Deal" once, in the first column.
     if (emptyState) return <EmptyColumn title={title} />;
     if (index === 0) return <EmptyColumn title={title} note="New deals start here." onNewDeal={onNewDeal} />;

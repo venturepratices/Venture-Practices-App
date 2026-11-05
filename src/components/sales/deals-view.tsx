@@ -172,6 +172,7 @@ export function DealsView({
               onOpenList={() => navigate({ view: "list" })}
               emptyState={pipelineEmpty}
               filtered={filtered}
+              justMine={justMine}
               onNewDeal={() => setNewDealOpen(true)}
             />
           </>
