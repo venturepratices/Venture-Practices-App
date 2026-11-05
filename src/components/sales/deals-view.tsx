@@ -171,8 +171,8 @@ export function DealsView({
               onChanged={() => refreshAfterWrite(router)}
               onOpenList={() => navigate({ view: "list" })}
               emptyState={pipelineEmpty}
-              // With filters on, an empty column means "nothing matches"; the filter bar's Clear is the action then.
-              onNewDeal={filtered ? null : () => setNewDealOpen(true)}
+              filtered={filtered}
+              onNewDeal={() => setNewDealOpen(true)}
             />
           </>
         ) : data.list ? (

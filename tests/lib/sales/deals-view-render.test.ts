@@ -162,14 +162,18 @@ describe("Deals screen (server render)", () => {
     expect(first).toMatch(/<button[^>]*aria-label="Add deal"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Deal<\/button>/);
   });
 
-  it("keeps empty columns to the mockup line while filters are on (the filter bar has the action)", () => {
+  it("says an empty column has no matching deals while filters are on (M5)", () => {
+    // Proposal Sent may hold deals the filter hides: "No deals in Proposal Sent yet." said it was empty.
     const html = render(
       pageData({
         query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "overdue", q: "", cursor: null },
       }),
     );
     const proposal = column(html, "Proposal Sent");
-    expect(proposal).toContain("No deals in Proposal Sent yet.");
+    expect(proposal).toContain("No matching deals in Proposal Sent.");
+    expect(proposal).not.toContain("yet.");
+    expect(proposal).not.toContain("New deals start");
+    // Clearing the filters is the action then, not Add deal.
     expect(proposal).not.toContain("Add deal");
   });
 
@@ -244,6 +248,9 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain('aria-label="Filter, 2 active"');
     expect(html).toContain("No deals match these filters.");
     expect(html).toContain("Clear filters");
+    for (const stageName of ["Demo Complete", "Proposal Sent"]) {
+      expect(column(html, stageName)).toContain(`No matching deals in ${stageName}.`);
+    }
   });
 
   it("shows the empty pipeline once, in the first column, with a way to add a deal", () => {

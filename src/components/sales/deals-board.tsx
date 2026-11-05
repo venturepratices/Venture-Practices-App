@@ -66,6 +66,7 @@ export function DealsBoard({
   onChanged,
   onOpenList,
   emptyState,
+  filtered,
   onNewDeal,
 }: {
   columns: BoardColumn[];
@@ -78,8 +79,10 @@ export function DealsBoard({
   onOpenList: () => void;
   /** Shown in the first column when the whole pipeline has no deals yet. */
   emptyState: React.ReactNode | null;
-  /** Opens Add deal from an empty first column; null keeps empty columns to the mockup line (filters on). */
-  onNewDeal: (() => void) | null;
+  /** Filters are on: an empty column may hold deals the filters hide. */
+  filtered: boolean;
+  /** Opens Add deal from an empty first column. */
+  onNewDeal: () => void;
 }) {
   // Local copy for optimistic moves. A new board from the server (a filter
   // change or a refresh after a move) replaces it, adjusted during render
@@ -106,13 +109,16 @@ export function DealsBoard({
 
   /** What an empty column says (Decision 20, spec 7.12). Add deal starts every deal in the first stage (spec rule 1). */
   function emptyColumn(index: number, stageName: string): React.ReactNode {
+    // Filters on, the stage may still hold deals they hide; clearing the filters is the action then, not Add deal.
+    if (filtered) return <EmptyColumn title={`No matching deals in ${stageName}.`} />;
     if (index === 0 && emptyState) return emptyState;
-    // The empty pipeline already offers "+ Deal" once, in the first column; filters on, the filter bar has the action.
-    if (emptyState || !onNewDeal) return <EmptyColumn stageName={stageName} />;
-    if (index === 0) return <EmptyColumn stageName={stageName} note="New deals start here." onNewDeal={onNewDeal} />;
+    const title = `No deals in ${stageName} yet.`;
+    // The empty pipeline already offers "+ Deal" once, in the first column.
+    if (emptyState) return <EmptyColumn title={title} />;
+    if (index === 0) return <EmptyColumn title={title} note="New deals start here." onNewDeal={onNewDeal} />;
     // No "+ Deal" here: in this column it read as "add one here", and the deal then landed in the first column.
     const firstStageName = stages[0].name;
-    return <EmptyColumn stageName={stageName} note={`New deals start in ${firstStageName}. Move them here when they reach this stage.`} />;
+    return <EmptyColumn title={title} note={`New deals start in ${firstStageName}. Move them here when they reach this stage.`} />;
   }
 
   function moveHooks(dealId: string, toStageId: string): MoveHooks {
@@ -348,14 +354,14 @@ function StageColumn({
 }
 
 /**
- * An empty column: the mockup's line, then (Decision 20, spec 7.12) how deals
- * get here (`note`), and in the first column a small "+ Deal".
+ * An empty column: the mockup's line (`title`), then (Decision 20, spec
+ * 7.12) how deals get here (`note`), and in the first column a small "+ Deal".
  */
-function EmptyColumn({ stageName, note, onNewDeal }: { stageName: string; note?: string; onNewDeal?: () => void }) {
+function EmptyColumn({ title, note, onNewDeal }: { title: string; note?: string; onNewDeal?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 px-2 py-[18px] text-center text-xs leading-normal text-muted-foreground">
       <p>
-        No deals in {stageName} yet.
+        {title}
         {note ? (
           <>
             <br />
