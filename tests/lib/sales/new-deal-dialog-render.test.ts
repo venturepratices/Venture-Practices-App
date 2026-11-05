@@ -70,7 +70,7 @@ function render() {
 const classList = (value: string) => value.split(/\s+/).filter(Boolean);
 
 describe("Add deal's Person and Organization pickers (server render)", () => {
-  it("open a popup at least as wide as the box, and wider when an option needs it", () => {
+  it("open a popup at least as wide as the box, with room for long names", () => {
     const popups = [...render().matchAll(/data-slot="combobox-content" class="([^"]*)"/g)].map((match) => match[1]);
     expect(popups).toHaveLength(2);
     for (const popup of popups) {
@@ -78,8 +78,18 @@ describe("Add deal's Person and Organization pickers (server render)", () => {
       const merged = classList(cn("w-(--anchor-width)", popup));
       expect(merged).toContain("min-w-(--anchor-width)");
       expect(merged).not.toContain("w-(--anchor-width)");
-      // Still never wider than the screen leaves room for.
-      expect(merged.some((name) => name.startsWith("max-w-") && name.includes("--available-width"))).toBe(true);
+    }
+  });
+
+  it("keep that width while the person types (M2)", () => {
+    // `w-max` sized the popup to its widest option, so its right edge grew with
+    // every key pressed and moved again when search results arrived. The width
+    // must not depend on the options; it stays within the room on screen.
+    for (const popup of [...render().matchAll(/data-slot="combobox-content" class="([^"]*)"/g)].map((match) => match[1])) {
+      const widths = classList(cn("w-(--anchor-width)", popup)).filter((name) => /^w-/.test(name));
+      expect(widths).toHaveLength(1);
+      expect(widths[0]).not.toMatch(/^w-(max|fit|min|auto)$/);
+      expect(widths[0]).toContain("var(--available-width)");
     }
   });
 
