@@ -236,16 +236,36 @@ describe("checkDealValues (the value dialog)", () => {
     });
   });
 
-  it("marks only a box that does not hold an amount, before asking for a price", () => {
-    expect(checkDealValues("14,40", "", true)).toEqual({
-      ok: false,
-      message: "Enter an amount like 14,400.",
-      invalid: { total: true, monthly: false },
-    });
+  it("marks only a box that does not hold an amount when the other one is fine", () => {
     expect(checkDealValues("14400", "-5", false)).toEqual({
       ok: false,
       message: "Enter an amount like 14,400.",
       invalid: { total: false, monthly: true },
+    });
+    // $0 is fine where the stage needs no price, so the empty monthly box is not at fault.
+    expect(checkDealValues("14,40", "", false)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400.",
+      invalid: { total: true, monthly: false },
+    });
+    expect(checkDealValues("abc", "x", true)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400.",
+      invalid: { total: true, monthly: true },
+    });
+  });
+
+  it("also marks a box left at $0 where a price is needed, when the other box is not an amount (M7)", () => {
+    // Fixing the bad total and saving again used to be the first time the empty monthly box turned red.
+    expect(checkDealValues("14,40", "", true)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400. The monthly value must be more than $0.",
+      invalid: { total: true, monthly: true },
+    });
+    expect(checkDealValues("0", "abc", true)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400. The total value must be more than $0.",
+      invalid: { total: true, monthly: true },
     });
   });
 });

@@ -196,13 +196,24 @@ export type DealValuesCheck =
 /**
  * The value dialog's two boxes (total and monthly), read as cents. A box that
  * is not an amount is named first; then, where the stage needs a price
- * (`requireBoth`), a box left at $0. Only the boxes at fault are marked (C5).
+ * (`requireBoth`), a box left at $0. Every box at fault is marked, and the
+ * message covers each of them (C5, M7).
  */
 export function checkDealValues(total: string, monthly: string, requireBoth: boolean): DealValuesCheck {
   const valueCents = parseMoneyToCents(total);
   const mrrCents = parseMoneyToCents(monthly);
   if (valueCents === null || mrrCents === null) {
-    return { ok: false, message: "Enter an amount like 14,400.", invalid: { total: valueCents === null, monthly: mrrCents === null } };
+    const format = "Enter an amount like 14,400.";
+    // The other box may hold an amount that is still $0 where a price is needed.
+    const zeroTotal = requireBoth && valueCents === 0;
+    const zeroMonthly = requireBoth && mrrCents === 0;
+    const message =
+      zeroTotal || zeroMonthly ? `${format} The ${zeroTotal ? "total" : "monthly"} value must be more than $0.` : format;
+    return {
+      ok: false,
+      message,
+      invalid: { total: valueCents === null || zeroTotal, monthly: mrrCents === null || zeroMonthly },
+    };
   }
   const missing = { total: requireBoth && valueCents === 0, monthly: requireBoth && mrrCents === 0 };
   if (missing.total || missing.monthly) {

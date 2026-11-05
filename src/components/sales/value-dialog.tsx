@@ -19,8 +19,8 @@ import { Label } from "@/components/ui/label";
 // into a stage that needs a price (Proposal Sent): both values are required and
 // "Save and move" sends them with the move. "Edit" mode changes the values from
 // the deal panel; $0 is allowed there unless the deal sits in such a stage (the
-// server refuses that too, spec rules 2 and 8). Only the box at fault turns
-// red (checkDealValues); a refusal from the server marks neither box.
+// server refuses that too, spec rules 2 and 8). Every box at fault turns red,
+// and only those (checkDealValues); a refusal from the server marks neither box.
 
 /** The message under the boxes, and which of them it is about. */
 type FormError = { message: string; invalid: { total: boolean; monthly: boolean } };
