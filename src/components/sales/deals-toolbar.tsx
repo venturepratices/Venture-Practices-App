@@ -96,8 +96,10 @@ export function DealsToolbar({
   }, [text, typing]);
 
   useSalesShortcut("search", () => {
-    searchRef.current?.focus();
-    searchRef.current?.select();
+    const box = searchRef.current;
+    if (!box) return false;
+    box.focus();
+    box.select();
   });
 
   const pipelineItems = Object.fromEntries(data.pipelines.map((pipeline) => [pipeline.key, pipeline.name]));

@@ -11,6 +11,7 @@ import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { shortName } from "@/lib/sales/format";
 import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, lostHeadline } from "@/lib/sales/panel-client";
 import { changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
+import { DEAL_PANEL_ATTRIBUTE } from "@/lib/sales/shortcuts";
 import type { TimelineCursor } from "@/lib/sales/timeline";
 import { cn, endOfDay, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,8 @@ export function DealPanel() {
         side="right"
         showCloseButton={false}
         aria-labelledby={titleId}
+        // Marks the panel for the shortcuts: `e` and `t` work only while it is the open window on top.
+        {...{ [DEAL_PANEL_ATTRIBUTE]: "" }}
         // Back to the deal's card, found again by id: a stage change re-draws it in another column.
         finalFocus={() => dealCard(shownId)}
         className={cn(DEAL_PANEL_SHEET_CLASS, "ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none")}

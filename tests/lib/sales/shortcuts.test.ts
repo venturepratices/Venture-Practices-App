@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { isTypingTarget, resolveShortcut, SALES_SHORTCUT_EVENT, SHORTCUT_HELP } from "@/lib/sales/shortcuts";
+import {
+  announceShortcut,
+  isTypingTarget,
+  resolveShortcut,
+  SALES_SHORTCUT_EVENT,
+  SHORTCUT_HELP,
+  shortcutListener,
+  topModalSurface,
+} from "@/lib/sales/shortcuts";
 
 // The Sales keyboard shortcuts (spec 16.1, Pipedrive keys): which key press
 // becomes which action. Pure, so the listener component stays a thin wrapper.
@@ -9,34 +17,115 @@ const key = (k: string, extra: Partial<{ ctrlKey: boolean; metaKey: boolean; alt
   ({ key: k, ctrlKey: false, metaKey: false, altKey: false, inEditable: false, ...extra });
 
 describe("resolveShortcut", () => {
+  // `surface` is the topmost open window: none, the deal panel, or any other (Add deal, Value, Lost, next step, help).
   it.each([["/", "search"], ["n", "new-deal"], ["N", "new-deal"], ["?", "help"]])("%s gives %s", (k, action) =>
-    expect(resolveShortcut(key(k), { dealOpen: false })).toBe(action));
+    expect(resolveShortcut(key(k), { surface: null })).toBe(action));
 
-  it("e and t need an open deal", () => {
-    expect(resolveShortcut(key("e"), { dealOpen: false })).toBeNull();
-    expect(resolveShortcut(key("t"), { dealOpen: false })).toBeNull();
-    expect(resolveShortcut(key("e"), { dealOpen: true })).toBe("new-email");
-    expect(resolveShortcut(key("t"), { dealOpen: true })).toBe("new-task");
+  it("e and t need the deal panel open", () => {
+    expect(resolveShortcut(key("e"), { surface: null })).toBeNull();
+    expect(resolveShortcut(key("t"), { surface: null })).toBeNull();
+    expect(resolveShortcut(key("e"), { surface: "deal-panel" })).toBe("new-email");
+    expect(resolveShortcut(key("t"), { surface: "deal-panel" })).toBe("new-task");
   });
 
-  it("the other keys still work with a deal open", () => {
-    expect(resolveShortcut(key("/"), { dealOpen: true })).toBe("search");
-    expect(resolveShortcut(key("n"), { dealOpen: true })).toBe("new-deal");
-    expect(resolveShortcut(key("?"), { dealOpen: true })).toBe("help");
+  it("in the open deal panel only e and t work: /, n and ? belong to the page behind it", () => {
+    // n used to stack Add deal on the panel, / to focus the board search behind it, ? to stack the help.
+    for (const k of ["/", "n", "?"]) expect(resolveShortcut(key(k), { surface: "deal-panel" }), k).toBeNull();
+  });
+
+  it("no shortcut runs under any other open window", () => {
+    for (const k of ["/", "n", "?", "e", "t"]) expect(resolveShortcut(key(k), { surface: "other" }), k).toBeNull();
   });
 
   it("never fires while typing or with ctrl, cmd or alt", () => {
-    for (const k of ["/", "n", "?", "e", "t"]) expect(resolveShortcut(key(k, { inEditable: true }), { dealOpen: true })).toBeNull();
-    expect(resolveShortcut(key("n", { ctrlKey: true }), { dealOpen: false })).toBeNull();
-    expect(resolveShortcut(key("/", { metaKey: true }), { dealOpen: false })).toBeNull();
-    expect(resolveShortcut(key("n", { altKey: true }), { dealOpen: false })).toBeNull();
-    expect(resolveShortcut(key("Escape"), { dealOpen: true })).toBeNull();
+    for (const k of ["/", "n", "?", "e", "t"]) {
+      expect(resolveShortcut(key(k, { inEditable: true }), { surface: null })).toBeNull();
+      expect(resolveShortcut(key(k, { inEditable: true }), { surface: "deal-panel" })).toBeNull();
+    }
+    expect(resolveShortcut(key("n", { ctrlKey: true }), { surface: null })).toBeNull();
+    expect(resolveShortcut(key("/", { metaKey: true }), { surface: null })).toBeNull();
+    expect(resolveShortcut(key("n", { altKey: true }), { surface: null })).toBeNull();
+    expect(resolveShortcut(key("e", { ctrlKey: true }), { surface: "deal-panel" })).toBeNull();
+    expect(resolveShortcut(key("Escape"), { surface: "deal-panel" })).toBeNull();
   });
 
   it("ignores every other key", () => {
     for (const k of ["a", "x", "Enter", " ", "ArrowLeft", "Tab", "1"]) {
-      expect(resolveShortcut(key(k), { dealOpen: true }), k).toBeNull();
+      expect(resolveShortcut(key(k), { surface: null }), k).toBeNull();
+      expect(resolveShortcut(key(k), { surface: "deal-panel" }), k).toBeNull();
     }
+  });
+});
+
+// A stand-in document for topModalSurface: querySelectorAll answers selector
+// lists of attribute tests (`[role="dialog"][data-open]`) over the elements
+// given, in document order, as the real one does.
+type FakeElement = Record<string, string>;
+
+function matchesCompound(attrs: FakeElement, selector: string): boolean {
+  const tests = [...selector.matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)];
+  if (tests.map((test) => test[0]).join("") !== selector) throw new Error(`The stand-in cannot read the selector ${selector}`);
+  return tests.every(([, name, value]) => (value === undefined ? name in attrs : attrs[name] === value));
+}
+
+function fakeDocument(elements: FakeElement[]) {
+  return {
+    querySelectorAll(selectors: string) {
+      const list = selectors.split(",").map((part) => part.trim());
+      return elements
+        .filter((attrs) => list.some((selector) => matchesCompound(attrs, selector)))
+        .map((attrs) => ({ hasAttribute: (name: string) => name in attrs }));
+    },
+  };
+}
+
+const PANEL_OPEN = { role: "dialog", "data-open": "", "data-sales-deal-panel": "" };
+const DIALOG_OPEN = { role: "dialog", "data-open": "" };
+
+describe("topModalSurface", () => {
+  it("is null with no window open, or one only closing", () => {
+    expect(topModalSurface(fakeDocument([]))).toBeNull();
+    expect(topModalSurface(fakeDocument([{ role: "dialog", "data-closed": "", "data-sales-deal-panel": "" }]))).toBeNull();
+    // An open menu is not a window: keys inside it are typing (isTypingTarget).
+    expect(topModalSurface(fakeDocument([{ role: "menu", "data-open": "" }]))).toBeNull();
+  });
+
+  it("names the deal panel when it is the open window on top", () => {
+    expect(topModalSurface(fakeDocument([PANEL_OPEN]))).toBe("deal-panel");
+  });
+
+  it("names any other window, also one opened over the panel (Value, Lost, next step)", () => {
+    expect(topModalSurface(fakeDocument([DIALOG_OPEN]))).toBe("other");
+    expect(topModalSurface(fakeDocument([PANEL_OPEN, DIALOG_OPEN]))).toBe("other");
+    expect(topModalSurface(fakeDocument([{ role: "alertdialog", "data-open": "" }]))).toBe("other");
+  });
+});
+
+describe("announceShortcut and shortcutListener", () => {
+  it("says nobody took it when no screen listens (so the key is left to the browser)", () => {
+    expect(announceShortcut(new EventTarget(), "search")).toBe(false);
+  });
+
+  it("runs the listener for its action and says it was taken", () => {
+    const target = new EventTarget();
+    let runs = 0;
+    target.addEventListener(SALES_SHORTCUT_EVENT, shortcutListener("search", () => void runs++));
+    expect(announceShortcut(target, "search")).toBe(true);
+    expect(runs).toBe(1);
+  });
+
+  it("leaves the key alone when the listener has nothing to do (returns false)", () => {
+    const target = new EventTarget();
+    target.addEventListener(SALES_SHORTCUT_EVENT, shortcutListener("new-task", () => false));
+    expect(announceShortcut(target, "new-task")).toBe(false);
+  });
+
+  it("ignores other actions", () => {
+    const target = new EventTarget();
+    let runs = 0;
+    target.addEventListener(SALES_SHORTCUT_EVENT, shortcutListener("help", () => void runs++));
+    expect(announceShortcut(target, "search")).toBe(false);
+    expect(runs).toBe(0);
   });
 });
 

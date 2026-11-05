@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { Keyboard } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { SALES_SHORTCUT_EVENT, SHORTCUT_HELP, type ShortcutAction } from "@/lib/sales/shortcuts";
+import { announceShortcut, SHORTCUT_HELP } from "@/lib/sales/shortcuts";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -50,9 +50,7 @@ export function ShortcutsButton({ className }: { className?: string }) {
       aria-label="Keyboard shortcuts"
       title="Keyboard shortcuts (?)"
       className={cn("pointer-coarse:min-h-10 pointer-coarse:min-w-10", className)}
-      onClick={() =>
-        window.dispatchEvent(new CustomEvent<ShortcutAction>(SALES_SHORTCUT_EVENT, { detail: "help" }))
-      }
+      onClick={() => announceShortcut(window, "help")}
     >
       <Keyboard />
     </Button>
