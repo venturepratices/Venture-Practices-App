@@ -35,7 +35,7 @@ function isTrigger(child: unknown) {
   return typeof child === "object" && child !== null && "props" in child && "render" in (child.props as object);
 }
 
-const { standInTrigger } = await import("@/components/team/team-member-form-dialog-lazy");
+const { keepFocusAcrossSwap, standInTrigger } = await import("@/components/team/team-member-form-dialog-lazy");
 const { TeamMemberFormDialog } = await import("@/components/team/team-member-form-dialog");
 
 const click = {} as MouseEvent<HTMLElement>;
@@ -62,6 +62,89 @@ describe("the stand-in trigger shown while the member dialog loads", () => {
     const busy = renderToString(standInTrigger(trigger, true, () => {}));
     expect(busy).toContain('aria-busy="true"');
     expect(busy).toContain(">New team member</button>");
+  });
+});
+
+// React swaps the button's DOM node twice: right after hydration (the stand-in
+// moves into a Suspense boundary) and when the dialog's chunk arrives (the
+// real trigger replaces the stand-in). A keyboard user focused on it then
+// landed on <body> (M4). keepFocusAcrossSwap is the ref both buttons share.
+// A stand-in page: React runs a ref's cleanup just before it removes the node,
+// and a removed node that had focus leaves it on <body>.
+function fakePage() {
+  type FakeButton = { ownerDocument: typeof doc; focus(): void };
+  const body = {};
+  const doc = { body, activeElement: body as unknown };
+  const button = (): FakeButton => {
+    const node: FakeButton = { ownerDocument: doc, focus: () => void (doc.activeElement = node) };
+    return node;
+  };
+  const keep = keepFocusAcrossSwap();
+  return {
+    doc,
+    button,
+    /** React mounts a button with the shared ref. */
+    mount(node: FakeButton) {
+      const cleanup = keep(node as unknown as HTMLElement);
+      return {
+        /** React removes it again. */
+        remove() {
+          cleanup?.();
+          if (doc.activeElement === node) doc.activeElement = body;
+        },
+      };
+    },
+  };
+}
+
+describe("keepFocusAcrossSwap", () => {
+  it("gives focus to the button that replaces the focused one, across both swaps", () => {
+    const page = fakePage();
+    const hydrated = page.button();
+    const first = page.mount(hydrated);
+    hydrated.focus(); // the person tabbed to it
+    first.remove();
+    const fallback = page.button();
+    const second = page.mount(fallback);
+    expect(page.doc.activeElement).toBe(fallback);
+    second.remove();
+    const real = page.button();
+    page.mount(real);
+    expect(page.doc.activeElement).toBe(real);
+  });
+
+  it("leaves focus alone when the replaced button did not have it", () => {
+    const page = fakePage();
+    const elsewhere = page.button();
+    const standIn = page.mount(page.button());
+    standIn.remove();
+    page.mount(page.button());
+    expect(page.doc.activeElement).toBe(page.doc.body);
+    elsewhere.focus();
+    const again = page.mount(page.button());
+    again.remove();
+    page.mount(page.button());
+    expect(page.doc.activeElement).toBe(elsewhere);
+  });
+
+  it("never takes focus from something that has it by then", () => {
+    const page = fakePage();
+    const standInNode = page.button();
+    const standIn = page.mount(standInNode);
+    standInNode.focus();
+    standIn.remove();
+    const other = page.button();
+    other.focus();
+    page.mount(page.button());
+    expect(page.doc.activeElement).toBe(other);
+  });
+});
+
+describe("the stand-in trigger's ref", () => {
+  it("is the ref it is given, so focus can move from it to the real trigger", () => {
+    const ref = keepFocusAcrossSwap();
+    const standIn = standInTrigger(createElement("button", null, "Edit"), false, () => {}, ref);
+    expect((standIn.props as { ref?: unknown }).ref).toBe(ref);
   });
 });
 
