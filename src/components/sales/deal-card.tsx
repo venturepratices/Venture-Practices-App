@@ -134,6 +134,8 @@ export function DealCard({
       <div
         ref={setNodeRef}
         {...(canMove ? { ...attributes, ...listeners } : { role: "button", tabIndex: 0 })}
+        // The deal panel finds the card by this to put focus back on it when it closes.
+        data-deal-id={card.id}
         aria-label={label}
         onKeyDown={handleKeyDown}
         onClick={() => actions.open(card.id)}

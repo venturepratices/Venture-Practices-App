@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  composerDueDate,
+  DEAL_PANEL_SHEET_CLASS,
+  groupTimelineByDay,
+  needsNextStepPrompt,
+  stageCaption,
+} from "@/lib/sales/panel-client";
+import type { TimelineEntry } from "@/lib/sales/timeline";
+import { cn } from "@/lib/utils";
+
+function entry(id: string, at: string): TimelineEntry {
+  return { id, at, actorType: "USER", actorName: "Sarah K.", icon: "stage", text: "Moved to Demo Complete" };
+}
+
+const now = new Date("2026-11-06T04:30:00Z"); // Nov 5, 11:30 PM Eastern
+
+describe("groupTimelineByDay", () => {
+  it("groups history by Eastern day, newest first", () => {
+    const groups = groupTimelineByDay(
+      [entry("e1", "2026-11-06T03:00:00Z"), entry("e2", "2026-11-04T15:00:00Z"), entry("e3", "2026-11-03T15:00:00Z")],
+      now,
+    );
+    expect(groups.map((g) => g.label)).toEqual(["Today", "Yesterday", "Nov 3"]);
+  });
+
+  it("keeps entries of one Eastern day together, in the order they came", () => {
+    // 04:10 UTC on Nov 6 is still Nov 5 in Eastern, so all three are "Today".
+    const groups = groupTimelineByDay(
+      [entry("e1", "2026-11-06T04:10:00Z"), entry("e2", "2026-11-05T20:00:00Z"), entry("e3", "2026-11-05T05:00:00Z")],
+      now,
+    );
+    expect(groups).toEqual([{ label: "Today", entries: [expect.objectContaining({ id: "e1" }), expect.objectContaining({ id: "e2" }), expect.objectContaining({ id: "e3" })] }]);
+  });
+
+  it("gives no groups for no history", () => {
+    expect(groupTimelineByDay([], now)).toEqual([]);
+  });
+});
+
+describe("composerDueDate", () => {
+  it("turns due choices into Eastern dates", () => {
+    expect(composerDueDate("today", "2026-11-05", "")).toBe("2026-11-05");
+    expect(composerDueDate("tomorrow", "2026-11-05", "")).toBe("2026-11-06");
+    expect(composerDueDate("2-days", "2026-11-05", "")).toBe("2026-11-07");
+    expect(composerDueDate("next-week", "2026-11-05", "")).toBe("2026-11-12");
+    expect(composerDueDate("pick", "2026-11-05", "2026-12-01")).toBe("2026-12-01");
+    expect(composerDueDate("pick", "2026-11-05", "")).toBeNull();
+  });
+
+  it("crosses month and year ends on the calendar", () => {
+    expect(composerDueDate("tomorrow", "2026-11-30", "")).toBe("2026-12-01");
+    expect(composerDueDate("next-week", "2026-12-28", "")).toBe("2027-01-04");
+  });
+
+  it("refuses a picked date that is not a real day", () => {
+    expect(composerDueDate("pick", "2026-11-05", "2026-02-30")).toBeNull();
+  });
+});
+
+describe("needsNextStepPrompt", () => {
+  it("prompts for a next step only on open deals with nothing left", () => {
+    expect(needsNextStepPrompt({ status: "OPEN", openActivityCount: 0 })).toBe(true);
+    expect(needsNextStepPrompt({ status: "OPEN", openActivityCount: 1 })).toBe(false);
+    expect(needsNextStepPrompt({ status: "WON", openActivityCount: 0 })).toBe(false);
+    expect(needsNextStepPrompt({ status: "LOST", openActivityCount: 0 })).toBe(false);
+  });
+});
+
+describe("stageCaption", () => {
+  it("captions the stage like the mockup", () => {
+    expect(stageCaption("Demo Complete", 1, 30)).toBe("Demo Complete · 1 day in this stage · 30% win chance");
+    expect(stageCaption("Follow-Up", 9, 85)).toBe("Follow-Up · 9 days in this stage · 85% win chance");
+  });
+
+  it("says 0 days for a deal that entered today", () => {
+    expect(stageCaption("New Lead", 0, 10)).toBe("New Lead · 0 days in this stage · 10% win chance");
+  });
+});
+
+describe("DEAL_PANEL_SHEET_CLASS", () => {
+  it("overrides the Sheet's default width so the panel is full screen on phones and 560px on desktop", () => {
+    // the two width classes SheetContent applies for side="right" (src/components/ui/sheet.tsx)
+    const merged = cn("data-[side=right]:w-3/4 data-[side=right]:sm:max-w-sm", DEAL_PANEL_SHEET_CLASS).split(" ");
+    expect(merged).not.toContain("data-[side=right]:w-3/4");
+    expect(merged).not.toContain("data-[side=right]:sm:max-w-sm");
+    expect(merged).toEqual(expect.arrayContaining(["data-[side=right]:w-full", "data-[side=right]:sm:max-w-[560px]"]));
+  });
+});
