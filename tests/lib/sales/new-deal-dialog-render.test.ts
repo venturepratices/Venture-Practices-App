@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 // place here: what this checks is the classes and markup Add deal gives them.
 
 const choices = vi.hoisted(() => [
-  { key: "person:p1", kind: "existing" as const, id: "p1", name: "Dr. Alexandria Montgomery-Whitfield", detail: "Bright Smile Family and Cosmetic Dentistry" },
+  { key: "person:p1", kind: "existing" as const, id: "p1", name: "Dr. Alexandria M.", detail: "Bright Smile Family and Cosmetic Dentistry" },
   { key: "new", kind: "new" as const, name: "Dana Q." },
 ]);
 
@@ -59,7 +59,7 @@ function render() {
         onOpenChange: vi.fn(),
         pipelines: [{ id: "p1", key: "direct-mail", name: "Direct Mail", kind: "SALES" }],
         currentPipelineId: "p1",
-        members: [{ id: "u1", name: "Ben Shaver" }],
+        members: [{ id: "u1", name: "Ben S." }],
         viewer: { userId: "u1", isAdmin: false },
         onCreated: vi.fn(),
       }),
@@ -97,7 +97,7 @@ describe("Add deal's Person and Organization pickers (server render)", () => {
     const html = render();
     expect(html).toMatch(/<span class="([^"]*)">Add new person: Dana Q\.<\/span>/);
     expect(html).toMatch(/<span class="([^"]*)">Add new organization: Dana Q\.<\/span>/);
-    for (const text of ["Add new person: Dana Q.", "Add new organization: Dana Q.", "Dr. Alexandria Montgomery-Whitfield", "Bright Smile Family and Cosmetic Dentistry"]) {
+    for (const text of ["Add new person: Dana Q.", "Add new organization: Dana Q.", "Dr. Alexandria M.", "Bright Smile Family and Cosmetic Dentistry"]) {
       const spans = [...html.matchAll(new RegExp(`<span class="([^"]*)">${text.replace(/[.]/g, "\\.")}</span>`, "g"))];
       expect(spans.length, text).toBeGreaterThan(0);
       for (const [, classes] of spans) {

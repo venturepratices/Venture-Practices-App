@@ -316,7 +316,7 @@ describe("words and numbers", () => {
   });
 
   it("makes avatar initials from a name", () => {
-    expect(initials("Ben Shaver")).toBe("BS");
+    expect(initials("Ben Example")).toBe("BE");
     expect(initials("Sarah K.")).toBe("SK");
     expect(initials("robert")).toBe("R");
     expect(initials("  ")).toBe("?");

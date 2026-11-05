@@ -47,8 +47,8 @@ function pageData(extra: Partial<ActivitiesPageData> = {}): ActivitiesPageData {
     rows: [CALL, MEETING_ON_ROBERTS_DEAL],
     nextCursor: null,
     members: [
-      { id: "u1", name: "Ben Shaver" },
-      { id: "u2", name: "Robert Ortiz" },
+      { id: "u1", name: "Ben S." },
+      { id: "u2", name: "Robert O." },
     ],
     canSeeEveryone: true,
     ...extra,
@@ -107,7 +107,7 @@ describe("Activities screen (server render)", () => {
     expect(html).toContain('href="/sales/activities?when=overdue&amp;deal=d1"');
     expect(html).toContain("Bright Smile Dental");
     expect(html).toContain("Overdue 2d");
-    expect(html).toContain('aria-label="Owner: Ben Shaver"');
+    expect(html).toContain('aria-label="Owner: Ben S."');
     for (const label of ["Deal:", "Due:", "Owner:"]) expect(html).toContain(label);
   });
 

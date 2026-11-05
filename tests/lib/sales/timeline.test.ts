@@ -13,7 +13,7 @@ type SalesActor = import("@/lib/sales/access").SalesActor;
 type Row = Record<string, unknown>;
 type Args = { where: Row; [key: string]: unknown };
 
-const names = new Map([["b", "Ben Shaver"]]);
+const names = new Map([["b", "Ben Example"]]);
 const describe_ = (action: string, after?: unknown, before?: unknown, actorType = "USER") =>
   describeAuditRow({ action, actorType, before: before ?? null, after: after ?? null }, names);
 
@@ -38,8 +38,8 @@ describe("describeAuditRow", () => {
     ["reopened", describe_("status_changed", { status: "OPEN" }, { status: "LOST" }), "reopened", "Reopened"],
     ["value with monthly", describe_("value_changed", { valueCents: 1_440_000, mrrCents: 120_000 }, { valueCents: 0, mrrCents: 0 }), "value", "Value set to $14,400 ($1,200/mo)"],
     ["value without monthly", describe_("value_changed", { valueCents: 1_440_000, mrrCents: 0 }, { valueCents: 0, mrrCents: 0 }), "value", "Value set to $14,400"],
-    ["owner", describe_("owner_changed", { ownerId: "b" }, { ownerId: "r" }), "owner", "Owner changed to Ben S."],
-    ["owner with moved activities", describe_("owner_changed", { ownerId: "b", movedActivityIds: ["a1"] }, { ownerId: "r" }), "owner", "Owner changed to Ben S."],
+    ["owner", describe_("owner_changed", { ownerId: "b" }, { ownerId: "r" }), "owner", "Owner changed to Ben E."],
+    ["owner with moved activities", describe_("owner_changed", { ownerId: "b", movedActivityIds: ["a1"] }, { ownerId: "r" }), "owner", "Owner changed to Ben E."],
     ["renamed", describe_("updated", { title: "Oak Creek Dental" }, { title: "Oak" }), "field", "Renamed to Oak Creek Dental"],
     ["field set", describe_("field_changed", { fieldKey: "territory-hold-expiry", label: "Territory Hold Expiry", value: "2026-11-19" }, { fieldKey: "territory-hold-expiry", label: "Territory Hold Expiry", value: null }), "field", "Territory Hold Expiry set to 2026-11-19"],
     ["field cleared", describe_("field_changed", { fieldKey: "territory-hold-expiry", label: "Territory Hold Expiry", value: null }, { fieldKey: "territory-hold-expiry", label: "Territory Hold Expiry", value: "2026-11-19" }), "field", "Territory Hold Expiry cleared"],
@@ -109,7 +109,7 @@ function fakeDb(opts: { visible?: boolean; rows?: Row[]; notes?: Row[] } = {}) {
       findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => [
         { id: "r", name: "Rachel P." },
         // A stored full name, to show History shortens it.
-        { id: "b", name: "Ben Shaver" },
+        { id: "b", name: "Ben Example" },
       ]),
     },
     salesNote: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => opts.notes ?? []) },
@@ -180,7 +180,7 @@ describe("loadDealTimeline", () => {
         id: "log1",
         at: log(1).at.toISOString(),
         actorType: "USER",
-        actorName: "Ben S.",
+        actorName: "Ben E.",
         icon: "owner",
         text: "Owner changed to Rachel P.",
       },

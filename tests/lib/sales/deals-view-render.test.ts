@@ -73,8 +73,8 @@ function pageData(extra: Partial<BoardPageData> = {}): BoardPageData {
     list: null,
     totals: { count: 51, valueCents: 1440000 },
     members: [
-      { id: "u1", name: "Ben Shaver" },
-      { id: "u2", name: "Robert Ortiz" },
+      { id: "u1", name: "Ben Example" },
+      { id: "u2", name: "Robert O." },
     ],
     canSeeEveryone: true,
     ...extra,
@@ -183,8 +183,8 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("$1,200/mo");
     expect(html).toContain("Overdue 2d");
     expect(html).toContain('aria-label="16 days in this stage, idle too long"');
-    expect(html).toContain('aria-label="Owner: Ben Shaver"');
-    expect(html).toContain(">BS<");
+    expect(html).toContain('aria-label="Owner: Ben Example"');
+    expect(html).toContain(">BE<");
     // Only the owner or an admin may drag it: the owner's card is draggable.
     expect(html).toContain('aria-roledescription="deal"');
   });
@@ -284,7 +284,7 @@ describe("Deals screen (server render)", () => {
       expect(html).toContain(`>${heading}</th>`);
     }
     for (const label of ["Person:", "Stage:", "Value:", "Next:", "Owner:"]) expect(html).toContain(label);
-    expect(html).toContain("Ben S.");
+    expect(html).toContain("Ben E.");
     expect(html).toContain('href="/sales/deals?pipeline=direct-mail&amp;deal=d1"');
     expect(html).toContain("Show more");
   });

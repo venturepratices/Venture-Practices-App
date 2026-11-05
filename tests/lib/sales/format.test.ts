@@ -59,8 +59,8 @@ describe("formatMoney", () => {
 
 describe("shortName", () => {
   it("shortens names to first name and last initial", () => {
-    expect(shortName("Robert Ortiz")).toBe("Robert O.");
-    expect(shortName("  Mary Ann Lee ")).toBe("Mary L.");
+    expect(shortName("Dana Example")).toBe("Dana E.");
+    expect(shortName("  Mary Ann Example ")).toBe("Mary E.");
     expect(shortName("DJ")).toBe("DJ");
     expect(shortName("Sarah K.")).toBe("Sarah K.");
   });

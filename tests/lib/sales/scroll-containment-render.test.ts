@@ -63,7 +63,7 @@ const CARD: BoardCard = {
 
 const PIPELINE = { id: "p1", key: "direct-mail", name: "Direct Mail", kind: "SALES" as const };
 const MEMBERS = [
-  { id: "u1", name: "Ben Shaver" },
+  { id: "u1", name: "Ben S." },
   { id: "u2", name: "Dana Q." },
 ];
 const VIEWER = { userId: "u1", isAdmin: false };
