@@ -167,7 +167,9 @@ export function DealPanelHeader({
         onMove={(target, hooks) => void moves.move(movable, target, hooks)}
       />
       {stage ? (
-        <p className="mt-[5px] mb-0 text-[11.5px] text-muted-foreground">{stageCaption(stage.name, days, stage.probability)}</p>
+        <p className="mt-[5px] mb-0 text-[11.5px] text-muted-foreground">
+          {stageCaption(stage.name, days, stage.probability, deal.status)}
+        </p>
       ) : null}
     </header>
   );

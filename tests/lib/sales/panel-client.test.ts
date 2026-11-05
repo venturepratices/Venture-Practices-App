@@ -71,13 +71,19 @@ describe("needsNextStepPrompt", () => {
 });
 
 describe("stageCaption", () => {
-  it("captions the stage like the mockup", () => {
-    expect(stageCaption("Demo Complete", 1, 30)).toBe("Demo Complete · 1 day in this stage · 30% win chance");
-    expect(stageCaption("Follow-Up", 9, 85)).toBe("Follow-Up · 9 days in this stage · 85% win chance");
+  it("captions an open deal's stage like the mockup", () => {
+    expect(stageCaption("Demo Complete", 1, 30, "OPEN")).toBe("Demo Complete · 1 day in this stage · 30% win chance");
+    expect(stageCaption("Follow-Up", 9, 85, "OPEN")).toBe("Follow-Up · 9 days in this stage · 85% win chance");
   });
 
   it("says 0 days for a deal that entered today", () => {
-    expect(stageCaption("New Lead", 0, 10)).toBe("New Lead · 0 days in this stage · 10% win chance");
+    expect(stageCaption("New Lead", 0, 10, "OPEN")).toBe("New Lead · 0 days in this stage · 10% win chance");
+  });
+
+  it("gives a closed deal its status instead of the stage's win chance and clock (C3)", () => {
+    // A lost deal in Contract Signed used to read "0 days in this stage · 100% win chance".
+    expect(stageCaption("Contract Signed", 0, 100, "LOST")).toBe("Lost · Contract Signed");
+    expect(stageCaption("Contract Signed", 3, 100, "WON")).toBe("Won · Contract Signed");
   });
 });
 

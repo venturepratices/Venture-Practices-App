@@ -75,7 +75,18 @@ export function lostHeadline(reason: string | null): string {
   return trimmed ? `Lost: ${trimmed}.` : "Lost.";
 }
 
-/** The line under the stage bar: "Demo Complete · 1 day in this stage · 30% win chance". */
-export function stageCaption(stageName: string, days: number, probability: number): string {
+/**
+ * The line under the stage bar: "Demo Complete · 1 day in this stage · 30%
+ * win chance" for an open deal. A won or lost deal says its status and where
+ * it sits ("Lost · Contract Signed"): the stage's win chance and clock no
+ * longer apply to it (C3; a lost deal counts 0% in forecasts, Ruling 19).
+ */
+export function stageCaption(
+  stageName: string,
+  days: number,
+  probability: number,
+  status: "OPEN" | "WON" | "LOST",
+): string {
+  if (status !== "OPEN") return `${status === "WON" ? "Won" : "Lost"} · ${stageName}`;
   return `${stageName} · ${days} ${days === 1 ? "day" : "days"} in this stage · ${probability}% win chance`;
 }
