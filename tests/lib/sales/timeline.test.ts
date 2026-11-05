@@ -31,6 +31,7 @@ describe("describeAuditRow", () => {
     ["created", describe_("created", { title: "Oak" }), "created", "Deal created"],
     ["stage by a person", describe_("stage_changed", { stageId: "s2", stageName: "Proposal Sent" }, { stageId: "s1", stageName: "Lead In" }), "stage", "Moved to Proposal Sent"],
     ["stage by the rule", describe_("stage_changed", { stageId: "s3", stageName: "No Show" }, { stageId: "s2", stageName: "Demo" }, "SYSTEM"), "stage", "Moved to No Show (No Show rule)"],
+    ["stage put back by an undo (M8)", describe_("stage_changed", { stageId: "s1", stageName: "Lead In", stageEnteredAt: "2026-10-30T14:00:00.000Z", undo: true }, { stageId: "s2", stageName: "Proposal Sent", stageEnteredAt: "2026-11-05T14:58:00.000Z" }), "stage", "Moved back to Lead In (undo)"],
     ["won", describe_("status_changed", { status: "WON" }, { status: "OPEN" }), "won", "Marked as won"],
     ["lost", describe_("status_changed", { status: "LOST", lostReason: "Price" }, { status: "OPEN" }), "lost", "Marked as lost: Price"],
     ["lost with a comment", describe_("status_changed", { status: "LOST", lostReason: "Price", lostComment: "Went with a cheaper printer" }, { status: "OPEN" }), "lost", "Marked as lost: Price. Went with a cheaper printer"],
@@ -76,6 +77,9 @@ describe("describeAuditRow", () => {
     );
     expect(describe_("activity_done", null).text).toBe("Activity done");
     expect(describe_("stage_changed", "junk").text).toBe("Moved to another stage");
+    // Only a real `true` reads as an undo.
+    expect(describe_("stage_changed", { stageId: "s1", stageName: "Lead In", undo: "yes" }).text).toBe("Moved to Lead In");
+    expect(describe_("stage_changed", { undo: true }).text).toBe("Moved back to another stage (undo)");
   });
 });
 

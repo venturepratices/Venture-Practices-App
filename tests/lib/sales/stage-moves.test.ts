@@ -566,7 +566,12 @@ describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
       ["a3", null],
     ]);
     expect(actions()).toEqual(["stage_changed", "activity_removed"]);
-    expect(state.audits[0].after).toEqual({ stageId: "s2", stageName: "Appointment Scheduled" });
+    expect(state.audits[0].after).toEqual({
+      stageId: "s2",
+      stageName: "Appointment Scheduled",
+      stageEnteredAt: "2026-10-30T14:00:00.000Z",
+      undo: true,
+    });
     expect(state.audits[1]).toMatchObject({ actorType: "USER", actorId: "r", ipAddress: "203.0.113.9" });
     expect(state.audits[1].before).toEqual({ activityId: "a1", type: "CALL", subject: "Reschedule the missed demo" });
   });
@@ -614,12 +619,13 @@ describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage 
       where: { entityType: "SalesDeal", entityId: "d1", action: "stage_changed" },
       orderBy: [{ at: "desc" }, { id: "desc" }],
     });
-    // The undo is a move of its own in the history, keeping the time it took away.
+    // The undo is a move of its own in the history, keeping the time it took away,
+    // and saying it was an undo and which entry time it put back (M8).
     expect(state.audits.map((row) => [row.action, row.before, row.after])).toEqual([
       [
         "stage_changed",
         { stageId: "s5", stageName: "Proposal Sent", stageEnteredAt: "2026-11-05T14:58:00.000Z" },
-        { stageId: "s4", stageName: "Demo Complete" },
+        { stageId: "s4", stageName: "Demo Complete", stageEnteredAt: "2026-10-30T14:00:00.000Z", undo: true },
       ],
     ]);
   });
@@ -631,6 +637,7 @@ describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage 
     expect(res.status).toBe(200);
     expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
     expect(db.salesAuditLog.findFirst).not.toHaveBeenCalled();
+    expect(state.audits[0].after).toEqual({ stageId: "s4", stageName: "Demo Complete" });
   });
 
   it("an undo whose move is no longer the deal's latest stage change is an ordinary move", async () => {
@@ -644,6 +651,8 @@ describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage 
 
     expect(res.status).toBe(200);
     expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
+    // The undo flag comes from the screen: the row says undo only when the server put a time back.
+    expect(state.audits[0].after).toEqual({ stageId: "s4", stageName: "Demo Complete" });
   });
 
   it("trusts the row only when it brought the deal into the stage it is in now", async () => {
@@ -673,6 +682,8 @@ describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage 
     expect(db.salesAuditLog.findFirst).toHaveBeenCalledTimes(1);
     expect(await db.salesAuditLog.findFirst.mock.results[0].value).toEqual({ before: seeded.before, after: seeded.after });
     expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
+    // Nothing was put back, so the history row is an ordinary move.
+    expect(state.audits[0].after).toEqual({ stageId: "s4", stageName: "Demo Complete" });
   });
 
   it("refuses an undo flag that is not true", async () => {

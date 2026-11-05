@@ -207,7 +207,9 @@ async function attemptMove(
   const violation = checkStageMove(value, target);
   if (violation) return fail(422, violation.message, violation.code);
 
-  const stageEnteredAt = (input.undo && (await undoneStageEnteredAt(tx, deal, target.id, now))) || now;
+  // Only a time the server read back from the move being undone; null means an ordinary move.
+  const restoredEnteredAt = input.undo ? await undoneStageEnteredAt(tx, deal, target.id, now) : null;
+  const stageEnteredAt = restoredEnteredAt ?? now;
 
   // Checks done. The write lands only on the deal as checked (still open, in
   // the same stage, with the same values the money rule saw); otherwise another
@@ -243,7 +245,10 @@ async function attemptMove(
     {
       action: "stage_changed",
       before: { stageId: deal.stageId, stageName: deal.stage.name, stageEnteredAt: deal.stageEnteredAt.toISOString() },
-      after: { stageId: target.id, stageName: target.name },
+      // An undo that put the clock back says so, with the time it put back (M8).
+      after: restoredEnteredAt
+        ? { stageId: target.id, stageName: target.name, stageEnteredAt: restoredEnteredAt.toISOString(), undo: true }
+        : { stageId: target.id, stageName: target.name },
     },
     meta,
   );

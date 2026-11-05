@@ -17,6 +17,13 @@ type StageRef = { stageId: string; stageName: string };
  * from a toast), leave it out.
  */
 type LeftStage = StageRef & { stageEnteredAt?: string };
+/**
+ * The stage a deal went to. An Undo that put back when the deal had entered
+ * that stage (stage-moves.ts) says so, with the time it put back, so the row is
+ * never read as a move by hand. Every other move, the undo flag sent without a
+ * time the server could put back included, is the plain reference.
+ */
+type EnteredStage = StageRef | (StageRef & { stageEnteredAt: string; undo: true });
 type ActivityRef = { activityId: string; type: SalesActivityType; subject: string };
 type FieldRef = { fieldKey: string; label: string; value: string | null };
 type Money = { valueCents: number; mrrCents: number };
@@ -40,7 +47,7 @@ export type DealAuditEvent =
     }
   /** Only the keys that changed. */
   | { action: "updated"; before: Partial<Editable>; after: Partial<Editable> }
-  | { action: "stage_changed"; before: LeftStage; after: StageRef }
+  | { action: "stage_changed"; before: LeftStage; after: EnteredStage }
   | {
       action: "status_changed";
       before: { status: SalesDealStatus };

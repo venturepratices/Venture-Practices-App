@@ -117,8 +117,10 @@ export function describeAuditRow(
     case "created":
       return { icon: "created", text: "Deal created" };
     case "stage_changed": {
-      const stageName = str(after, "stageName");
-      const moved = stageName ? `Moved to ${stageName}` : "Moved to another stage";
+      const stageName = str(after, "stageName") ?? "another stage";
+      // A toast's Undo that put the earlier entry time back (stage-moves.ts), not a move by hand.
+      if (after.undo === true) return { icon: "stage", text: `Moved back to ${stageName} (undo)` };
+      const moved = `Moved to ${stageName}`;
       // The only rule that moves deals is the No Show rule.
       return { icon: "stage", text: row.actorType === "SYSTEM" ? `${moved} (No Show rule)` : moved };
     }
