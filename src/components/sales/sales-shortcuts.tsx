@@ -42,7 +42,8 @@ export function SalesShortcuts() {
         altKey: event.altKey,
         inEditable: isTypingTarget(target),
       },
-      { surface: topModalSurface(document) },
+      // Asked for only when the key could be a shortcut: it scans the whole page.
+      { surface: () => topModalSurface(document) },
     );
     if (!action) return;
     if (action === "new-deal" && pathname !== "/sales/deals") {

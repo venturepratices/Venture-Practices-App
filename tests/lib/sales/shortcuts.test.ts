@@ -8,6 +8,7 @@ import {
   SHORTCUT_HELP,
   shortcutListener,
   topModalSurface,
+  type ModalSurface,
 } from "@/lib/sales/shortcuts";
 
 // The Sales keyboard shortcuts (spec 16.1, Pipedrive keys): which key press
@@ -16,43 +17,64 @@ import {
 const key = (k: string, extra: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; inEditable: boolean }> = {}) =>
   ({ key: k, ctrlKey: false, metaKey: false, altKey: false, inEditable: false, ...extra });
 
+/** The open window on top, asked for only when resolveShortcut needs it. */
+const on = (surface: ModalSurface) => ({ surface: () => surface });
+
 describe("resolveShortcut", () => {
+  // Finding the open window scans the whole page. Every key press while typing
+  // a note or a search used to pay for that scan (M10); only a key that could
+  // be a shortcut may ask for it.
+  it("looks for the open window only when the key could be a shortcut", () => {
+    let asked = 0;
+    const counted = { surface: () => (asked++, null) };
+    for (const k of ["a", "Enter", "Shift", " ", "1", "ArrowLeft"]) resolveShortcut(key(k), counted);
+    for (const k of ["/", "n", "?", "e", "t"]) {
+      resolveShortcut(key(k, { inEditable: true }), counted);
+      resolveShortcut(key(k, { ctrlKey: true }), counted);
+      resolveShortcut(key(k, { metaKey: true }), counted);
+      resolveShortcut(key(k, { altKey: true }), counted);
+    }
+    expect(asked).toBe(0);
+    expect(resolveShortcut(key("n"), counted)).toBe("new-deal");
+    expect(asked).toBe(1);
+  });
+
   // `surface` is the topmost open window: none, the deal panel, or any other (Add deal, Value, Lost, next step, help).
   it.each([["/", "search"], ["n", "new-deal"], ["N", "new-deal"], ["?", "help"]])("%s gives %s", (k, action) =>
-    expect(resolveShortcut(key(k), { surface: null })).toBe(action));
+    expect(resolveShortcut(key(k), on(null))).toBe(action));
 
   it("e and t need the deal panel open", () => {
-    expect(resolveShortcut(key("e"), { surface: null })).toBeNull();
-    expect(resolveShortcut(key("t"), { surface: null })).toBeNull();
-    expect(resolveShortcut(key("e"), { surface: "deal-panel" })).toBe("new-email");
-    expect(resolveShortcut(key("t"), { surface: "deal-panel" })).toBe("new-task");
+    expect(resolveShortcut(key("e"), on(null))).toBeNull();
+    expect(resolveShortcut(key("t"), on(null))).toBeNull();
+    expect(resolveShortcut(key("e"), on("deal-panel"))).toBe("new-email");
+    expect(resolveShortcut(key("t"), on("deal-panel"))).toBe("new-task");
   });
 
   it("in the open deal panel only e and t work: /, n and ? belong to the page behind it", () => {
     // n used to stack Add deal on the panel, / to focus the board search behind it, ? to stack the help.
-    for (const k of ["/", "n", "?"]) expect(resolveShortcut(key(k), { surface: "deal-panel" }), k).toBeNull();
+    for (const k of ["/", "n", "?"]) expect(resolveShortcut(key(k), on("deal-panel")), k).toBeNull();
   });
 
   it("no shortcut runs under any other open window", () => {
-    for (const k of ["/", "n", "?", "e", "t"]) expect(resolveShortcut(key(k), { surface: "other" }), k).toBeNull();
+    for (const k of ["/", "n", "?", "e", "t"]) expect(resolveShortcut(key(k), on("other")), k).toBeNull();
   });
 
   it("never fires while typing or with ctrl, cmd or alt", () => {
     for (const k of ["/", "n", "?", "e", "t"]) {
-      expect(resolveShortcut(key(k, { inEditable: true }), { surface: null })).toBeNull();
-      expect(resolveShortcut(key(k, { inEditable: true }), { surface: "deal-panel" })).toBeNull();
+      expect(resolveShortcut(key(k, { inEditable: true }), on(null))).toBeNull();
+      expect(resolveShortcut(key(k, { inEditable: true }), on("deal-panel"))).toBeNull();
     }
-    expect(resolveShortcut(key("n", { ctrlKey: true }), { surface: null })).toBeNull();
-    expect(resolveShortcut(key("/", { metaKey: true }), { surface: null })).toBeNull();
-    expect(resolveShortcut(key("n", { altKey: true }), { surface: null })).toBeNull();
-    expect(resolveShortcut(key("e", { ctrlKey: true }), { surface: "deal-panel" })).toBeNull();
-    expect(resolveShortcut(key("Escape"), { surface: "deal-panel" })).toBeNull();
+    expect(resolveShortcut(key("n", { ctrlKey: true }), on(null))).toBeNull();
+    expect(resolveShortcut(key("/", { metaKey: true }), on(null))).toBeNull();
+    expect(resolveShortcut(key("n", { altKey: true }), on(null))).toBeNull();
+    expect(resolveShortcut(key("e", { ctrlKey: true }), on("deal-panel"))).toBeNull();
+    expect(resolveShortcut(key("Escape"), on("deal-panel"))).toBeNull();
   });
 
   it("ignores every other key", () => {
     for (const k of ["a", "x", "Enter", " ", "ArrowLeft", "Tab", "1"]) {
-      expect(resolveShortcut(key(k), { surface: null }), k).toBeNull();
-      expect(resolveShortcut(key(k), { surface: "deal-panel" }), k).toBeNull();
+      expect(resolveShortcut(key(k), on(null)), k).toBeNull();
+      expect(resolveShortcut(key(k), on("deal-panel")), k).toBeNull();
     }
   });
 });

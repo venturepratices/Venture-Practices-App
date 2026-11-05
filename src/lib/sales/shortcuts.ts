@@ -73,32 +73,32 @@ export const SHORTCUT_HELP: { keys: string; label: string }[] = [
   { keys: "?", label: "This list" },
 ];
 
+/** What each shortcut key does on a page, and in the open deal panel (keys in lower case). */
+const KEY_ACTIONS = new Map<string, { page: ShortcutAction | null; panel: ShortcutAction | null }>([
+  ["/", { page: "search", panel: null }],
+  ["n", { page: "new-deal", panel: null }],
+  ["?", { page: "help", panel: null }],
+  ["e", { page: null, panel: "new-email" }],
+  ["t", { page: null, panel: "new-task" }],
+]);
+
 /**
  * Which action a key press means, or null. Never while the person is typing,
  * and never with Ctrl, Cmd or Alt held (those belong to the browser). While a
  * window is open only its own keys work: `e` and `t` in the deal panel, and
  * nothing under any other window (`n` would stack Add deal on it, `/` would
  * focus the board search behind it). Esc is not here: the open panel or window
- * closes itself.
+ * closes itself. `surface` (topModalSurface, a scan of the whole page) is
+ * asked for only once the key could be a shortcut, never while typing.
  */
 export function resolveShortcut(
   e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; inEditable: boolean },
-  ctx: { surface: ModalSurface },
+  ctx: { surface: () => ModalSurface },
 ): ShortcutAction | null {
-  if (e.inEditable || e.ctrlKey || e.metaKey || e.altKey || ctx.surface === "other") return null;
-  const inPanel = ctx.surface === "deal-panel";
-  switch (e.key.length === 1 ? e.key.toLowerCase() : e.key) {
-    case "/":
-      return inPanel ? null : "search";
-    case "n":
-      return inPanel ? null : "new-deal";
-    case "?":
-      return inPanel ? null : "help";
-    case "e":
-      return inPanel ? "new-email" : null;
-    case "t":
-      return inPanel ? "new-task" : null;
-    default:
-      return null;
-  }
+  if (e.inEditable || e.ctrlKey || e.metaKey || e.altKey) return null;
+  const actions = KEY_ACTIONS.get(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+  if (!actions) return null;
+  const surface = ctx.surface();
+  if (surface === "other") return null;
+  return surface === "deal-panel" ? actions.panel : actions.page;
 }
