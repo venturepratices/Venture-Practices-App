@@ -2,8 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 
-import { moneyInputValue } from "@/lib/sales/board-client";
-import { parseMoneyToCents } from "@/lib/sales/format";
+import { checkDealValues, moneyInputValue } from "@/lib/sales/board-client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,10 +19,13 @@ import { Label } from "@/components/ui/label";
 // into a stage that needs a price (Proposal Sent): both values are required and
 // "Save and move" sends them with the move. "Edit" mode changes the values from
 // the deal panel; $0 is allowed there unless the deal sits in such a stage (the
-// server refuses that too, spec rules 2 and 8).
+// server refuses that too, spec rules 2 and 8). Only the box at fault turns
+// red (checkDealValues); a refusal from the server marks neither box.
 
-const BOTH_REQUIRED = "Both must be more than $0.";
-const MONEY_FORMAT = "Enter an amount like 14,400.";
+/** The message under the boxes, and which of them it is about. */
+type FormError = { message: string; invalid: { total: boolean; monthly: boolean } };
+
+const NO_BOX = { total: false, monthly: false };
 
 export type DealValues = { valueCents: number; mrrCents: number };
 
@@ -97,31 +99,33 @@ function ValueForm({
   const id = useId();
   const [total, setTotal] = useState(() => moneyInputValue(initialValueCents));
   const [monthly, setMonthly] = useState(() => moneyInputValue(initialMrrCents));
-  const [error, setError] = useState<string | null>(null);
+  const monthlyRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<FormError | null>(null);
   const [saving, setSaving] = useState(false);
   const errorId = `${id}-error`;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
-    const valueCents = parseMoneyToCents(total);
-    const mrrCents = parseMoneyToCents(monthly);
-    if (valueCents === null || mrrCents === null || (requireBoth && (valueCents === 0 || mrrCents === 0))) {
-      setError(valueCents === null || mrrCents === null ? MONEY_FORMAT : BOTH_REQUIRED);
-      firstFieldRef.current?.focus();
+    const check = checkDealValues(total, monthly, requireBoth);
+    if (!check.ok) {
+      setError({ message: check.message, invalid: check.invalid });
+      // Straight to the first box that needs fixing.
+      (check.invalid.total ? firstFieldRef : monthlyRef).current?.focus();
       return;
     }
     setError(null);
     setSaving(true);
-    const problem = await onSave({ valueCents, mrrCents });
+    const problem = await onSave(check.values);
     // On success the dialog closes and this form unmounts; only a refusal stays to be read.
     if (problem) {
-      setError(problem);
+      setError({ message: problem, invalid: NO_BOX });
       setSaving(false);
     }
   }
 
-  const invalid = error !== null;
+  const totalInvalid = error?.invalid.total ?? false;
+  const monthlyInvalid = error?.invalid.monthly ?? false;
 
   return (
     <form onSubmit={submit} className="grid gap-4" noValidate>
@@ -149,8 +153,8 @@ function ValueForm({
               placeholder="14400"
               value={total}
               onChange={(event) => setTotal(event.target.value)}
-              aria-invalid={invalid || undefined}
-              aria-describedby={invalid ? errorId : undefined}
+              aria-invalid={totalInvalid || undefined}
+              aria-describedby={totalInvalid ? errorId : undefined}
               className="tabular-nums pointer-coarse:h-10"
             />
           </div>
@@ -159,21 +163,22 @@ function ValueForm({
               Monthly value ($)
             </Label>
             <Input
+              ref={monthlyRef}
               id={`${id}-monthly`}
               inputMode="decimal"
               autoComplete="off"
               placeholder="1200"
               value={monthly}
               onChange={(event) => setMonthly(event.target.value)}
-              aria-invalid={invalid || undefined}
-              aria-describedby={invalid ? errorId : undefined}
+              aria-invalid={monthlyInvalid || undefined}
+              aria-describedby={monthlyInvalid ? errorId : undefined}
               className="tabular-nums pointer-coarse:h-10"
             />
           </div>
         </div>
         {error ? (
           <p id={errorId} role="alert" className="text-[0.8rem] text-destructive">
-            {error}
+            {error.message}
           </p>
         ) : null}
       </div>

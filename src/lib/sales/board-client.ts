@@ -1,7 +1,7 @@
 import type { BoardColumn } from "@/lib/sales/board";
 import type { BoardQuery } from "@/lib/sales/board-query";
 import { BOARD_COLUMN_LIMIT } from "@/lib/sales/constants";
-import { formatMoney } from "@/lib/sales/format";
+import { formatMoney, parseMoneyToCents } from "@/lib/sales/format";
 import type { MoveDealInput, MoveResult } from "@/lib/sales/stage-moves";
 
 // The Deals board's client-side logic: optimistic moves, the toolbar's URL
@@ -186,6 +186,33 @@ export function moneyInputValue(cents: number): string {
   const dollars = Math.floor(cents / 100);
   const rest = cents % 100;
   return rest === 0 ? String(dollars) : `${dollars}.${String(rest).padStart(2, "0")}`;
+}
+
+export type DealValuesCheck =
+  | { ok: true; values: { valueCents: number; mrrCents: number } }
+  /** `invalid` names only the box or boxes the message is about, so only they are marked. */
+  | { ok: false; message: string; invalid: { total: boolean; monthly: boolean } };
+
+/**
+ * The value dialog's two boxes (total and monthly), read as cents. A box that
+ * is not an amount is named first; then, where the stage needs a price
+ * (`requireBoth`), a box left at $0. Only the boxes at fault are marked (C5).
+ */
+export function checkDealValues(total: string, monthly: string, requireBoth: boolean): DealValuesCheck {
+  const valueCents = parseMoneyToCents(total);
+  const mrrCents = parseMoneyToCents(monthly);
+  if (valueCents === null || mrrCents === null) {
+    return { ok: false, message: "Enter an amount like 14,400.", invalid: { total: valueCents === null, monthly: mrrCents === null } };
+  }
+  const missing = { total: requireBoth && valueCents === 0, monthly: requireBoth && mrrCents === 0 };
+  if (missing.total || missing.monthly) {
+    const message =
+      missing.total && missing.monthly
+        ? "Both must be more than $0."
+        : `The ${missing.total ? "total" : "monthly"} value must be more than $0.`;
+    return { ok: false, message, invalid: missing };
+  }
+  return { ok: true, values: { valueCents, mrrCents } };
 }
 
 /** Avatar letters: first and last initial ("Ben Shaver" -> "BS", "Sarah K." -> "SK"). */

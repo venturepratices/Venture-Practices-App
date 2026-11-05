@@ -7,6 +7,7 @@ import {
   applyOptimisticMove,
   applyOptimisticRemove,
   canChangeDeal,
+  checkDealValues,
   dealsSummary,
   dragAnnouncements,
   hasActiveFilters,
@@ -198,6 +199,53 @@ describe("undoMoveBody", () => {
       stageId: "s2",
       undo: true,
       undoActivityIds: ["a1"],
+    });
+  });
+});
+
+describe("checkDealValues (the value dialog)", () => {
+  it("reads both boxes as cents", () => {
+    expect(checkDealValues("$14,400", "1200.50", true)).toEqual({ ok: true, values: { valueCents: 1_440_000, mrrCents: 120_050 } });
+  });
+
+  it("allows $0 when the stage needs no price", () => {
+    expect(checkDealValues("", "", false)).toEqual({ ok: true, values: { valueCents: 0, mrrCents: 0 } });
+  });
+
+  it("marks only the monthly value when the total is filled and the monthly is empty (C5)", () => {
+    expect(checkDealValues("14400", "", true)).toEqual({
+      ok: false,
+      message: "The monthly value must be more than $0.",
+      invalid: { total: false, monthly: true },
+    });
+  });
+
+  it("marks only the total when it is the one missing", () => {
+    expect(checkDealValues("0", "1200", true)).toEqual({
+      ok: false,
+      message: "The total value must be more than $0.",
+      invalid: { total: true, monthly: false },
+    });
+  });
+
+  it("marks both when both are missing", () => {
+    expect(checkDealValues("", " ", true)).toEqual({
+      ok: false,
+      message: "Both must be more than $0.",
+      invalid: { total: true, monthly: true },
+    });
+  });
+
+  it("marks only a box that does not hold an amount, before asking for a price", () => {
+    expect(checkDealValues("14,40", "", true)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400.",
+      invalid: { total: true, monthly: false },
+    });
+    expect(checkDealValues("14400", "-5", false)).toEqual({
+      ok: false,
+      message: "Enter an amount like 14,400.",
+      invalid: { total: false, monthly: true },
     });
   });
 });
