@@ -78,7 +78,7 @@ export function DealsBoard({
   onOpenList: () => void;
   /** Shown in the first column when the whole pipeline has no deals yet. */
   emptyState: React.ReactNode | null;
-  /** Opens Add deal from an empty column; null keeps empty columns to the mockup line (filters on). */
+  /** Opens Add deal from an empty first column; null keeps empty columns to the mockup line (filters on). */
   onNewDeal: (() => void) | null;
 }) {
   // Local copy for optimistic moves. A new board from the server (a filter
@@ -103,6 +103,17 @@ export function DealsBoard({
   };
   const stageById = (id: UniqueIdentifier) => stages.find((stage) => stage.id === id) ?? null;
   const ownerName = (ownerId: string) => ownerNames.get(ownerId) ?? "No longer in Sales";
+
+  /** What an empty column says (Decision 20, spec 7.12). Add deal starts every deal in the first stage (spec rule 1). */
+  function emptyColumn(index: number, stageName: string): React.ReactNode {
+    if (index === 0 && emptyState) return emptyState;
+    // The empty pipeline already offers "+ Deal" once, in the first column; filters on, the filter bar has the action.
+    if (emptyState || !onNewDeal) return <EmptyColumn stageName={stageName} />;
+    if (index === 0) return <EmptyColumn stageName={stageName} note="New deals start here." onNewDeal={onNewDeal} />;
+    // No "+ Deal" here: in this column it read as "add one here", and the deal then landed in the first column.
+    const firstStageName = stages[0].name;
+    return <EmptyColumn stageName={stageName} note={`New deals start in ${firstStageName}. Move them here when they reach this stage.`} />;
+  }
 
   function moveHooks(dealId: string, toStageId: string): MoveHooks {
     return {
@@ -240,10 +251,7 @@ export function DealsBoard({
             column={column}
             highlight={activeCard !== null && activeCard.stageId !== column.stage.id}
             onOpenList={onOpenList}
-            empty={index === 0 && emptyState ? emptyState : null}
-            first={index === 0}
-            // The empty pipeline already offers "+ Deal" once, in the first column.
-            onNewDeal={emptyState ? null : onNewDeal}
+            empty={emptyColumn(index, column.stage.name)}
           >
             {column.cards.map((card) => (
               <li key={card.id}>
@@ -286,18 +294,14 @@ function StageColumn({
   highlight,
   onOpenList,
   empty,
-  first,
-  onNewDeal,
   children,
 }: {
   column: BoardColumn;
   /** A card from another column is being dragged: show this one can take it. */
   highlight: boolean;
   onOpenList: () => void;
-  empty: React.ReactNode | null;
-  /** The pipeline's first stage, where a new deal starts. */
-  first: boolean;
-  onNewDeal: (() => void) | null;
+  /** Shown while the column has no cards. */
+  empty: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { stage, count, totalCents, cards } = column;
@@ -326,7 +330,7 @@ function StageColumn({
         {cards.length > 0 ? (
           <ul className="flex flex-col gap-[7px]">{children}</ul>
         ) : (
-          (empty ?? <EmptyColumn stageName={stage.name} first={first} onNewDeal={onNewDeal} />)
+          empty
         )}
       </div>
       {count > cards.length && cards.length > 0 ? (
@@ -344,19 +348,18 @@ function StageColumn({
 }
 
 /**
- * An empty column: the mockup's line, then (Decision 20, spec 7.12) what
- * belongs here and a small "+ Deal". Add deal starts a deal in the first
- * stage (spec rule 1), so later stages say how deals arrive instead.
+ * An empty column: the mockup's line, then (Decision 20, spec 7.12) how deals
+ * get here (`note`), and in the first column a small "+ Deal".
  */
-function EmptyColumn({ stageName, first, onNewDeal }: { stageName: string; first: boolean; onNewDeal: (() => void) | null }) {
+function EmptyColumn({ stageName, note, onNewDeal }: { stageName: string; note?: string; onNewDeal?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 px-2 py-[18px] text-center text-xs leading-normal text-muted-foreground">
       <p>
         No deals in {stageName} yet.
-        {onNewDeal ? (
+        {note ? (
           <>
             <br />
-            {first ? "New deals start here." : "Move a deal here when it reaches this stage."}
+            {note}
           </>
         ) : null}
       </p>

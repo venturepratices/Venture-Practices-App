@@ -134,13 +134,18 @@ describe("Deals screen (server render)", () => {
     expect(html).toMatch(/aria-label="Pipeline"[^>]*class="[^"]*max-sm:min-w-/);
   });
 
-  it("explains an empty column and offers to add a deal from it (Decision 20, spec 7.12)", () => {
+  it("explains an empty later column and says where new deals start (Decision 20, spec 7.12)", () => {
     const html = render(pageData());
     const proposal = column(html, "Proposal Sent");
     expect(proposal).toContain("No deals in Proposal Sent yet.");
-    expect(proposal).toContain("Move a deal here when it reaches this stage.");
-    expect(proposal).toMatch(/<button[^>]*aria-label="Add deal"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Deal<\/button>/);
-    // The first stage is where a new deal starts.
+    expect(proposal).toContain("New deals start in Demo Complete. Move them here when they reach this stage.");
+    // Add deal always starts a deal in the first stage (spec rule 1): a "+ Deal" in
+    // this column read as "add one here", and the new deal then landed off screen (M1).
+    expect(proposal).not.toContain('aria-label="Add deal"');
+    expect(proposal).not.toContain("<button");
+  });
+
+  it("offers + Deal in an empty first column, where new deals start", () => {
     const first = column(
       render(
         pageData({
@@ -152,8 +157,9 @@ describe("Deals screen (server render)", () => {
       ),
       "Demo Complete",
     );
+    expect(first).toContain("No deals in Demo Complete yet.");
     expect(first).toContain("New deals start here.");
-    expect(first).toMatch(/aria-label="Add deal"/);
+    expect(first).toMatch(/<button[^>]*aria-label="Add deal"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Deal<\/button>/);
   });
 
   it("keeps empty columns to the mockup line while filters are on (the filter bar has the action)", () => {
