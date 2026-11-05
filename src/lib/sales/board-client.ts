@@ -2,6 +2,7 @@ import type { BoardColumn } from "@/lib/sales/board";
 import type { BoardQuery } from "@/lib/sales/board-query";
 import { BOARD_COLUMN_LIMIT } from "@/lib/sales/constants";
 import { formatMoney } from "@/lib/sales/format";
+import type { MoveDealInput, MoveResult } from "@/lib/sales/stage-moves";
 
 // The Deals board's client-side logic: optimistic moves, the toolbar's URL
 // building, "Show more" paging, keyboard drag and the words the board says.
@@ -134,6 +135,20 @@ export function moveToast(
   return {
     message: `Moved to ${stage.name}.${extra}`,
     offer: stage.isWon ? "won" : stage.isLost ? "lost" : null,
+  };
+}
+
+/**
+ * What a move toast's Undo sends: the deal back to the stage it came from,
+ * marked as an undo so the server puts back when it had entered that stage
+ * (it reads that from the history, never from here), with any call the No Show
+ * rule just added, to take back with it (Decision 24).
+ */
+export function undoMoveBody(move: Pick<MoveResult, "previousStageId" | "createdActivityIds">): MoveDealInput {
+  return {
+    stageId: move.previousStageId,
+    undo: true,
+    ...(move.createdActivityIds.length > 0 ? { undoActivityIds: move.createdActivityIds } : {}),
   };
 }
 

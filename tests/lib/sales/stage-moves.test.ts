@@ -75,6 +75,8 @@ const baseDeal = (extra: Row = {}): Row => ({
 const state = {
   deal: null as Row | null,
   activities: [] as Row[],
+  /** History rows written before the request under test, oldest first. */
+  history: [] as Row[],
   audits: [] as Row[],
 };
 
@@ -130,7 +132,15 @@ const db = {
       return rows.map((row) => selected(row, args.select));
     }),
   },
-  salesAuditLog: { create: vi.fn(async (args: { data: Row }) => state.audits.push(args.data)) },
+  salesAuditLog: {
+    create: vi.fn(async (args: { data: Row }) => state.audits.push(args.data)),
+    // Newest first, like `orderBy: [{ at: "desc" }, { id: "desc" }]`: the rows are kept oldest first.
+    findFirst: vi.fn(async (args: Args) => {
+      const rows = [...state.history, ...state.audits].filter((row) => matches(row, args.where));
+      const newest = rows[rows.length - 1];
+      return newest ? selected(newest, args.select) : null;
+    }),
+  },
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
 };
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -154,6 +164,21 @@ const setStatus = (body: unknown, dealId = "d1") =>
     new Request(`${BASE}/deals/${dealId}/status`, { method: "POST", body: JSON.stringify(body), headers: HEADERS }),
     ctx(dealId),
   );
+
+/**
+ * An earlier stage_changed history row for d1, as a move writes it: from one
+ * stage (entered at `enteredAt`, or with no time when null, as rows written
+ * before entry times were kept) to another.
+ */
+const movedRow = (fromId: string, fromName: string, enteredAt: string | null, toId: string, toName: string): Row => ({
+  actorType: "USER",
+  actorId: "r",
+  entityType: "SalesDeal",
+  entityId: "d1",
+  action: "stage_changed",
+  before: enteredAt === null ? { stageId: fromId, stageName: fromName } : { stageId: fromId, stageName: fromName, stageEnteredAt: enteredAt },
+  after: { stageId: toId, stageName: toName },
+});
 
 const asActor = (actor: SalesActor) => requireSalesUserMock.mockResolvedValue(actor);
 const writes = () => [
@@ -185,6 +210,7 @@ beforeEach(() => {
   }
   state.deal = baseDeal();
   state.activities = [];
+  state.history = [];
   state.audits = [];
   requireSalesUserMock.mockReset().mockResolvedValue(rep);
 });
@@ -272,9 +298,16 @@ describe("POST /api/sales/deals/[dealId]/move: the money rule", () => {
       before: { valueCents: 0, mrrCents: 0 },
       after: { valueCents: 1_440_000, mrrCents: 120_000 },
     });
-    expect(state.audits[1].before).toEqual({ stageId: "s4", stageName: "Demo Complete" });
+    // When the deal had entered the stage it left, so an Undo can put that back (F2).
+    expect(state.audits[1].before).toEqual({
+      stageId: "s4",
+      stageName: "Demo Complete",
+      stageEnteredAt: "2026-10-30T14:00:00.000Z",
+    });
     expect(state.audits[1].after).toEqual({ stageId: "s5", stageName: "Proposal Sent" });
     expect(db.salesActivity.create).not.toHaveBeenCalled();
+    // A plain move never looks back through the history.
+    expect(db.salesAuditLog.findFirst).not.toHaveBeenCalled();
   });
 
   it("moves to Proposal Sent on stored values alone, with no value_changed row", async () => {
@@ -502,16 +535,21 @@ describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
     expect(actions()).toEqual(["stage_changed"]);
   });
 
-  it("undo removes only this deal's open rule-made calls (Decision 24)", async () => {
-    state.deal = baseDeal({ stageId: "s3" });
+  it("undo removes only this deal's open rule-made calls (Decision 24), and puts back the earlier entry time", async () => {
+    state.deal = baseDeal({ stageId: "s3", stageEnteredAt: new Date("2026-11-05T14:58:00Z") });
+    state.history = [movedRow("s2", "Appointment Scheduled", "2026-10-30T14:00:00.000Z", "s3", "No Show")];
     state.activities = [
       { id: "a1", dealId: "d1", type: "CALL", subject: "Reschedule the missed demo", createdBy: "rule:no-show", doneAt: null, archivedAt: null },
       { id: "a2", dealId: "d1", type: "CALL", subject: "Follow-up call", createdBy: "r", doneAt: null, archivedAt: null },
       { id: "a3", dealId: "d2", type: "CALL", subject: "Reschedule the missed demo", createdBy: "rule:no-show", doneAt: null, archivedAt: null },
     ];
-    const res = await move({ stageId: "s2", undoActivityIds: ["a1", "a2", "a3"] });
+    const res = await move({ stageId: "s2", undo: true, undoActivityIds: ["a1", "a2", "a3"] });
 
     expect(res.status).toBe(200);
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
+      stageId: "s2",
+      stageEnteredAt: new Date("2026-10-30T14:00:00.000Z"),
+    });
     // One guarded write picks and removes the calls, so a call ticked done meanwhile is never removed.
     expect(db.salesActivity.findMany).not.toHaveBeenCalled();
     expect(db.salesActivity.updateManyAndReturn).toHaveBeenCalledTimes(1);
@@ -543,6 +581,98 @@ describe("POST /api/sales/deals/[dealId]/move: the No Show rule", () => {
     expect(res.status).toBe(200);
     expect(state.activities[0].archivedAt).toBeNull();
     expect(actions()).toEqual(["stage_changed"]);
+  });
+});
+
+describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage (F2)", () => {
+  // The deal moved Demo Complete -> Proposal Sent two minutes ago; it had sat in Demo Complete since Oct 30.
+  const movedAt = new Date("2026-11-05T14:58:00Z");
+  const sentToProposal = () => {
+    state.deal = baseDeal({ stageId: "s5", stageEnteredAt: movedAt, valueCents: 1_440_000, mrrCents: 120_000 });
+    state.history = [movedRow("s4", "Demo Complete", "2026-10-30T14:00:00.000Z", "s5", "Proposal Sent")];
+  };
+
+  it("an undo puts back when the deal entered the stage it returns to, read from the move's history row", async () => {
+    sentToProposal();
+    const res = await move({ stageId: "s4", undo: true });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      changed: true,
+      deal: { id: "d1", stageId: "s4", stageEnteredAt: "2026-10-30T14:00:00.000Z", valueCents: 1_440_000, mrrCents: 120_000 },
+      previousStageId: "s5",
+      enteredStage: { id: "s4", name: "Demo Complete", isWon: false, isLost: false, isNoShow: false },
+      createdActivityIds: [],
+    });
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({
+      stageId: "s4",
+      stageEnteredAt: new Date("2026-10-30T14:00:00.000Z"),
+    });
+    // The deal's latest stage change, newest first, through the history index.
+    expect(db.salesAuditLog.findFirst.mock.calls[0][0]).toMatchObject({
+      where: { entityType: "SalesDeal", entityId: "d1", action: "stage_changed" },
+      orderBy: [{ at: "desc" }, { id: "desc" }],
+    });
+    // The undo is a move of its own in the history, keeping the time it took away.
+    expect(state.audits.map((row) => [row.action, row.before, row.after])).toEqual([
+      [
+        "stage_changed",
+        { stageId: "s5", stageName: "Proposal Sent", stageEnteredAt: "2026-11-05T14:58:00.000Z" },
+        { stageId: "s4", stageName: "Demo Complete" },
+      ],
+    ]);
+  });
+
+  it("a move back by hand, not an undo, starts the clock again", async () => {
+    sentToProposal();
+    const res = await move({ stageId: "s4" });
+
+    expect(res.status).toBe(200);
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
+    expect(db.salesAuditLog.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("an undo whose move is no longer the deal's latest stage change is an ordinary move", async () => {
+    // Proposal Sent -> Follow-Up since then; the first toast's Undo still asks for Demo Complete.
+    state.deal = baseDeal({ stageId: "s6", stageEnteredAt: new Date("2026-11-05T14:59:00Z"), valueCents: 1_440_000, mrrCents: 120_000 });
+    state.history = [
+      movedRow("s4", "Demo Complete", "2026-10-30T14:00:00.000Z", "s5", "Proposal Sent"),
+      movedRow("s5", "Proposal Sent", movedAt.toISOString(), "s6", "Follow-Up"),
+    ];
+    const res = await move({ stageId: "s4", undo: true });
+
+    expect(res.status).toBe(200);
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
+  });
+
+  it("trusts the row only when it brought the deal into the stage it is in now", async () => {
+    // The latest row says Demo Complete -> Proposal Sent, but the deal sits in Follow-Up.
+    state.deal = baseDeal({ stageId: "s6", stageEnteredAt: movedAt });
+    state.history = [movedRow("s4", "Demo Complete", "2026-10-30T14:00:00.000Z", "s5", "Proposal Sent")];
+    const res = await move({ stageId: "s4", undo: true });
+
+    expect(res.status).toBe(200);
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
+  });
+
+  it("an undo with no usable time in the row (written before times were kept, or broken) starts the clock again", async () => {
+    for (const kept of [null, "not a date", "2026-11-06T09:00:00.000Z"]) {
+      db.salesDeal.updateMany.mockClear();
+      sentToProposal();
+      state.history = [movedRow("s4", "Demo Complete", kept, "s5", "Proposal Sent")];
+      const res = await move({ stageId: "s4", undo: true });
+
+      expect(res.status, String(kept)).toBe(200);
+      // A time after now (the third) is no earlier entry either.
+      expect(db.salesDeal.updateMany.mock.calls[0][0].data, String(kept)).toEqual({ stageId: "s4", stageEnteredAt: now });
+    }
+  });
+
+  it("refuses an undo flag that is not true", async () => {
+    const res = await move({ stageId: "s4", undo: "yes" });
+    expect(res.status).toBe(400);
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });
 

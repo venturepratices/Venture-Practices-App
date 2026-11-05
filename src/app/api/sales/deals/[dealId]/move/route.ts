@@ -10,7 +10,7 @@ type Context = { params: Promise<{ dealId: string }> };
 
 /**
  * Move a deal to another stage (`{ stageId }`, plus `valueCents`/`mrrCents` from
- * the value dialog, or `undoActivityIds` when undoing). Answers with the move,
+ * the value dialog, or `undo` and `undoActivityIds` when undoing). Answers with the move,
  * or 422 with `code: "PROPOSAL_NEEDS_VALUE"` so the screen opens the value dialog.
  */
 export async function POST(request: Request, { params }: Context) {

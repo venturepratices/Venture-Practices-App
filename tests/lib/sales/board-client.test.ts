@@ -16,6 +16,7 @@ import {
   needsValueFirst,
   nextBoardQuery,
   nextColumnIndex,
+  undoMoveBody,
 } from "@/lib/sales/board-client";
 import { BOARD_COLUMN_LIMIT } from "@/lib/sales/constants";
 import { boardQueryToSearch, type BoardQuery } from "@/lib/sales/board-query";
@@ -183,6 +184,20 @@ describe("moveToast", () => {
     expect(moveToast({ name: "No Show", isNoShow: true, isWon: false, isLost: false }, false)).toEqual({
       message: "Moved to No Show.",
       offer: null,
+    });
+  });
+});
+
+describe("undoMoveBody", () => {
+  it("moves the deal back, marked as an undo so the server puts back its days in stage (F2)", () => {
+    expect(undoMoveBody({ previousStageId: "s4", createdActivityIds: [] })).toEqual({ stageId: "s4", undo: true });
+  });
+
+  it("names the call the No Show rule just added, to take back with it (Decision 24)", () => {
+    expect(undoMoveBody({ previousStageId: "s2", createdActivityIds: ["a1"] })).toEqual({
+      stageId: "s2",
+      undo: true,
+      undoActivityIds: ["a1"],
     });
   });
 });

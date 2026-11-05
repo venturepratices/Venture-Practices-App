@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { moveDealRequest, setDealStatusRequest, updateDealRequest } from "@/lib/sales/api-client";
 import type { BoardStage } from "@/lib/sales/board";
-import { moveToast, needsValueFirst } from "@/lib/sales/board-client";
+import { moveToast, needsValueFirst, undoMoveBody } from "@/lib/sales/board-client";
 import type { MoveResult } from "@/lib/sales/stage-moves";
 import { LostDialog, type LostReason } from "@/components/sales/lost-dialog";
 import { ValueDialog, type DealValues } from "@/components/sales/value-dialog";
@@ -57,15 +57,13 @@ export function useDealMoves(onChanged: () => void): {
             onClick: () => void setStatus(moved, offer === "won" ? "WON" : "LOST"),
           }
         : undefined,
-      cancel: { label: "Undo", onClick: () => void undoMove(moved, result.previousStageId, result.createdActivityIds) },
+      cancel: { label: "Undo", onClick: () => void undoMove(moved, result) },
     });
   }
 
-  async function undoMove(deal: MovableDeal, previousStageId: string, createdActivityIds: string[]) {
-    const result = await moveDealRequest(deal.id, {
-      stageId: previousStageId,
-      ...(createdActivityIds.length > 0 ? { undoActivityIds: createdActivityIds } : {}),
-    });
+  /** Moves the deal back; the server puts back its days in stage and takes back the No Show call (undoMoveBody). */
+  async function undoMove(deal: MovableDeal, move: MoveResult) {
+    const result = await moveDealRequest(deal.id, undoMoveBody(move));
     if (!result.ok) toast.error(result.error);
     onChanged();
   }

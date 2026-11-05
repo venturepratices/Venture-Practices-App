@@ -75,6 +75,11 @@ export const moveDealSchema = z.strictObject({
   /** Sent by the "Save and move" value dialog; otherwise the stored values are used. */
   valueCents: money.optional(),
   mrrCents: money.optional(),
+  /**
+   * Sent by a toast's Undo: the move back may put back when the deal entered
+   * that stage, read from the history on the server (never a time sent here).
+   */
+  undo: z.literal(true).optional(),
   /** Undoing a move: the rule-made activities that move added, to take back with it. */
   undoActivityIds: z.array(id).max(UNDO_IDS_MAX).optional(),
 });
@@ -140,7 +145,9 @@ const TARGET_STAGE_SELECT = {
  * reschedule call unless one is still open; the stage the deal is already in
  * changes nothing (Review Focus 4), also when two moves arrive at once. An
  * undo names the rule-made calls to take back: only this deal's open No Show
- * calls are removed (Decision 24).
+ * calls are removed (Decision 24). An undo also puts back when the deal had
+ * entered the stage it returns to, so days in stage and rotting carry on from
+ * where they were (see `undoneStageEnteredAt`); any other move starts them again.
  */
 export async function moveDealStage(
   actor: SalesActor,
@@ -200,10 +207,12 @@ async function attemptMove(
   const violation = checkStageMove(value, target);
   if (violation) return fail(422, violation.message, violation.code);
 
+  const stageEnteredAt = (input.undo && (await undoneStageEnteredAt(tx, deal, target.id, now))) || now;
+
   // Checks done. The write lands only on the deal as checked (still open, in
   // the same stage, with the same values the money rule saw); otherwise another
   // request got there first, nothing is written, and the move is decided again.
-  const data: Prisma.SalesDealUncheckedUpdateManyInput = { stageId: target.id, stageEnteredAt: now };
+  const data: Prisma.SalesDealUncheckedUpdateManyInput = { stageId: target.id, stageEnteredAt };
   if (value.valueCents !== deal.valueCents) data.valueCents = value.valueCents;
   if (value.mrrCents !== deal.mrrCents) data.mrrCents = value.mrrCents;
   const { count } = await tx.salesDeal.updateMany({
@@ -233,7 +242,7 @@ async function attemptMove(
     deal.id,
     {
       action: "stage_changed",
-      before: { stageId: deal.stageId, stageName: deal.stage.name },
+      before: { stageId: deal.stageId, stageName: deal.stage.name, stageEnteredAt: deal.stageEnteredAt.toISOString() },
       after: { stageId: target.id, stageName: target.name },
     },
     meta,
@@ -247,11 +256,45 @@ async function attemptMove(
   return {
     ok: true,
     changed: true,
-    deal: { id: deal.id, stageId: target.id, stageEnteredAt: now.toISOString(), ...value },
+    deal: { id: deal.id, stageId: target.id, stageEnteredAt: stageEnteredAt.toISOString(), ...value },
     previousStageId: deal.stageId,
     enteredStage,
     createdActivityIds,
   };
+}
+
+type JsonObject = Record<string, unknown>;
+
+const jsonObject = (value: unknown): JsonObject =>
+  value !== null && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
+
+/**
+ * When an undo may put back the time the deal entered the stage it returns to
+ * (F2): only when the deal's latest stage change is the move being undone, the
+ * one that brought the deal into the stage it sits in now from the stage it
+ * goes back to. That row's `before` holds the earlier entry time, written by
+ * the server when the move was made. Any other history (a later move, a row
+ * from before entry times were kept, a time that is not a real earlier one)
+ * answers null, and the undo is an ordinary move that starts the clock again.
+ */
+async function undoneStageEnteredAt(
+  tx: Prisma.TransactionClient,
+  deal: { id: string; stageId: string },
+  targetStageId: string,
+  now: Date,
+): Promise<Date | null> {
+  const latest = await tx.salesAuditLog.findFirst({
+    where: { entityType: "SalesDeal", entityId: deal.id, action: "stage_changed" },
+    orderBy: [{ at: "desc" }, { id: "desc" }],
+    select: { before: true, after: true },
+  });
+  if (!latest) return null;
+  const before = jsonObject(latest.before);
+  const after = jsonObject(latest.after);
+  if (after.stageId !== deal.stageId || before.stageId !== targetStageId) return null;
+  if (typeof before.stageEnteredAt !== "string") return null;
+  const enteredAt = new Date(before.stageEnteredAt);
+  return Number.isNaN(enteredAt.getTime()) || enteredAt > now ? null : enteredAt;
 }
 
 /**

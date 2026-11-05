@@ -10,6 +10,13 @@ import { recordSalesAudit, type SalesRequestMeta, type SalesSystemActor } from "
 // strings, the form the Json column stores.
 
 type StageRef = { stageId: string; stageName: string };
+/**
+ * The stage a deal left. A stage move also keeps when the deal had entered it
+ * (ISO), so an Undo can put the days-in-stage clock back (stage-moves.ts).
+ * Rows written before that, and the No Show rule's own moves (never undone
+ * from a toast), leave it out.
+ */
+type LeftStage = StageRef & { stageEnteredAt?: string };
 type ActivityRef = { activityId: string; type: SalesActivityType; subject: string };
 type FieldRef = { fieldKey: string; label: string; value: string | null };
 type Money = { valueCents: number; mrrCents: number };
@@ -33,7 +40,7 @@ export type DealAuditEvent =
     }
   /** Only the keys that changed. */
   | { action: "updated"; before: Partial<Editable>; after: Partial<Editable> }
-  | { action: "stage_changed"; before: StageRef; after: StageRef }
+  | { action: "stage_changed"; before: LeftStage; after: StageRef }
   | {
       action: "status_changed";
       before: { status: SalesDealStatus };
