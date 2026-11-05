@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
 
+import { contrast, over, shownPaint, token, utilityColour } from "./theme-colours";
+
 // A server render of the Deals screen with canned data. Node has no browser, so
 // this cannot click anything; it proves the board, list and toolbar render
 // without throwing and carry the labels, words and sizes the plan asks for.
@@ -347,5 +349,27 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("Ben E.");
     expect(html).toContain('href="/sales/deals?pipeline=direct-mail&amp;deal=d1"');
     expect(html).toContain("Show more");
+  });
+});
+
+describe("the list's rows on their hover fill (K3, spec 7.11)", () => {
+  // Pointing at a row tints it with the muted grey over the card. At 60% the
+  // row's grey text (the stage, "None") was 4.49:1 in light, under 4.5:1.
+  it.each(["light", "dark"] as const)("keep a row's grey text at AA while it is pointed at in %s mode", (theme) => {
+    const html = render(
+      pageData({
+        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+        columns: null,
+        list: { rows: [{ ...CARD, stageName: "Demo Complete" }], nextCursor: null },
+      }),
+    );
+    const rows = [...html.matchAll(/<tr[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/tr>/g)].filter((match) => match[1].includes("hover:"));
+    expect(rows).toHaveLength(1);
+    for (const [, classes, cells] of rows) {
+      expect(cells).toContain("text-muted-foreground");
+      const fill = shownPaint(classes.split(/\s+/), "bg", theme, ["hover"]);
+      const pointedAt = over(fill.colour, fill.alpha, token("card", theme));
+      expect(contrast(utilityColour("text-muted-foreground", theme)!, pointedAt)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

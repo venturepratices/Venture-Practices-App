@@ -312,12 +312,13 @@ function ActivitiesTable({
               const canEdit = canChangeDeal(viewer, row.deal);
               const ticked = ticks.shown.has(row.id);
               const Icon = ACTIVITY_ICONS[row.type];
+              // The hover tint stays at 50%: over 4.5:1 for the row's grey text in light (K3).
               return (
                 <tr
                   key={row.id}
                   onClick={() => onOpen(row.deal.id)}
                   className={cn(
-                    "cursor-pointer border-b transition-[background-color,opacity] duration-150 last:border-b-0 hover:bg-muted/60 max-sm:relative max-sm:block max-sm:py-2.5 max-sm:pr-3 max-sm:pl-10",
+                    "cursor-pointer border-b transition-[background-color,opacity] duration-150 last:border-b-0 hover:bg-muted/50 max-sm:relative max-sm:block max-sm:py-2.5 max-sm:pr-3 max-sm:pl-10",
                     ticked && "opacity-60",
                   )}
                 >

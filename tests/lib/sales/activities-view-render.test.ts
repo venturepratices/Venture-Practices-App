@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActivitiesPageData, ActivityRow } from "@/lib/sales/activities-page";
 
+import { contrast, over, shownPaint, token, utilityColour } from "./theme-colours";
+
 // A server render of the Activities screen with canned data. Node has no
 // browser, so this cannot click anything; it proves the header, filters, rows,
 // stacked-card labels and empty states render without throwing and carry the
@@ -167,5 +169,22 @@ describe("Activities screen (server render)", () => {
     expect(typed).toContain("No meeting activities here");
     expect(typed).toContain('href="/sales/activities?scope=mine"');
     expect(typed).toContain("Show all types");
+  });
+});
+
+describe("the Activities rows on their hover fill (K3, spec 7.11)", () => {
+  // Pointing at a row tints it with the muted grey over the card. At 60% the
+  // row's grey text (the owner on a phone, "Done ...") was 4.49:1 in light.
+  it.each(["light", "dark"] as const)("keep a row's grey text at AA while it is pointed at in %s mode", (theme) => {
+    const rows = [...render(pageData()).matchAll(/<tr[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/tr>/g)].filter((match) =>
+      match[1].includes("hover:"),
+    );
+    expect(rows).toHaveLength(2);
+    for (const [, classes, cells] of rows) {
+      expect(cells).toContain("text-muted-foreground");
+      const fill = shownPaint(classes.split(/\s+/), "bg", theme, ["hover"]);
+      const pointedAt = over(fill.colour, fill.alpha, token("card", theme));
+      expect(contrast(utilityColour("text-muted-foreground", theme)!, pointedAt)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

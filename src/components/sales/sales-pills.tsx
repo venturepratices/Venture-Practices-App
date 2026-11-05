@@ -20,6 +20,15 @@ export const ACTIVITY_ICONS: Record<SalesActivityType, LucideIcon> = {
   LUNCH: Coffee,
 };
 
+/**
+ * Grey words on the grey (muted) fill: the days-in-stage pill, History's
+ * "locked" pill and a stage not reached yet. The muted grey on the muted fill
+ * is 4.32:1 in light, under spec 7.11's 4.5:1, so light uses slate-600, one
+ * step darker in the same hue (6.9:1); dark keeps the muted grey (5.5:1) (K3,
+ * M12). An icon alone on the fill needs only 3:1 and may keep the muted grey.
+ */
+export const MUTED_TONE = "bg-muted text-slate-600 dark:text-muted-foreground";
+
 const PILL = "inline-flex shrink-0 items-center gap-1 rounded-full px-[7px] py-0.5 text-[11px] leading-[1.4] font-semibold whitespace-nowrap [&_svg]:size-3 [&_svg]:shrink-0";
 
 const TONE_CLASS: Record<NextStepTone, string> = {
@@ -64,7 +73,7 @@ export function DaysPill({ days, rotting, className }: { days: number; rotting: 
       className={cn(
         PILL,
         "tabular-nums",
-        rotting ? "bg-status-warning text-status-warning-foreground" : "bg-muted text-muted-foreground",
+        rotting ? "bg-status-warning text-status-warning-foreground" : MUTED_TONE,
         className,
       )}
     >

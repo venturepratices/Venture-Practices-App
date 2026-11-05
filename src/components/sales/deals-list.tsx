@@ -93,11 +93,12 @@ export function DealsList({
             {page.rows.map((row) => {
               const ownerName = ownerNames.get(row.ownerId);
               const owner = ownerName ?? "No longer in Sales";
+              // The hover tint stays at 50%: over 4.5:1 for the row's grey text in light (K3).
               return (
                 <tr
                   key={row.id}
                   onClick={() => onOpen(row.id)}
-                  className="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/60 max-sm:relative max-sm:block max-sm:py-2.5 max-sm:pr-3 max-sm:pl-10"
+                  className="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/50 max-sm:relative max-sm:block max-sm:py-2.5 max-sm:pr-3 max-sm:pl-10"
                 >
                   <td className="w-px px-3 py-[9px] align-middle max-sm:absolute max-sm:top-3 max-sm:left-3 max-sm:p-0">
                     <OwnerAvatar id={row.ownerId} name={owner} />

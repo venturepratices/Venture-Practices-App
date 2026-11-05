@@ -43,3 +43,43 @@ describe("white text on green in the Sales screens", () => {
     }
   });
 });
+
+// Grey text on the solid grey fill (K3). The muted grey on `bg-muted` is 4.32:1
+// in light, under 4.5:1, so a pill, chip or chevron with grey words on the grey
+// fill takes MUTED_TONE from sales-pills.tsx (slate-600 in light). An icon on
+// its own needs 3:1 (WCAG 1.4.11), so the icon-only boxes in History and Next
+// steps keep the plain pair.
+
+const SALES_PAGES = path.join(process.cwd(), "src", "app", "(app)", "sales");
+const SOLID_MUTED = /(?:^|[\s"'`])bg-muted(?=[\s"'`]|$)/;
+const MUTED_TEXT = /(?:^|[\s"'`])text-muted-foreground(?=[\s"'`]|$)/;
+const ICON_ONLY: Record<string, number> = { "deal-history.tsx": 1, "next-steps.tsx": 1 };
+
+describe("grey text on the grey fill in the Sales screens (K3)", () => {
+  const files = [
+    ...fs.readdirSync(SALES_COMPONENTS).filter((file) => file.endsWith(".tsx")).map((file) => path.join(SALES_COMPONENTS, file)),
+    ...fs
+      .readdirSync(SALES_PAGES, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith(".tsx"))
+      .map((file) => path.join(SALES_PAGES, file)),
+  ];
+
+  it("finds the Sales screens and pages to check", () => {
+    expect(files.map((file) => path.basename(file))).toEqual(expect.arrayContaining(["sales-pills.tsx", "deal-history.tsx", "page.tsx"]));
+  });
+
+  it.each(files.map((file) => [path.relative(process.cwd(), file), file]))("%s puts grey words on the grey fill only in the shared tone", (_name, file) => {
+    const offenders = classStrings(fs.readFileSync(file, "utf8")).filter((literal) => SOLID_MUTED.test(literal) && MUTED_TEXT.test(literal));
+    const iconOnly = path.dirname(file) === SALES_COMPONENTS ? (ICON_ONLY[path.basename(file)] ?? 0) : 0;
+    expect(offenders).toHaveLength(iconOnly);
+  });
+
+  it("would catch the pair that fails", () => {
+    for (const bad of ['"bg-muted text-muted-foreground"', '"rounded-full bg-muted px-2 text-[11px] text-muted-foreground"']) {
+      expect(SOLID_MUTED.test(bad) && MUTED_TEXT.test(bad), bad).toBe(true);
+    }
+    for (const good of ['"bg-muted text-slate-600 dark:text-muted-foreground"', '"bg-muted/40 text-muted-foreground"', '"hover:bg-muted text-muted-foreground"']) {
+      expect(SOLID_MUTED.test(good) && MUTED_TEXT.test(good), good).toBe(false);
+    }
+  });
+});

@@ -25,10 +25,11 @@ import { NOTE_MAX_CHARS } from "@/lib/sales/constants";
 import { clockTime } from "@/lib/sales/format";
 import { groupTimelineByDay } from "@/lib/sales/panel-client";
 import type { TimelineEntry, TimelineIcon } from "@/lib/sales/timeline";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SECTION_HEADING } from "@/components/sales/next-steps";
+import { MUTED_TONE } from "@/components/sales/sales-pills";
 
 // The panel's "History" (mockup `.tl`): the deal's locked log, newest first,
 // under sticky day headers ("Today", "Yesterday", "Nov 3"). Each line says
@@ -79,7 +80,10 @@ export function DealHistory({
         History
         <span
           title="Nobody can edit or delete history"
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-[7px] py-0.5 text-[11px] font-semibold tracking-normal text-muted-foreground normal-case [&_svg]:size-3"
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-[7px] py-0.5 text-[11px] font-semibold tracking-normal normal-case [&_svg]:size-3",
+            MUTED_TONE,
+          )}
         >
           <Lock aria-hidden="true" />
           locked
