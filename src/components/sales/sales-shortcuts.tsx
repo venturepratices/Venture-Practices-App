@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useState } from "react";
 
-import { resolveShortcut, SALES_SHORTCUT_EVENT, type ShortcutAction } from "@/lib/sales/shortcuts";
+import { isTypingTarget, resolveShortcut, SALES_SHORTCUT_EVENT, type ShortcutAction } from "@/lib/sales/shortcuts";
 import { ShortcutsHelpDialog } from "@/components/sales/shortcuts-help-dialog";
 
 // The Sales keyboard shortcuts (spec 16.1), mounted once by the Sales layout.
@@ -11,10 +11,8 @@ import { ShortcutsHelpDialog } from "@/components/sales/shortcuts-help-dialog";
 // announces it on `window`; whichever screen owns the matching control (the
 // board filter, Add deal, the deal panel composer) acts on it through
 // useSalesShortcut. `n` away from the board opens the board with Add deal.
-
-// Keys pressed while typing are text, never a shortcut. Open menus and lists
-// use letters to jump to an item, so those count as typing too.
-const TYPING_TARGET = 'input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]';
+// Keys pressed while typing (a field, a select box, an open menu) are text,
+// never a shortcut (isTypingTarget).
 
 export function SalesShortcuts() {
   const router = useRouter();
@@ -34,7 +32,7 @@ export function SalesShortcuts() {
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
         altKey: event.altKey,
-        inEditable: !!target?.closest(TYPING_TARGET),
+        inEditable: isTypingTarget(target),
       },
       { dealOpen },
     );

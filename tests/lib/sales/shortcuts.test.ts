@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveShortcut, SALES_SHORTCUT_EVENT, SHORTCUT_HELP } from "@/lib/sales/shortcuts";
+import { isTypingTarget, resolveShortcut, SALES_SHORTCUT_EVENT, SHORTCUT_HELP } from "@/lib/sales/shortcuts";
 
 // The Sales keyboard shortcuts (spec 16.1, Pipedrive keys): which key press
 // becomes which action. Pure, so the listener component stays a thin wrapper.
@@ -37,6 +37,56 @@ describe("resolveShortcut", () => {
     for (const k of ["a", "x", "Enter", " ", "ArrowLeft", "Tab", "1"]) {
       expect(resolveShortcut(key(k), { dealOpen: true }), k).toBeNull();
     }
+  });
+});
+
+// Node has no DOM, so a stand-in element answers `closest` for the two kinds of
+// selector the list uses: a tag name ("input") and an exact attribute value
+// ('[role="combobox"]'), walking up through its parents like the real one.
+type FakeNode = { tag: string; attrs?: Record<string, string>; parent?: FakeNode };
+
+function matchesOne(node: FakeNode, selector: string): boolean {
+  const attribute = /^\[([\w-]+)="([^"]*)"\]$/.exec(selector);
+  if (attribute) return node.attrs?.[attribute[1]] === attribute[2];
+  if (!/^[a-z]+$/.test(selector)) throw new Error(`The stand-in cannot read the selector ${selector}`);
+  return node.tag === selector;
+}
+
+function element(node: FakeNode) {
+  return {
+    closest(selectors: string) {
+      const list = selectors.split(",").map((part) => part.trim());
+      for (let at: FakeNode | undefined = node; at; at = at.parent) {
+        if (list.some((selector) => matchesOne(at, selector))) return at;
+      }
+      return null;
+    },
+  };
+}
+
+describe("isTypingTarget", () => {
+  it("treats text boxes and native selects as typing", () => {
+    for (const tag of ["input", "textarea", "select"]) expect(isTypingTarget(element({ tag })), tag).toBe(true);
+    expect(isTypingTarget(element({ tag: "div", attrs: { contenteditable: "true" } }))).toBe(true);
+  });
+
+  it("treats a closed select box (role combobox) as typing, since it jumps to an option by letter", () => {
+    // The app's selects are Base UI buttons with role="combobox": `n` there picks "New Mover Mail".
+    const trigger: FakeNode = { tag: "button", attrs: { role: "combobox" } };
+    expect(isTypingTarget(element(trigger))).toBe(true);
+    expect(isTypingTarget(element({ tag: "span", parent: trigger }))).toBe(true);
+  });
+
+  it("treats open menus and lists as typing", () => {
+    expect(isTypingTarget(element({ tag: "div", attrs: { role: "menu" } }))).toBe(true);
+    expect(isTypingTarget(element({ tag: "div", attrs: { role: "listbox" } }))).toBe(true);
+  });
+
+  it("leaves shortcuts on for buttons, cards and the page itself", () => {
+    expect(isTypingTarget(element({ tag: "button" }))).toBe(false);
+    expect(isTypingTarget(element({ tag: "div", attrs: { role: "button" } }))).toBe(false);
+    expect(isTypingTarget(element({ tag: "body" }))).toBe(false);
+    expect(isTypingTarget(null)).toBe(false);
   });
 });
 
