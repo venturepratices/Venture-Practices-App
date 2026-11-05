@@ -48,8 +48,9 @@ const NEXT_OPTIONS = [
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-const SEGMENT_GROUP = "inline-flex shrink-0 rounded-lg border bg-card p-0.5 pointer-coarse:p-0";
-const SEGMENT =
+/** The mockup's `.seg` control (pressed button tinted), shared with the Activities filters. */
+export const SEGMENT_GROUP = "inline-flex shrink-0 rounded-lg border bg-card p-0.5 pointer-coarse:p-0";
+export const SEGMENT =
   "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-accent aria-pressed:font-semibold aria-pressed:text-accent-foreground pointer-coarse:h-10 pointer-coarse:min-w-10 [&_svg]:size-4";
 
 export function DealsToolbar({
