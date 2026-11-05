@@ -303,20 +303,23 @@ function OwnerPicker({ data, onChanged }: { data: DealPanelData; onChanged: () =
   );
 }
 
-// Phones (under 640px): each chevron keeps its whole name at 12px (growing to
-// fill a short pipeline, never shrinking) and the bar scrolls sideways inside
-// itself, instead of squeezing every stage into the screen as bare colours
-// (C4). Desktop shares the width out as in the mockup.
+// Under the md breakpoint (768px) and on every touch screen, tablets included:
+// each chevron keeps its whole name at 12px (growing to fill a short pipeline,
+// never shrinking) and the bar scrolls sideways inside itself, instead of
+// squeezing every stage in as cut-off names or bare colours (C4, M11). A touch
+// cannot show the `title`. A mouse on a wider screen shares the width out as
+// in the mockup.
 const STAGE_BUTTON =
-  "h-6 min-w-0 flex-1 px-2.5 text-[10.5px] font-semibold whitespace-nowrap outline-none transition-[filter,background-color,color] duration-150 [clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%,7px_50%)] first:rounded-l-[5px] first:[clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%)] enabled:hover:brightness-95 focus-visible:brightness-90 focus-visible:inset-ring-2 focus-visible:inset-ring-ring disabled:cursor-default motion-reduce:transition-none pointer-coarse:h-10 max-sm:min-w-20 max-sm:flex-[1_0_auto] max-sm:px-3.5 max-sm:text-xs";
+  "h-6 min-w-0 flex-1 px-2.5 text-[10.5px] font-semibold whitespace-nowrap outline-none transition-[filter,background-color,color] duration-150 [clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%,7px_50%)] first:rounded-l-[5px] first:[clip-path:polygon(0_0,calc(100%_-_7px)_0,100%_50%,calc(100%_-_7px)_100%,0_100%)] enabled:hover:brightness-95 focus-visible:brightness-90 focus-visible:inset-ring-2 focus-visible:inset-ring-ring disabled:cursor-default motion-reduce:transition-none pointer-coarse:h-10 max-md:min-w-20 max-md:flex-[1_0_auto] max-md:px-3.5 max-md:text-xs pointer-coarse:min-w-20 pointer-coarse:flex-[1_0_auto] pointer-coarse:px-3.5 pointer-coarse:text-xs";
 
 /**
  * One chevron per stage (mockup `.stagebar`): passed stages green, the current
  * one a darker green (green-700 and green-800, so their white names pass AA,
  * Decision 34). A click moves the deal there, shown at once and taken back if
  * the move is refused. Locked while the deal is closed or read-only. On a
- * phone the bar is wider than the screen and opens scrolled to the deal's
- * stage; it is keyed by the stored stage, so it does so again after a move.
+ * phone or tablet the bar can be wider than the panel and opens scrolled to
+ * the deal's stage (a bar that fits stays at its start); it is keyed by the
+ * stored stage, so it does so again after a move.
  */
 function StageBar({
   stages,
@@ -351,7 +354,7 @@ function StageBar({
       aria-label="Stage"
       aria-disabled={disabled || undefined}
       // `relative` also makes the bar the chevrons' offset parent, which the scroll above measures from.
-      className="relative mt-3 flex gap-0.5 max-sm:overflow-x-auto max-sm:overscroll-x-contain"
+      className="relative mt-3 flex gap-0.5 max-md:overflow-x-auto max-md:overscroll-x-contain pointer-coarse:overflow-x-auto pointer-coarse:overscroll-x-contain"
     >
       {stages.map((stage, index) => (
         <button

@@ -116,14 +116,31 @@ describe("deal panel header: the stage bar on phones (C4)", () => {
     }
   });
 
-  it("scrolls sideways inside itself on phones, with each chevron as wide as its name", () => {
-    const { classes, chevrons } = stageBar(render(panel()));
+  // The readable bar (whole names, scrolling sideways inside itself) is for every
+  // screen under the md breakpoint and for every touch screen, tablets included:
+  // a touch can never show the `title` that holds a cut-off name (M11).
+  const READABLE_WHEN = ["max-md", "pointer-coarse"];
+
+  it.each(READABLE_WHEN)("scrolls sideways inside itself (%s)", (when) => {
+    const { classes } = stageBar(render(panel()));
     // Its own scroller: the page itself never scrolls sideways.
-    expect(classes).toEqual(expect.arrayContaining(["max-sm:overflow-x-auto", "relative"]));
+    expect(classes).toEqual(expect.arrayContaining(["relative", `${when}:overflow-x-auto`, `${when}:overscroll-x-contain`]));
+  });
+
+  it.each(READABLE_WHEN)("gives each chevron its whole name at 12px (%s)", (when) => {
+    for (const { button, name } of stageBar(render(panel())).chevrons) {
+      // A chevron that grows but never shrinks keeps its whole name, and a short pipeline still fills the bar.
+      expect(button, name).toEqual(
+        expect.arrayContaining([`${when}:flex-[1_0_auto]`, `${when}:min-w-20`, `${when}:px-3.5`, `${when}:text-xs`]),
+      );
+    }
+  });
+
+  it("shares the width out as the mockup does for a mouse on a wider screen", () => {
+    const { classes, chevrons } = stageBar(render(panel()));
+    expect(classes.filter((className) => className.startsWith("overflow-"))).toEqual([]);
     for (const { button, name } of chevrons) {
-      // A chevron that grows but never shrinks keeps its whole name, and a short pipeline still fills the bar;
-      // desktop shares the width out (flex-1).
-      expect(button, name).toEqual(expect.arrayContaining(["flex-1", "max-sm:flex-[1_0_auto]"]));
+      expect(button, name).toEqual(expect.arrayContaining(["flex-1", "min-w-0", "px-2.5", "text-[10.5px]"]));
     }
   });
 });
