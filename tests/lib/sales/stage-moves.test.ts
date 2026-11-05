@@ -656,17 +656,23 @@ describe("POST /api/sales/deals/[dealId]/move: undo puts back the days in stage 
     expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
   });
 
-  it("an undo with no usable time in the row (written before times were kept, or broken) starts the clock again", async () => {
-    for (const kept of [null, "not a date", "2026-11-06T09:00:00.000Z"]) {
-      db.salesDeal.updateMany.mockClear();
-      sentToProposal();
-      state.history = [movedRow("s4", "Demo Complete", kept, "s5", "Proposal Sent")];
-      const res = await move({ stageId: "s4", undo: true });
+  // One case per row, each on a fresh fake database (beforeEach), so every case
+  // reads its own seeded row and the time guard alone decides the result (M6).
+  it.each([
+    ["no time (written before times were kept)", null],
+    ["a time that is not a date", "not a date"],
+    ["a time after now", "2026-11-06T09:00:00.000Z"],
+  ])("an undo whose move row holds %s starts the clock again", async (_name, kept) => {
+    sentToProposal();
+    const seeded = movedRow("s4", "Demo Complete", kept, "s5", "Proposal Sent");
+    state.history = [seeded];
+    const res = await move({ stageId: "s4", undo: true });
 
-      expect(res.status, String(kept)).toBe(200);
-      // A time after now (the third) is no earlier entry either.
-      expect(db.salesDeal.updateMany.mock.calls[0][0].data, String(kept)).toEqual({ stageId: "s4", stageEnteredAt: now });
-    }
+    expect(res.status).toBe(200);
+    // The row the undo read is the seeded move, which does match the deal: only its time is unusable.
+    expect(db.salesAuditLog.findFirst).toHaveBeenCalledTimes(1);
+    expect(await db.salesAuditLog.findFirst.mock.results[0].value).toEqual({ before: seeded.before, after: seeded.after });
+    expect(db.salesDeal.updateMany.mock.calls[0][0].data).toEqual({ stageId: "s4", stageEnteredAt: now });
   });
 
   it("refuses an undo flag that is not true", async () => {
