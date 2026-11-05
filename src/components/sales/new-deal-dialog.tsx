@@ -375,22 +375,25 @@ function ContactPicker({
             </ComboboxTrigger>
           </div>
         </ComboboxInputGroup>
-        <ComboboxContent>
+        {/* At least as wide as the box, wider when an option needs it (up to 22rem or the room on screen); longer text wraps. */}
+        <ComboboxContent className="w-max min-w-(--anchor-width) max-w-[min(22rem,var(--available-width))]">
           <ComboboxEmpty>Type a name to search.</ComboboxEmpty>
           <ComboboxList>
             {(choice: ContactChoice) => (
               <ComboboxItem key={choice.key} value={choice} className="pointer-coarse:min-h-10">
                 {choice.kind === "new" ? (
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <Plus aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span className="truncate">
+                  <span className="flex min-w-0 items-start gap-1.5">
+                    <Plus aria-hidden="true" className="mt-[3px] size-3.5 shrink-0" />
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       Add new {noun}: {choice.name}
                     </span>
                   </span>
                 ) : (
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate">{choice.name}</span>
-                    {choice.detail ? <span className="truncate text-xs text-muted-foreground">{choice.detail}</span> : null}
+                    <span className="[overflow-wrap:anywhere]">{choice.name}</span>
+                    {choice.detail ? (
+                      <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{choice.detail}</span>
+                    ) : null}
                   </span>
                 )}
               </ComboboxItem>
