@@ -105,6 +105,29 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("Swipe sideways for more stages. Press and hold a deal to move it.");
   });
 
+  it("never lets a toolbar control that fills its line on a phone shrink to nothing", () => {
+    // At 375px the pipeline picker (flex-1 from a zero basis, min-w-0) was left
+    // about 21px: an empty box with the pipeline name invisible (C2). A control
+    // that grows into the space left on its line needs a minimum on phones of
+    // at least 8rem, or a line of its own.
+    const html = render(pageData());
+    const growers = [...html.matchAll(/class="([^"]*)"/g)]
+      .map((match) => match[1].split(/\s+/))
+      .filter((classes) => classes.some((name) => /^max-sm:(?:flex-1|flex-auto|grow)$/.test(name)));
+    expect(growers.length).toBeGreaterThanOrEqual(2); // the pipeline picker and the search box
+    for (const classes of growers) {
+      const rem = classes.reduce((best, name) => {
+        if (name === "max-sm:basis-full") return Infinity;
+        const scale = /^max-sm:min-w-(\d+(?:\.\d+)?)$/.exec(name);
+        if (scale) return Math.max(best, Number(scale[1]) / 4);
+        const exact = /^max-sm:min-w-\[(\d+(?:\.\d+)?)rem\]$/.exec(name);
+        return exact ? Math.max(best, Number(exact[1])) : best;
+      }, 0);
+      expect(rem, classes.join(" ")).toBeGreaterThanOrEqual(8);
+    }
+    expect(html).toMatch(/aria-label="Pipeline"[^>]*class="[^"]*max-sm:min-w-/);
+  });
+
   it("draws the card like the mockup: value, monthly value, overdue pill, rotting days, owner", () => {
     const html = render(pageData());
     expect(html).toContain("Bright Smile Dental");

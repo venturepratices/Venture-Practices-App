@@ -29,7 +29,9 @@ import { ShortcutsButton } from "@/components/sales/shortcuts-help-dialog";
 // URL with nextBoardQuery. On phones it wraps in the same order it reads (so
 // focus order matches what is seen): the pipeline grows to fill its line,
 // search fills the line it lands on beside "+ Deal", and the summary takes the
-// last line. The shortcuts button is hidden there (no keyboard on a phone).
+// last line. Both growing controls keep a minimum width there (pipeline 9rem,
+// search 8rem), so a full line wraps them rather than squeezing them to an
+// empty box. The shortcuts button is hidden there (no keyboard on a phone).
 
 export type BoardPatch = Partial<Omit<BoardQuery, "cursor">>;
 
@@ -112,7 +114,7 @@ export function DealsToolbar({
       >
         <SelectTrigger
           aria-label="Pipeline"
-          className="min-w-0 max-w-full font-semibold max-sm:flex-1 pointer-coarse:h-10"
+          className="min-w-0 max-w-full font-semibold max-sm:min-w-36 max-sm:flex-auto pointer-coarse:h-10"
         >
           <SelectValue className="truncate" />
         </SelectTrigger>
@@ -220,7 +222,7 @@ export function DealsToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="relative max-sm:min-w-0 max-sm:flex-1">
+      <div className="relative max-sm:min-w-32 max-sm:flex-1">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
