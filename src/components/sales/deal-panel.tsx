@@ -9,7 +9,7 @@ import { getDealPanel, getDealTimeline } from "@/lib/sales/api-client";
 import { appendPage } from "@/lib/sales/board-client";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { shortName } from "@/lib/sales/format";
-import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, lostHeadline } from "@/lib/sales/panel-client";
+import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, escapeHandledInside, lostHeadline } from "@/lib/sales/panel-client";
 import { changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { DEAL_PANEL_ATTRIBUTE } from "@/lib/sales/shortcuts";
 import type { TimelineCursor } from "@/lib/sales/timeline";
@@ -32,7 +32,8 @@ import { useDealMoves, type MovableDeal } from "@/components/sales/use-deal-move
 // (Decision 5). It loads the deal and the first page of its history from the
 // Sales routes, and after every change it saves, it loads both again and
 // refreshes the page behind it. Closing (Esc, the overlay, the close button)
-// takes `deal` out of the URL and puts focus back on the deal's card.
+// takes `deal` out of the URL and puts focus back on the deal's card. An Esc
+// that something inside the panel already used leaves it open (F3).
 
 export function DealPanel() {
   const router = useRouter();
@@ -69,6 +70,11 @@ export function DealPanel() {
       open={open}
       onOpenChange={(next, details) => {
         if (next) return;
+        // An Esc already used inside the panel (a typed draft kept, an edit undone, a select closed) is not a close.
+        if (escapeHandledInside(details)) {
+          details.cancel();
+          return;
+        }
         // A toast's Undo sits outside the panel; pressing it must not close the panel.
         const target = details.event?.target;
         if (details.reason === "outside-press" && target instanceof Element && target.closest("[data-sonner-toaster]")) {

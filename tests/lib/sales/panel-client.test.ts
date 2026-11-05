@@ -1,3 +1,5 @@
+import { createChangeEventDetails } from "@base-ui/react/internals/createBaseUIEventDetails";
+import { REASONS } from "@base-ui/react/internals/reasons";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +7,7 @@ import {
   composerDueDate,
   DEAL_PANEL_SHEET_CLASS,
   dealPanelOpen,
+  escapeHandledInside,
   groupTimelineByDay,
   holdEscapeForDraft,
   lostHeadline,
@@ -151,7 +154,7 @@ describe("centeredScrollLeft (the stage bar on phones, C4)", () => {
 });
 
 describe("holdEscapeForDraft (Esc in the composer, F3)", () => {
-  // A key press as React hands it to the composer, recording whether it was stopped before the panel's own Esc handler.
+  // A key press as React hands it to the composer, recording whether it was marked handled and stopped.
   function press(key: string, isComposing = false) {
     const seen = { stopped: false, prevented: false };
     const event = {
@@ -196,5 +199,66 @@ describe("holdEscapeForDraft (Esc in the composer, F3)", () => {
     const { event, seen } = press("Escape", true);
     expect(holdEscapeForDraft(event, ["電話", ""])).toBe(false);
     expect(seen).toEqual({ stopped: false, prevented: false });
+  });
+});
+
+describe("escapeHandledInside (the panel stays open for an Esc used inside it, F3)", () => {
+  // An Esc key press as the browser fires it.
+  function escapePress(): Event {
+    return Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", isComposing: false });
+  }
+
+  // Base UI's close request for an Esc, built by Base UI itself so the reason
+  // and the details' shape are the ones the panel's onOpenChange receives.
+  function escapeRequest(event: Event) {
+    return createChangeEventDetails(REASONS.escapeKey, event as KeyboardEvent);
+  }
+
+  it("keeps the panel open when the composer held Esc for a draft, though Base UI still asks to close", () => {
+    // In the app React and Base UI's dialog both listen for keydown on the
+    // document, React first (it hydrates on `document`). The composer stops
+    // the press, but stopping cannot reach another listener on the same node,
+    // so Base UI still asks to close. Only the handled mark tells the two apart.
+    const document = new EventTarget();
+    let askedToClose = false;
+    let keptOpen = false;
+    document.addEventListener("keydown", (native) => {
+      // React's synthetic event hands both calls on to the native event.
+      const synthetic = {
+        key: "Escape",
+        nativeEvent: { isComposing: false },
+        preventDefault: () => native.preventDefault(),
+        stopPropagation: () => native.stopPropagation(),
+      };
+      holdEscapeForDraft(synthetic, ["", "Asked for a second quote"]);
+    });
+    document.addEventListener("keydown", (native) => {
+      askedToClose = true;
+      keptOpen = escapeHandledInside(escapeRequest(native));
+    });
+
+    document.dispatchEvent(escapePress());
+
+    expect(askedToClose).toBe(true);
+    expect(keptOpen).toBe(true);
+  });
+
+  it("closes the panel on a plain Esc: Base UI asks to close before it marks the press handled", () => {
+    const event = escapePress();
+    const request = escapeRequest(event);
+    expect(escapeHandledInside(request)).toBe(false);
+  });
+
+  it("keeps the panel open for any Esc a part of it used: an edit undone, a select closed", () => {
+    const event = escapePress();
+    event.preventDefault();
+    expect(escapeHandledInside(escapeRequest(event))).toBe(true);
+  });
+
+  it("only looks at Esc: an outside press or the close button still closes", () => {
+    const click = new Event("click", { cancelable: true });
+    click.preventDefault();
+    expect(escapeHandledInside(createChangeEventDetails(REASONS.outsidePress, click as MouseEvent))).toBe(false);
+    expect(escapeHandledInside(createChangeEventDetails(REASONS.closePress, click as MouseEvent))).toBe(false);
   });
 });
