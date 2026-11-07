@@ -59,6 +59,8 @@ export const FILE_PATH_PREFIX = "sales-files/";
 
 /** Days an open deal can sit in a stage before it rots (amber card). */
 export const DEFAULT_ROTTING_DAYS = 14;
+/** Most days an admin may set before a stage goes stale (Sales settings, "Edit stages"); blank means never. */
+export const ROTTING_DAYS_MAX = 365;
 
 /** $10,000,000 in cents. Money is always integer cents. */
 export const MAX_DEAL_CENTS = 1_000_000_000;

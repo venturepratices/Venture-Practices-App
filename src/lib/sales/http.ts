@@ -11,8 +11,12 @@ export type SalesFail = {
   /** 413, 415 and 503 are the file upload's: too big, not an allowed type, storage missing or failing. */
   status: 400 | 403 | 404 | 409 | 413 | 415 | 422 | 503;
   error: string;
-  /** Set when the screen should react to the refusal, not just show it (the value dialog for Proposal Sent). */
-  code?: "PROPOSAL_NEEDS_VALUE";
+  /**
+   * Set when the screen should react to the refusal, not just show it: the value
+   * dialog for Proposal Sent, or the person select in Sales settings when the
+   * person who gets every new lead has no Sales access.
+   */
+  code?: "PROPOSAL_NEEDS_VALUE" | "ASSIGNEE_LOST_ACCESS";
 };
 
 const INVALID_INPUT = "Invalid input.";

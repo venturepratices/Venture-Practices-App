@@ -11,7 +11,8 @@ import { shortName } from "@/lib/sales/format";
  */
 export type AssignmentSummary = { mode: "ROUND_ROBIN" | "SINGLE"; names: string[]; fallbackName: string | null };
 
-const FIRST_ADMIN_ORDER: Prisma.TeamMemberOrderByWithRelationInput[] = [{ createdAt: "asc" }, { id: "asc" }];
+/** Who "the first admin" is, wherever it is read (the fallback owner, the settings card), so every place names the same person. */
+export const FIRST_ADMIN_ORDER: Prisma.TeamMemberOrderByWithRelationInput[] = [{ createdAt: "asc" }, { id: "asc" }];
 
 /**
  * Who is next in a rotation. Skips nobody and wraps around; `cursor` only ever
