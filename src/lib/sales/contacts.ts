@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { dealOwnerWhere, type SalesActor } from "@/lib/sales/access";
+import type { SalesActor } from "@/lib/sales/access";
 import { CONTACT_SEARCH_LIMIT } from "@/lib/sales/constants";
+import { visibleOrganizationWhere, visiblePersonWhere } from "@/lib/sales/contact-access";
 
-// The organization and person pickers in the Add deal dialog. Same who-can-see
-// rule as deals: someone set to see only their own deals finds only the
-// organizations and people they own. Names only, never a person's email or phone.
+// The organization and person pickers in the Add deal dialog. Contacts'
+// who-can-see rule (Decision 18): someone set to see only their own deals finds
+// the organizations and people they own or that sit on a live deal or lead they
+// own. Names only, never a person's email or phone.
 
 type ContactsDb = Pick<typeof prisma, "salesOrganization" | "salesPerson">;
 
@@ -24,18 +26,18 @@ export async function searchContacts(
   const search = q.trim().slice(0, SEARCH_MAX);
   if (search.length < SEARCH_MIN) return [];
 
-  const where = {
-    archivedAt: null,
-    name: { contains: search, mode: "insensitive" as const },
-    ...dealOwnerWhere(actor, "everyone"),
-  };
+  const name = { contains: search, mode: "insensitive" as const };
   const page = { orderBy: { name: "asc" as const }, take: CONTACT_SEARCH_LIMIT };
 
   if (kind === "organization") {
-    return db.salesOrganization.findMany({ where, select: { id: true, name: true }, ...page });
+    return db.salesOrganization.findMany({
+      where: { ...visibleOrganizationWhere(actor, "everyone"), name },
+      select: { id: true, name: true },
+      ...page,
+    });
   }
   const people = await db.salesPerson.findMany({
-    where,
+    where: { ...visiblePersonWhere(actor, "everyone"), name },
     select: { id: true, name: true, organization: { select: { name: true } } },
     ...page,
   });

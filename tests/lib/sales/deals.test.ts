@@ -60,13 +60,26 @@ const state = {
 const selected = (row: Row, select?: Row) =>
   select ? Object.fromEntries(Object.keys(select).map((key) => [key, row[key]])) : row;
 
-/** A contact lookup: same id, not archived, and the owner filter when there is one. */
+/**
+ * Whether a contact fixture passes one branch of the see-own `OR`: its owner is
+ * the person, or one of its live deals or leads is theirs. A fixture lists the
+ * owners of its live deals and leads in `dealOwnerIds` / `leadOwnerIds`.
+ */
+const matchesBranch = (row: Row, branch: Row) => {
+  if ("ownerId" in branch) return row.ownerId === branch.ownerId;
+  const linked = (branch.deals ?? branch.leads) as { some: { ownerId: string; archivedAt: null } };
+  const owners = (("deals" in branch ? row.dealOwnerIds : row.leadOwnerIds) ?? []) as string[];
+  return linked.some.archivedAt === null && owners.includes(linked.some.ownerId);
+};
+
+/** A contact lookup: same id, not archived, and the who-can-see `OR` when there is one. */
 const findContact = (rows: Row[], where: Row) =>
   rows.find(
     (row) =>
       row.id === where.id &&
       row.archivedAt === null &&
-      (where.ownerId === undefined || row.ownerId === where.ownerId),
+      (where.ownerId === undefined || row.ownerId === where.ownerId) &&
+      (where.OR === undefined || (where.OR as Row[]).some((branch) => matchesBranch(row, branch))),
   ) ?? null;
 
 const db = {
@@ -164,9 +177,12 @@ beforeEach(() => {
   state.salesMembers = new Set(["r", "b", "z"]);
   state.organizations = [
     { id: "o1", name: "Bright Smiles Dental", ownerId: "r", archivedAt: null },
-    { id: "o2", name: "Lakeside Ortho", ownerId: "b", archivedAt: null },
+    { id: "o2", name: "Lakeside Ortho", ownerId: "b", archivedAt: null, dealOwnerIds: ["b"] },
+    { id: "o3", name: "Maple Grove Dental", ownerId: "b", archivedAt: null, leadOwnerIds: ["r"] },
   ];
-  state.people = [{ id: "pe1", name: "Dana W.", ownerId: "b", organizationId: null, archivedAt: null }];
+  state.people = [
+    { id: "pe1", name: "Dana W.", ownerId: "b", organizationId: null, archivedAt: null, leadOwnerIds: ["b"] },
+  ];
   state.deal = null;
   state.activities = [];
   state.audits = [];
@@ -252,8 +268,19 @@ describe("POST /api/sales/deals", () => {
     expect(await res.json()).toEqual({ deal: { id: "deal-new", pipelineKey: "direct-mail" } });
     expect(db.$transaction).toHaveBeenCalledTimes(1);
 
-    expect(db.salesOrganization.create.mock.calls[0][0].data).toEqual({ name: "Oak Creek Family Dentistry", ownerId: "r" });
-    expect(db.salesPerson.create.mock.calls[0][0].data).toEqual({ name: "Mark T.", ownerId: "r", organizationId: "org-new" });
+    expect(db.salesOrganization.create.mock.calls[0][0].data).toEqual({
+      name: "Oak Creek Family Dentistry",
+      ownerId: "r",
+      nameKey: "oakcreekfamilydentistry",
+    });
+    expect(db.salesPerson.create.mock.calls[0][0].data).toEqual({
+      name: "Mark T.",
+      ownerId: "r",
+      organizationId: "org-new",
+      nameKey: "markt",
+      emailKey: null,
+      phoneKey: null,
+    });
     expect(db.salesDeal.create.mock.calls[0][0].data).toEqual({
       title: "Oak Creek Family Dentistry",
       pipelineId: "p1",
@@ -313,7 +340,15 @@ describe("POST /api/sales/deals", () => {
     const res = await post({ ...NEW_DEAL, organization: { id: "o1" }, person: null, valueCents: 500_000, firstActivity: "demo-2-days" });
 
     expect(res.status).toBe(201);
-    expect(db.salesOrganization.findFirst.mock.calls[0][0].where).toEqual({ id: "o1", archivedAt: null, ownerId: "r" });
+    expect(db.salesOrganization.findFirst.mock.calls[0][0].where).toEqual({
+      id: "o1",
+      archivedAt: null,
+      OR: [
+        { ownerId: "r" },
+        { deals: { some: { ownerId: "r", archivedAt: null } } },
+        { leads: { some: { ownerId: "r", archivedAt: null } } },
+      ],
+    });
     expect(db.salesOrganization.create).not.toHaveBeenCalled();
     expect(db.salesDeal.create.mock.calls[0][0].data).toMatchObject({
       title: "Bright Smiles Dental",
@@ -337,9 +372,24 @@ describe("POST /api/sales/deals", () => {
     const res = await post({ ...NEW_DEAL, organization: null, person: { name: "  Sarah K. " }, firstActivity: "call-today" });
 
     expect(res.status).toBe(201);
-    expect(db.salesPerson.create.mock.calls[0][0].data).toEqual({ name: "Sarah K.", ownerId: "r", organizationId: null });
+    expect(db.salesPerson.create.mock.calls[0][0].data).toEqual({
+      name: "Sarah K.",
+      ownerId: "r",
+      organizationId: null,
+      nameKey: "sarahk",
+      emailKey: null,
+      phoneKey: null,
+    });
     expect(db.salesDeal.create.mock.calls[0][0].data).toMatchObject({ title: "Sarah K.", organizationId: null, personId: "person-new" });
     expect(db.salesActivity.create.mock.calls[0][0].data).toMatchObject({ dueAt: endOfDay("2026-11-05") });
+  });
+
+  it("lets a see-own person pick another rep's organization that is on one of their own leads", async () => {
+    const res = await post({ ...NEW_DEAL, organization: { id: "o3" }, person: null });
+
+    expect(res.status).toBe(201);
+    expect(db.salesOrganization.create).not.toHaveBeenCalled();
+    expect(db.salesDeal.create.mock.calls[0][0].data).toMatchObject({ title: "Maple Grove Dental", organizationId: "o3" });
   });
 
   it("refuses an organization or person the person cannot see, before writing anything", async () => {

@@ -2,16 +2,18 @@ import { z } from "zod";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { canDeleteSalesRecords, dealOwnerWhere, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
-import { auditDiff, recordSalesAudit, type SalesRequestMeta } from "@/lib/sales/audit";
+import { canDeleteSalesRecords, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
+import { auditDiff, type SalesRequestMeta } from "@/lib/sales/audit";
 import { isBoardPipeline } from "@/lib/sales/board";
 import {
   DEAL_SOURCES,
   FIRST_ACTIVITY_PRESETS,
+  HAND_MADE_SOURCE,
   MAX_DEAL_CENTS,
   TERRITORY_HOLD_FIELD_KEY,
   TITLE_MAX,
 } from "@/lib/sales/constants";
+import { contactRefSchema, resolveContacts } from "@/lib/sales/contact-write";
 import { FIELD_TOO_LONG, normalizeFieldValue } from "@/lib/sales/custom-fields";
 import { DEAL_NOT_FOUND, findDealForEdit, visibleDealWhere } from "@/lib/sales/deal-access";
 import { recordDealAudit } from "@/lib/sales/deal-audit";
@@ -32,15 +34,11 @@ const CHOOSE_OWNER = "Choose a team member with Sales access.";
 const NEED_CONTACT = "Add a person or an organization.";
 const PICK_PIPELINE = "Pick a pipeline.";
 const NO_DELIVERY = "Deals can't be added to a delivery pipeline yet.";
-const ORG_NOT_FOUND = "That organization was not found.";
-const PERSON_NOT_FOUND = "That person was not found.";
 const VALUE_TOO_BIG = "Values can be up to $10,000,000.";
 const PROPOSAL_NEEDS_VALUE = "A deal in Proposal Sent needs a total value and a monthly value above $0.";
 const ONLY_ADMIN_DELETES = "Only an admin can delete deals.";
 const FIELD_NOT_USED = "That field is not used on this deal.";
 
-/** Every deal made with the Add deal dialog is marked as added by hand (Decision 18). */
-const HAND_MADE_SOURCE = "Added by hand";
 const TERRITORY_HOLD_RULE = "rule:territory-hold";
 const TERRITORY_HOLD_SUBJECT = "Territory hold check";
 const ID_MAX = 64;
@@ -54,22 +52,13 @@ const money = z
   .min(0, { error: "Values can't be below $0." })
   .max(MAX_DEAL_CENTS, { error: VALUE_TOO_BIG });
 
-/** An existing organization or person picked by id, or a new one by name. */
-const contactSchema = z
-  .union([
-    z.strictObject({ id: z.string().min(1).max(ID_MAX) }),
-    z.strictObject({ name: z.string().trim().min(1).max(TITLE_MAX) }),
-  ])
-  .nullable()
-  .default(null);
-
 const FIRST_ACTIVITY_IDS = ["call-today", "call-tomorrow", "demo-2-days"] as const satisfies readonly (keyof typeof FIRST_ACTIVITY_PRESETS)[];
 
 export const createDealSchema = z.strictObject({
   pipelineId: z.string({ error: PICK_PIPELINE }).min(1, { error: PICK_PIPELINE }).max(ID_MAX, { error: PICK_PIPELINE }),
   ownerId: z.string({ error: CHOOSE_OWNER }).min(1, { error: CHOOSE_OWNER }).max(ID_MAX, { error: CHOOSE_OWNER }),
-  organization: contactSchema,
-  person: contactSchema,
+  organization: contactRefSchema.default(null),
+  person: contactRefSchema.default(null),
   valueCents: money.default(0),
   firstActivity: z.enum(FIRST_ACTIVITY_IDS, { error: "Pick a first activity." }),
 });
@@ -104,8 +93,9 @@ type CreateDealResult = { ok: true; deal: { id: string; pipelineKey: string } } 
 /**
  * Adds a deal in the pipeline's first stage, with its first activity (spec rule 1)
  * owned by the deal owner (Decision 15). A new organization or person is made
- * for the same owner and gets its own `created` history row before the deal's
- * rows (Decision 32). Only an admin may add a deal for someone else.
+ * for the same owner, with its duplicate keys, and gets its own `created` history
+ * row before the deal's rows (Decision 32, `contact-write.ts`). Only an admin may
+ * add a deal for someone else.
  */
 export async function createDeal(
   actor: SalesActor,
@@ -136,35 +126,12 @@ export async function createDeal(
     });
     if (!stage) return fail(400, PICK_PIPELINE);
 
-    // A picked organization or person must be one this person could find in the picker.
-    const visible = { archivedAt: null, ...dealOwnerWhere(actor, "everyone") };
-    let organization =
-      orgInput && "id" in orgInput
-        ? await tx.salesOrganization.findFirst({ where: { id: orgInput.id, ...visible }, select: { id: true, name: true } })
-        : null;
-    if (orgInput && "id" in orgInput && !organization) return fail(400, ORG_NOT_FOUND);
-    let person =
-      personInput && "id" in personInput
-        ? await tx.salesPerson.findFirst({ where: { id: personInput.id, ...visible }, select: { id: true, name: true } })
-        : null;
-    if (personInput && "id" in personInput && !person) return fail(400, PERSON_NOT_FOUND);
-
-    // Checks done; from here on everything is written.
-    if (orgInput && "name" in orgInput) {
-      const data = { name: orgInput.name, ownerId: input.ownerId };
-      organization = await tx.salesOrganization.create({ data, select: { id: true, name: true } });
-      await recordSalesAudit(
-        tx,
-        actor,
-        { entityType: "SalesOrganization", entityId: organization.id, action: "created", after: data },
-        meta,
-      );
-    }
-    if (personInput && "name" in personInput) {
-      const data = { name: personInput.name, ownerId: input.ownerId, organizationId: organization?.id ?? null };
-      person = await tx.salesPerson.create({ data, select: { id: true, name: true } });
-      await recordSalesAudit(tx, actor, { entityType: "SalesPerson", entityId: person.id, action: "created", after: data }, meta);
-    }
+    // A picked organization or person must be one this person could find in the
+    // picker, and both are checked before any new contact is made. This is the
+    // last check that can refuse: everything after it writes.
+    const contacts = await resolveContacts(tx, actor, { organization: orgInput, person: personInput }, input.ownerId, meta);
+    if (!contacts.ok) return contacts;
+    const { organization, person } = contacts;
 
     const fields = {
       // Named after the practice when there is one, else the person.

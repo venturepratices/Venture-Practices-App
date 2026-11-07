@@ -286,6 +286,8 @@ model TeamMember {
   salesSeesAllDeals Boolean @default(true)
   // Remembered Deals view: { pipeline, view, scope }. A preference, not Sales data.
   salesDefaultView  Json?
+  // Named Deals views (up to 20). A preference, not Sales data, so no history row.
+  salesSavedViews   Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1896,25 +1898,36 @@ model SalesStage {
 }
 
 model SalesOrganization {
-  id         String     @id @default(cuid())
-  name       String
-  ownerId    String
-  owner      TeamMember @relation("SalesOrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  address    String?
-  website    String?
-  archivedAt DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  name         String
+  ownerId      String
+  owner        TeamMember @relation("SalesOrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  address      String?
+  website      String?
+  phone        String?
+  zip          String?
+  // Lower-case letters and digits of the name, for spotting duplicates (src/lib/sales/contact-keys.ts).
+  nameKey      String?
+  // A plain id, no relation: set when this organization was merged into another one.
+  mergedIntoId String?
+  archivedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   people SalesPerson[]
   leads  SalesLead[]
   deals  SalesDeal[]
   notes  SalesNote[]
+
+  @@index([ownerId])
+  @@index([archivedAt, name])
+  @@index([nameKey])
+  @@index([mergedIntoId])
 }
 
 model SalesPerson {
   id             String             @id @default(cuid())
-  // First name plus last initial, by house rule (e.g. "Sarah K.").
+  // The name as typed. Seeds, fixtures and tests use first name plus last initial; real contacts may hold full names.
   name           String
   organizationId String?
   organization   SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -1922,6 +1935,15 @@ model SalesPerson {
   owner          TeamMember         @relation("SalesPersonOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   email          String?
   phone          String?
+  // Their role in the practice.
+  role           String?
+  // Duplicate keys (src/lib/sales/contact-keys.ts): trimmed lower-case email,
+  // 10 US phone digits, lower-case letters and digits of the name.
+  emailKey       String?
+  phoneKey       String?
+  nameKey        String?
+  // A plain id, no relation: set when this person was merged into another one.
+  mergedIntoId   String?
   archivedAt     DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -1930,6 +1952,14 @@ model SalesPerson {
   deals      SalesDeal[]
   activities SalesActivity[]
   notes      SalesNote[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  @@index([archivedAt, name])
+  @@index([emailKey])
+  @@index([phoneKey])
+  @@index([nameKey])
+  @@index([mergedIntoId])
 }
 
 model SalesLead {
@@ -1958,6 +1988,9 @@ model SalesLead {
   customValues SalesCustomFieldValue[]
 
   @@index([status, createdAt])
+  @@index([ownerId, status, createdAt])
+  @@index([personId])
+  @@index([organizationId])
 }
 
 model SalesDeal {
@@ -2001,6 +2034,9 @@ model SalesDeal {
   @@index([pipelineId, status, stageId])
   @@index([pipelineId, status, updatedAt])
   @@index([ownerId, status])
+  @@index([personId])
+  @@index([organizationId])
+  @@index([status, wonAt])
 }
 
 model SalesActivity {
@@ -2058,24 +2094,29 @@ model SalesNote {
 }
 
 model SalesFile {
-  id           String     @id @default(cuid())
-  name         String
-  blobPathname String
-  contentType  String
-  sizeBytes    Int
-  sha256       String
-  uploadedById String
-  uploadedBy   TeamMember @relation("SalesFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  dealId       String?
-  deal         SalesDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
-  leadId       String?
-  lead         SalesLead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
-  archivedAt   DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id               String     @id @default(cuid())
+  name             String
+  blobPathname     String
+  contentType      String
+  sizeBytes        Int
+  sha256           String
+  uploadedById     String
+  uploadedBy       TeamMember @relation("SalesFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  dealId           String?
+  deal             SalesDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId           String?
+  lead             SalesLead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  // When the uploader confirmed this is the final version the client received.
+  finalConfirmedAt DateTime
+  // The deal's stage when the file was added.
+  stageName        String?
+  archivedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   @@index([dealId])
   @@index([leadId])
+  @@index([uploadedById, createdAt])
 }
 
 // An admin-defined extra field on deals or leads. pipelineKeys empty = shown
@@ -2145,6 +2186,7 @@ model SalesAuditLog {
   userAgent  String?
 
   @@index([entityType, entityId, at])
+  @@index([entityType, at])
 }
 
 // A key an outside bot uses to work in Sales on behalf of one person. Only the

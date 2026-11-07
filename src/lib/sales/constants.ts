@@ -65,6 +65,9 @@ export const DEAL_SOURCES = [
   "Added by hand",
 ] as const;
 
+/** The source of a deal made with the Add deal dialog, and the default for a new lead added by hand. */
+export const HAND_MADE_SOURCE = "Added by hand" satisfies (typeof DEAL_SOURCES)[number];
+
 type ActivityPreset = {
   label: string;
   type: SalesActivityType;

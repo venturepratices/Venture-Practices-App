@@ -35,6 +35,13 @@ const { PermissionError } = await import("@/lib/permissions");
 const rep: SalesActor = { userId: "r", isAdmin: false, seesAllDeals: false, via: "user" };
 const admin: SalesActor = { userId: "z", isAdmin: true, seesAllDeals: true, via: "user" };
 
+/** Contacts a see-own person may find: their own, or ones on their own live deals or leads (Decision 18). */
+const SEE_OWN_OR = [
+  { ownerId: "r" },
+  { deals: { some: { ownerId: "r", archivedAt: null } } },
+  { leads: { some: { ownerId: "r", archivedAt: null } } },
+];
+
 beforeEach(() => {
   db.salesOrganization.findMany.mockClear();
   db.salesPerson.findMany.mockClear();
@@ -42,12 +49,12 @@ beforeEach(() => {
 });
 
 describe("searchContacts", () => {
-  it("searches organizations by name, limited to the person's own for someone set to their own deals", async () => {
+  it("searches organizations by name, limited to the ones they may see for someone set to their own deals", async () => {
     const results = await searchContacts(rep, "organization", "br", db as never);
 
     expect(results).toEqual([{ id: "o1", name: "Bright Smiles Dental" }]);
     expect(db.salesOrganization.findMany).toHaveBeenCalledWith({
-      where: { archivedAt: null, name: { contains: "br", mode: "insensitive" }, ownerId: "r" },
+      where: { archivedAt: null, OR: SEE_OWN_OR, name: { contains: "br", mode: "insensitive" } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
       take: 8,
@@ -72,7 +79,7 @@ describe("searchContacts", () => {
     ]);
     const args = db.salesPerson.findMany.mock.calls[0][0];
     expect(args).toEqual({
-      where: { archivedAt: null, name: { contains: "bri", mode: "insensitive" }, ownerId: "r" },
+      where: { archivedAt: null, OR: SEE_OWN_OR, name: { contains: "bri", mode: "insensitive" } },
       select: { id: true, name: true, organization: { select: { name: true } } },
       orderBy: { name: "asc" },
       take: 8,
@@ -102,7 +109,7 @@ describe("GET /api/sales/contacts", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ results: [{ id: "o1", name: "Bright Smiles Dental" }] });
-    expect(db.salesOrganization.findMany.mock.calls[0][0].where).toMatchObject({ ownerId: "r" });
+    expect(db.salesOrganization.findMany.mock.calls[0][0].where.OR).toEqual(SEE_OWN_OR);
   });
 
   it("refuses a kind that is not organization or person", async () => {
