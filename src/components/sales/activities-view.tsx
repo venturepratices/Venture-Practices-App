@@ -7,11 +7,11 @@ import { CalendarCheck, Check } from "lucide-react";
 import { toast } from "sonner";
 
 import { activitiesEmptyState } from "@/lib/sales/activities-client";
-import type { ActivitiesPageData, ActivityRow } from "@/lib/sales/activities-page";
+import type { ActivitiesPageData, ActivityParent, ActivityRow } from "@/lib/sales/activities-page";
 import { activitiesQueryToSearch, type ActivitiesQuery } from "@/lib/sales/activities-query";
 import { getActivitiesPage } from "@/lib/sales/api-client";
 import { appendPage, canChangeDeal } from "@/lib/sales/board-client";
-import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
+import { changePanelUrl, pageRendered, panelHref, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES } from "@/lib/sales/constants";
 import { dueLabel, shortName } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
@@ -23,13 +23,14 @@ import { ShortcutsButton } from "@/components/sales/shortcuts-help-dialog";
 import { useActivityDone } from "@/components/sales/use-activity-done";
 
 // The Activities page on the client (mockup `viewActivities`): the header with
-// Everyone / Just me, the day and type filters, and the activities on deals the
-// viewer may see. A filter replaces the URL (never with a page cursor); "Show
-// more" appends the next page (Decision 33); a row opens its deal in the panel
-// (`?deal=<id>` on this page, set with the history API so the list is not
-// loaded again, panel-url.ts). The round check ticks an activity done and, when
-// that leaves an open deal with nothing planned, asks for the next step. Under
-// 640px each row becomes a stacked card with labels (mockup `.t.cards`).
+// Everyone / Just me, the day and type filters, and the activities on deals and
+// leads the viewer may see. A filter replaces the URL (never with a page
+// cursor); "Show more" appends the next page (Decision 33); a row opens its deal
+// or lead in its panel (`?deal=<id>` or `?lead=<id>` on this page, built by
+// panelHref and set with the history API so the list is not loaded again,
+// panel-url.ts). The round check ticks an activity done and, when that leaves an
+// open deal or lead with nothing planned, asks for the next step. Under 640px
+// each row becomes a stacked card with labels (mockup `.t.cards`).
 
 type Viewer = { userId: string; isAdmin: boolean };
 type ActivitiesPatch = Partial<Omit<ActivitiesQuery, "cursor">>;
@@ -74,11 +75,9 @@ export function ActivitiesView({
     });
   }
 
-  /** This page's URL with the deal panel open. */
-  function dealHref(dealId: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("deal", dealId);
-    return `${pathname}?${params}`;
+  /** This page's URL with the deal or lead panel open. */
+  function parentHref(parent: ActivityParent) {
+    return panelHref(pathname, searchParams.toString(), { kind: parent.kind, id: parent.id });
   }
 
   const empty = activitiesEmptyState(data.query);
@@ -180,8 +179,8 @@ export function ActivitiesView({
             data={data}
             viewer={viewer}
             now={now}
-            dealHref={dealHref}
-            onOpen={(dealId) => changePanelUrl(dealHref(dealId), "push", router)}
+            parentHref={parentHref}
+            onOpen={(parent) => changePanelUrl(parentHref(parent), "push", router)}
             markDone={done.markDone}
           />
         )}
@@ -224,15 +223,15 @@ function ActivitiesTable({
   data,
   viewer,
   now,
-  dealHref,
+  parentHref,
   onOpen,
   markDone,
 }: {
   data: ActivitiesPageData;
   viewer: Viewer;
   now: Date;
-  dealHref: (dealId: string) => string;
-  onOpen: (dealId: string) => void;
+  parentHref: (parent: ActivityParent) => string;
+  onOpen: (parent: ActivityParent) => void;
   /** useActivityDone's markDone: ticks it, toasts, asks for a next step when needed, refreshes. */
   markDone: ReturnType<typeof useActivityDone>["markDone"];
 }) {
@@ -268,7 +267,8 @@ function ActivitiesTable({
     const index = page.rows.findIndex((candidate) => candidate.id === row.id);
     focusAfterTick.current = (page.rows[index + 1] ?? page.rows[index - 1])?.id ?? null;
     setTicks((current) => ({ ...current, shown: withId(current.shown, row.id), sending: withId(current.sending, row.id) }));
-    await markDone({ id: row.id, subject: row.subject }, { kind: "deal", id: row.deal.id, title: row.deal.title });
+    const { kind, id, title } = row.parent;
+    await markDone({ id: row.id, subject: row.subject }, { kind, id, title });
     setTicks((current) => ({ ...current, sending: withoutId(current.sending, row.id) }));
   }
 
@@ -308,15 +308,16 @@ function ActivitiesTable({
             {page.rows.map((row) => {
               const ownerName = ownerNames.get(row.ownerId);
               const owner = ownerName ?? "No longer in Sales";
-              const dealOwnerName = ownerNames.get(row.deal.ownerId);
-              const canEdit = canChangeDeal(viewer, row.deal);
+              const parentOwnerName = ownerNames.get(row.parent.ownerId);
+              // The deal's or the lead's owner, or an admin (the same rule for both).
+              const canEdit = canChangeDeal(viewer, row.parent);
               const ticked = ticks.shown.has(row.id);
               const Icon = ACTIVITY_ICONS[row.type];
               // The hover tint stays at 50%: over 4.5:1 for the row's grey text in light (K3).
               return (
                 <tr
                   key={row.id}
-                  onClick={() => onOpen(row.deal.id)}
+                  onClick={() => onOpen(row.parent)}
                   className={cn(
                     "cursor-pointer border-b transition-[background-color,opacity] duration-150 last:border-b-0 hover:bg-muted/50 max-sm:relative max-sm:block max-sm:py-2.5 max-sm:pr-3 max-sm:pl-10",
                     ticked && "opacity-60",
@@ -338,7 +339,7 @@ function ActivitiesTable({
                         title={
                           canEdit
                             ? undefined
-                            : `Only ${dealOwnerName ? shortName(dealOwnerName) : "the deal owner"} or an admin can mark this done.`
+                            : `Only ${parentOwnerName ? shortName(parentOwnerName) : "the deal owner"} or an admin can mark this done.`
                         }
                         onClick={(event) => {
                           event.stopPropagation();
@@ -374,17 +375,19 @@ function ActivitiesTable({
                   <td className={CELL}>
                     <CardLabel>Deal:</CardLabel>
                     <Link
-                      href={dealHref(row.deal.id)}
+                      href={parentHref(row.parent)}
                       scroll={false}
+                      // The lead panel finds its way back here by this id when it closes.
+                      data-lead-id={row.parent.kind === "lead" ? row.parent.id : undefined}
                       onClick={(event) => event.stopPropagation()}
                       // A plain click opens the panel like the row does (no page reload); Ctrl or Cmd still opens a tab.
                       onNavigate={(event) => {
                         event.preventDefault();
-                        onOpen(row.deal.id);
+                        onOpen(row.parent);
                       }}
                       className="rounded-sm [overflow-wrap:anywhere] outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
-                      {row.deal.title}
+                      {row.parent.title}
                     </Link>
                   </td>
                   <td className={CELL}>

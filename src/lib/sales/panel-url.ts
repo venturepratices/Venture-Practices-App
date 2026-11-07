@@ -16,6 +16,36 @@
 //
 // Client only: the state lives in the browser tab's copy of this module.
 
+/** A panel the URL can open: `?deal=`, `?lead=`, `?person=` or `?organization=`. */
+export type PanelTarget = { kind: "deal" | "lead" | "person" | "organization"; id: string };
+
+/** Which wins when a hand-edited URL names several panels: the deal, then the lead, the person, the organization. */
+const PANEL_KINDS = ["deal", "lead", "person", "organization"] as const;
+
+/**
+ * This page's URL with one panel open, or none with `target` null. Drops every
+ * panel param and `compose` (the deal composer belongs to the deal it opened
+ * on), keeps every other param in its order, then sets the target's. No `?`
+ * when nothing is left.
+ */
+export function panelHref(pathname: string, search: string, target: PanelTarget | null): string {
+  const params = new URLSearchParams(search);
+  for (const kind of PANEL_KINDS) params.delete(kind);
+  params.delete("compose");
+  if (target) params.set(target.kind, target.id);
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+/** The one panel this URL shows, or null. An empty id names no record, so it counts as no panel. */
+export function activePanel(search: URLSearchParams): PanelTarget | null {
+  for (const kind of PANEL_KINDS) {
+    const id = search.get(kind);
+    if (id) return { kind, id };
+  }
+  return null;
+}
+
 type PanelRouter = {
   push(href: string, options?: { scroll?: boolean }): void;
   replace(href: string, options?: { scroll?: boolean }): void;

@@ -96,7 +96,7 @@ const ACTIVITIES: ActivitiesPageData = {
       hasTime: true,
       doneAt: null,
       ownerId: "u1",
-      deal: { id: "d1", title: "Bright Smile Dental", ownerId: "u1" },
+      parent: { kind: "deal", id: "d1", title: "Bright Smile Dental", ownerId: "u1" },
     },
   ],
   nextCursor: null,

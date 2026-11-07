@@ -59,7 +59,13 @@ export function territoryHoldCheckDueAt(expiry: string, now: Date): Date {
   return check.getTime() > endOfToday.getTime() ? check : endOfToday;
 }
 
-/** An open deal with nothing scheduled is stalled. Won and lost deals never are. */
-export function isStalled(openActivityCount: number, status: "OPEN" | "WON" | "LOST"): boolean {
+/**
+ * An open deal or lead with nothing scheduled is stalled. Won and lost deals,
+ * and converted and archived leads, never are.
+ */
+export function isStalled(
+  openActivityCount: number,
+  status: "OPEN" | "WON" | "LOST" | "CONVERTED" | "ARCHIVED",
+): boolean {
   return status === "OPEN" && openActivityCount === 0;
 }

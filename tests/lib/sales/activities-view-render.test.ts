@@ -29,7 +29,7 @@ const CALL: ActivityRow = {
   hasTime: true,
   doneAt: null,
   ownerId: "u1",
-  deal: { id: "d1", title: "Bright Smile Dental", ownerId: "u1" },
+  parent: { kind: "deal", id: "d1", title: "Bright Smile Dental", ownerId: "u1" },
 };
 
 const MEETING_ON_ROBERTS_DEAL: ActivityRow = {
@@ -40,7 +40,18 @@ const MEETING_ON_ROBERTS_DEAL: ActivityRow = {
   hasTime: true,
   doneAt: null,
   ownerId: "u2",
-  deal: { id: "d2", title: "Oak Family Dentistry", ownerId: "u2" },
+  parent: { kind: "deal", id: "d2", title: "Oak Family Dentistry", ownerId: "u2" },
+};
+
+const CALL_ON_A_LEAD: ActivityRow = {
+  id: "a5",
+  type: "CALL",
+  subject: "First call",
+  dueAt: "2026-11-04T15:00:00.000Z",
+  hasTime: true,
+  doneAt: null,
+  ownerId: "u1",
+  parent: { kind: "lead", id: "l1", title: "Crestview Dental", ownerId: "u1" },
 };
 
 function pageData(extra: Partial<ActivitiesPageData> = {}): ActivitiesPageData {
@@ -111,6 +122,28 @@ describe("Activities screen (server render)", () => {
     expect(html).toContain("Overdue 2d");
     expect(html).toContain('aria-label="Owner: Ben S."');
     for (const label of ["Deal:", "Due:", "Owner:"]) expect(html).toContain(label);
+  });
+
+  it("links a lead row to its lead and a deal row to its deal, keeping the page's filters", () => {
+    const html = render(pageData({ rows: [CALL_ON_A_LEAD, CALL] }));
+    const titleLink = (title: string) => html.match(new RegExp(`<a [^>]*>${title}</a>`))?.[0] ?? "";
+
+    const lead = titleLink("Crestview Dental");
+    expect(lead).toContain('href="/sales/activities?when=overdue&amp;lead=l1"');
+    expect(lead).toContain('data-lead-id="l1"');
+    expect(html).toContain('aria-label="Mark done: First call"');
+    expect(html).not.toMatch(/aria-label="Mark done: First call"[^>]*aria-disabled="true"/);
+
+    const deal = titleLink("Bright Smile Dental");
+    expect(deal).toContain('href="/sales/activities?when=overdue&amp;deal=d1"');
+    expect(deal).not.toContain("data-lead-id");
+  });
+
+  it("keeps someone else's lead check visible but not usable", () => {
+    const robertsLead: ActivityRow = { ...CALL_ON_A_LEAD, ownerId: "u2", parent: { ...CALL_ON_A_LEAD.parent, ownerId: "u2" } };
+    const html = render(pageData({ rows: [robertsLead] }));
+    expect(html).toMatch(/aria-label="Mark done: First call"[^>]*aria-disabled="true"/);
+    expect(html).toContain("Only Robert O. or an admin can mark this done.");
   });
 
   it("says the chosen time in the Due column, and only the day when none was chosen", () => {

@@ -4,10 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Activities list: its URL query (client-safe parser and serializer), the
-// `where` that always keeps the deal-visibility rule on (so a deal moved to
-// another rep never leaks its activities), the pages of 50, and the GET route
-// behind "Show more". Run with a fake database and a fake Sales gate; nothing
-// here reaches a real database or a real session.
+// `where` that always keeps the deal-or-lead visibility rule on (so a deal or
+// lead moved to another rep never leaks its activities, and an activity that
+// moved to a deal never shows through its lead), the pages of 50, and the GET
+// route behind "Show more". Run with a fake database and a fake Sales gate;
+// nothing here reaches a real database or a real session.
 
 const requireSalesUserMock = vi.fn();
 vi.mock("@/lib/sales/access", async (importOriginal) => {
@@ -41,7 +42,10 @@ const db = {
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
 const { parseActivitiesQuery, activitiesQueryToSearch } = await import("@/lib/sales/activities-query");
-const { activitiesWhere, loadActivityRows, loadActivitiesPage } = await import("@/lib/sales/activities-page");
+const { activitiesWhere, activityParentWhere, loadActivityRows, loadActivitiesPage } = await import(
+  "@/lib/sales/activities-page"
+);
+const { salesDueCountWhere } = await import("@/lib/sales/nav");
 const activitiesRoute = await import("@/app/api/sales/activities/route");
 const { PermissionError } = await import("@/lib/permissions");
 const { endOfDay, startOfDay } = await import("@/lib/utils");
@@ -59,6 +63,7 @@ const stored = (i: number, extra: Row = {}): Row => ({
   doneAt: null,
   ownerId: "r",
   deal: { id: `d${i}`, title: `Deal ${i}`, ownerId: "r" },
+  lead: null,
   ...extra,
 });
 const many = (count: number) => Array.from({ length: count }, (_, i) => stored(i + 1));
@@ -72,7 +77,26 @@ const ROW_SELECT = {
   doneAt: true,
   ownerId: true,
   deal: { select: { id: true, title: true, ownerId: true } },
+  lead: { select: { id: true, title: true, ownerId: true } },
 };
+
+/**
+ * The deal-or-lead half of a `where`: a deal activity through its deal, or an
+ * activity still on its lead (no deal) through that lead. `owner` is the
+ * visibility rule (`{ ownerId }` for someone who sees only their own), and to-do
+ * lists ask for open deals and leads only.
+ */
+const parents = (owner: Row, toDo: boolean) => [
+  { dealId: { not: null }, deal: { archivedAt: null, ...(toDo ? { status: "OPEN" } : {}), ...owner } },
+  { dealId: null, leadId: { not: null }, lead: { archivedAt: null, ...(toDo ? { status: "OPEN" } : {}), ...owner } },
+];
+
+/** The deal branch and the lead branch of a `where` built by activitiesWhere. */
+function branches(where: Row): { deal: Row; lead: Row } {
+  const or = where.OR as Row[];
+  expect(or).toHaveLength(2);
+  return { deal: or[0], lead: or[1] };
+}
 
 beforeEach(() => {
   for (const delegate of Object.values(db)) for (const fn of Object.values(delegate)) fn.mockClear();
@@ -138,16 +162,57 @@ describe("parseActivitiesQuery and activitiesQueryToSearch", () => {
 });
 
 describe("activitiesWhere", () => {
+  it("lists deal and lead activities the person may see", () => {
+    const open = activitiesWhere(rep, query({ when: "open" }), now);
+    expect(open).toEqual({
+      doneAt: null,
+      archivedAt: null,
+      OR: [
+        { dealId: { not: null }, deal: { archivedAt: null, status: "OPEN", ownerId: "r" } },
+        { dealId: null, leadId: { not: null }, lead: { archivedAt: null, status: "OPEN", ownerId: "r" } },
+      ],
+    });
+    // The deal rule lives only inside its branch, so lead activities are not shut out.
+    expect(open).not.toHaveProperty("dealId");
+    expect(open).not.toHaveProperty("deal");
+
+    expect(activitiesWhere(rep, query({ when: "done" }), now)).toEqual({
+      doneAt: { not: null },
+      archivedAt: null,
+      OR: [
+        { dealId: { not: null }, deal: { archivedAt: null, ownerId: "r" } },
+        { dealId: null, leadId: { not: null }, lead: { archivedAt: null, ownerId: "r" } },
+      ],
+    });
+
+    expect(activitiesWhere(rep, query({ when: "open", scope: "mine" }), now)).toEqual({
+      doneAt: null,
+      archivedAt: null,
+      ownerId: "r",
+      OR: parents({ ownerId: "r" }, true),
+    });
+
+    expect(activitiesWhere(rep, query({ when: "overdue" }), now)).toEqual({
+      doneAt: null,
+      archivedAt: null,
+      dueAt: { lt: startOfDay("2026-11-05") },
+      OR: parents({ ownerId: "r" }, true),
+    });
+  });
+
   it.each(["open", "overdue", "today", "done"] as const)(
-    "always keeps the deal-visibility rule on (%s)",
+    "always keeps the deal and lead visibility rules on (%s)",
     (when) => {
       const where = activitiesWhere(rep, query({ when }), now);
+      const { deal, lead } = branches(where);
 
-      expect(where.deal).toMatchObject({ archivedAt: null, ownerId: "r" });
-      expect(where.dealId).toEqual({ not: null });
       expect(where.archivedAt).toBeNull();
-      if (when === "done") expect(where.deal).not.toHaveProperty("status");
-      else expect(where.deal).toHaveProperty("status", "OPEN");
+      expect(deal).toMatchObject({ dealId: { not: null }, deal: { archivedAt: null, ownerId: "r" } });
+      expect(lead).toMatchObject({ dealId: null, leadId: { not: null }, lead: { archivedAt: null, ownerId: "r" } });
+      for (const parent of [deal.deal, lead.lead]) {
+        if (when === "done") expect(parent).not.toHaveProperty("status");
+        else expect(parent).toHaveProperty("status", "OPEN");
+      }
     },
   );
 
@@ -155,9 +220,8 @@ describe("activitiesWhere", () => {
     expect(activitiesWhere(rep, query({ when: "overdue" }), now)).toEqual({
       doneAt: null,
       archivedAt: null,
-      dealId: { not: null },
       dueAt: { lt: startOfDay("2026-11-05") },
-      deal: { status: "OPEN", archivedAt: null, ownerId: "r" },
+      OR: parents({ ownerId: "r" }, true),
     });
   });
 
@@ -165,9 +229,8 @@ describe("activitiesWhere", () => {
     expect(activitiesWhere(rep, query({ when: "today" }), now)).toEqual({
       doneAt: null,
       archivedAt: null,
-      dealId: { not: null },
       dueAt: { gte: startOfDay("2026-11-05"), lte: endOfDay("2026-11-05") },
-      deal: { status: "OPEN", archivedAt: null, ownerId: "r" },
+      OR: parents({ ownerId: "r" }, true),
     });
   });
 
@@ -180,43 +243,42 @@ describe("activitiesWhere", () => {
     });
   });
 
-  it("lists every open activity on open deals by default", () => {
+  it("lists every open activity on open deals and open leads by default", () => {
     expect(activitiesWhere(rep, DEFAULTS, now)).toEqual({
       doneAt: null,
       archivedAt: null,
-      dealId: { not: null },
-      deal: { status: "OPEN", archivedAt: null, ownerId: "r" },
+      OR: parents({ ownerId: "r" }, true),
     });
   });
 
-  it("lists done activities on any deal still there, whatever its status", () => {
+  it("lists done activities on any deal or lead still there, whatever its status", () => {
     expect(activitiesWhere(rep, query({ when: "done" }), now)).toEqual({
       doneAt: { not: null },
       archivedAt: null,
-      dealId: { not: null },
-      deal: { archivedAt: null, ownerId: "r" },
+      OR: parents({ ownerId: "r" }, false),
     });
   });
 
   it.each(["open", "done"] as const)(
-    "gives someone who sees only their own deals both rules under Just me (%s): their activities, on their deals",
+    "gives someone who sees only their own deals both rules under Just me (%s): their activities, on their deals and leads",
     (when) => {
       const where = activitiesWhere(rep, query({ when, scope: "mine" }), now);
+      const { deal, lead } = branches(where);
 
       expect(where.ownerId).toBe("r");
-      expect(where.deal).toMatchObject({ ownerId: "r" });
+      expect(deal.deal).toMatchObject({ ownerId: "r" });
+      expect(lead.lead).toMatchObject({ ownerId: "r" });
     },
   );
 
-  it("gives an admin under Just me their own activities on any deal", () => {
+  it("gives an admin under Just me their own activities on any deal or lead", () => {
     const where = activitiesWhere(admin, query({ scope: "mine" }), now);
 
     expect(where).toEqual({
       doneAt: null,
       archivedAt: null,
-      dealId: { not: null },
       ownerId: "b",
-      deal: { status: "OPEN", archivedAt: null },
+      OR: parents({}, true),
     });
   });
 
@@ -225,20 +287,53 @@ describe("activitiesWhere", () => {
       const where = activitiesWhere(actor, DEFAULTS, now);
 
       expect(where).not.toHaveProperty("ownerId");
-      expect(where.deal).toEqual({ status: "OPEN", archivedAt: null });
+      expect(where.OR).toEqual(parents({}, true));
     }
   });
 
-  it("keeps a rep who sees only their own deals to those deals under Everyone too", () => {
+  it("keeps a rep who sees only their own deals to those deals and leads under Everyone too", () => {
     const where = activitiesWhere(rep, DEFAULTS, now);
 
     expect(where).not.toHaveProperty("ownerId");
-    expect(where.deal).toEqual({ status: "OPEN", archivedAt: null, ownerId: "r" });
+    expect(where.OR).toEqual(parents({ ownerId: "r" }, true));
   });
 
   it("filters by type", () => {
     expect(activitiesWhere(rep, query({ type: "MEETING" }), now)).toMatchObject({ type: "MEETING" });
     expect(activitiesWhere(rep, DEFAULTS, now)).not.toHaveProperty("type");
+  });
+});
+
+describe("activityParentWhere", () => {
+  it("names a deal activity through its deal and an activity still on its lead through that lead", () => {
+    expect(activityParentWhere(rep, false)).toEqual({
+      OR: [
+        { dealId: { not: null }, deal: { archivedAt: null, status: "OPEN", ownerId: "r" } },
+        { dealId: null, leadId: { not: null }, lead: { archivedAt: null, status: "OPEN", ownerId: "r" } },
+      ],
+    });
+    expect(activityParentWhere(admin, true)).toEqual({
+      OR: [
+        { dealId: { not: null }, deal: { archivedAt: null } },
+        { dealId: null, leadId: { not: null }, lead: { archivedAt: null } },
+      ],
+    });
+  });
+
+  it("an activity that moved to a deal never matches through its lead (Review Focus 1)", () => {
+    // Convert sets dealId on the lead's open activities and keeps leadId. Such
+    // an activity must answer only to its deal: a done call on a deal now owned
+    // by another rep, or an open call on a converted lead, never shows through
+    // the lead on Activities or in the due count.
+    const leadBranches = [
+      (activityParentWhere(rep, false).OR as Row[])[1],
+      (activityParentWhere(rep, true).OR as Row[])[1],
+      (salesDueCountWhere("r", now).OR as Row[])[1],
+    ];
+    for (const branch of leadBranches) {
+      expect(branch).toHaveProperty("lead");
+      expect(branch).toHaveProperty("dealId", null);
+    }
   });
 });
 
@@ -250,9 +345,8 @@ describe("loadActivityRows", () => {
       where: {
         doneAt: null,
         archivedAt: null,
-        dealId: { not: null },
         dueAt: { lt: startOfDay("2026-11-05") },
-        deal: { status: "OPEN", archivedAt: null, ownerId: "r" },
+        OR: parents({ ownerId: "r" }, true),
       },
       orderBy: [{ dueAt: "asc" }, { id: "asc" }],
       take: 51,
@@ -296,7 +390,7 @@ describe("loadActivityRows", () => {
           hasTime: true,
           doneAt: null,
           ownerId: "r",
-          deal: { id: "d1", title: "Deal 1", ownerId: "r" },
+          parent: { kind: "deal", id: "d1", title: "Deal 1", ownerId: "r" },
         },
         {
           id: "a2",
@@ -306,11 +400,35 @@ describe("loadActivityRows", () => {
           hasTime: false,
           doneAt: doneAt.toISOString(),
           ownerId: "r",
-          deal: { id: "d2", title: "Deal 2", ownerId: "r" },
+          parent: { kind: "deal", id: "d2", title: "Deal 2", ownerId: "r" },
         },
       ],
       nextCursor: null,
     });
+  });
+
+  it("a lead row names its lead", async () => {
+    state.rows = [
+      stored(1, { deal: null, lead: { id: "l1", title: "Crestview Dental", ownerId: "r" } }),
+      stored(2),
+      // Moved to a deal by a convert: leadId is kept, but the deal is where it lives now.
+      stored(3, { lead: { id: "l3", title: "Maple Grove Dental", ownerId: "b" } }),
+    ];
+    const page = await loadActivityRows(rep, DEFAULTS, now);
+
+    expect(db.salesActivity.findMany.mock.calls[0][0].select).toEqual(ROW_SELECT);
+    expect(db.salesActivity.findMany.mock.calls[0][0].select).toHaveProperty("lead", {
+      select: { id: true, title: true, ownerId: true },
+    });
+    expect(page.rows.map((row) => row.parent)).toEqual([
+      { kind: "lead", id: "l1", title: "Crestview Dental", ownerId: "r" },
+      { kind: "deal", id: "d2", title: "Deal 2", ownerId: "r" },
+      { kind: "deal", id: "d3", title: "Deal 3", ownerId: "r" },
+    ]);
+    for (const row of page.rows) {
+      expect(row).not.toHaveProperty("deal");
+      expect(row).not.toHaveProperty("lead");
+    }
   });
 });
 
@@ -361,11 +479,20 @@ describe("GET /api/sales/activities", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      rows: many(50).map((row) => ({ ...row, dueAt: dueAt.toISOString() })),
+      rows: many(50).map((row) => ({
+        id: row.id,
+        type: row.type,
+        subject: row.subject,
+        dueAt: dueAt.toISOString(),
+        hasTime: row.hasTime,
+        doneAt: row.doneAt,
+        ownerId: row.ownerId,
+        parent: { kind: "deal", ...(row.deal as Row) },
+      })),
       nextCursor: "a50",
     });
     expect(db.salesActivity.findMany.mock.calls[0][0]).toMatchObject({
-      where: { dueAt: { lt: startOfDay("2026-11-05") }, deal: { status: "OPEN", archivedAt: null, ownerId: "r" } },
+      where: { dueAt: { lt: startOfDay("2026-11-05") }, OR: parents({ ownerId: "r" }, true) },
       take: 51,
     });
   });

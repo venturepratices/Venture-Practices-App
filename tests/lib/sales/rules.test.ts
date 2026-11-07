@@ -116,4 +116,12 @@ describe("isStalled", () => {
     expect(isStalled(0, "WON")).toBe(false);
     expect(isStalled(0, "LOST")).toBe(false);
   });
+
+  it("reads a lead's status too: only an open lead with nothing planned is stalled (A11)", () => {
+    expect(isStalled(0, "OPEN")).toBe(true);
+    expect(isStalled(1, "OPEN")).toBe(false);
+    expect(isStalled(0, "CONVERTED")).toBe(false);
+    expect(isStalled(0, "ARCHIVED")).toBe(false);
+    expect(isStalled(0, "WON")).toBe(false);
+  });
 });

@@ -26,8 +26,10 @@ export function salesNavGroup(
 
 /**
  * The count beside Activities: this person's own to-dos that are due today or
- * overdue (app time), not done, not removed, on open deals that still exist.
- * Uses the (ownerId, doneAt, dueAt) index.
+ * overdue (app time), not done, not removed, on open deals or open leads that
+ * still exist. An activity counts through its lead only while it has no deal:
+ * once a convert moves it to a deal, only that deal decides. Uses the
+ * (ownerId, doneAt, dueAt) index.
  */
 export function salesDueCountWhere(userId: string, now: Date): Prisma.SalesActivityWhereInput {
   return {
@@ -35,6 +37,9 @@ export function salesDueCountWhere(userId: string, now: Date): Prisma.SalesActiv
     doneAt: null,
     archivedAt: null,
     dueAt: { lte: endOfDay(dateInputValue(now)) },
-    deal: { status: "OPEN", archivedAt: null },
+    OR: [
+      { dealId: { not: null }, deal: { status: "OPEN", archivedAt: null } },
+      { dealId: null, leadId: { not: null }, lead: { status: "OPEN", archivedAt: null } },
+    ],
   };
 }

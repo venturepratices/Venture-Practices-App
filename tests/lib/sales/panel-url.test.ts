@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
+import { activePanel, changePanelUrl, pageRendered, panelHref, refreshAfterWrite } from "@/lib/sales/panel-url";
 
 // Opening and closing the deal panel changes only `deal` and `compose` in the
 // URL. Browsing deals must not re-run the whole Deals page on the server, so
@@ -19,6 +19,44 @@ function fakes() {
 beforeEach(() => {
   // Each test starts as a page that has just come from the server.
   pageRendered();
+});
+
+describe("panelHref", () => {
+  it("opens one panel: drops every panel and the composer, keeps the other params in order", () => {
+    expect(panelHref("/sales/activities", "when=today&deal=d1&compose=activity", { kind: "lead", id: "l1" })).toBe(
+      "/sales/activities?when=today&lead=l1",
+    );
+    expect(panelHref("/sales/activities", "when=today&deal=d1&compose=activity", null)).toBe("/sales/activities?when=today");
+    expect(panelHref("/sales/leads", "", null)).toBe("/sales/leads");
+  });
+
+  it("drops a person and an organization too, and sets each kind under its own name", () => {
+    expect(
+      panelHref("/sales/contacts", "tab=organizations&person=p1&q=oak&organization=o1&lead=l2", {
+        kind: "organization",
+        id: "o9",
+      }),
+    ).toBe("/sales/contacts?tab=organizations&q=oak&organization=o9");
+    expect(panelHref("/sales/deals", "pipeline=direct-mail", { kind: "deal", id: "d1" })).toBe(
+      "/sales/deals?pipeline=direct-mail&deal=d1",
+    );
+    expect(panelHref("/sales/contacts", "?q=oak", { kind: "person", id: "p1" })).toBe("/sales/contacts?q=oak&person=p1");
+  });
+});
+
+describe("activePanel", () => {
+  it("names the one panel to show: the deal, then the lead, the person, the organization", () => {
+    expect(activePanel(new URLSearchParams("lead=l1&deal=d1"))).toEqual({ kind: "deal", id: "d1" });
+    expect(activePanel(new URLSearchParams("organization=o1&lead=l1"))).toEqual({ kind: "lead", id: "l1" });
+    expect(activePanel(new URLSearchParams("person=p1&organization=o1"))).toEqual({ kind: "person", id: "p1" });
+    expect(activePanel(new URLSearchParams("when=today&organization=o1"))).toEqual({ kind: "organization", id: "o1" });
+    expect(activePanel(new URLSearchParams(""))).toBeNull();
+  });
+
+  it("treats an empty id as no panel, since it names no record", () => {
+    expect(activePanel(new URLSearchParams("deal=&lead=l1"))).toEqual({ kind: "lead", id: "l1" });
+    expect(activePanel(new URLSearchParams("deal="))).toBeNull();
+  });
 });
 
 describe("changePanelUrl", () => {

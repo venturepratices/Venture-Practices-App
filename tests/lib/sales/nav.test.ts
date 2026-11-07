@@ -37,14 +37,18 @@ describe("salesNavGroup", () => {
 });
 
 describe("salesDueCountWhere", () => {
-  it("counts the person's open, unarchived deal activities due by the end of today (app time)", () => {
+  it("counts the person's open, unarchived deal and lead activities due by the end of today (app time)", () => {
     // 11:30 PM Eastern on Nov 5 is already Nov 6 in UTC.
     expect(salesDueCountWhere("r", new Date("2026-11-06T04:30:00Z"))).toEqual({
       ownerId: "r",
       doneAt: null,
       archivedAt: null,
       dueAt: { lte: endOfDay("2026-11-05") },
-      deal: { status: "OPEN", archivedAt: null },
+      OR: [
+        { dealId: { not: null }, deal: { status: "OPEN", archivedAt: null } },
+        // Only while it is still on its lead: once a convert moves it to a deal, the deal decides.
+        { dealId: null, leadId: { not: null }, lead: { status: "OPEN", archivedAt: null } },
+      ],
     });
     expect(endOfDay("2026-11-05").toISOString()).toBe("2026-11-06T04:59:59.999Z");
   });
