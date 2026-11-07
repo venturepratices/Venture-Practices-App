@@ -110,7 +110,16 @@ describe("applyOptimisticRemove", () => {
   });
 });
 
-const DEFAULTS: BoardQuery = { pipeline: null, view: "board", scope: "everyone", status: "open", next: "any", q: "", cursor: null };
+const DEFAULTS: BoardQuery = {
+  pipeline: null,
+  view: "board",
+  scope: "everyone",
+  status: "open",
+  next: "any",
+  stage: null,
+  q: "",
+  cursor: null,
+};
 
 describe("nextBoardQuery", () => {
   it("always names the resolved pipeline so a saved view cannot undo a click", () => {
@@ -127,6 +136,31 @@ describe("nextBoardQuery", () => {
   it("keeps the other filters when one changes", () => {
     const current: BoardQuery = { ...DEFAULTS, pipeline: "direct-mail", status: "won", next: "overdue", q: "oak" };
     expect(nextBoardQuery(current, "direct-mail", { view: "list" })).toEqual({ ...current, view: "list" });
+  });
+
+  it("drops the Stage filter when the pipeline changes, since stages belong to one pipeline", () => {
+    const current: BoardQuery = { ...DEFAULTS, pipeline: "direct-mail", stage: "proposal-sent" };
+    expect(nextBoardQuery(current, "direct-mail", { pipeline: "new-mover-mail" })).toEqual({
+      ...current,
+      pipeline: "new-mover-mail",
+      stage: null,
+    });
+    expect(nextBoardQuery(current, "direct-mail", { view: "list" }).stage).toBe("proposal-sent");
+    // Picking the pipeline already shown keeps the stage.
+    expect(nextBoardQuery(current, "direct-mail", { pipeline: "direct-mail" }).stage).toBe("proposal-sent");
+  });
+
+  it("keeps the stage a saved view names along with its pipeline", () => {
+    expect(
+      nextBoardQuery({ ...DEFAULTS, pipeline: "new-mover-mail" }, "new-mover-mail", { pipeline: "direct-mail", stage: "proposal-sent" }),
+    ).toEqual({ ...DEFAULTS, pipeline: "direct-mail", stage: "proposal-sent" });
+    // A view naming no stage on another pipeline clears the old one.
+    expect(
+      nextBoardQuery({ ...DEFAULTS, pipeline: "new-mover-mail", stage: "lead-in" }, "new-mover-mail", {
+        pipeline: "direct-mail",
+        stage: null,
+      }).stage,
+    ).toBeNull();
   });
 });
 

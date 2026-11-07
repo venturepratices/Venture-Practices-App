@@ -70,7 +70,7 @@ const VIEWER = { userId: "u1", isAdmin: false };
 
 function boardData(view: "board" | "list"): BoardPageData {
   return {
-    query: { pipeline: "direct-mail", view, scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+    query: { pipeline: "direct-mail", view, scope: "everyone", status: "open", next: "any", stage: null, q: "", cursor: null },
     pipelines: [PIPELINE],
     pipeline: PIPELINE,
     stages: STAGES,

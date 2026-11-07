@@ -24,6 +24,10 @@ export const BULK_IDS_MAX = 100;
 export const BULK_CONVERT_MAX = 25;
 /** Most deals, leads, notes, activities and people one merge of duplicate contacts may move, all in one transaction. */
 export const MERGE_LINKED_MAX = 500;
+/** Named Deals views one person may keep (the toolbar's Views menu). */
+export const SAVED_VIEWS_MAX = 20;
+/** Longest name a saved Deals view may have, after trimming. */
+export const SAVED_VIEW_NAME_MAX = 40;
 
 // --- Sales dashboard and Insights ---
 

@@ -1,5 +1,5 @@
 import type { BoardColumn } from "@/lib/sales/board";
-import type { BoardQuery } from "@/lib/sales/board-query";
+import { savedViewsSchema, type BoardQuery, type SavedBoardView } from "@/lib/sales/board-query";
 import { BOARD_COLUMN_LIMIT } from "@/lib/sales/constants";
 import { formatMoney, parseMoneyToCents } from "@/lib/sales/format";
 import type { MoveDealInput, MoveResult } from "@/lib/sales/stage-moves";
@@ -73,14 +73,18 @@ export function applyOptimisticRemove(columns: BoardColumn[], dealId: string): B
  * The board query after one toolbar change. It always names the pipeline the
  * page is showing (`resolvedPipelineKey`), so after any click the URL names a
  * pipeline and the saved view, which applies only to a bare /sales/deals, can
- * never undo the click (Decision 13). Paging always starts again.
+ * never undo the click (Decision 13). Paging always starts again. A stage
+ * belongs to one pipeline, so moving to another pipeline drops the Stage
+ * filter, unless the same change names a stage (applying a saved view).
  */
 export function nextBoardQuery(
   current: BoardQuery,
   resolvedPipelineKey: string,
   patch: Partial<Omit<BoardQuery, "cursor">>,
 ): BoardQuery {
-  return { ...current, pipeline: resolvedPipelineKey, ...patch, cursor: null };
+  const next: BoardQuery = { ...current, pipeline: resolvedPipelineKey, ...patch, cursor: null };
+  const otherPipeline = patch.pipeline !== undefined && patch.pipeline !== resolvedPipelineKey;
+  return otherPipeline && patch.stage === undefined ? { ...next, stage: null } : next;
 }
 
 /** How many of the Filter menu's own choices (Status, Next step) differ from the defaults. */
@@ -91,6 +95,38 @@ export function activeFilterCount(query: BoardQuery): number {
 /** True when the Filter menu or the search narrows the board ("Clear filters" undoes these). */
 export function hasActiveFilters(query: BoardQuery): boolean {
   return activeFilterCount(query) > 0 || query.q !== "";
+}
+
+// --- Saved views ---
+
+export type SavedViewsChange = { ok: true; views: SavedBoardView[] } | { ok: false; error: string };
+
+/**
+ * The views after saving the board as it is now under `name` (trimmed; the
+ * page cursor is never kept), checked by the same rules the server applies,
+ * so the name dialog can answer before anything is sent. The input is never
+ * changed.
+ */
+export function addSavedView(views: SavedBoardView[], name: string, query: BoardQuery): SavedViewsChange {
+  const added = {
+    name,
+    pipeline: query.pipeline,
+    view: query.view,
+    scope: query.scope,
+    status: query.status,
+    next: query.next,
+    stage: query.stage,
+    q: query.q,
+  };
+  const parsed = savedViewsSchema.safeParse([...views, added]);
+  if (parsed.success) return { ok: true, views: parsed.data };
+  return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input." };
+}
+
+/** The views without the one called `name` (ignoring case, as names are unique that way). The input is never changed. */
+export function removeSavedView(views: SavedBoardView[], name: string): SavedBoardView[] {
+  const gone = name.trim().toLowerCase();
+  return views.filter((view) => view.name.toLowerCase() !== gone);
 }
 
 // --- "Show more" ---

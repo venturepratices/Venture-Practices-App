@@ -64,7 +64,7 @@ const BOOKED: BoardCard = {
 function pageData(extra: Partial<BoardPageData> = {}): BoardPageData {
   const pipeline = { id: "p1", key: "direct-mail", name: "Direct Mail", kind: "SALES" as const };
   return {
-    query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+    query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "any", stage: null, q: "", cursor: null },
     pipelines: [pipeline, { id: "p2", key: "new-mover-mail", name: "New Mover Mail", kind: "SALES" }],
     pipeline,
     stages: [DEMO, PROPOSAL],
@@ -168,7 +168,7 @@ describe("Deals screen (server render)", () => {
     // Proposal Sent may hold deals the filter hides: "No deals in Proposal Sent yet." said it was empty.
     const html = render(
       pageData({
-        query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "overdue", q: "", cursor: null },
+        query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "overdue", stage: null, q: "", cursor: null },
       }),
     );
     const proposal = column(html, "Proposal Sent");
@@ -182,7 +182,7 @@ describe("Deals screen (server render)", () => {
   describe("with Just me on (K2)", () => {
     // Teammates may have deals in a stage that is empty for you: "No deals in
     // Proposal Sent yet." said the stage was empty for everyone.
-    const MINE = { pipeline: "direct-mail", view: "board", scope: "mine", status: "open", next: "any", q: "", cursor: null } as const;
+    const MINE = { pipeline: "direct-mail", view: "board", scope: "mine", status: "open", next: "any", stage: null, q: "", cursor: null } as const;
 
     it("says an empty later column has no deals of yours, with the same note", () => {
       const proposal = column(render(pageData({ query: MINE })), "Proposal Sent");
@@ -270,7 +270,7 @@ describe("Deals screen (server render)", () => {
   it("shows the chosen time in the list view's Next activity too", () => {
     const html = render(
       pageData({
-        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", stage: null, q: "", cursor: null },
         columns: null,
         list: { rows: [{ ...BOOKED, stageName: "Demo Complete" }], nextCursor: null },
       }),
@@ -299,7 +299,7 @@ describe("Deals screen (server render)", () => {
   it("marks active filters on the Filter button and says when nothing matches", () => {
     const html = render(
       pageData({
-        query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "won", next: "overdue", q: "", cursor: null },
+        query: { pipeline: "direct-mail", view: "board", scope: "everyone", status: "won", next: "overdue", stage: null, q: "", cursor: null },
         columns: [
           { stage: DEMO, count: 0, totalCents: 0, cards: [] },
           { stage: PROPOSAL, count: 0, totalCents: 0, cards: [] },
@@ -337,7 +337,7 @@ describe("Deals screen (server render)", () => {
   it("renders the list view with its columns, stacked-card labels and Show more", () => {
     const html = render(
       pageData({
-        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", stage: null, q: "", cursor: null },
         columns: null,
         list: { rows: [{ ...CARD, stageName: "Demo Complete" }], nextCursor: "d1" },
       }),
@@ -358,7 +358,7 @@ describe("the list's rows on their hover fill (K3, spec 7.11)", () => {
   it.each(["light", "dark"] as const)("keep a row's grey text at AA while it is pointed at in %s mode", (theme) => {
     const html = render(
       pageData({
-        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", q: "", cursor: null },
+        query: { pipeline: "direct-mail", view: "list", scope: "everyone", status: "open", next: "any", stage: null, q: "", cursor: null },
         columns: null,
         list: { rows: [{ ...CARD, stageName: "Demo Complete" }], nextCursor: null },
       }),

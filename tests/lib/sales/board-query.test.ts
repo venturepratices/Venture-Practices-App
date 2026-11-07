@@ -7,6 +7,7 @@ const DEFAULTS: BoardQuery = {
   scope: "everyone",
   status: "open",
   next: "any",
+  stage: null,
   q: "",
   cursor: null,
 };
@@ -39,6 +40,14 @@ describe("parseBoardQuery", () => {
     expect(parseBoardQuery({ pipeline: "removed-pipeline" }).pipeline).toBe("removed-pipeline");
     expect(parseBoardQuery({ pipeline: "" }).pipeline).toBeNull();
     expect(parseBoardQuery({ pipeline: "x".repeat(65) }).pipeline).toBeNull();
+  });
+
+  it("reads a stage key of 1 to 64 characters and ignores a malformed one", () => {
+    expect(parseBoardQuery({ stage: "proposal-sent" }).stage).toBe("proposal-sent");
+    expect(parseBoardQuery({ stage: "s".repeat(64) }).stage).toBe("s".repeat(64));
+    expect(parseBoardQuery({ stage: "s".repeat(65) }).stage).toBeNull();
+    expect(parseBoardQuery({ stage: "" }).stage).toBeNull();
+    expect(parseBoardQuery({ stage: ["proposal-sent", "lead-in"] }).stage).toBe("proposal-sent");
   });
 
   it("reads a cursor of 1 to 64 characters and ignores a malformed one", () => {
@@ -88,6 +97,9 @@ describe("boardQueryToSearch", () => {
   it("writes only non-default params", () => {
     expect(boardQueryToSearch({ ...DEFAULTS, pipeline: "direct-mail", q: "oak" })).toBe("pipeline=direct-mail&q=oak");
     expect(boardQueryToSearch(DEFAULTS)).toBe("");
+    expect(boardQueryToSearch({ ...DEFAULTS, pipeline: "direct-mail", stage: "proposal-sent", q: "oak" })).toBe(
+      "pipeline=direct-mail&stage=proposal-sent&q=oak",
+    );
   });
 
   it("writes keys in a fixed order and never writes the cursor", () => {
@@ -98,14 +110,15 @@ describe("boardQueryToSearch", () => {
         scope: "mine",
         status: "lost",
         next: "none",
+        stage: "proposal-sent",
         q: "oak",
         cursor: "abc",
       }),
-    ).toBe("pipeline=direct-mail&view=list&scope=mine&status=lost&next=none&q=oak");
+    ).toBe("pipeline=direct-mail&view=list&scope=mine&status=lost&next=none&stage=proposal-sent&q=oak");
   });
 
   it("round-trips through parseBoardQuery, including searches with spaces and symbols", () => {
-    const query: BoardQuery = { ...DEFAULTS, pipeline: "new-mover-mail", scope: "mine", q: "Bright & Co" };
+    const query: BoardQuery = { ...DEFAULTS, pipeline: "new-mover-mail", scope: "mine", stage: "proposal-sent", q: "Bright & Co" };
     const params = Object.fromEntries(new URLSearchParams(boardQueryToSearch(query)));
     expect(parseBoardQuery(params)).toEqual(query);
   });

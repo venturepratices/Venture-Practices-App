@@ -35,6 +35,7 @@ const QUERY: BoardQuery = {
   scope: "mine",
   status: "open",
   next: "any",
+  stage: null,
   q: "oak",
   cursor: "d50",
 };

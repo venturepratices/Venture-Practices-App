@@ -39,6 +39,14 @@ const stage = (id: string, name: string, position: number, extra: Row = {}) => (
   ...extra,
 });
 const STAGES = [stage("s1", "Lead In", 1), stage("s2", "Proposal Sent", 2, { requiresValue: true, probability: 50 })];
+// Stages with real keys, per pipeline, for the Stage filter: both pipelines have a "proposal-sent" stage.
+const DIRECT_MAIL_STAGES = [
+  stage("s4", "Lead In", 1, { key: "lead-in" }),
+  stage("s5", "Proposal Sent", 2, { key: "proposal-sent", requiresValue: true }),
+  stage("s6", "Follow-Up", 3, { key: "follow-up" }),
+];
+const AGENCY_STAGES = [stage("s9", "Proposal Sent", 1, { key: "proposal-sent" })];
+const STAGES_BY_PIPELINE: Record<string, Row[]> = { p1: DIRECT_MAIL_STAGES, p2: AGENCY_STAGES };
 
 const deal = (id: string, extra: Row = {}) => ({
   id,
@@ -59,6 +67,7 @@ const deals = (count: number) => Array.from({ length: count }, (_, i) => deal(`d
 function fakeDb(
   opts: {
     pipelines?: Row[];
+    stagesByPipeline?: Record<string, Row[]>;
     dealsByStage?: Record<string, Row[]>;
     listRows?: Row[];
     groups?: Row[];
@@ -68,7 +77,9 @@ function fakeDb(
 ) {
   return {
     salesPipeline: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => opts.pipelines ?? PIPELINES) },
-    salesStage: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => STAGES) },
+    salesStage: {
+      findMany: vi.fn(async (args: Args) => opts.stagesByPipeline?.[args.where.pipelineId as string] ?? STAGES),
+    },
     salesDeal: {
       findMany: vi.fn(async (args: Args) =>
         typeof args.where.stageId === "string" ? (opts.dealsByStage?.[args.where.stageId] ?? []) : (opts.listRows ?? []),
@@ -190,6 +201,17 @@ describe("boardDealWhere", () => {
         none: { doneAt: null, archivedAt: null, dueAt: { lt: startOfDay("2026-11-05") } },
       },
     });
+  });
+
+  it("narrows to one stage when the Stage filter names one", () => {
+    expect(boardDealWhere(rep, query(), "p1", now, "s5")).toEqual({
+      pipelineId: "p1",
+      stageId: "s5",
+      archivedAt: null,
+      status: "OPEN",
+      ownerId: "r",
+    });
+    expect(boardDealWhere(rep, query(), "p1", now, null)).not.toHaveProperty("stageId");
   });
 
   it("searches the deal title, organization name and person name", () => {
@@ -344,6 +366,95 @@ describe("list view", () => {
 
     expect(page?.totals).toEqual({ count: 0, valueCents: 0 });
     expect(page?.list).toEqual({ rows: [], nextCursor: null });
+  });
+});
+
+describe("the Stage filter", () => {
+  it("shows only the chosen stage", async () => {
+    const db = fakeDb({
+      stagesByPipeline: STAGES_BY_PIPELINE,
+      dealsByStage: { s5: [deal("d7", { stageId: "s5" })] },
+      groups: [{ stageId: "s5", _count: { _all: 3 }, _sum: { valueCents: 300_000 } }],
+    });
+    const page = await loadBoardPage(rep, query({ pipeline: "direct-mail", stage: "proposal-sent" }), now, db as never);
+
+    expect(page?.columns?.map((column) => [column.stage.id, column.count, column.totalCents, column.cards.length])).toEqual([
+      ["s5", 3, 300_000, 1],
+    ]);
+    // The Filter menu still lists every live stage of the pipeline.
+    expect(page?.stages).toEqual(DIRECT_MAIL_STAGES);
+    expect(db.salesStage.findMany.mock.calls.map(([args]) => args.where)).toEqual([{ pipelineId: "p1", archivedAt: null }]);
+    expect(db.salesDeal.findMany.mock.calls.map(([args]) => args.where.stageId)).toEqual(["s5"]);
+    expect(db.salesDeal.groupBy).toHaveBeenCalledTimes(1);
+    expect(db.salesDeal.groupBy.mock.calls[0][0].where).toMatchObject({ pipelineId: "p1", stageId: "s5", ownerId: "r" });
+    expect(page?.totals).toEqual({ count: 3, valueCents: 300_000 });
+    expect(page?.query.stage).toBe("proposal-sent");
+  });
+
+  it("filters the list rows, their total and Show more by the chosen stage", async () => {
+    const db = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadBoardPage(rep, query({ pipeline: "direct-mail", view: "list", stage: "proposal-sent" }), now, db as never);
+
+    expect(db.salesDeal.findMany).toHaveBeenCalledTimes(1);
+    expect(db.salesDeal.findMany.mock.calls[0][0].where).toMatchObject({ pipelineId: "p1", stageId: "s5", ownerId: "r" });
+    expect(db.salesDeal.aggregate.mock.calls[0][0].where).toMatchObject({ pipelineId: "p1", stageId: "s5" });
+
+    const more = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadDealListPage(rep, query({ pipeline: "direct-mail", stage: "proposal-sent", cursor: "d50" }), now, more as never);
+
+    expect(more.salesStage.findMany.mock.calls.map(([args]) => args.where)).toEqual([{ pipelineId: "p1", archivedAt: null }]);
+    expect(more.salesDeal.findMany.mock.calls[0][0]).toMatchObject({
+      where: { pipelineId: "p1", stageId: "s5" },
+      cursor: { id: "d50" },
+      skip: 1,
+    });
+  });
+
+  it("reads no stages for Show more when no stage is chosen", async () => {
+    const db = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadDealListPage(rep, query({ pipeline: "direct-mail", cursor: "d50" }), now, db as never);
+
+    expect(db.salesStage.findMany).not.toHaveBeenCalled();
+    expect(db.salesDeal.findMany.mock.calls[0][0].where).not.toHaveProperty("stageId");
+  });
+
+  it("a saved view naming a stage that is gone shows every stage", async () => {
+    const board = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    const page = await loadBoardPage(rep, query({ pipeline: "direct-mail", stage: "nope" }), now, board as never);
+
+    expect(page?.columns?.map((column) => column.stage.id)).toEqual(["s4", "s5", "s6"]);
+    expect(board.salesDeal.findMany.mock.calls.map(([args]) => args.where.stageId)).toEqual(["s4", "s5", "s6"]);
+    expect(board.salesDeal.groupBy.mock.calls[0][0].where).not.toHaveProperty("stageId");
+
+    const list = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadBoardPage(rep, query({ pipeline: "direct-mail", view: "list", stage: "nope" }), now, list as never);
+    for (const where of dealWheres(list)) expect(where).not.toHaveProperty("stageId");
+
+    const more = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadDealListPage(rep, query({ pipeline: "direct-mail", stage: "nope", cursor: "d50" }), now, more as never);
+    expect(more.salesDeal.findMany.mock.calls[0][0].where).not.toHaveProperty("stageId");
+  });
+
+  it("a saved view naming a pipeline that is gone shows the first pipeline, with the stage read among its own stages", async () => {
+    const board = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    const page = await loadBoardPage(rep, query({ pipeline: "gone", stage: "proposal-sent" }), now, board as never);
+
+    expect(page?.pipeline).toEqual(PIPELINES[0]);
+    expect(page?.columns?.map((column) => column.stage.id)).toEqual(["s5"]);
+    for (const where of dealWheres(board)) expect(where).toMatchObject({ pipelineId: "p1", stageId: "s5" });
+
+    const list = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    await loadBoardPage(rep, query({ pipeline: "gone", view: "list", stage: "proposal-sent" }), now, list as never);
+    for (const where of dealWheres(list)) expect(where).toMatchObject({ pipelineId: "p1", stageId: "s5" });
+  });
+
+  it("reads a stage key only among the shown pipeline's stages", async () => {
+    const db = fakeDb({ stagesByPipeline: STAGES_BY_PIPELINE });
+    const page = await loadBoardPage(rep, query({ pipeline: "marketing-agency", stage: "follow-up" }), now, db as never);
+
+    // "follow-up" is a Direct Mail stage only, so Marketing Agency shows all of its own.
+    expect(page?.columns?.map((column) => column.stage.id)).toEqual(["s9"]);
+    expect(db.salesDeal.groupBy.mock.calls[0][0].where).not.toHaveProperty("stageId");
   });
 });
 
