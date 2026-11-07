@@ -11,8 +11,13 @@ export const BOARD_COLUMN_LIMIT = 50;
 export const LIST_PAGE_SIZE = 50;
 export const ACTIVITIES_PAGE_SIZE = 50;
 export const LEADS_PAGE_SIZE = 50;
+export const CONTACTS_PAGE_SIZE = 50;
 export const TIMELINE_PAGE_SIZE = 30;
 export const CONTACT_SEARCH_LIMIT = 8;
+/** Possible duplicates the contact panel names at most. */
+export const DUPLICATE_MATCHES_MAX = 5;
+/** Deals, leads or people a contact panel lists at most; the true count shows past it. */
+export const CONTACT_LINKED_ROWS = 20;
 /** Most leads one bulk-bar request may change; each still runs in its own transaction. */
 export const BULK_IDS_MAX = 100;
 /** Most leads one bulk convert may turn into deals; each still runs in its own transaction. */

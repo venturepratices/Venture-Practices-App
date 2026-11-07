@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
-const { describeAuditRow, loadDealTimeline, loadLeadTimeline } = await import("@/lib/sales/timeline");
+const { describeAuditRow, loadContactTimeline, loadDealTimeline, loadLeadTimeline } = await import("@/lib/sales/timeline");
 const { endOfDay } = await import("@/lib/utils");
 
 type SalesActor = import("@/lib/sales/access").SalesActor;
@@ -134,6 +134,29 @@ describe("describeAuditRow", () => {
       expect(result.text).not.toContain(EM_DASH);
     }
   });
+
+  it.each([
+    ["person added", describeFor("SalesPerson", "created", { name: "Sarah K." }), "created", "Person added"],
+    ["organization added", describeFor("SalesOrganization", "created", { name: "Oak Creek Dental" }), "created", "Organization added"],
+    ["renamed", describeFor("SalesPerson", "updated", { name: "Sarah Example" }, { name: "Sarah K." }), "field", "Renamed to Sarah Example"],
+    ["email and phone", describeFor("SalesPerson", "updated", { email: "x", phone: "y" }), "field", "Details updated: email, phone"],
+    ["website and ZIP, in the fixed order", describeFor("SalesOrganization", "updated", { zip: "78704", website: "https://oak.example/" }), "field", "Details updated: website, ZIP"],
+    ["every detail, in the fixed order", describeFor("SalesPerson", "updated", { zip: "1", address: "2", website: "3", organizationId: "o1", role: "4", phone: "5", email: "6" }), "field", "Details updated: email, phone, role, organization, website, address, ZIP"],
+    ["a detail cleared still counts", describeFor("SalesPerson", "updated", { role: null }, { role: "Office manager" }), "field", "Details updated: role"],
+    ["renamed with details", describeFor("SalesOrganization", "updated", { name: "Oak Creek Dental", phone: "5125550100" }), "field", "Renamed to Oak Creek Dental. Details updated: phone"],
+    ["renamed to a name ending in a period, no second period", describeFor("SalesPerson", "updated", { name: "Sarah K.", email: "x" }), "field", "Renamed to Sarah K. Details updated: email"],
+    ["an update with nothing readable", describeFor("SalesPerson", "updated", {}), "field", "Contact updated"],
+    ["merged a person", describeFor("SalesPerson", "merged", { droppedId: "p2", dropped: { name: "Sarah Example" } }), "merged", "Merged Sarah Example into this person"],
+    ["merged an organization", describeFor("SalesOrganization", "merged", { droppedId: "o2", dropped: { name: "Oak Creek Dental" } }), "merged", "Merged Oak Creek Dental into this organization"],
+    ["merged with no readable name", describeFor("SalesPerson", "merged", { droppedId: "p2" }), "merged", "Merged a duplicate into this person"],
+    ["merged into", describeFor("SalesPerson", "merged_into", { keptId: "p1", keptName: "Sarah K." }), "merged", "Merged into Sarah K."],
+    ["merged into a name that is gone", describeFor("SalesOrganization", "merged_into", { keptId: "o1" }), "merged", "Merged into another contact"],
+    ["an unknown action", describeFor("SalesPerson", "something_new", { x: 1 }), "field", "Contact updated"],
+    ["a deal's action on a contact", describeFor("SalesOrganization", "stage_changed", { stageName: "Demo" }), "field", "Contact updated"],
+  ])("words contact history: %s", (_name, result, icon, text) => {
+    expect(result).toEqual({ icon, text });
+    expect(result.text).not.toContain(EM_DASH);
+  });
 });
 
 // --- loadDealTimeline ---
@@ -152,8 +175,15 @@ const log = (i: number, extra: Row = {}) => ({
   ...extra,
 });
 
-function fakeDb(opts: { visible?: boolean; rows?: Row[]; notes?: Row[]; fromLead?: string } = {}) {
+function fakeDb(opts: { visible?: boolean; rows?: Row[]; notes?: Row[]; fromLead?: string; merged?: string[] } = {}) {
+  const contact = (id: string) => ({
+    findFirst: vi.fn<(args: Args) => Promise<unknown>>(async () => (opts.visible === false ? null : { id })),
+    // The contacts merged into this one, for its History.
+    findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => (opts.merged ?? []).map((mergedId) => ({ id: mergedId }))),
+  });
   return {
+    salesPerson: contact("p1"),
+    salesOrganization: contact("o1"),
     salesDeal: {
       // The lead a deal was converted from comes back only when the query asks for it.
       findFirst: vi.fn<(args: Args) => Promise<unknown>>(async (args) => {
@@ -392,5 +422,69 @@ describe("loadLeadTimeline", () => {
     const page = await loadLeadTimeline(rep, "l1", null, db as never);
 
     expect(page?.entries[0].note).toEqual({ id: "n1", body: "Asked for a call after 3 PM.", canEdit: true });
+  });
+});
+
+// --- loadContactTimeline ---
+
+describe("loadContactTimeline", () => {
+  const REP_VISIBLE = {
+    archivedAt: null,
+    OR: [
+      { ownerId: "r" },
+      { deals: { some: { ownerId: "r", archivedAt: null } } },
+      { leads: { some: { ownerId: "r", archivedAt: null } } },
+    ],
+  };
+
+  it("loads a contact's history with the contacts merged into it", async () => {
+    const rows = [
+      log(1, { entityType: "SalesPerson", action: "merged", after: { droppedId: "p2", dropped: { name: "Sarah Example" } } }),
+      log(2, { entityType: "SalesPerson", action: "created", after: { name: "Sarah Example" } }),
+    ];
+    const db = fakeDb({ merged: ["p2"], rows });
+    const page = await loadContactTimeline(rep, "person", "p1", null, db as never);
+
+    expect(db.salesPerson.findFirst.mock.calls[0][0]).toEqual({ where: { id: "p1", ...REP_VISIBLE }, select: { id: true } });
+    expect(db.salesPerson.findMany.mock.calls[0][0]).toEqual({ where: { mergedIntoId: "p1" }, select: { id: true } });
+    expect(db.salesAuditLog.findMany.mock.calls[0][0].where).toEqual({
+      AND: [
+        {
+          OR: [
+            { entityType: "SalesPerson", entityId: "p1" },
+            { entityType: "SalesPerson", entityId: "p2" },
+          ],
+        },
+      ],
+    });
+    expect(page?.entries.map((entry) => [entry.icon, entry.text])).toEqual([
+      ["merged", "Merged Sarah Example into this person"],
+      ["created", "Person added"],
+    ]);
+    expect(db.salesOrganization.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("reads only the contact's own rows when nothing was merged into it", async () => {
+    const db = fakeDb();
+    await loadContactTimeline(rep, "person", "p1", null, db as never);
+    expect(db.salesAuditLog.findMany.mock.calls[0][0].where).toEqual({ entityType: "SalesPerson", entityId: "p1" });
+
+    await loadContactTimeline(admin, "organization", "o1", { at: "2026-11-04T12:00:00.000Z", id: "log9" }, db as never);
+    expect(db.salesOrganization.findFirst.mock.calls[0][0]).toEqual({ where: { id: "o1", archivedAt: null }, select: { id: true } });
+    expect(db.salesOrganization.findMany.mock.calls[0][0]).toEqual({ where: { mergedIntoId: "o1" }, select: { id: true } });
+    const cursorAt = new Date("2026-11-04T12:00:00.000Z");
+    expect(db.salesAuditLog.findMany.mock.calls[1][0].where).toEqual({
+      entityType: "SalesOrganization",
+      entityId: "o1",
+      OR: [{ at: { lt: cursorAt } }, { at: cursorAt, id: { lt: "log9" } }],
+    });
+  });
+
+  it("returns null, and reads no history, when the contact is not visible", async () => {
+    const db = fakeDb({ visible: false, merged: ["p2"] });
+
+    expect(await loadContactTimeline(rep, "person", "p1", null, db as never)).toBeNull();
+    expect(db.salesPerson.findMany).not.toHaveBeenCalled();
+    expect(db.salesAuditLog.findMany).not.toHaveBeenCalled();
   });
 });

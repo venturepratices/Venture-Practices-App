@@ -3,18 +3,24 @@ import type { SalesActivityType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { SalesActor } from "@/lib/sales/access";
 import { ACTIVITY_TYPE_LABELS, TIMELINE_PAGE_SIZE } from "@/lib/sales/constants";
+import { visibleOrganizationWhere, visiblePersonWhere } from "@/lib/sales/contact-access";
+import type { ContactKind } from "@/lib/sales/contacts-query";
 import { visibleDealWhere } from "@/lib/sales/deal-access";
 import { formatMoney, shortName } from "@/lib/sales/format";
 import { visibleLeadWhere } from "@/lib/sales/lead-access";
 import { formatDate } from "@/lib/utils";
 
-// The deal and lead panels' History: the locked history rows written against
-// a deal (deal-audit.ts) or a lead (lead-audit.ts), newest first, each turned
-// into one plain line that names who did it. Pages of 30 with a "Show older"
-// cursor (spec 7.8). The rows are stored JSON, so every payload is read
-// defensively: an unexpected shape gives a vaguer line, never an error.
+// The deal, lead and contact panels' History: the locked history rows written
+// against a deal (deal-audit.ts), a lead (lead-audit.ts) or a person or
+// organization (audit.ts), newest first, each turned into one plain line that
+// names who did it. Pages of 30 with a "Show older" cursor (spec 7.8). The rows
+// are stored JSON, so every payload is read defensively: an unexpected shape
+// gives a vaguer line, never an error.
 
-type TimelineDb = Pick<typeof prisma, "salesDeal" | "salesLead" | "salesAuditLog" | "teamMember" | "salesNote">;
+type TimelineDb = Pick<
+  typeof prisma,
+  "salesDeal" | "salesLead" | "salesPerson" | "salesOrganization" | "salesAuditLog" | "teamMember" | "salesNote"
+>;
 type PageDb = Pick<TimelineDb, "salesAuditLog" | "teamMember" | "salesNote">;
 
 export type TimelineIcon =
@@ -129,11 +135,66 @@ function contactChangedLine(before: Payload, after: Payload): string {
   return `Contacts changed${merged}`;
 }
 
+/** Joins sentences with ". ", without a second period after one that already ends in "." ("Renamed to Sarah K."). */
+function joinSentences(parts: string[]): string {
+  return parts.reduce((text, part) => (text === "" ? part : `${text}${text.endsWith(".") ? "" : "."} ${part}`), "");
+}
+
+/** The contact details an edit can change, in the order "Details updated: ..." names them, and the payload keys that mean each. */
+const CONTACT_DETAILS: [label: string, keys: string[]][] = [
+  ["email", ["email"]],
+  ["phone", ["phone"]],
+  ["role", ["role"]],
+  ["organization", ["organizationId", "organization"]],
+  ["website", ["website"]],
+  ["address", ["address"]],
+  ["ZIP", ["zip"]],
+];
+
+/** "Renamed to ..." and/or "Details updated: email, phone", for the keys an edit changed. */
+function contactUpdatedLine(after: Payload): string {
+  const parts: string[] = [];
+  const name = str(after, "name");
+  if (name) parts.push(`Renamed to ${name}`);
+  const details = CONTACT_DETAILS.filter(([, keys]) => keys.some((key) => key in after)).map(([label]) => label);
+  if (details.length > 0) parts.push(`Details updated: ${details.join(", ")}`);
+  return parts.length > 0 ? joinSentences(parts) : "Contact updated";
+}
+
+/** A person's or an organization's own History line (entity "SalesPerson" or "SalesOrganization"). */
+function describeContactRow(kind: "person" | "organization", action: string, after: Payload): { icon: TimelineIcon; text: string } {
+  switch (action) {
+    case "created":
+      return { icon: "created", text: kind === "person" ? "Person added" : "Organization added" };
+    case "updated":
+      return { icon: "field", text: contactUpdatedLine(after) };
+    case "merged": {
+      // On the kept contact: the dropped one's name, from the snapshot the merge stored.
+      const dropped = str(payload(after.dropped), "name") ?? "a duplicate";
+      return { icon: "merged", text: `Merged ${dropped} into this ${kind}` };
+    }
+    case "merged_into": {
+      const kept = str(after, "keptName");
+      return { icon: "merged", text: kept ? `Merged into ${kept}` : "Merged into another contact" };
+    }
+    default:
+      return { icon: "field", text: "Contact updated" };
+  }
+}
+
+/** Whose History a contact row is, or null for a deal's or a lead's. */
+function contactKindOf(entityType: string | undefined): "person" | "organization" | null {
+  if (entityType === "SalesPerson") return "person";
+  if (entityType === "SalesOrganization") return "organization";
+  return null;
+}
+
 /**
  * One History line for a stored history row. `names` maps team member ids to
  * full names (for "Owner changed to Ben S."). `entityType` says whose history
- * the row is ("SalesLead" reads as a lead's; anything else, or none, as a
- * deal's). No line uses an em dash.
+ * the row is ("SalesLead" reads as a lead's, "SalesPerson" and
+ * "SalesOrganization" as a contact's; anything else, or none, as a deal's).
+ * No line uses an em dash.
  */
 export function describeAuditRow(
   row: { entityType?: string; action: string; actorType: string; before: unknown; after: unknown },
@@ -141,6 +202,8 @@ export function describeAuditRow(
 ): { icon: TimelineIcon; text: string } {
   const after = payload(row.after);
   const before = payload(row.before);
+  const contactKind = contactKindOf(row.entityType);
+  if (contactKind) return describeContactRow(contactKind, row.action, after);
   const isLead = (row.entityType ?? "SalesDeal") === "SalesLead";
   const fallback = { icon: "field", text: isLead ? "Lead updated" : "Deal updated" } as const;
 
@@ -358,4 +421,41 @@ export async function loadLeadTimeline(
   const lead = await db.salesLead.findFirst({ where: visibleLeadWhere(actor, leadId), select: { id: true } });
   if (!lead) return null;
   return loadTimelinePage(db, actor, [{ entityType: "SalesLead", entityId: leadId }], cursor);
+}
+
+/**
+ * One page of a person's or an organization's History, newest first,
+ * continuing after `cursor`, including the rows of every contact merged into
+ * it (A6), so a merge loses no history. Null when this person may not see the
+ * contact, or it is archived or missing (the route answers 404).
+ */
+export async function loadContactTimeline(
+  actor: SalesActor,
+  kind: ContactKind,
+  id: string,
+  cursor: TimelineCursor | null,
+  db: TimelineDb = prisma,
+): Promise<TimelinePage | null> {
+  let contactIds: string[];
+  if (kind === "person") {
+    const person = await db.salesPerson.findFirst({ where: { id, ...visiblePersonWhere(actor, "everyone") }, select: { id: true } });
+    if (!person) return null;
+    const merged = await db.salesPerson.findMany({ where: { mergedIntoId: id }, select: { id: true } });
+    contactIds = [id, ...merged.map((row) => row.id)];
+  } else {
+    const organization = await db.salesOrganization.findFirst({
+      where: { id, ...visibleOrganizationWhere(actor, "everyone") },
+      select: { id: true },
+    });
+    if (!organization) return null;
+    const merged = await db.salesOrganization.findMany({ where: { mergedIntoId: id }, select: { id: true } });
+    contactIds = [id, ...merged.map((row) => row.id)];
+  }
+  const entityType = kind === "person" ? "SalesPerson" : "SalesOrganization";
+  return loadTimelinePage(
+    db,
+    actor,
+    contactIds.map((entityId) => ({ entityType, entityId })),
+    cursor,
+  );
 }
