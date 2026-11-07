@@ -167,7 +167,14 @@ export function LeadsBulkBar({
           disabled={busy || overAll}
           aria-describedby={describedBy(overAll)}
           onClick={onDelete}
-          className={cn(BAR_BUTTON, "text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20")}
+          // Red on the bar's accent fill needs a solid fill of its own: the
+          // card colour at rest (the outline's dark fill is see-through, 4.1:1)
+          // and the danger pill colours on hover, as Mockup v2 draws it. The
+          // `dark:hover:` copy outranks the outline's own dark hover fill.
+          className={cn(
+            BAR_BUTTON,
+            "text-destructive dark:bg-card hover:bg-status-danger hover:text-status-danger-foreground dark:hover:bg-status-danger",
+          )}
         >
           Delete
         </Button>

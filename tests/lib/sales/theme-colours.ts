@@ -69,6 +69,8 @@ export function token(name: string, theme: Theme): Linear {
 /**
  * The colour a `bg-*` or `text-*` utility paints in a theme, and its opacity
  * (`bg-muted/60` is the muted fill at 0.6); null for a size such as `text-xs`.
+ * A token set as `rgba(...)` (dark `--input`, `--border`, the dark status
+ * fills) carries its own opacity, so `dark:bg-input/30` is white at 0.045.
  */
 export function paint(utility: string, theme: Theme): { colour: Linear; alpha: number } | null {
   const [, name, percent] = /^(?:bg|text)-([^/]+)(?:\/(\d+))?$/.exec(utility) ?? [];
@@ -76,6 +78,10 @@ export function paint(utility: string, theme: Theme): { colour: Linear; alpha: n
   const alpha = percent ? Number(percent) / 100 : 1;
   if (name === "white") return { colour: [1, 1, 1], alpha };
   const value = (theme === "dark" ? DARK : LIGHT).get(name) ?? PALETTE.get(`color-${name}`);
+  const rgba = value ? /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(value) : null;
+  if (rgba) {
+    return { colour: [1, 2, 3].map((i) => decode(Number(rgba[i]) / 255)) as Linear, alpha: alpha * Number(rgba[4]) };
+  }
   const colour = value ? linear(value) : null;
   return colour ? { colour, alpha } : null;
 }

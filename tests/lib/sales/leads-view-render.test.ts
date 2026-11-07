@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { LeadRow, LeadsPageData } from "@/lib/sales/leads-page";
 
+import { contrast, over, shown, shownPaint } from "./theme-colours";
+
 // A server render of the Leads Inbox with canned data (Mockup v2 `#s=leads`,
 // `#s=leads-sel`, `#s=new-lead`, `#s=leads-delete`). Node has no browser, so
 // this cannot click anything; it proves the header, table, phone cards, bulk
@@ -274,6 +276,28 @@ describe("LeadsBulkBar", () => {
     for (const label of ["Convert to deal", "Assign to…", "Archive", "Delete"]) {
       expect(html, label).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
     }
+  });
+
+  // The bar is the accent fill and each button's own fill sits over it. The
+  // outline button's dark fill is see-through (white at 4.5%), which left the
+  // red Delete at 4.1:1 in dark, and a red tint on hover was 3.6:1 in both
+  // themes. Mockup v2 (`.bulk .btn.dng`) draws it on the card colour and turns
+  // it to the danger pill colours on hover. 12.8px text needs 4.5:1.
+  it.each(
+    (["light", "dark"] as const).flatMap((theme) => [
+      [theme, "at rest", []],
+      [theme, "pointed at", ["hover"]],
+    ]) as [("light" | "dark"), string, string[]][],
+  )("keeps Delete at AA in %s mode %s", (theme, _state, holding) => {
+    const html = render({ count: 2, isAdmin: true });
+    const bar = /<div role="region" aria-label="Selected leads" class="([^"]*)"/.exec(html);
+    const button = /<button[^>]*class="([^"]*)"[^>]*>Delete<\/button>/.exec(html);
+    expect(bar).not.toBeNull();
+    expect(button).not.toBeNull();
+    const classes = button![1].split(/\s+/);
+    const fill = shownPaint(classes, "bg", theme, holding);
+    const behind = over(fill.colour, fill.alpha, shown(bar![1].split(/\s+/), "bg", theme));
+    expect(contrast(shown(classes, "text", theme, holding), behind)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
