@@ -48,7 +48,7 @@ describe("image resizer allow-list with the assets store token set", () => {
   });
 
   it("refuses files outside /assets/ and non-https links", () => {
-    expect(allows(patterns, `https://${OUR_HOST}/sales-files/deal1/contract.png`)).toBe(false);
+    expect(allows(patterns, `https://${OUR_HOST}/private-files/deal1/contract.png`)).toBe(false);
     expect(allows(patterns, `https://${OUR_HOST}/backups/2026-11-07.json`)).toBe(false);
     expect(allows(patterns, `https://${OUR_HOST}/assetsX/c1/cat.png`)).toBe(false);
     expect(allows(patterns, OUR_UPLOAD.replace("https:", "http:"))).toBe(false);
@@ -94,7 +94,7 @@ describe("image resizer allow-list off Vercel without a usable assets store toke
     expect(allows(patterns, OUR_UPLOAD)).toBe(true);
     expect(allows(patterns, "https://previewstore.public.blob.vercel-storage.com/assets/c1/cat.png")).toBe(true);
     expect(allows(patterns, `${OUR_UPLOAD}?x=1`)).toBe(false);
-    expect(allows(patterns, `https://${OUR_HOST}/sales-files/deal1/contract.png`)).toBe(false);
+    expect(allows(patterns, `https://${OUR_HOST}/private-files/deal1/contract.png`)).toBe(false);
   });
 });
 
