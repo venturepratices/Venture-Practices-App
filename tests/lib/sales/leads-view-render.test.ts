@@ -271,6 +271,14 @@ describe("LeadsBulkBar", () => {
     expect(many).toContain("Pick 100 leads or fewer at a time. Untick some to go on.");
   });
 
+  it("gets Convert to deal from the Inbox, which opens the convert dialog with the ticked leads (Task 21)", () => {
+    // The ticks live in the Inbox's state, which a server render cannot set, so this reads the wiring.
+    const source = fs.readFileSync(path.join(process.cwd(), "src", "components", "sales", "leads-view.tsx"), "utf8");
+    const bar = source.slice(source.indexOf("<LeadsBulkBar"), source.indexOf("/>", source.indexOf("<LeadsBulkBar")));
+    expect(bar).toMatch(/onConvert=\{/);
+    expect(source).toMatch(/<ConvertDialog[\s\S]*?leads=\{toConvert\}/);
+  });
+
   it("turns every action but Clear off while one runs", () => {
     const html = render({ count: 2, isAdmin: true, busy: true });
     for (const label of ["Convert to deal", "Assign to…", "Archive", "Delete"]) {

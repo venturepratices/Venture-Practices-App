@@ -6,6 +6,7 @@ import type { ActivitiesPageData } from "@/lib/sales/activities-page";
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
 import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
+import type { LeadPanelData } from "@/lib/sales/lead-panel";
 import type { LeadsPageData } from "@/lib/sales/leads-page";
 
 // Screen-reader-only text (Tailwind `sr-only`) is a 1px box with
@@ -29,6 +30,7 @@ const { ActivitiesView } = await import("@/components/sales/activities-view");
 const { DashboardView } = await import("@/components/sales/dashboard-view");
 const { LeadsView } = await import("@/components/sales/leads-view");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
+const { LeadPanelBody } = await import("@/components/sales/lead-panel");
 const { Sheet } = await import("@/components/ui/sheet");
 
 const NOW = "2026-11-05T15:00:00.000Z";
@@ -206,6 +208,28 @@ const LEADS: LeadsPageData = {
   assignment: { mode: "ROUND_ROBIN", names: ["Ben S.", "Dana Q."], fallbackName: null },
 };
 
+// An open lead the viewer owns, with a next step and a Details field, so every part of the panel renders.
+const LEAD_PANEL: LeadPanelData = {
+  lead: {
+    id: "l1",
+    title: "Crestview Dental",
+    status: "OPEN",
+    source: "Check Availability form",
+    createdAt: "2026-11-02T15:00:00.000Z",
+    owner: MEMBERS[0],
+    organization: { id: "o1", name: "Crestview Dental" },
+    person: { id: "pe1", name: "Laura B." },
+  },
+  convertedDeal: null,
+  openActivities: [
+    { id: "a1", type: "CALL", subject: "First call", dueAt: "2026-11-05T15:00:00.000Z", hasTime: false, createdBy: "u1", ownerId: "u1" },
+  ],
+  fields: [{ key: "practice-zip", label: "Practice ZIP", fieldType: "TEXT", options: [], value: "78704" }],
+  members: MEMBERS,
+  canEdit: true,
+  canRestore: false,
+};
+
 const clean = (html: string) => html.replaceAll("<!-- -->", "");
 
 /** The class lists of every element that scrolls (overflow auto, on any axis, at any size). */
@@ -252,6 +276,15 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     expect(html).toContain("Expected to close");
     expect(html).toContain('class="sr-only"');
     expectScrollersContain(html, 0);
+  });
+
+  it("the lead panel's scrolling body is relative", () => {
+    const html = clean(
+      renderToString(createElement(LeadPanelBody, { data: LEAD_PANEL, now: new Date(NOW), onChanged: vi.fn(), onClose: vi.fn() })),
+    );
+    expect(html).toContain("First call");
+    expect(html).toContain('class="sr-only"');
+    expectScrollersContain(html, 1);
   });
 
   it("the deal panel's stage bar (it scrolls sideways on phones) is relative", () => {

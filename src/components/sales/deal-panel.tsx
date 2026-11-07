@@ -10,7 +10,7 @@ import { appendPage } from "@/lib/sales/board-client";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import { shortName } from "@/lib/sales/format";
 import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, lostHeadline } from "@/lib/sales/panel-client";
-import { changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
+import { activePanel, changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
 import { DEAL_PANEL_ATTRIBUTE } from "@/lib/sales/shortcuts";
 import type { TimelineCursor } from "@/lib/sales/timeline";
 import { cn, endOfDay, formatDate } from "@/lib/utils";
@@ -38,7 +38,9 @@ export function DealPanel() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const dealId = searchParams.get("deal");
+  // One panel at a time: the deal, lead, person or organization the URL names, in that order (Decision 35).
+  const target = activePanel(searchParams);
+  const dealId = target?.kind === "deal" ? target.id : null;
   // "Add activity" in a card's menu opens the panel on the Activity composer.
   const startInComposer = searchParams.get("compose") === "activity";
   const titleId = useId();
@@ -115,7 +117,8 @@ type PanelLoad =
   | { kind: "error"; message: string }
   | { kind: "ready"; data: DealPanelData; now: Date };
 
-const BODY = "relative flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-[18px]";
+/** The panel's scrolling body under its header, shared with the lead panel. */
+export const PANEL_BODY = "relative flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-[18px]";
 
 function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; titleId: string; startInComposer: boolean }) {
   const router = useRouter();
@@ -268,17 +271,17 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
     <>
       <DealPanelHeader data={data} now={now} moves={moves} titleId={titleId} onChanged={changed} />
 
-      <div className={BODY}>
+      <div className={PANEL_BODY}>
         {deal.status === "LOST" ? <LostBar reason={deal.lostReason} comment={deal.lostComment} /> : null}
 
         {!canEdit ? (
-          <Bar tone="info" icon={Lock}>
+          <NoticeBar tone="info" icon={Lock}>
             Only {shortName(deal.owner.name)} or an admin can change this deal.
-          </Bar>
+          </NoticeBar>
         ) : null}
 
         {deal.status === "OPEN" && data.openActivities.length === 0 ? (
-          <Bar
+          <NoticeBar
             tone="warning"
             icon={TriangleAlert}
             action={
@@ -295,20 +298,20 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
             }
           >
             <strong className="font-semibold">No next step.</strong> Every open deal needs one.
-          </Bar>
+          </NoticeBar>
         ) : null}
 
         {data.territoryHold ? (
-          <Bar tone="info" icon={Flag}>
+          <NoticeBar tone="info" icon={Flag}>
             Territory hold ends{" "}
             <strong className="font-semibold">
               {formatDate(endOfDay(data.territoryHold.expiry), { month: "short", day: "numeric" })}
             </strong>
             . A hold check is on the calendar 7 days before.
-          </Bar>
+          </NoticeBar>
         ) : null}
 
-        {canEdit ? <ActivityComposer ref={composerRef} dealId={deal.id} onSaved={changed} /> : null}
+        {canEdit ? <ActivityComposer ref={composerRef} parent={{ kind: "deal", id: deal.id }} onSaved={changed} /> : null}
 
         <NextSteps
           activities={data.openActivities}
@@ -347,12 +350,12 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
 export function LostBar({ reason, comment }: { reason: string | null; comment: string | null }) {
   return (
     // A comment can run to several lines: the icon then stays beside the first one.
-    <Bar tone="danger" icon={CircleX} alignTop={!!comment}>
+    <NoticeBar tone="danger" icon={CircleX} alignTop={!!comment}>
       <strong className="font-semibold">{lostHeadline(reason)}</strong>
       {comment ? (
         <span className="mt-0.5 block whitespace-pre-wrap [overflow-wrap:anywhere]">{comment}</span>
       ) : null}
-    </Bar>
+    </NoticeBar>
   );
 }
 
@@ -362,8 +365,8 @@ const BAR_TONES = {
   danger: "bg-status-danger text-status-danger-foreground",
 } as const;
 
-/** The mockup's `.warnbar` (amber) and `.infobar` (accent) strip, plus a red one for a lost deal, with an icon and an optional button on the right. */
-function Bar({
+/** The mockup's `.warnbar` (amber) and `.infobar` (accent) strip, plus a red one for a lost deal, with an icon and an optional button on the right. Shared with the lead panel. */
+export function NoticeBar({
   tone,
   icon: Icon,
   action,
@@ -409,7 +412,7 @@ function PanelSkeleton({ titleId }: { titleId: string }) {
         <Skeleton className="mt-3 h-6 w-full rounded-[5px] pointer-coarse:h-10" />
         <Skeleton className="mt-[7px] h-3 w-1/2" />
       </div>
-      <div className={BODY} aria-hidden="true">
+      <div className={PANEL_BODY} aria-hidden="true">
         <Skeleton className="h-28 w-full rounded-[10px]" />
         <Skeleton className="h-12 w-full rounded-[9px]" />
         <Skeleton className="h-40 w-full rounded-[9px]" />

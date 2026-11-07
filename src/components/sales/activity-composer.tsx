@@ -5,7 +5,7 @@ import { CalendarPlus, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import type { SalesActivityType } from "@/generated/prisma/enums";
-import { addNoteRequest, createActivityRequest } from "@/lib/sales/api-client";
+import { addNoteFor, createActivityFor, type SalesParentRef } from "@/lib/sales/api-client";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES, DUE_CHOICES, NOTE_MAX_CHARS, SUBJECT_MAX, TIME_SLOTS } from "@/lib/sales/constants";
 import { composerDueDate, holdEscapeForDraft, type DueChoice } from "@/lib/sales/panel-client";
 import { todayDateString } from "@/lib/utils";
@@ -16,14 +16,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { ACTIVITY_ICONS } from "@/components/sales/sales-pills";
 import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
 
-// The deal panel's composer card (mockup `.comp`, `composer`): an Activity tab
-// to schedule the next step and a Note tab. Both tabs stay mounted, so a half
-// typed note survives a look at the Activity tab. The `t` and `e` keys open
-// the Activity tab on Task or Email with the subject focused; the panel's
-// "Schedule" button and the card menu's "Add activity" do the same through the
-// handle. Only the deal owner or an admin sees it (Decision 15). While it
-// holds unsaved text, Esc inside it never closes the panel (F3): from a text
-// box it moves focus out to the tab, so a half typed note is never lost to Esc.
+// The deal and lead panels' composer card (mockup `.comp`, `composer`): an
+// Activity tab to schedule the next step and a Note tab, saving to the deal or
+// lead it is given (`parent`). Both tabs stay mounted, so a half typed note
+// survives a look at the Activity tab. On a deal the `t` and `e` keys open the
+// Activity tab on Task or Email with the subject focused; the lead panel has
+// no shortcuts (A11). The panel's "Schedule" button and the card menu's "Add
+// activity" do the same through the handle. Only the owner or an admin sees it
+// (Decision 15). While it holds unsaved text, Esc inside it never closes the
+// panel (F3): from a text box it moves focus out to the tab, so a half typed
+// note is never lost to Esc.
 
 export type ComposerHandle = { openActivity(type?: SalesActivityType): void };
 
@@ -40,11 +42,12 @@ const TAB_CLASS =
   "inline-flex items-center gap-1.5 border-b-2 border-transparent px-2.5 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-selected:border-primary aria-selected:text-primary pointer-coarse:min-h-10 [&_svg]:size-4";
 
 export function ActivityComposer({
-  dealId,
+  parent,
   onSaved,
   ref,
 }: {
-  dealId: string;
+  /** The deal or lead the activity or note is added to. */
+  parent: SalesParentRef;
   /** After an activity or note is saved: reload the panel. */
   onSaved: () => void;
   ref?: React.Ref<ComposerHandle>;
@@ -77,12 +80,15 @@ export function ActivityComposer({
     if (focusRequest > 0) subjectRef.current?.focus();
   }, [focusRequest]);
 
+  // The keys only ever reach the deal panel (shortcuts.ts); a lead's composer leaves them be.
   useSalesShortcut("new-task", () => {
+    if (parent.kind !== "deal") return false;
     setTab("activity");
     setType("TASK");
     setFocusRequest((count) => count + 1);
   });
   useSalesShortcut("new-email", () => {
+    if (parent.kind !== "deal") return false;
     setTab("activity");
     setType("EMAIL");
     setFocusRequest((count) => count + 1);
@@ -101,7 +107,7 @@ export function ActivityComposer({
     }
     setError(null);
     setSaving("activity");
-    const result = await createActivityRequest(dealId, {
+    const result = await createActivityFor(parent, {
       type,
       subject: subject.trim(),
       dueDate,
@@ -125,7 +131,7 @@ export function ActivityComposer({
     if (saving || note.trim() === "") return;
     setError(null);
     setSaving("note");
-    const result = await addNoteRequest(dealId, { body: note });
+    const result = await addNoteFor(parent, { body: note });
     setSaving(null);
     if (!result.ok) {
       setError({ tab: "note", message: result.error });
@@ -156,7 +162,7 @@ export function ActivityComposer({
 
   return (
     <div className="rounded-[10px] border bg-card" onKeyDown={onComposerKeyDown}>
-      <div role="tablist" aria-label="Add to this deal" onKeyDown={onTabKeyDown} className="flex border-b px-1.5">
+      <div role="tablist" aria-label={parent.kind === "lead" ? "Add to this lead" : "Add to this deal"} onKeyDown={onTabKeyDown} className="flex border-b px-1.5">
         {(["activity", "note"] as const).map((which) => (
           <button
             key={which}
@@ -290,7 +296,7 @@ export function ActivityComposer({
         <Textarea
           ref={noteRef}
           aria-label="Note"
-          placeholder="Write a note. Everyone on the deal can see it."
+          placeholder={parent.kind === "lead" ? "Write a note. Everyone who can see this lead can read it." : "Write a note. Everyone on the deal can see it."}
           maxLength={NOTE_MAX_CHARS}
           value={note}
           onChange={(event) => setNote(event.target.value)}

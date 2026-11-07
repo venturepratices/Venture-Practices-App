@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { ActivitiesView } = await import("@/components/sales/activities-view");
+const { MUTED_TONE } = await import("@/components/sales/sales-pills");
 
 const NOW = "2026-11-05T15:00:00.000Z";
 
@@ -82,7 +83,7 @@ describe("Activities screen (server render)", () => {
   it("renders the header like the mockup", () => {
     const html = render(pageData());
     expect(html).toContain(">Activities</h1>");
-    expect(html).toContain("Calls, meetings and tasks across all your deals.");
+    expect(html).toContain("Calls, meetings and tasks across all your deals and leads.");
     expect(html).toContain("Everyone");
     expect(html).toContain("Just me");
     expect(html).toContain('aria-label="Keyboard shortcuts"');
@@ -112,16 +113,19 @@ describe("Activities screen (server render)", () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>Just me<\/button>/);
   });
 
-  it("lists activities under the mockup's columns with a check, the deal, the due pill and the owner", () => {
+  it("lists activities under the mockup's columns with a check, the deal or lead, the due pill and the owner", () => {
     const html = render(pageData());
-    for (const heading of ["Done", "Subject", "Deal", "Due", "Owner"]) expect(html).toContain(`>${heading}</th>`);
+    // R8: the column holds deals and leads (Mockup v2 `#s=activities`).
+    for (const heading of ["Done", "Subject", "Deal or lead", "Due", "Owner"]) expect(html).toContain(`>${heading}</th>`);
+    expect(html).not.toContain(">Deal</th>");
     expect(html).toContain('aria-label="Mark done: Follow-up call"');
     expect(html).toContain("Follow-up call");
     expect(html).toContain('href="/sales/activities?when=overdue&amp;deal=d1"');
     expect(html).toContain("Bright Smile Dental");
     expect(html).toContain("Overdue 2d");
     expect(html).toContain('aria-label="Owner: Ben S."');
-    for (const label of ["Deal:", "Due:", "Owner:"]) expect(html).toContain(label);
+    for (const label of ["Deal or lead:", "Due:", "Owner:"]) expect(html).toContain(label);
+    expect(html).not.toContain(">Deal: <");
   });
 
   it("links a lead row to its lead and a deal row to its deal, keeping the page's filters", () => {
@@ -139,11 +143,32 @@ describe("Activities screen (server render)", () => {
     expect(deal).not.toContain("data-lead-id");
   });
 
+  it("marks a lead row with a grey Lead pill beside its title, and a deal row with none", () => {
+    const html = render(pageData({ rows: [CALL_ON_A_LEAD, CALL] }));
+    const pills = [...html.matchAll(/<span class="([^"]*)">Lead<\/span>/g)];
+    expect(pills).toHaveLength(1);
+    // Grey words on the grey fill take MUTED_TONE (P2-R14), not the plain muted grey.
+    const classes = pills[0][1].split(/\s+/);
+    for (const name of MUTED_TONE.split(" ")) expect(classes).toContain(name);
+    expect(classes).not.toContain("text-muted-foreground");
+    // Right after the lead's own link, in the same cell.
+    expect(html).toMatch(/>Crestview Dental<\/a> ?<span class="[^"]*">Lead<\/span><\/td>/);
+    expect(html).not.toMatch(/>Bright Smile Dental<\/a> ?<span[^>]*>Lead</);
+  });
+
   it("keeps someone else's lead check visible but not usable", () => {
     const robertsLead: ActivityRow = { ...CALL_ON_A_LEAD, ownerId: "u2", parent: { ...CALL_ON_A_LEAD.parent, ownerId: "u2" } };
     const html = render(pageData({ rows: [robertsLead] }));
     expect(html).toMatch(/aria-label="Mark done: First call"[^>]*aria-disabled="true"/);
     expect(html).toContain("Only Robert O. or an admin can mark this done.");
+  });
+
+  it("names the lead owner, not the deal owner, when a lead's owner has left Sales", () => {
+    const leftSales: ActivityRow = { ...CALL_ON_A_LEAD, ownerId: "u7", parent: { ...CALL_ON_A_LEAD.parent, ownerId: "u7" } };
+    const html = render(pageData({ rows: [leftSales] }));
+    expect(html).toContain("Only the lead owner or an admin can mark this done.");
+    const deal: ActivityRow = { ...CALL, ownerId: "u7", parent: { ...CALL.parent, ownerId: "u7" } };
+    expect(render(pageData({ rows: [deal] }))).toContain("Only the deal owner or an admin can mark this done.");
   });
 
   it("says the chosen time in the Due column, and only the day when none was chosen", () => {

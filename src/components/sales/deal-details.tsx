@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { toast } from "sonner";
 
-import { setDealFieldRequest, updateDealRequest } from "@/lib/sales/api-client";
+import { setDealFieldRequest, updateDealRequest, type ApiResult } from "@/lib/sales/api-client";
 import { DEAL_SOURCES } from "@/lib/sales/constants";
 import { normalizeFieldValue } from "@/lib/sales/custom-fields";
 import type { DealPanelData, PanelField } from "@/lib/sales/deal-panel";
@@ -22,11 +22,11 @@ import { SECTION_HEADING } from "@/components/sales/next-steps";
 
 const NOT_SET = "__none__";
 
-/** A value cell's control: borderless inside the grid, tinted on hover, ringed inside on focus. */
-const CELL_CONTROL =
+/** A value cell's control: borderless inside the grid, tinted on hover, ringed inside on focus. Shared with the lead panel's Details. */
+export const CELL_CONTROL =
   "h-auto min-h-[34px] w-full rounded-none border-0 bg-transparent px-2.5 py-[7px] text-base shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset md:text-[13px] disabled:cursor-default disabled:bg-transparent disabled:opacity-100 dark:bg-transparent dark:disabled:bg-transparent pointer-coarse:min-h-10";
 
-const LABEL_CELL = "border-b bg-muted/40 px-2.5 py-[7px] text-muted-foreground";
+export const LABEL_CELL = "border-b bg-muted/40 px-2.5 py-[7px] text-muted-foreground";
 
 export function DealDetails({
   data,
@@ -84,7 +84,13 @@ export function DealDetails({
         </dd>
 
         {fields.map((field) => (
-          <FieldRow key={field.key} dealId={deal.id} field={field} canEdit={canEdit} onSaved={onSaved} />
+          <CustomFieldRow
+            key={field.key}
+            field={field}
+            canEdit={canEdit}
+            save={(fieldKey, value) => setDealFieldRequest(deal.id, fieldKey, value)}
+            onSaved={onSaved}
+          />
         ))}
       </dl>
     </section>
@@ -147,16 +153,20 @@ function SourceSelect({
   );
 }
 
-/** One custom field: its label and the control for its type, with a problem shown under it. */
-function FieldRow({
-  dealId,
+/**
+ * One custom field: its label and the control for its type, with a problem
+ * shown under it. `save` sends the checked value to the deal's or the lead's
+ * field route (the lead panel's Details use it too).
+ */
+export function CustomFieldRow({
   field,
   canEdit,
+  save,
   onSaved,
 }: {
-  dealId: string;
   field: PanelField;
   canEdit: boolean;
+  save: (fieldKey: string, value: string | null) => Promise<ApiResult<unknown>>;
   onSaved: () => void;
 }) {
   const id = useId();
@@ -181,7 +191,7 @@ function FieldRow({
     setError(null);
     if (checked.value === field.value || saving) return;
     setSaving(true);
-    const result = await setDealFieldRequest(dealId, field.key, checked.value);
+    const result = await save(field.key, checked.value);
     setSaving(false);
     if (!result.ok) {
       setError(result.error);

@@ -36,7 +36,7 @@ export function activitiesEmptyState(query: {
     case "open":
       return {
         title: "Nothing to do",
-        description: "Activities you plan on a deal show up here.",
+        description: "Activities you plan on a deal or lead show up here.",
         action: { label: "Open Deals", href: DEALS_HREF },
       };
     case "overdue":

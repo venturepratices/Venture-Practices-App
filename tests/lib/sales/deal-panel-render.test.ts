@@ -14,10 +14,13 @@ import { DEAL_PANEL_ATTRIBUTE, topModalSurface } from "@/lib/sales/shortcuts";
 // so this follows the attribute from DealPanel through SheetContent onto the
 // window element.
 
+// The page's query string; a test may point it elsewhere before rendering.
+const url = vi.hoisted(() => ({ search: "pipeline=direct-mail&deal=d1" }));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/sales/deals",
-  useSearchParams: () => new URLSearchParams("pipeline=direct-mail&deal=d1"),
+  useSearchParams: () => new URLSearchParams(url.search),
 }));
 
 vi.mock("@base-ui/react/dialog", async () => {
@@ -45,6 +48,7 @@ vi.mock("@base-ui/react/dialog", async () => {
 });
 
 const { DealPanel } = await import("@/components/sales/deal-panel");
+const { ActivityComposer } = await import("@/components/sales/activity-composer");
 
 /** The opening tags of the rendered page, as a stand-in document for topModalSurface. */
 function documentOf(html: string) {
@@ -66,5 +70,25 @@ describe("the deal panel's window (server render)", () => {
     const html = renderToString(createElement(DealPanel));
     expect(html).toMatch(new RegExp(`<div[^>]*data-slot="sheet-content"[^>]*\\s${DEAL_PANEL_ATTRIBUTE}=""`));
     expect(topModalSurface(documentOf(html))).toBe("deal-panel");
+  });
+});
+
+describe("one panel at a time (Decision 35, Task 7)", () => {
+  it("opens only for the panel activePanel names: an empty deal id names none, so a lead beside it wins", () => {
+    url.search = "deal=&lead=l1";
+    try {
+      expect(renderToString(createElement(DealPanel))).not.toContain('data-slot="sheet-content"');
+    } finally {
+      url.search = "pipeline=direct-mail&deal=d1";
+    }
+    expect(renderToString(createElement(DealPanel))).toContain('data-slot="sheet-content"');
+  });
+});
+
+describe("the deal panel's composer saves to its deal", () => {
+  it("names the deal it adds to, and keeps the deal's note line", () => {
+    const html = renderToString(createElement(ActivityComposer, { parent: { kind: "deal", id: "d1" }, onSaved: vi.fn() }));
+    expect(html).toContain('aria-label="Add to this deal"');
+    expect(html).toContain('placeholder="Write a note. Everyone on the deal can see it."');
   });
 });

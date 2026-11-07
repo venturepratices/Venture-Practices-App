@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SEGMENT, SEGMENT_GROUP } from "@/components/sales/deals-toolbar";
-import { ACTIVITY_ICONS, NextStepPill, OwnerAvatar } from "@/components/sales/sales-pills";
+import { ACTIVITY_ICONS, MUTED_TONE, NextStepPill, OwnerAvatar } from "@/components/sales/sales-pills";
 import { ShortcutsButton } from "@/components/sales/shortcuts-help-dialog";
 import { useActivityDone } from "@/components/sales/use-activity-done";
 
@@ -87,7 +87,7 @@ export function ActivitiesView({
       <div className="flex flex-wrap items-end justify-between gap-2.5">
         <div>
           <h1 className="m-0 text-[21px] font-semibold">Activities</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Calls, meetings and tasks across all your deals.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Calls, meetings and tasks across all your deals and leads.</p>
         </div>
         <div className="flex items-center gap-2">
           {data.canSeeEveryone ? (
@@ -193,7 +193,10 @@ export function ActivitiesView({
 const CELL = "px-3 py-[9px] align-middle max-sm:block max-sm:border-0 max-sm:px-0 max-sm:py-0.5";
 const HEAD = "border-b bg-muted/40 px-3 py-[9px] text-left text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground";
 
-/** "Deal:" and the like, shown only where rows are stacked cards. */
+/** The "Lead" pill beside a lead row's title (Mockup v2 `.pill.p-neu`). */
+const LEAD_PILL = "inline-flex items-center rounded-full px-[7px] py-0.5 align-middle text-[11px] leading-[1.4] font-semibold whitespace-nowrap";
+
+/** "Deal or lead:" and the like, shown only where rows are stacked cards. */
 function CardLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-xs text-muted-foreground sm:hidden">{children} </span>;
 }
@@ -299,7 +302,7 @@ function ActivitiesTable({
             <tr>
               <th className={cn(HEAD, "w-px")}>Done</th>
               <th className={HEAD}>Subject</th>
-              <th className={HEAD}>Deal</th>
+              <th className={HEAD}>Deal or lead</th>
               <th className={HEAD}>Due</th>
               <th className={HEAD}>Owner</th>
             </tr>
@@ -339,7 +342,7 @@ function ActivitiesTable({
                         title={
                           canEdit
                             ? undefined
-                            : `Only ${parentOwnerName ? shortName(parentOwnerName) : "the deal owner"} or an admin can mark this done.`
+                            : `Only ${parentOwnerName ? shortName(parentOwnerName) : row.parent.kind === "lead" ? "the lead owner" : "the deal owner"} or an admin can mark this done.`
                         }
                         onClick={(event) => {
                           event.stopPropagation();
@@ -373,7 +376,7 @@ function ActivitiesTable({
                     </span>
                   </td>
                   <td className={CELL}>
-                    <CardLabel>Deal:</CardLabel>
+                    <CardLabel>Deal or lead:</CardLabel>
                     <Link
                       href={parentHref(row.parent)}
                       scroll={false}
@@ -389,6 +392,13 @@ function ActivitiesTable({
                     >
                       {row.parent.title}
                     </Link>
+                    {/* R8: a lead row says so (Mockup v2 `#s=activities`); grey words on the grey fill take MUTED_TONE. */}
+                    {row.parent.kind === "lead" ? (
+                      <>
+                        {" "}
+                        <span className={cn(LEAD_PILL, MUTED_TONE)}>Lead</span>
+                      </>
+                    ) : null}
                   </td>
                   <td className={CELL}>
                     <CardLabel>Due:</CardLabel>

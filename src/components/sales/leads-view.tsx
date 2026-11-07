@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { ConvertDialog, type ConvertLead, type ConvertResult } from "@/components/sales/convert-dialog";
 import { SEGMENT, SEGMENT_GROUP } from "@/components/sales/deals-toolbar";
 import { DeleteLeadsDialog, LeadsBulkBar } from "@/components/sales/lead-bulk-dialogs";
 import { NewLeadDialog } from "@/components/sales/new-lead-dialog";
@@ -144,6 +145,9 @@ export function LeadsView({
   // The leads the delete confirm names, kept from when it opened: the ticks clear before it has finished closing.
   const [toDelete, setToDelete] = useState<{ ids: string[]; titles: string[] }>({ ids: [], titles: [] });
   const [deleting, setDeleting] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  // The leads the convert dialog takes, kept from when it opened, as for the delete confirm.
+  const [toConvert, setToConvert] = useState<ConvertLead[]>([]);
 
   const ownerNames = new Map(data.members.map((member) => [member.id, member.name]));
   const shownIds = editableIds(page.rows, viewer);
@@ -242,6 +246,29 @@ export function LeadsView({
     const changed = await runBulk({ action: "archive", ids: [...selected] });
     if (changed && changed.length > 0) {
       toast(bulkToast("archive", changed.length), { cancel: { label: "Undo", onClick: () => void restore(changed) } });
+    }
+  }
+
+  function startConvert() {
+    setToConvert(
+      ticked.map((row) => ({
+        id: row.id,
+        title: row.title,
+        personName: row.personName,
+        organizationName: row.organizationName,
+        // The earliest open activity is all a row knows; the single dialog names it as the next step that moves.
+        openActivities: row.next ? [row.next] : [],
+      })),
+    );
+    setConvertOpen(true);
+  }
+
+  /** The convert is over: the ticks clear and the Inbox comes back fresh; "Open the deal" (already converted) opens it here. */
+  function converted(result: ConvertResult) {
+    setSelected(new Set());
+    refreshAfterWrite(router);
+    if (result.converted === 0 && result.dealId) {
+      changePanelUrl(panelHref(pathname, searchParams.toString(), { kind: "deal", id: result.dealId }), "push", router);
     }
   }
 
@@ -415,6 +442,7 @@ export function LeadsView({
                 count={selected.size}
                 isAdmin={viewer.isAdmin}
                 busy={busy}
+                onConvert={startConvert}
                 assign={{ members: data.members, ownerIds: ticked.map((row) => row.ownerId), viewer, onPick: (id) => void assign(id) }}
                 onArchive={() => void archive()}
                 onDelete={() => {
@@ -488,6 +516,7 @@ export function LeadsView({
         assignment={data.assignment}
         onCreated={() => refreshAfterWrite(router)}
       />
+      <ConvertDialog open={convertOpen} onOpenChange={setConvertOpen} leads={toConvert} onConverted={converted} />
       <DeleteLeadsDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

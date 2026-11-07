@@ -8,7 +8,7 @@ import { activitiesEmptyState } from "@/lib/sales/activities-client";
 
 describe("activitiesEmptyState", () => {
   it.each([
-    ["open", { title: "Nothing to do", description: "Activities you plan on a deal show up here.", action: { label: "Open Deals", href: "/sales/deals" } }],
+    ["open", { title: "Nothing to do", description: "Activities you plan on a deal or lead show up here.", action: { label: "Open Deals", href: "/sales/deals" } }],
     ["overdue", { title: "Nothing overdue", description: "You are all caught up.", action: { label: "See what is due today", href: "/sales/activities?when=today" } }],
     ["today", { title: "Nothing due today", description: "Plan your next calls from the Deals board.", action: { label: "Open Deals", href: "/sales/deals" } }],
     ["done", { title: "Nothing done yet", description: "Tick an activity's circle when it is done and it lands here.", action: { label: "See what is to do", href: "/sales/activities" } }],

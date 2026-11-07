@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { requireSalesPage } from "@/lib/sales/page-gate";
 import { DealPanel } from "@/components/sales/deal-panel";
+import { LeadPanel } from "@/components/sales/lead-panel";
 import { SalesShortcuts } from "@/components/sales/sales-shortcuts";
 
 // The Sales area shell. The gate here keeps the shortcuts and their help text
@@ -13,10 +14,11 @@ export default async function SalesLayout({ children }: { children: React.ReactN
   return (
     <>
       {children}
-      {/* Both read the URL (?deal=), so they sit in their own Suspense boundary. */}
+      {/* They read the URL (?deal=, ?lead=), so they sit in their own Suspense boundary. One panel shows at a time. */}
       <Suspense fallback={null}>
         <SalesShortcuts />
         <DealPanel />
+        <LeadPanel />
       </Suspense>
     </>
   );
