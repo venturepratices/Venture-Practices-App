@@ -15,6 +15,13 @@ import { describe, expect, it } from "vitest";
 // A name in a comment or a string does not count, and neither does a local
 // function that only shares a check's name.
 //
+// Some checks throw when the caller is not allowed (requireUser and friends),
+// so calling them on their own line is enough. Others only answer (auth,
+// requireAgentToken, checkBearer, safeEqualSecret, resolveShareLinkAccess):
+// those count only when the answer is used, so `requireAgentToken(request);`
+// on its own line, or a helper that hands such an answer back and is then
+// called on its own line, fails.
+//
 // - Routes for signed-in people (staff and client-portal logins) need a
 //   session check (SESSION_CHECKS).
 // - Folders whose callers are not signed-in people each have their own
@@ -28,13 +35,15 @@ type Check = {
   name: string;
   /** When set, the call's second argument must be exactly this: the env var the secret lives in. */
   secret?: string;
+  /** True when the check answers instead of throwing, so it only guards anything if its answer is used. */
+  reports?: boolean;
 };
 
 const PERMISSIONS = "@/lib/permissions";
 const SECRET_COMPARE = "@/lib/secret-compare";
 
 const SESSION_CHECKS: Check[] = [
-  { module: "@/lib/auth", name: "auth" },
+  { module: "@/lib/auth", name: "auth", reports: true },
   { module: PERMISSIONS, name: "requireUser" },
   { module: PERMISSIONS, name: "requireAdmin" },
   { module: PERMISSIONS, name: "requireCapability" },
@@ -47,25 +56,25 @@ const SESSION_CHECKS: Check[] = [
 const FOLDER_RULES: Record<string, { who: string; checks: Check[] }> = {
   cron: {
     who: "Vercel Cron, which sends Authorization: Bearer CRON_SECRET",
-    checks: [{ module: SECRET_COMPARE, name: "checkBearer", secret: "process.env.CRON_SECRET" }],
+    checks: [{ module: SECRET_COMPARE, name: "checkBearer", secret: "process.env.CRON_SECRET", reports: true }],
   },
   agent: {
     who: "the outside agent API; callers send Authorization: Bearer AGENT_API_TOKEN",
-    checks: [{ module: "@/lib/agent-auth", name: "requireAgentToken" }],
+    checks: [{ module: "@/lib/agent-auth", name: "requireAgentToken", reports: true }],
   },
   mcp: {
     who: "the Claude.ai connector; MCP_ACCESS_TOKEN is the [token] part of the address",
-    checks: [{ module: SECRET_COMPARE, name: "safeEqualSecret", secret: "process.env.MCP_ACCESS_TOKEN" }],
+    checks: [{ module: SECRET_COMPARE, name: "safeEqualSecret", secret: "process.env.MCP_ACCESS_TOKEN", reports: true }],
   },
   review: {
     who: "guests reviewing one asset; the share-link token in the address is their only key",
-    checks: [{ module: "@/lib/share-link", name: "resolveShareLinkAccess" }],
+    checks: [{ module: "@/lib/share-link", name: "resolveShareLinkAccess", reports: true }],
   },
   webhooks: {
     who: "outside services sending events (no routes yet); each must prove it is the sender with its shared secret, and any other proof (a signature check) is added here on purpose",
     checks: [
-      { module: SECRET_COMPARE, name: "checkBearer" },
-      { module: SECRET_COMPARE, name: "safeEqualSecret" },
+      { module: SECRET_COMPARE, name: "checkBearer", reports: true },
+      { module: SECRET_COMPARE, name: "safeEqualSecret", reports: true },
     ],
   },
 };
@@ -154,31 +163,80 @@ function parseRoute(path: string, text: string): ParsedRoute {
   return { imports, functions, handlers };
 }
 
-function matches(call: ts.CallExpression, route: ParsedRoute, checks: Check[]): boolean {
-  if (!ts.isIdentifier(call.expression)) return false;
+function matchingCheck(call: ts.CallExpression, route: ParsedRoute, checks: Check[]): Check | undefined {
+  if (!ts.isIdentifier(call.expression)) return undefined;
   const imported = route.imports.get(call.expression.text);
-  if (!imported) return false;
+  if (!imported) return undefined;
   const secretArg = call.arguments[1]?.getText().replace(/\s+/g, "");
-  return checks.some(
+  return checks.find(
     (check) =>
       check.module === imported.module && check.name === imported.name && (!check.secret || secretArg === check.secret)
   );
 }
 
-/** True when `fn`, or a function of the same file that it calls, calls one of `checks`. */
-function callsCheck(fn: ts.Node, route: ParsedRoute, checks: Check[], seen = new Set<ts.Node>()): boolean {
-  if (seen.has(fn)) return false;
-  seen.add(fn);
+/** The call plus anything around it that passes its value straight through: `await`, brackets, `as`, `satisfies`, `!`. */
+function outermost(call: ts.CallExpression): ts.Node {
+  let node: ts.Node = call;
+  while (
+    ts.isAwaitExpression(node.parent) ||
+    ts.isParenthesizedExpression(node.parent) ||
+    ts.isAsExpression(node.parent) ||
+    ts.isSatisfiesExpression(node.parent) ||
+    ts.isTypeAssertionExpression(node.parent) ||
+    ts.isNonNullExpression(node.parent)
+  ) {
+    node = node.parent;
+  }
+  return node;
+}
+
+function enclosingFunction(node: ts.Node): ts.Node | undefined {
+  let current = node.parent;
+  while (current && !ts.isFunctionLike(current)) current = current.parent;
+  return current;
+}
+
+/**
+ * True when nothing looks at what `call` (made inside `fn`) returns: it stands
+ * alone as a statement, is thrown away with `void`, or is handed back by `fn`
+ * to a caller that throws it away (`fnAnswerUsed` false).
+ */
+function answerIgnored(call: ts.CallExpression, fn: ts.Node, fnAnswerUsed: boolean): boolean {
+  const top = outermost(call);
+  const parent = top.parent;
+  if (ts.isExpressionStatement(parent) || ts.isVoidExpression(parent)) return true;
+  if (fnAnswerUsed) return false;
+  const returned = ts.isReturnStatement(parent) && enclosingFunction(parent) === fn;
+  const arrowBody = parent === fn && ts.isArrowFunction(fn) && fn.body === top;
+  return returned || arrowBody;
+}
+
+/**
+ * True when `fn`, or a function of the same file that it calls, calls one of
+ * `checks`. A check that only answers (`reports`) counts only when its answer
+ * is used; `answerUsed` says whether whoever called `fn` uses what it returns.
+ */
+function callsCheck(
+  fn: ts.Node,
+  route: ParsedRoute,
+  checks: Check[],
+  answerUsed = true,
+  seen = new Map<ts.Node, Set<boolean>>()
+): boolean {
+  const visited = seen.get(fn) ?? new Set<boolean>();
+  if (visited.has(answerUsed)) return false;
+  seen.set(fn, visited.add(answerUsed));
   let found = false;
   const visit = (node: ts.Node): void => {
     if (found) return;
     if (ts.isCallExpression(node)) {
-      if (matches(node, route, checks)) {
+      const check = matchingCheck(node, route, checks);
+      if (check && !(check.reports && answerIgnored(node, fn, answerUsed))) {
         found = true;
         return;
       }
       const local = ts.isIdentifier(node.expression) ? route.functions.get(node.expression.text) : undefined;
-      if (local && callsCheck(local, route, checks, seen)) {
+      if (local && callsCheck(local, route, checks, !answerIgnored(node, fn, answerUsed), seen)) {
         found = true;
         return;
       }
@@ -273,6 +331,52 @@ describe("API route check scanner (self-check)", () => {
     ["a new route in the health folder", "health/deep/route.ts", "export async function GET() {}"],
     ["a new route in the auth folder", "auth/extra/route.ts", "export async function POST() {}"],
     ["a file with no handler it can read", "tasks/route.ts", "export default async function handler() {}"],
+    // These checks answer instead of throwing, so calling one without using its answer guards nothing.
+    [
+      "an agent token check whose answer is thrown away",
+      "agent/v1/new/route.ts",
+      'import { requireAgentToken } from "@/lib/agent-auth";\nexport async function GET(request: Request) { requireAgentToken(request); return Response.json([]); }',
+    ],
+    [
+      "a session lookup whose answer is thrown away",
+      "tasks/route.ts",
+      'import { auth } from "@/lib/auth";\nexport async function GET() { await auth(); return Response.json([]); }',
+    ],
+    [
+      "a cron secret check whose answer is thrown away",
+      "cron/new-job/route.ts",
+      'import { checkBearer } from "@/lib/secret-compare";\nexport async function GET(r: Request) { checkBearer(r, process.env.CRON_SECRET); }',
+    ],
+    [
+      "a share-link lookup whose answer is thrown away",
+      "review/[token]/new/route.ts",
+      'import { resolveShareLinkAccess } from "@/lib/share-link";\nexport async function POST() { await resolveShareLinkAccess("t"); }',
+    ],
+    [
+      "a webhook secret check whose answer is thrown away",
+      "webhooks/new/route.ts",
+      'import { checkBearer } from "@/lib/secret-compare";\nexport async function POST(r: Request) { checkBearer(r, process.env.WEBHOOK_SECRET); }',
+    ],
+    [
+      "an answer thrown away with void",
+      "agent/v1/new/route.ts",
+      'import { requireAgentToken } from "@/lib/agent-auth";\nexport async function GET(request: Request) { void requireAgentToken(request); }',
+    ],
+    [
+      "an answer thrown away inside brackets and a cast",
+      "tasks/route.ts",
+      'import { auth } from "@/lib/auth";\nexport async function GET() { ((await auth()) as unknown)!; }',
+    ],
+    [
+      "a helper's answer thrown away",
+      "mcp/[token]/route.ts",
+      'import { safeEqualSecret } from "@/lib/secret-compare";\nconst ok = (t: string) => safeEqualSecret(t, process.env.MCP_ACCESS_TOKEN);\nasync function handler() { ok("x"); }\nexport { handler as GET };',
+    ],
+    [
+      "an answer passed up through two helpers and then thrown away",
+      "mcp/[token]/route.ts",
+      'import { safeEqualSecret } from "@/lib/secret-compare";\nfunction ok(t: string) { return safeEqualSecret(t, process.env.MCP_ACCESS_TOKEN); }\nfunction valid(t: string) { return ok(t); }\nasync function handler() { valid("x"); }\nexport { handler as GET };',
+    ],
   ])("flags %s", (_label, path, source) => {
     expect(routeProblems(path, source)).not.toEqual([]);
   });
@@ -331,12 +435,27 @@ describe("API route check scanner (self-check)", () => {
     [
       "an MCP route that checks MCP_ACCESS_TOKEN through a helper",
       "mcp/[token]/route.ts",
-      'import { safeEqualSecret } from "@/lib/secret-compare";\nfunction ok(t: string) { return safeEqualSecret(t, process.env.MCP_ACCESS_TOKEN); }\nasync function handler() { ok("x"); }\nexport { handler as GET, handler as POST };',
+      'import { safeEqualSecret } from "@/lib/secret-compare";\nfunction ok(t: string) { return safeEqualSecret(t, process.env.MCP_ACCESS_TOKEN); }\nasync function handler() { if (!ok("x")) return; }\nexport { handler as GET, handler as POST };',
+    ],
+    [
+      "a helper that refuses on its own, called on its own line",
+      "cron/new-job/route.ts",
+      'import { checkBearer } from "@/lib/secret-compare";\nfunction gate(r: Request) { if (!checkBearer(r, process.env.CRON_SECRET)) throw new Error("no"); }\nexport async function GET(r: Request) { gate(r); }',
+    ],
+    [
+      "a helper used once with its answer thrown away and once with it checked",
+      "mcp/[token]/route.ts",
+      'import { safeEqualSecret } from "@/lib/secret-compare";\nfunction ok(t: string) { return safeEqualSecret(t, process.env.MCP_ACCESS_TOKEN); }\nasync function handler() { ok("warm-up"); if (!ok("x")) return; }\nexport { handler as GET };',
+    ],
+    [
+      "an answer returned from a callback another function uses",
+      "review/[token]/new/route.ts",
+      'import { resolveShareLinkAccess } from "@/lib/share-link";\nexport async function POST() { const r = await run(async () => { return resolveShareLinkAccess("t"); }); }',
     ],
     [
       "a review route that resolves the share link",
       "review/[token]/new/route.ts",
-      'import { resolveShareLinkAccess } from "@/lib/share-link";\nexport async function POST() { await resolveShareLinkAccess("t"); }',
+      'import { resolveShareLinkAccess } from "@/lib/share-link";\nexport async function POST() { const resolved = await resolveShareLinkAccess("t"); if (!resolved.ok) return; }',
     ],
     ["a listed public route", "health/route.ts", "export async function GET() {}"],
   ])("accepts %s", (_label, path, source) => {
