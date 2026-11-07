@@ -44,6 +44,12 @@ function PrefRow({
   );
 }
 
+/** The server's own reason when it gives one (e.g. "ask an admin"), else a generic retry message. */
+export async function saveErrorMessage(res: Response): Promise<string> {
+  const body = await res.json().catch(() => null);
+  return typeof body?.error === "string" && body.error ? body.error : "Failed to save. Try again.";
+}
+
 export function NotificationPreferencesForm({
   initial,
   slackDestinationInitial,
@@ -114,7 +120,7 @@ export function NotificationPreferencesForm({
         body: JSON.stringify({ slackUserId: trimmed || null }),
       });
       if (!res.ok) {
-        setDestinationSaveError("Failed to save. Try again.");
+        setDestinationSaveError(await saveErrorMessage(res));
         return;
       }
       setSlackDestination(trimmed);
@@ -162,8 +168,8 @@ export function NotificationPreferencesForm({
             Where on Slack
           </Label>
           <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
-            By default we match your Slack account by email. Want your notifications somewhere else instead — your
-            own Slack ID, or a channel you pick? Paste it here; change it back anytime.
+            By default we match your Slack account by email. You can paste your own Slack member ID here, but only
+            the Slack account with your email address is accepted. Clear it to go back to matching by email.
           </p>
           <div className="flex items-center gap-2">
             <Input
@@ -180,9 +186,8 @@ export function NotificationPreferencesForm({
           </div>
           {destinationSaveError ? <p className="mt-1.5 text-xs text-destructive">{destinationSaveError}</p> : null}
           <p className="mt-2 text-xs text-muted-foreground">
-            Your own Slack ID DMs you personally; a channel ID posts your notifications there instead. Find either
-            one in Slack: profile or channel name → &quot;...&quot; → &quot;Copy member ID&quot; / &quot;Copy channel
-            ID&quot;. For a private channel, make sure the bot is invited to it first.
+            Find your member ID in Slack: your profile → &quot;...&quot; → &quot;Copy member ID&quot;. To get your
+            notifications on a different Slack account or in a channel, ask an admin.
           </p>
         </CardContent>
       </Card>
