@@ -5,10 +5,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import {
   claimLoginAttempt,
-  clearFailedLogins,
   lockoutEmail,
   LoginLockedError,
   recordFailedLogin,
+  recordSuccessfulLogin,
   requestIp,
 } from "@/lib/login-lockout";
 
@@ -99,7 +99,7 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
           await recordFailedLogin(attemptKey, ip);
           return null;
         }
-        await clearFailedLogins(attemptKey, ip).catch(() => {});
+        await recordSuccessfulLogin(attemptKey, ip).catch(() => {});
         return user;
       },
     }),

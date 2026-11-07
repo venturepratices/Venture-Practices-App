@@ -74,7 +74,9 @@ function applyData(row: AttemptRow, data: Record<string, unknown>) {
       (row as Record<string, unknown>)[key] = value;
     }
   }
-  row.updatedAt = new Date();
+  // Prisma may skip an update with no fields at all, so an empty update
+  // leaves updatedAt alone here too.
+  if (Object.keys(data).length > 0 && !("updatedAt" in data)) row.updatedAt = new Date();
 }
 
 let nextId = 1;
@@ -292,7 +294,7 @@ describe("login lockout inside authorize()", () => {
       expect(await signInAttempt("wrong password", "203.0.113.2")).toBeNull();
     }
     expect(await signInAttempt(STAFF_PASSWORD, "203.0.113.2")).toMatchObject({ id: "member-1" });
-    expect(attemptRows).toHaveLength(0);
+    expect(attemptRows.filter((r) => ["203.0.113.1", "203.0.113.2", "*"].includes(r.ip))).toHaveLength(0);
   });
 
   it("lets at most 5 of a burst of simultaneous guesses reach the password check", async () => {
@@ -302,5 +304,79 @@ describe("login lockout inside authorize()", () => {
     expect(compareMock).toHaveBeenCalledTimes(5);
     expect(results.every((r) => (r.status === "fulfilled" ? r.value === null : r.reason instanceof LoginLockedError))).toBe(true);
     await expectLocked(signInAttempt(STAFF_PASSWORD, "192.0.2.99"));
+  });
+});
+
+// Anyone who knows an email can keep its email-wide row locked for as long as
+// they like, by failing 5 times again each time a lock ends. An IP the owner
+// signed in from recently is only held to its own per-IP limit, so that alone
+// can't keep the owner out.
+describe("an IP that signed in to the account before", () => {
+  const OWNER_IP = "203.0.113.1";
+  const DAY = 24 * 60 * MINUTE;
+
+  async function outsiderLocksEmail() {
+    for (let i = 1; i <= 5; i++) await signInAttempt("wrong password", `198.51.100.${i}`);
+    await expectLocked(signInAttempt(STAFF_PASSWORD, "192.0.2.99"));
+  }
+
+  it("still gets in while an outsider keeps renewing the email-wide lock", async () => {
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+
+    for (let round = 0; round < 3; round++) {
+      vi.setSystemTime(new Date(START.getTime() + round * 16 * MINUTE));
+      await outsiderLocksEmail();
+      expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+    }
+  });
+
+  it("is trusted for 90 days counted from its latest successful sign-in", async () => {
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+    vi.setSystemTime(new Date(START.getTime() + 60 * DAY));
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+
+    vi.setSystemTime(new Date(START.getTime() + 140 * DAY));
+    await outsiderLocksEmail();
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+  });
+
+  it("is no longer trusted after 90 days without a successful sign-in from it", async () => {
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+
+    vi.setSystemTime(new Date(START.getTime() + 91 * DAY));
+    await outsiderLocksEmail();
+    await expectLocked(signInAttempt(STAFF_PASSWORD, OWNER_IP));
+  });
+
+  it("is still held to its own limit of 5 wrong passwords", async () => {
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+    for (let i = 0; i < 5; i++) expect(await signInAttempt("wrong password", OWNER_IP)).toBeNull();
+    compareMock.mockClear();
+
+    await expectLocked(signInAttempt(STAFF_PASSWORD, OWNER_IP));
+    expect(compareMock).not.toHaveBeenCalled();
+  });
+
+  it("does not stretch an email-wide lock with its own wrong passwords", async () => {
+    expect(await signInAttempt(STAFF_PASSWORD, OWNER_IP)).toMatchObject({ id: "member-1" });
+    await outsiderLocksEmail();
+
+    vi.setSystemTime(new Date(START.getTime() + 10 * MINUTE));
+    for (let i = 0; i < 5; i++) await signInAttempt("wrong password", OWNER_IP).catch(() => null);
+
+    vi.setSystemTime(new Date(START.getTime() + 15 * MINUTE + 1000));
+    expect(await signInAttempt(STAFF_PASSWORD, "192.0.2.99")).toMatchObject({ id: "member-1" });
+  });
+
+  it("never applies to requests that carry no IP, since they all share one bucket", async () => {
+    const withoutIp = () =>
+      authorize(
+        { email: STAFF_EMAIL, password: STAFF_PASSWORD, remember: "false" },
+        new Request("http://localhost/api/auth/callback/credentials", { method: "POST" }),
+      );
+    expect(await withoutIp()).toMatchObject({ id: "member-1" });
+
+    await outsiderLocksEmail();
+    await expectLocked(withoutIp());
   });
 });

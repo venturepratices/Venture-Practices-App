@@ -6,19 +6,37 @@ import { prisma } from "@/lib/prisma";
 // authorize() (src/lib/auth.ts) so it also covers a POST straight to
 // /api/auth/callback/credentials, not just the login form.
 //
-// Two LoginAttempt rows are kept per email:
+// LoginAttempt rows kept per email:
 //   - (email, caller's IP): the original per-IP count.
 //   - (email, ANY_IP): every IP together, so spreading guesses over many
-//     IPs doesn't dodge the limit. The cost is that anyone can lock a known
-//     email out for LOGIN_LOCKOUT_MS by failing on purpose.
-// Either row reaching MAX_LOGIN_ATTEMPTS failures locks that email (or
-// email + IP) for LOGIN_LOCKOUT_MS. A successful login clears both rows.
+//     IPs doesn't dodge the limit.
+//   - (email, trustedIpKey(IP)): when that IP last signed in to the account.
+// Either count reaching MAX_LOGIN_ATTEMPTS failures locks that email (or
+// email + IP) for LOGIN_LOCKOUT_MS. A successful login clears both counts.
+//
+// The email-wide count has a cost: anyone who knows an email can keep it
+// locked indefinitely, not just for 15 minutes, by failing 5 times again
+// every 15 minutes (about 20 requests an hour, no login needed). So an IP
+// that signed in to the account in
+// the last TRUSTED_IP_MS is held to its own per-IP count only, and the owner
+// can still get in from a device or network they used before. A new device
+// or network is still refused while the email-wide lock lasts. Vercel
+// overwrites x-forwarded-for, so a caller can't claim the owner's IP.
 
 export const MAX_LOGIN_ATTEMPTS = 5;
 export const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+export const TRUSTED_IP_MS = 90 * 24 * 60 * 60 * 1000; // 90 days, longer than the 30-day "remember me"
 
 /** The LoginAttempt `ip` value for the row that counts every IP together. */
 export const ANY_IP = "*";
+
+/** requestIp() when the request names no IP. Never trusted: all such requests share it. */
+const UNKNOWN_IP = "unknown";
+
+/** The LoginAttempt `ip` value whose updatedAt is the last successful sign-in from `ip`. */
+function trustedIpKey(ip: string): string {
+  return `ok:${ip}`;
+}
 
 /**
  * Thrown from authorize() while an email (or email + IP) is locked out.
@@ -49,11 +67,17 @@ export function lockoutEmail(email: string): string {
 export function requestIp(headers: Headers): string {
   const forwardedFor = headers.get("x-forwarded-for");
   if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return headers.get("x-real-ip") ?? "unknown";
+  return headers.get("x-real-ip") ?? UNKNOWN_IP;
 }
 
 function buckets(ip: string) {
   return [ip, ANY_IP];
+}
+
+function isTrustedIp(rows: { ip: string; updatedAt: Date }[], ip: string, now: number): boolean {
+  if (ip === UNKNOWN_IP) return false;
+  const lastSignIn = rows.find((row) => row.ip === trustedIpKey(ip));
+  return !!lastSignIn && lastSignIn.updatedAt.getTime() > now - TRUSTED_IP_MS;
 }
 
 function activeLock(rows: { lockedUntil: Date | null }[], now: number): Date | null {
@@ -88,14 +112,20 @@ async function lockSpentBuckets(email: string, ip: string): Promise<Date> {
 export async function claimLoginAttempt(email: string, ip: string): Promise<Date | null> {
   const now = Date.now();
 
+  const existing = await prisma.loginAttempt.findMany({
+    where: { email, ip: { in: [...buckets(ip), trustedIpKey(ip)] } },
+  });
+  // An IP that signed in to this account recently neither checks nor feeds
+  // the email-wide count (see the top of this file).
+  const applies = isTrustedIp(existing, ip, now) ? [ip] : buckets(ip);
+
   // Tries made while locked are refused without being counted, so a lock
   // always ends after LOGIN_LOCKOUT_MS, as before.
-  const existing = await prisma.loginAttempt.findMany({ where: { email, ip: { in: buckets(ip) } } });
-  const lockedUntil = activeLock(existing, now);
+  const lockedUntil = activeLock(existing.filter((row) => applies.includes(row.ip)), now);
   if (lockedUntil) return lockedUntil;
 
   const counted = [];
-  for (const bucket of buckets(ip)) {
+  for (const bucket of applies) {
     counted.push(
       await prisma.loginAttempt.upsert({
         where: { email_ip: { email, ip: bucket } },
@@ -122,9 +152,19 @@ export async function recordFailedLogin(email: string, ip: string): Promise<void
   await lockSpentBuckets(email, ip);
 }
 
-/** Call after a correct password: starts both counts afresh, as before. */
-export async function clearFailedLogins(email: string, ip: string): Promise<void> {
+/**
+ * Call after a correct password: starts both counts afresh, as before, and
+ * notes that this IP signed in now, so it gets past an email-wide lock for
+ * the next TRUSTED_IP_MS.
+ */
+export async function recordSuccessfulLogin(email: string, ip: string): Promise<void> {
   await prisma.loginAttempt.deleteMany({ where: { email, ip: { in: buckets(ip) } } });
+  if (ip === UNKNOWN_IP) return;
+  await prisma.loginAttempt.upsert({
+    where: { email_ip: { email, ip: trustedIpKey(ip) } },
+    create: { email, ip: trustedIpKey(ip) },
+    update: { updatedAt: new Date() },
+  });
 }
 
 /** The login form's message while locked out. */
