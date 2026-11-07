@@ -60,6 +60,7 @@ const db = {
   salesCustomFieldValue: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => []) },
   salesAuditLog: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => []) },
   salesNote: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => []) },
+  salesFile: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => []) },
   teamMember: {
     findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => [{ id: "r", name: "Rachel P." }]),
     update: vi.fn<(args: Args) => Promise<unknown>>(async () => ({ id: "r" })),

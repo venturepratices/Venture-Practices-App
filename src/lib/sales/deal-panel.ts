@@ -11,16 +11,18 @@ import {
   type BoardStage,
   type SalesMemberOption,
 } from "@/lib/sales/board";
-import { ACTIVITIES_PAGE_SIZE, TERRITORY_HOLD_FIELD_KEY } from "@/lib/sales/constants";
+import { ACTIVITIES_PAGE_SIZE, FILES_PER_DEAL_MAX, TERRITORY_HOLD_FIELD_KEY } from "@/lib/sales/constants";
 import { visibleDealWhere } from "@/lib/sales/deal-access";
+import { shortName } from "@/lib/sales/format";
 
 // What the slide-in deal panel shows: the deal, its stage bar, the open next
-// steps, the Details fields for its pipeline and the territory hold. History
-// pages separately (timeline.ts). Plain serializable values, dates as ISO strings.
+// steps, the Details fields for its pipeline, the territory hold and the
+// final-version files. History pages separately (timeline.ts). Plain
+// serializable values, dates as ISO strings.
 
 type PanelDb = Pick<
   typeof prisma,
-  "salesDeal" | "salesStage" | "salesActivity" | "salesCustomField" | "salesCustomFieldValue" | "teamMember"
+  "salesDeal" | "salesStage" | "salesActivity" | "salesCustomField" | "salesCustomFieldValue" | "teamMember" | "salesFile"
 >;
 
 export type PanelActivity = {
@@ -33,6 +35,50 @@ export type PanelActivity = {
   createdBy: string;
   ownerId: string;
 };
+
+/**
+ * One final-version file in the deal's Files list (files.ts adds and removes
+ * them). Never where it is stored: it downloads only through
+ * `GET /api/sales/files/[fileId]`.
+ */
+export type PanelFile = {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  contentType: string;
+  /** The deal's stage when the file was added. */
+  stageName: string | null;
+  /** Who added it, first name and last initial. */
+  uploadedBy: string;
+  createdAt: string;
+  /** The deal owner or an admin. */
+  canRemove: boolean;
+};
+
+/** What a Files list row reads: no pathname or checksum, so neither reaches the screen. */
+export const PANEL_FILE_SELECT = {
+  id: true,
+  name: true,
+  sizeBytes: true,
+  contentType: true,
+  stageName: true,
+  createdAt: true,
+  uploadedBy: { select: { name: true } },
+} satisfies Prisma.SalesFileSelect;
+
+/** A stored file row as the panel shows it. */
+export function toPanelFile(row: Prisma.SalesFileGetPayload<{ select: typeof PANEL_FILE_SELECT }>, canRemove: boolean): PanelFile {
+  return {
+    id: row.id,
+    name: row.name,
+    sizeBytes: row.sizeBytes,
+    contentType: row.contentType,
+    stageName: row.stageName,
+    uploadedBy: shortName(row.uploadedBy.name),
+    createdAt: row.createdAt.toISOString(),
+    canRemove,
+  };
+}
 
 export type PanelField = {
   key: string;
@@ -68,6 +114,8 @@ export type DealPanelData = {
   canEdit: boolean;
   /** Set while the Territory Hold Expiry field has a date, with the open check's due time if there is one. */
   territoryHold: { expiry: string; checkDueAt: string | null } | null;
+  /** The live final-version files, newest first, at most FILES_PER_DEAL_MAX. */
+  files: PanelFile[];
 };
 
 const PANEL_DEAL_SELECT = {
@@ -105,7 +153,7 @@ export async function loadDealPanel(
   const pipeline = deal.pipeline;
   if (!isBoardPipeline(pipeline)) return null;
 
-  const [stages, activities, customFields, values, members] = await Promise.all([
+  const [stages, activities, customFields, values, members, files] = await Promise.all([
     loadBoardStages(pipeline.id, db),
     db.salesActivity.findMany({
       where: { dealId, doneAt: null, archivedAt: null },
@@ -120,7 +168,14 @@ export async function loadDealPanel(
     }),
     db.salesCustomFieldValue.findMany({ where: { dealId }, select: { fieldId: true, value: true } }),
     loadSalesMembers(db),
+    db.salesFile.findMany({
+      where: { dealId, archivedAt: null },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: FILES_PER_DEAL_MAX,
+      select: PANEL_FILE_SELECT,
+    }),
   ]);
+  const canEdit = canEditDeal(actor, deal);
 
   const valueByField = new Map(values.map((row) => [row.fieldId, row.value]));
   const fields: PanelField[] = customFields
@@ -163,7 +218,8 @@ export async function loadDealPanel(
     openActivities,
     fields,
     members,
-    canEdit: canEditDeal(actor, deal),
+    canEdit,
     territoryHold: holdExpiry ? { expiry: holdExpiry, checkDueAt: holdCheck?.dueAt ?? null } : null,
+    files: files.map((file) => toPanelFile(file, canEdit)),
   };
 }

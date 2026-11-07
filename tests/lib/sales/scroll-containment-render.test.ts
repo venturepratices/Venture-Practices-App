@@ -127,6 +127,7 @@ const PANEL: DealPanelData = {
   members: MEMBERS,
   canEdit: true,
   territoryHold: null,
+  files: [],
 };
 
 const clean = (html: string) => html.replaceAll("<!-- -->", "");

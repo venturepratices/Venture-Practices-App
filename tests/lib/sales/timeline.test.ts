@@ -57,6 +57,10 @@ describe("describeAuditRow", () => {
     ["activity removed", describe_("activity_removed", undefined, { activityId: "a1", type: "CALL", subject: "Reschedule the missed demo" }), "activity", "Call removed: Reschedule the missed demo"],
     ["note added", describe_("note_added", { noteId: "n1" }), "note", "Note added"],
     ["note edited", describe_("note_edited", { noteId: "n1", body: "New" }, { noteId: "n1", body: "Old" }), "note", "Note edited"],
+    ["file added", describe_("file_added", { fileId: "f1", name: "Signed contract.pdf", sizeBytes: 1000, stageName: "Proposal Sent" }), "file", "File added: Signed contract.pdf"],
+    ["file removed", describe_("file_removed", undefined, { fileId: "f1", name: "Signed contract.pdf" }), "file", "File removed: Signed contract.pdf"],
+    ["file added, name unreadable", describe_("file_added", { fileId: "f1" }), "file", "File added"],
+    ["file removed, name unreadable", describe_("file_removed", undefined, "junk"), "file", "File removed"],
   ])("%s", (_name, result, icon, text) => {
     expect(result).toEqual({ icon, text });
     // No em dash (U+2014) in any History line.

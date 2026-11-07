@@ -70,6 +70,7 @@ function panel(deal: Partial<DealPanelData["deal"]> = {}): DealPanelData {
     members: MEMBERS,
     canEdit: true,
     territoryHold: null,
+    files: [],
   };
 }
 

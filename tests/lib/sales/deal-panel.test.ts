@@ -89,8 +89,19 @@ const firstCall = {
   ownerId: "r",
 };
 
-function fakeDb(opts: { deal?: Row | null; values?: Row[]; activities?: Row[] } = {}) {
+const signedContract = {
+  id: "f1",
+  name: "Signed contract.pdf",
+  sizeBytes: 1000,
+  contentType: "application/pdf",
+  stageName: "Proposal Sent",
+  createdAt: new Date("2026-11-05T15:00:00Z"),
+  uploadedBy: { name: "Sarah K." },
+};
+
+function fakeDb(opts: { deal?: Row | null; values?: Row[]; activities?: Row[]; files?: Row[] } = {}) {
   return {
+    salesFile: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => opts.files ?? []) },
     salesDeal: { findFirst: vi.fn<(args: Args) => Promise<unknown>>(async () => (opts.deal === undefined ? deal() : opts.deal)) },
     salesStage: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => STAGES) },
     salesActivity: { findMany: vi.fn<(args: Args) => Promise<unknown>>(async () => opts.activities ?? [firstCall]) },
@@ -208,5 +219,45 @@ describe("loadDealPanel", () => {
     const panel = await loadDealPanel(rep, "d1", fakeDb({ activities: [holdCheck] }) as never);
 
     expect(panel?.territoryHold).toBeNull();
+  });
+
+  it("lists the deal's live files, newest first, without where they are stored", async () => {
+    const db = fakeDb({ files: [signedContract] });
+    const panel = await loadDealPanel(rep, "d1", db as never);
+
+    expect(db.salesFile.findMany).toHaveBeenCalledTimes(1);
+    const args = db.salesFile.findMany.mock.calls[0][0];
+    expect(args).toMatchObject({
+      where: { dealId: "d1", archivedAt: null },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 50,
+    });
+    expect(args.where).toEqual({ dealId: "d1", archivedAt: null });
+    // The store's pathname and the checksum never reach the screen.
+    expect(Object.keys(args.select as Row)).not.toContain("blobPathname");
+    expect(Object.keys(args.select as Row)).not.toContain("sha256");
+    expect(panel?.files).toEqual([
+      {
+        id: "f1",
+        name: "Signed contract.pdf",
+        sizeBytes: 1000,
+        contentType: "application/pdf",
+        stageName: "Proposal Sent",
+        uploadedBy: "Sarah K.",
+        createdAt: "2026-11-05T15:00:00.000Z",
+        canRemove: true,
+      },
+    ]);
+  });
+
+  it("lets only the deal owner or an admin remove files", async () => {
+    const othersDeal = { deal: deal({ ownerId: "b" }), files: [{ ...signedContract, uploadedBy: { name: "Ben Example" } }] };
+
+    expect((await loadDealPanel(seesAll, "d1", fakeDb(othersDeal) as never))?.files).toEqual([
+      expect.objectContaining({ id: "f1", uploadedBy: "Ben E.", canRemove: false }),
+    ]);
+    expect((await loadDealPanel(admin, "d1", fakeDb(othersDeal) as never))?.files).toEqual([
+      expect.objectContaining({ id: "f1", canRemove: true }),
+    ]);
   });
 });

@@ -283,6 +283,14 @@ export function describeAuditRow(
       return { icon: "note", text: "Note added" };
     case "note_edited":
       return { icon: "note", text: "Note edited" };
+    case "file_added": {
+      const name = str(after, "name");
+      return { icon: "file", text: name ? `File added: ${name}` : "File added" };
+    }
+    case "file_removed": {
+      const name = str(before, "name");
+      return { icon: "file", text: name ? `File removed: ${name}` : "File removed" };
+    }
     default:
       return fallback;
   }

@@ -88,6 +88,10 @@ export type DealAuditEvent =
   /** `merged` when the change came from merging duplicate contacts, not from someone editing this deal. */
   | { action: "contact_changed"; before: ContactChange; after: ContactChange & { merged?: true } }
   | { action: "archived"; before: { archivedAt: null }; after: { archivedAt: string } }
+  /** A final-version file added to the deal (files.ts), with the stage the deal was in. */
+  | { action: "file_added"; after: { fileId: string; name: string; sizeBytes: number; stageName: string | null } }
+  /** A file removed from the deal's Files list; the stored bytes stay. */
+  | { action: "file_removed"; before: { fileId: string; name: string } }
   /** No payload: the row itself (who, when, from where) is the record of the attempt. */
   | { action: "delete_refused" }
   | ChildAuditEvent;

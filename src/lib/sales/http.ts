@@ -8,7 +8,8 @@ import type { z } from "zod";
 
 export type SalesFail = {
   ok: false;
-  status: 400 | 403 | 404 | 409 | 422;
+  /** 413, 415 and 503 are the file upload's: too big, not an allowed type, storage missing or failing. */
+  status: 400 | 403 | 404 | 409 | 413 | 415 | 422 | 503;
   error: string;
   /** Set when the screen should react to the refusal, not just show it (the value dialog for Proposal Sent). */
   code?: "PROPOSAL_NEEDS_VALUE";

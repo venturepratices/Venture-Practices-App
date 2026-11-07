@@ -25,6 +25,23 @@ export const BULK_CONVERT_MAX = 25;
 /** Most deals, leads, notes, activities and people one merge of duplicate contacts may move, all in one transaction. */
 export const MERGE_LINKED_MAX = 500;
 
+// --- Deal files (final versions, stored in the private Blob store) ---
+
+/** Largest file one upload may carry: Vercel's request body limit, so the copy says "Up to 4 MB". */
+export const FILE_MAX_BYTES = 4 * 1024 * 1024;
+/** Room for the multipart wrapping around the file (boundaries, the tick field, headers). */
+export const FORM_OVERHEAD_BYTES = 64 * 1024;
+/** Live (not removed) files one deal may hold; the panel lists at most this many. */
+export const FILES_PER_DEAL_MAX = 50;
+/** Files one person may add per app-time day, removed ones included. */
+export const FILES_PER_PERSON_DAY = 30;
+/** Bytes one person may add per app-time day, removed ones included. */
+export const FILE_BYTES_PER_PERSON_DAY = 100 * 1024 * 1024;
+/** Longest stored display name, extension included. */
+export const FILE_NAME_MAX = 200;
+/** Every Sales file's pathname in the store starts with this; downloads refuse anything else. */
+export const FILE_PATH_PREFIX = "sales-files/";
+
 /** Days an open deal can sit in a stage before it rots (amber card). */
 export const DEFAULT_ROTTING_DAYS = 14;
 
