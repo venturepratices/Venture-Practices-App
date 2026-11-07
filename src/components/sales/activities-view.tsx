@@ -268,7 +268,7 @@ function ActivitiesTable({
     const index = page.rows.findIndex((candidate) => candidate.id === row.id);
     focusAfterTick.current = (page.rows[index + 1] ?? page.rows[index - 1])?.id ?? null;
     setTicks((current) => ({ ...current, shown: withId(current.shown, row.id), sending: withId(current.sending, row.id) }));
-    await markDone({ id: row.id, subject: row.subject }, { id: row.deal.id, title: row.deal.title });
+    await markDone({ id: row.id, subject: row.subject }, { kind: "deal", id: row.deal.id, title: row.deal.title });
     setTicks((current) => ({ ...current, sending: withoutId(current.sending, row.id) }));
   }
 

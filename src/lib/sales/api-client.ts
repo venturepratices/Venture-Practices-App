@@ -61,6 +61,12 @@ const send = <T>(method: "POST" | "PATCH" | "PUT", url: string, body: unknown) =
   request<T>(url, { method, headers: JSON_HEADERS, body: JSON.stringify(body) });
 
 const dealUrl = (dealId: string) => `/api/sales/deals/${encodeURIComponent(dealId)}`;
+const leadUrl = (leadId: string) => `/api/sales/leads/${encodeURIComponent(leadId)}`;
+
+/** The deal or lead an activity or note is added to. */
+export type SalesParentRef = { kind: "deal" | "lead"; id: string };
+
+const parentUrl = (parent: SalesParentRef) => (parent.kind === "lead" ? leadUrl(parent.id) : dealUrl(parent.id));
 
 // --- Deals ---
 
@@ -117,8 +123,13 @@ export function setDealStatusRequest(dealId: string, body: DealStatusInput): Pro
 
 // --- Activities and notes ---
 
+/** Schedules an activity on a deal or a lead. */
+export function createActivityFor(parent: SalesParentRef, body: CreateActivityInput): Promise<ApiResult<{ activity: PanelActivity }>> {
+  return send("POST", `${parentUrl(parent)}/activities`, body);
+}
+
 export function createActivityRequest(dealId: string, body: CreateActivityInput): Promise<ApiResult<{ activity: PanelActivity }>> {
-  return send("POST", `${dealUrl(dealId)}/activities`, body);
+  return createActivityFor({ kind: "deal", id: dealId }, body);
 }
 
 export function setActivityDoneRequest(activityId: string, done: boolean): Promise<ApiResult<Answer<typeof setActivityDone>>> {
@@ -132,8 +143,13 @@ export function getActivitiesPage(query: ActivitiesQuery): Promise<ApiResult<Act
   return get(`/api/sales/activities?${search}`);
 }
 
+/** Adds a note to a deal or a lead. */
+export function addNoteFor(parent: SalesParentRef, body: NoteInput): Promise<ApiResult<{ note: Answer<typeof addDealNote>["note"] }>> {
+  return send("POST", `${parentUrl(parent)}/notes`, body);
+}
+
 export function addNoteRequest(dealId: string, body: NoteInput): Promise<ApiResult<{ note: Answer<typeof addDealNote>["note"] }>> {
-  return send("POST", `${dealUrl(dealId)}/notes`, body);
+  return addNoteFor({ kind: "deal", id: dealId }, body);
 }
 
 export function editNoteRequest(noteId: string, body: NoteInput): Promise<ApiResult<Answer<typeof editNote>>> {

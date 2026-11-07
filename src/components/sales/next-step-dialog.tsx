@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { createActivityRequest } from "@/lib/sales/api-client";
+import { createActivityFor, type SalesParentRef } from "@/lib/sales/api-client";
 import { NEXT_STEP_PRESETS } from "@/lib/sales/constants";
 import { addDaysToDateString, todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,21 +11,24 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ACTIVITY_ICONS } from "@/components/sales/sales-pills";
 
 // "Schedule the next step" (mockup `askNext`): shown after the last open to-do
-// on an open deal is ticked done, so the deal never sits with nothing planned
-// (spec rule 1). Three quick choices, "Call tomorrow" picked; "Skip for now"
-// just closes. The day is counted from today in app time at the moment of
+// on an open deal or lead is ticked done, so it never sits with nothing
+// planned (spec rule 1). Three quick choices, "Call tomorrow" picked; "Skip for
+// now" just closes. The day is counted from today in app time at the moment of
 // the click.
+
+type Parent = SalesParentRef & { title: string };
 
 export function NextStepDialog({
   open,
   onOpenChange,
-  deal,
+  parent,
   onScheduled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  deal: { id: string; title: string };
-  /** Called after the activity is saved (a refresh of whatever shows the deal). */
+  /** The deal or lead the next step goes on. */
+  parent: Parent;
+  /** Called after the activity is saved (a refresh of whatever shows the deal or lead). */
   onScheduled: () => void;
 }) {
   const firstChoiceRef = useRef<HTMLInputElement>(null);
@@ -35,7 +38,7 @@ export function NextStepDialog({
       <DialogContent className="sm:max-w-[460px]" initialFocus={firstChoiceRef}>
         <NextStepForm
           firstChoiceRef={firstChoiceRef}
-          deal={deal}
+          parent={parent}
           onCancel={() => onOpenChange(false)}
           onDone={() => {
             onOpenChange(false);
@@ -52,12 +55,12 @@ export function NextStepDialog({
 // "Call tomorrow" with no old error.
 function NextStepForm({
   firstChoiceRef,
-  deal,
+  parent,
   onCancel,
   onDone,
 }: {
   firstChoiceRef: React.RefObject<HTMLInputElement | null>;
-  deal: { id: string; title: string };
+  parent: Parent;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -73,7 +76,7 @@ function NextStepForm({
     const preset = NEXT_STEP_PRESETS.find((option) => option.id === choice) ?? NEXT_STEP_PRESETS[0];
     setError(null);
     setSaving(true);
-    const result = await createActivityRequest(deal.id, {
+    const result = await createActivityFor(parent, {
       type: preset.type,
       subject: preset.subject,
       dueDate: addDaysToDateString(todayDateString(), preset.offsetDays),
@@ -91,7 +94,7 @@ function NextStepForm({
     <form onSubmit={submit} className="grid gap-4" noValidate>
       <DialogHeader>
         <DialogTitle>Schedule the next step</DialogTitle>
-        <DialogDescription>{deal.title} has no next activity now. Pick one so it does not stall.</DialogDescription>
+        <DialogDescription>{parent.title} has no next activity now. Pick one so it does not stall.</DialogDescription>
       </DialogHeader>
 
       <fieldset className="grid gap-1.5" aria-describedby={error ? errorId : undefined}>

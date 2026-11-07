@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  addNoteFor,
+  createActivityFor,
   deleteDealRequest,
   getActivitiesPage,
   getDealListPage,
@@ -107,6 +109,44 @@ describe("api-client", () => {
     await getDealTimeline("d/1", { at: "2026-11-05T15:00:00.000Z", id: "h9" });
     expect(fetchMock).toHaveBeenCalledWith("/api/sales/deals/d%2F1/timeline?at=2026-11-05T15%3A00%3A00.000Z&id=h9", {
       method: "GET",
+    });
+  });
+
+  it("schedules an activity on a lead or a deal by the parent's kind, with escaped ids", async () => {
+    const body = { type: "CALL" as const, subject: "", dueDate: "2026-11-06", dueTime: null };
+    fetchMock.mockResolvedValue(json(201, { activity: { id: "a1" } }));
+
+    const result = await createActivityFor({ kind: "lead", id: "l 1" }, body);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l%201/activities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    expect(result).toEqual({ ok: true, data: { activity: { id: "a1" } } });
+
+    await createActivityFor({ kind: "deal", id: "d1" }, body);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/deals/d1/activities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  });
+
+  it("adds a note to a lead or a deal by the parent's kind, with escaped ids", async () => {
+    fetchMock.mockResolvedValue(json(201, { note: { id: "n1" } }));
+
+    await addNoteFor({ kind: "lead", id: "l 1" }, { body: "Prefers mornings" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l%201/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "Prefers mornings" }),
+    });
+
+    await addNoteFor({ kind: "deal", id: "d/1" }, { body: "Prefers mornings" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/deals/d%2F1/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "Prefers mornings" }),
     });
   });
 

@@ -314,7 +314,7 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
           activities={data.openActivities}
           now={now}
           canEdit={canEdit}
-          onMarkDone={(activity) => done.markDone(activity, deal)}
+          onMarkDone={(activity) => done.markDone(activity, { kind: "deal", id: deal.id, title: deal.title })}
         />
 
         <DealDetails data={data} onSaved={changed} onEditValue={() => stage && moves.editValue(movable, stage)} />

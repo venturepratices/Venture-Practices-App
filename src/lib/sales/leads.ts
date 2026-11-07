@@ -23,7 +23,14 @@ import { normalizeFieldValue, type CustomFieldShape } from "@/lib/sales/custom-f
 import type { ContactChange } from "@/lib/sales/deal-audit";
 import { activityDueAt } from "@/lib/sales/format";
 import { fail, type SalesFail } from "@/lib/sales/http";
-import { findLeadForEdit, LEAD_ARCHIVED, LEAD_CONVERTED, LEAD_NOT_FOUND, visibleLeadWhere } from "@/lib/sales/lead-access";
+import {
+  findLeadForEdit,
+  LEAD_CONVERTED,
+  LEAD_JUST_CHANGED,
+  LEAD_NOT_FOUND,
+  refuseUnlessOpen,
+  visibleLeadWhere,
+} from "@/lib/sales/lead-access";
 import { assignLeadOwner } from "@/lib/sales/lead-assignment";
 import { recordLeadAudit } from "@/lib/sales/lead-audit";
 import { LEAD_HIDDEN_FIELD_KEYS } from "@/lib/sales/lead-panel";
@@ -45,7 +52,6 @@ type Meta = Partial<SalesRequestMeta>;
 const ONLY_YOURSELF = "You can only add leads for yourself.";
 const NEED_CONTACT = "Add a person or an organization.";
 const PICK_SOURCE = "Pick one of the listed sources.";
-const LEAD_JUST_CHANGED = "This lead just changed. Refresh and try again.";
 const FIELD_NOT_USED = "That field is not used on leads.";
 
 export const CHOOSE_SALES_MEMBER = "Choose a team member with Sales access.";
@@ -72,13 +78,6 @@ async function retryIfRaced<T>(attempt: () => Promise<T | typeof RACED>): Promis
     if (result !== RACED) return result;
   }
   return fail(409, LEAD_JUST_CHANGED);
-}
-
-/** A converted or archived lead takes no change but Restore and an admin's Delete. */
-function refuseUnlessOpen(status: SalesLeadStatus): SalesFail | null {
-  if (status === "CONVERTED") return fail(409, LEAD_CONVERTED);
-  if (status === "ARCHIVED") return fail(409, LEAD_ARCHIVED);
-  return null;
 }
 
 // --- Input ---
