@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { restoreArchivedCampaign } from "@/lib/archive";
 import { campaignLabel } from "@/lib/campaign-stage";
-import { requireCapability, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ archivedCampaignId: string }> }) {
@@ -24,6 +24,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
   const archived = await prisma.archivedCampaign.findUnique({ where: { id: archivedCampaignId } });
   if (!archived) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (archived.clientId) {
+    try {
+      await requireClientAccess(archived.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
   }
 
   let campaign;

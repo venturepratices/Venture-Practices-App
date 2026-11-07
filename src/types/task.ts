@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { archivedTaskAssigneeList } from "@/lib/archived-task-snapshot";
 
 // Shared include shape for a task's assignees, used across every task query.
 export const TASK_ASSIGNEES_INCLUDE = {
@@ -41,10 +42,11 @@ export type ArchivedTaskDetail = Prisma.ArchivedTaskGetPayload<{
   include: { deletedBy: { select: { name: true } } };
 }>;
 
-// Prefers the full multi-assignee snapshot (assignees Json), falling back to
-// the legacy single-assignee assigneeName for rows archived before Slice 2.
+// Prefers the full multi-assignee snapshot (assignees Json, either shape: see
+// src/lib/archived-task-snapshot.ts), falling back to the legacy
+// single-assignee assigneeName for rows archived before Slice 2.
 export function archivedAssigneeNames(task: { assignees: unknown; assigneeName: string | null }): string {
-  const snapshot = task.assignees as ArchivedAssigneeSnapshot[] | null;
-  if (snapshot && snapshot.length > 0) return snapshot.map((a) => a.name).join(", ");
+  const snapshot = archivedTaskAssigneeList({ assignees: task.assignees, assigneeId: null, assigneeName: null });
+  if (snapshot.length > 0) return snapshot.map((a) => a.name).join(", ");
   return task.assigneeName ?? "Unassigned";
 }

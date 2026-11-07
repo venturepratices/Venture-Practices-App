@@ -63,10 +63,21 @@ archive record. Archived rows show up on `/archive`, grouped into tabs, each wit
 survives even a database-level incident. Other archived models don't need this; Task was the
 first and highest-volume case when the pattern was designed.
 
+**Access follows the live rules.** Archived rows are staff only, need `canViewArchive` to
+read (`canRestoreArchive` to restore) and `requireClientAccess(clientId)` when there is a
+client; internal (no-client) rows are open to everyone with archive rights, as live internal
+work is to all staff. The `/archive` tabs apply the same scope to their queries, so every
+listed row opens. A private task stays visible only to its creator: `ArchivedTask` has no
+`isPrivate`/`createdById` columns, so `archiveTask()` stores `{ list, isPrivate, createdById }`
+in the `assignees` JSON column, read through `src/lib/archived-task-snapshot.ts`
+(`canSeeArchivedTask`). Snapshots taken before that (a plain assignee array) are treated as
+private to whoever deleted them and restore as private to the restorer.
+
 **Adding a new deletable model:** add an `ArchivedX` model to the schema (denormalized
 fields, `deletedAt`, `deletedById`), write `archiveX()`/`restoreArchivedX()` in `archive.ts`,
-call `archiveX()` from the delete route instead of `prisma.x.delete()`, add a restore route,
-and add a tab to `src/app/(app)/archive/page.tsx`.
+call `archiveX()` from the delete route instead of `prisma.x.delete()`, add a restore route
+with the same capability and client checks as the others, and add a tab to
+`src/app/(app)/archive/page.tsx` scoped with `archivedClientScope`.
 
 ## Notifications
 

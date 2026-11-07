@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { restoreArchivedTask } from "@/lib/archive";
-import { requireCapability, toErrorResponse } from "@/lib/permissions";
+import { canSeeArchivedTask } from "@/lib/archived-task-snapshot";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ archivedTaskId: string }> }) {
@@ -13,8 +14,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
   }
 
   // The archive is a sensitive surface (deleted-data history) — same gate as viewing it.
+  let restorer;
   try {
-    await requireCapability("canRestoreArchive");
+    restorer = await requireCapability("canRestoreArchive");
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -22,11 +24,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
   const { archivedTaskId } = await params;
 
   const archived = await prisma.archivedTask.findUnique({ where: { id: archivedTaskId } });
-  if (!archived) {
+  // Another person's private task 404s, as it does while live.
+  if (!archived || !canSeeArchivedTask(archived, restorer.userId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  if (archived.clientId) {
+    try {
+      await requireClientAccess(archived.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+  }
 
-  const task = await restoreArchivedTask(archivedTaskId);
+  const task = await restoreArchivedTask(archivedTaskId, restorer.userId);
 
   await logActivity({
     actorId: session.user.id,

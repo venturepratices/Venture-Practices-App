@@ -1,11 +1,10 @@
 import { put } from "@vercel/blob";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { archivedTaskAssigneeList, readArchivedTaskPeople, type ArchivedTaskPeople } from "@/lib/archived-task-snapshot";
 import { prisma } from "@/lib/prisma";
 import { sanitizeRichText } from "@/lib/rich-text-sanitize";
-import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedSubtaskSnapshot } from "@/types/task";
-
-type ArchivedAssigneeSnapshot = { id: string; name: string };
+import type { ArchivedAssigneeSnapshot, ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedSubtaskSnapshot } from "@/types/task";
 
 /**
  * Deletes a live Task and writes a full denormalized snapshot to ArchivedTask
@@ -14,6 +13,10 @@ type ArchivedAssigneeSnapshot = { id: string; name: string };
  * object — a second, independent failure domain from Postgres, so the archive
  * is still recoverable (downloadable from the Vercel dashboard, plain JSON,
  * no CLI or technical step needed) even if the main database is broken.
+ *
+ * The task's privacy and creator are kept with its assignees in the
+ * `assignees` JSON column (see src/lib/archived-task-snapshot.ts), so a
+ * private task stays private in the archive and after a restore.
  */
 export async function archiveTask(taskId: string, deletedById: string | null) {
   const archived = await prisma.$transaction(async (tx) => {
@@ -33,6 +36,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
       id: a.teamMemberId,
       name: a.teamMember.name,
     }));
+    const people: ArchivedTaskPeople = { list: assigneeSnapshots, isPrivate: task.isPrivate, createdById: task.createdById };
 
     const archivedTask = await tx.archivedTask.create({
       data: {
@@ -41,7 +45,7 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
         description: task.description,
         assigneeId: assigneeSnapshots[0]?.id ?? null,
         assigneeName: assigneeSnapshots[0]?.name ?? null,
-        assignees: assigneeSnapshots,
+        assignees: people,
         clientId: task.clientId,
         clientName: task.client?.name ?? null,
         occurrence: task.occurrence,
@@ -102,22 +106,33 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
  * Any original assignee or the client that no longer exists is dropped
  * (assignees individually, client falls back to internal) rather than
  * reusing a dangling id.
+ *
+ * Privacy and creator come back as stored. A creator who no longer exists is
+ * dropped too, except on a private task, which then stays private to the
+ * person restoring it. A snapshot taken before privacy was stored can't say
+ * whether the task was private, so it comes back private to the person
+ * restoring it (who can untick Private to share it again): the one choice
+ * that can't turn someone's private task public.
  */
-export async function restoreArchivedTask(archivedTaskId: string) {
+export async function restoreArchivedTask(archivedTaskId: string, restoredById: string) {
   return prisma.$transaction(async (tx) => {
     const archived = await tx.archivedTask.findUniqueOrThrow({ where: { id: archivedTaskId } });
 
-    const snapshotAssignees =
-      (archived.assignees as ArchivedAssigneeSnapshot[] | null) ??
-      (archived.assigneeId ? [{ id: archived.assigneeId, name: archived.assigneeName ?? "" }] : []);
+    const snapshotAssignees = archivedTaskAssigneeList(archived);
+    const people = readArchivedTaskPeople(archived.assignees);
+    const memberIdsToCheck = [...snapshotAssignees.map((a) => a.id), ...(people?.createdById ? [people.createdById] : [])];
 
-    const [existingAssignees, client] = await Promise.all([
-      snapshotAssignees.length > 0
-        ? tx.teamMember.findMany({ where: { id: { in: snapshotAssignees.map((a) => a.id) } }, select: { id: true } })
+    const [existingMembers, client] = await Promise.all([
+      memberIdsToCheck.length > 0
+        ? tx.teamMember.findMany({ where: { id: { in: memberIdsToCheck } }, select: { id: true } })
         : [],
       archived.clientId ? tx.client.findUnique({ where: { id: archived.clientId }, select: { id: true } }) : null,
     ]);
-    const existingIds = new Set(existingAssignees.map((a) => a.id));
+    const existingIds = new Set(existingMembers.map((a) => a.id));
+
+    const isPrivate = people ? people.isPrivate : true;
+    const creatorId = people?.createdById && existingIds.has(people.createdById) ? people.createdById : null;
+    const createdById = creatorId ?? (isPrivate ? restoredById : null);
 
     // Resolve a live statusId for the restored task: prefer matching the
     // frozen label text (robust even if the original status option was
@@ -141,6 +156,8 @@ export async function restoreArchivedTask(archivedTaskId: string) {
         status: archived.status,
         statusId: resolvedStatusId,
         deadline: archived.deadline,
+        isPrivate,
+        createdById,
         assignees: { create: snapshotAssignees.filter((a) => existingIds.has(a.id)).map((a) => ({ teamMemberId: a.id })) },
       },
     });

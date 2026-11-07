@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { Archive, GitBranch, StickyNote, Users } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { canSeeArchivedTask } from "@/lib/archived-task-snapshot";
 import { campaignLabel } from "@/lib/campaign-stage";
-import { canUseCapability } from "@/lib/permissions";
+import { canUseCapability, getPermissions, type Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime, endOfDay } from "@/lib/utils";
 import { ArchiveFilters } from "@/components/archive/archive-filters";
@@ -25,8 +26,18 @@ type SearchParams = {
   deletedTo?: string;
 };
 
+// Archived work in the clients this viewer can access, plus internal
+// (no-client) work, which every staff member can see while it is live. Admins
+// and all-clients staff are not limited. The archive's detail and restore
+// routes apply the same rule, so every row listed here can be opened.
+function archivedClientScope(viewer: Permissions) {
+  if (viewer.isAdmin || viewer.allClientsAccess) return {};
+  return { OR: [{ clientId: null }, { clientId: { in: [...viewer.clientIds] } }] };
+}
+
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  if (!(await canUseCapability("canViewArchive"))) notFound();
+  const viewer = await getPermissions();
+  if (!viewer || !(await canUseCapability("canViewArchive"))) notFound();
 
   const params = await searchParams;
   const tab =
@@ -91,22 +102,23 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
       </div>
 
       {tab === "tasks" ? (
-        <TasksTab params={params} />
+        <TasksTab params={params} viewer={viewer} />
       ) : tab === "campaigns" ? (
-        <CampaignsTab />
+        <CampaignsTab viewer={viewer} />
       ) : tab === "projects" ? (
-        <ProjectsTab />
+        <ProjectsTab viewer={viewer} />
       ) : tab === "notes" ? (
-        <ClientNotesTab />
+        <ClientNotesTab viewer={viewer} />
       ) : (
-        <MeetingNotesTab />
+        <MeetingNotesTab viewer={viewer} />
       )}
     </div>
   );
 }
 
-async function TasksTab({ params }: { params: SearchParams }) {
-  const where: Prisma.ArchivedTaskWhereInput = {};
+async function TasksTab({ params, viewer }: { params: SearchParams; viewer: Permissions }) {
+  const scope = archivedClientScope(viewer);
+  const where: Prisma.ArchivedTaskWhereInput = { ...scope };
   if (params.q) where.title = { contains: params.q, mode: "insensitive" };
   if (params.status) where.status = params.status as Prisma.ArchivedTaskWhereInput["status"];
   if (params.clientName === "INTERNAL") where.clientName = null;
@@ -119,7 +131,7 @@ async function TasksTab({ params }: { params: SearchParams }) {
     };
   }
 
-  const [archivedTasks, clientNameRows, teamMembers] = await Promise.all([
+  const [recentTasks, clientNameRows, teamMembers] = await Promise.all([
     prisma.archivedTask.findMany({
       where,
       orderBy: { deletedAt: "desc" },
@@ -127,13 +139,17 @@ async function TasksTab({ params }: { params: SearchParams }) {
       include: { deletedBy: { select: { name: true } } },
     }),
     prisma.archivedTask.findMany({
-      where: { clientName: { not: null } },
+      where: { ...scope, clientName: { not: null } },
       distinct: ["clientName"],
       select: { clientName: true },
       orderBy: { clientName: "asc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
+  // Other people's private tasks stay hidden, as they are while live. Privacy
+  // is kept inside the snapshot's JSON, so it is checked here rather than in
+  // the query, and the list can show fewer than 100 rows.
+  const archivedTasks = recentTasks.filter((task) => canSeeArchivedTask(task, viewer.userId));
 
   const clientNames = clientNameRows.map((row) => row.clientName).filter((name): name is string => Boolean(name));
   const hasFilters = Boolean(
@@ -166,8 +182,9 @@ async function TasksTab({ params }: { params: SearchParams }) {
   );
 }
 
-async function CampaignsTab() {
+async function CampaignsTab({ viewer }: { viewer: Permissions }) {
   const archivedCampaigns = await prisma.archivedCampaign.findMany({
+    where: archivedClientScope(viewer),
     orderBy: { deletedAt: "desc" },
     take: 100,
     include: { deletedBy: { select: { name: true } } },
@@ -203,8 +220,9 @@ async function CampaignsTab() {
   );
 }
 
-async function ProjectsTab() {
+async function ProjectsTab({ viewer }: { viewer: Permissions }) {
   const archivedInstances = await prisma.archivedWorkflowInstance.findMany({
+    where: archivedClientScope(viewer),
     orderBy: { deletedAt: "desc" },
     take: 100,
     include: { deletedBy: { select: { name: true } } },
@@ -245,8 +263,9 @@ async function ProjectsTab() {
   );
 }
 
-async function ClientNotesTab() {
+async function ClientNotesTab({ viewer }: { viewer: Permissions }) {
   const archivedNotes = await prisma.archivedClientNote.findMany({
+    where: archivedClientScope(viewer),
     orderBy: { deletedAt: "desc" },
     take: 100,
     include: { deletedBy: { select: { name: true } } },
@@ -282,8 +301,9 @@ async function ClientNotesTab() {
   );
 }
 
-async function MeetingNotesTab() {
+async function MeetingNotesTab({ viewer }: { viewer: Permissions }) {
   const archivedMeetingNotes = await prisma.archivedMeetingNote.findMany({
+    where: archivedClientScope(viewer),
     orderBy: { deletedAt: "desc" },
     take: 100,
     include: { deletedBy: { select: { name: true } } },
