@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 
+import { requireAgentToken } from "@/lib/agent-auth";
+
 export const runtime = "nodejs";
 
 /**
- * Machine-readable API spec for the agent-facing endpoints, served
- * unauthenticated so an external agent (Viktor) can read the shape of the
- * doorway before being handed a token. Deliberately describes shapes only,
- * never data — nothing here reads from the DB. The real endpoints under
- * /api/agent/v1/... enforce bearer auth via requireAgentToken().
+ * Machine-readable API spec for the agent-facing endpoints. Describes shapes
+ * only, never data: nothing here reads from the DB. It needs the same
+ * AGENT_API_TOKEN as the endpoints it describes (audit M1 / L7): served to
+ * anyone, it was a map of the bot doorway for outsiders, and only a caller
+ * holding the token can use those endpoints anyway.
  */
 export function GET(request: Request) {
+  const unauthorized = requireAgentToken(request);
+  if (unauthorized) return unauthorized;
+
   const baseUrl = new URL(request.url).origin;
   return NextResponse.json({
     openapi: "3.1.0",

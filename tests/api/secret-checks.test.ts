@@ -184,6 +184,40 @@ describe("agent API (requireAgentToken)", () => {
   });
 });
 
+// Audit M1 / L7: the description of the agent API used to answer anyone, so
+// it handed outsiders a map of the bot doorway. It now needs the same token
+// as the endpoints it describes.
+describe("agent API description (openapi.json)", () => {
+  async function call(authorization?: string) {
+    const route = await import("@/app/api/agent/v1/openapi.json/route");
+    return run(async () => route.GET(request("/api/agent/v1/openapi.json", authorization)));
+  }
+
+  it("gives the description to a caller with `Bearer <AGENT_API_TOKEN>`", async () => {
+    const outcome = await call(`Bearer ${AGENT_TOKEN}`);
+    expect(outcome.status).toBe(200);
+    expect(outcome.body).toMatchObject({
+      openapi: "3.1.0",
+      servers: [{ url: "https://app.example.com/api/agent/v1" }],
+    });
+  });
+
+  it("answers 401 for no header, a wrong token or the cron secret", async () => {
+    for (const header of [undefined, "Bearer wrong", `Bearer ${AGENT_TOKEN}x`, `Bearer ${CRON_SECRET}`, AGENT_TOKEN]) {
+      expect(await call(header)).toEqual(UNAUTHORIZED);
+    }
+  });
+
+  it("answers 401 to everything when AGENT_API_TOKEN is not set or empty", async () => {
+    for (const value of [undefined, ""]) {
+      vi.stubEnv("AGENT_API_TOKEN", value);
+      for (const header of [undefined, "Bearer undefined", "Bearer ", "Bearer"]) {
+        expect(await call(header)).toEqual(UNAUTHORIZED);
+      }
+    }
+  });
+});
+
 describe("MCP route (token in the path)", () => {
   const NOT_FOUND = { status: 404, body: { error: "Not found" }, reached: false };
 
