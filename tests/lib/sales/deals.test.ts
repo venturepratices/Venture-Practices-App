@@ -559,6 +559,177 @@ describe("PATCH /api/sales/deals/[dealId]", () => {
   });
 });
 
+describe("PATCH /api/sales/deals/[dealId]: the deal's organization and person (Decision 21)", () => {
+  /** d1 with its practice o1 "Oak Creek Dental" and its person p1 "Sarah K.", as the edit reads them. */
+  const contactDeal = (extra: Row = {}): Row =>
+    baseDeal({
+      organizationId: "o1",
+      organization: { id: "o1", name: "Oak Creek Dental" },
+      personId: "p1",
+      person: { id: "p1", name: "Sarah K." },
+      ...extra,
+    });
+  const BEFORE = { organizationId: "o1", organizationName: "Oak Creek Dental", personId: "p1", personName: "Sarah K." };
+
+  beforeEach(() => {
+    state.organizations[0] = { ...state.organizations[0], name: "Oak Creek Dental" };
+    state.people.push(
+      { id: "p1", name: "Sarah K.", ownerId: "r", organizationId: "o1", archivedAt: null },
+      { id: "p2", name: "Dana Q.", ownerId: "r", organizationId: null, archivedAt: null },
+    );
+    state.deal = contactDeal();
+  });
+
+  it("changes a deal's person with a readable history row", async () => {
+    const res = await patch("d1", { person: { id: "p2" } });
+
+    expect(res.status).toBe(200);
+    expect(db.salesPerson.findFirst.mock.calls[0][0].where).toEqual({
+      id: "p2",
+      archivedAt: null,
+      OR: [
+        { ownerId: "r" },
+        { deals: { some: { ownerId: "r", archivedAt: null } } },
+        { leads: { some: { ownerId: "r", archivedAt: null } } },
+      ],
+    });
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ personId: "p2", updatedAt: now });
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        entityType: "SalesDeal",
+        entityId: "d1",
+        action: "contact_changed",
+        actorId: "r",
+        before: BEFORE,
+        after: { organizationId: "o1", organizationName: "Oak Creek Dental", personId: "p2", personName: "Dana Q." },
+        ipAddress: "203.0.113.9",
+      }),
+    ]);
+  });
+
+  it("a deal keeps a person or an organization", async () => {
+    const neither = await patch("d1", { organization: null, person: null });
+    expect(neither.status).toBe(400);
+    expect(await neither.json()).toEqual({ error: "Add a person or an organization." });
+
+    // Clearing the only contact a deal has left is refused the same way.
+    state.deal = contactDeal({ organizationId: null, organization: null });
+    const lastOne = await patch("d1", { person: null });
+    expect(lastOne.status).toBe(400);
+    expect(await lastOne.json()).toEqual({ error: "Add a person or an organization." });
+    expect(writes()).toEqual([]);
+
+    state.deal = contactDeal();
+    const orgRemoved = await patch("d1", { organization: null });
+    expect(orgRemoved.status).toBe(200);
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ organizationId: null, updatedAt: now });
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        action: "contact_changed",
+        before: BEFORE,
+        after: { organizationId: null, organizationName: null, personId: "p1", personName: "Sarah K." },
+      }),
+    ]);
+  });
+
+  it("a new practice belongs to the deal owner", async () => {
+    asActor(admin);
+    const res = await patch("d1", { organization: { name: "New Practice" } });
+
+    expect(res.status).toBe(200);
+    expect(db.salesOrganization.create.mock.calls[0][0].data).toEqual({ name: "New Practice", ownerId: "r", nameKey: "newpractice" });
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ organizationId: "org-new", updatedAt: now });
+    expect(state.audits.map((row) => [row.entityType, row.entityId, row.action])).toEqual([
+      ["SalesOrganization", "org-new", "created"],
+      ["SalesDeal", "d1", "contact_changed"],
+    ]);
+    expect(state.audits[0]).toMatchObject({ actorId: "z", after: { name: "New Practice", ownerId: "r" } });
+    expect(state.audits[1]).toMatchObject({
+      actorId: "z",
+      before: BEFORE,
+      after: { organizationId: "org-new", organizationName: "New Practice", personId: "p1", personName: "Sarah K." },
+    });
+  });
+
+  it("a new practice made with an owner change belongs to the new owner", async () => {
+    asActor(admin);
+    const res = await patch("d1", { ownerId: "b", organization: { name: "New Practice" } });
+
+    expect(res.status).toBe(200);
+    expect(db.salesOrganization.create.mock.calls[0][0].data).toMatchObject({ ownerId: "b" });
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ ownerId: "b", organizationId: "org-new", updatedAt: now });
+    expect(state.audits.map((row) => row.action)).toEqual(["created", "owner_changed", "contact_changed"]);
+  });
+
+  it("a new person joins the deal's practice", async () => {
+    const res = await patch("d1", { person: { name: "Mark T." } });
+
+    expect(res.status).toBe(200);
+    expect(db.salesPerson.create.mock.calls[0][0].data).toEqual({
+      name: "Mark T.",
+      ownerId: "r",
+      organizationId: "o1",
+      nameKey: "markt",
+      emailKey: null,
+      phoneKey: null,
+    });
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ personId: "person-new", updatedAt: now });
+  });
+
+  it("refuses a person or practice the person cannot see, writing nothing", async () => {
+    const person = await patch("d1", { person: { id: "pe1" } });
+    expect(person.status).toBe(400);
+    expect(await person.json()).toEqual({ error: "That person was not found." });
+
+    const practice = await patch("d1", { organization: { id: "o2" }, person: { name: "Mark T." } });
+    expect(practice.status).toBe(400);
+    expect(await practice.json()).toEqual({ error: "That organization was not found." });
+    expect(writes()).toEqual([]);
+  });
+
+  it("a title, value or source edit leaves the contacts alone", async () => {
+    const renamed = await patch("d1", { title: "Oak Creek Dental East" });
+    expect(renamed.status).toBe(200);
+    const valued = await patch("d1", { valueCents: 500000 });
+    expect(valued.status).toBe(200);
+    const sourced = await patch("d1", { source: "Referral" });
+    expect(sourced.status).toBe(200);
+
+    for (const [args] of db.salesDeal.update.mock.calls) {
+      expect(args.data).not.toHaveProperty("organizationId");
+      expect(args.data).not.toHaveProperty("personId");
+    }
+    expect(db.salesDeal.update).toHaveBeenCalledTimes(3);
+    expect(state.audits.map((row) => row.action)).toEqual(["updated", "value_changed", "updated"]);
+    expect(db.salesOrganization.findFirst).not.toHaveBeenCalled();
+    expect(db.salesPerson.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("sending the contacts the deal already has changes nothing", async () => {
+    const res = await patch("d1", { organization: { id: "o1" }, person: { id: "p1" } });
+
+    expect(res.status).toBe(200);
+    expect(writes()).toEqual([]);
+  });
+
+  it("writes the contact row after a rename in the same save", async () => {
+    const res = await patch("d1", { title: "Oak Creek Dental East", person: { id: "p2" } });
+
+    expect(res.status).toBe(200);
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ title: "Oak Creek Dental East", personId: "p2", updatedAt: now });
+    expect(state.audits.map((row) => row.action)).toEqual(["updated", "contact_changed"]);
+  });
+
+  it("refuses before making a contact", async () => {
+    state.deal = contactDeal({ valueCents: 1440000, mrrCents: 120000, stage: { requiresValue: true } });
+    const res = await patch("d1", { organization: { name: "New Practice" }, valueCents: 0 });
+
+    expect(res.status).toBe(422);
+    expect(db.salesOrganization.create).not.toHaveBeenCalled();
+    expect(writes()).toEqual([]);
+  });
+});
+
 describe("DELETE /api/sales/deals/[dealId]", () => {
   const refusedRow = {
     entityType: "SalesDeal",

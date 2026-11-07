@@ -13,7 +13,15 @@ import {
   TERRITORY_HOLD_FIELD_KEY,
   TITLE_MAX,
 } from "@/lib/sales/constants";
-import { contactRefSchema, resolveContacts } from "@/lib/sales/contact-write";
+import {
+  checkContactRefs,
+  contactChange,
+  contactRefSchema,
+  contactSnapshot,
+  createContacts,
+  resolveContacts,
+  type ResolvedContacts,
+} from "@/lib/sales/contact-write";
 import { FIELD_TOO_LONG, normalizeFieldValue } from "@/lib/sales/custom-fields";
 import { DEAL_NOT_FOUND, findDealForEdit, visibleDealWhere } from "@/lib/sales/deal-access";
 import { recordDealAudit } from "@/lib/sales/deal-audit";
@@ -76,6 +84,9 @@ export const updateDealSchema = z
     mrrCents: moneySchema.optional(),
     ownerId: z.string({ error: CHOOSE_OWNER }).min(1, { error: CHOOSE_OWNER }).max(ID_MAX, { error: CHOOSE_OWNER }).optional(),
     source: z.enum(DEAL_SOURCES, { error: "Pick one of the listed sources." }).nullable().optional(),
+    // Picked, new by name, or null to remove; a key left out keeps what the deal has (no default here).
+    organization: contactRefSchema.optional(),
+    person: contactRefSchema.optional(),
   })
   .refine((data) => Object.values(data).some((value) => value !== undefined), { error: "Nothing to change." });
 
@@ -207,12 +218,22 @@ const EDITABLE_DEAL_SELECT = {
 type EditableDeal = Prisma.SalesDealGetPayload<{ select: typeof EDITABLE_DEAL_SELECT }>;
 type UpdateDealResult = { ok: true; deal: EditableDeal } | SalesFail;
 
+const EDIT_DEAL_SELECT = {
+  ...EDITABLE_DEAL_SELECT,
+  stage: { select: { requiresValue: true } },
+  organization: { select: { id: true, name: true } },
+  person: { select: { id: true, name: true } },
+} satisfies Prisma.SalesDealSelect;
+
 /**
- * Changes a deal's name, source, values or owner. History gets one row per kind
- * of change (`value_changed`, `owner_changed`, `updated`), and none when nothing
- * changed. A deal in a stage that needs a value (Proposal Sent) cannot have
- * either value cleared (spec rules 2 and 8, Decision 27). A new owner takes the
- * old owner's open activities on the deal with it (Decision 15).
+ * Changes a deal's name, source, values, owner, organization or person. History
+ * gets one row per kind of change (`value_changed`, `owner_changed`, `updated`,
+ * `contact_changed`), and none when nothing changed. A deal in a stage that
+ * needs a value (Proposal Sent) cannot have either value cleared (spec rules 2
+ * and 8, Decision 27). A new owner takes the old owner's open activities on the
+ * deal with it (Decision 15). A deal keeps a person or an organization; a new
+ * one belongs to the deal's owner (the new owner when the same save changes
+ * it), and a new person joins the deal's organization (Decision 21).
  */
 export async function updateDeal(
   actor: SalesActor,
@@ -222,12 +243,10 @@ export async function updateDeal(
   now: Date,
 ): Promise<UpdateDealResult> {
   return prisma.$transaction(async (tx): Promise<UpdateDealResult> => {
-    const found = await findDealForEdit(tx, actor, dealId, {
-      ...EDITABLE_DEAL_SELECT,
-      stage: { select: { requiresValue: true } },
-    });
+    const found = await findDealForEdit(tx, actor, dealId, EDIT_DEAL_SELECT);
     if (!found.ok) return found;
     const { stage } = found.deal;
+    const current: ResolvedContacts = { organization: found.deal.organization, person: found.deal.person };
     const deal: EditableDeal = {
       id: found.deal.id,
       title: found.deal.title,
@@ -246,8 +265,16 @@ export async function updateDeal(
       { title: input.title ?? deal.title, source: input.source === undefined ? deal.source : input.source },
     ) as { before: Partial<Pick<EditableDeal, "title" | "source">>; after: Partial<Pick<EditableDeal, "title" | "source">> };
     const edited = Object.keys(edits.after).length > 0;
+    const organizationRef = contactChange(input.organization, current.organization?.id ?? null);
+    const personRef = contactChange(input.person, current.person?.id ?? null);
+    const contactsChanged = organizationRef !== undefined || personRef !== undefined;
 
-    if (!valueChanged && !ownerChanged && !edited) return { ok: true, deal };
+    if (!valueChanged && !ownerChanged && !edited && !contactsChanged) return { ok: true, deal };
+
+    // Removing a contact must leave the other one (Decision 21), whether it was sent or kept.
+    const keepsOrganization = organizationRef === undefined ? current.organization !== null : organizationRef !== null;
+    const keepsPerson = personRef === undefined ? current.person !== null : personRef !== null;
+    if (contactsChanged && !keepsOrganization && !keepsPerson) return fail(400, NEED_CONTACT);
 
     // Checked against the stored stage and values, so a stale screen cannot clear them (Review Focus 1).
     if (valueChanged && checkStageMove(value, stage)) return fail(422, PROPOSAL_NEEDS_VALUE, "PROPOSAL_NEEDS_VALUE");
@@ -263,11 +290,29 @@ export async function updateDeal(
       movedActivityIds = open.map((activity) => activity.id);
     }
 
+    // Only the contacts that change are checked or made; this is the last check that can refuse.
+    const contactInput = { organization: organizationRef ?? null, person: personRef ?? null };
+    let picked = current;
+    if (contactsChanged) {
+      const checked = await checkContactRefs(tx, actor, contactInput);
+      if (!checked.ok) return checked;
+      // A contact left as it is passes through as picked, so a new person joins the deal's organization.
+      picked = {
+        organization: organizationRef === undefined ? current.organization : checked.picked.organization,
+        person: personRef === undefined ? current.person : checked.picked.person,
+      };
+    }
+
+    // Every check has passed: the writes start here.
+    const contacts = contactsChanged ? await createContacts(tx, actor, contactInput, picked, ownerId, meta) : current;
+
     // Only what changed, stamped with this request's time.
     const data: Prisma.SalesDealUncheckedUpdateInput = { ...edits.after, updatedAt: now };
     if (value.valueCents !== deal.valueCents) data.valueCents = value.valueCents;
     if (value.mrrCents !== deal.mrrCents) data.mrrCents = value.mrrCents;
     if (ownerChanged) data.ownerId = ownerId;
+    if (organizationRef !== undefined) data.organizationId = contacts.organization?.id ?? null;
+    if (personRef !== undefined) data.personId = contacts.person?.id ?? null;
     const updated = await tx.salesDeal.update({ where: { id: dealId }, data, select: EDITABLE_DEAL_SELECT });
 
     if (valueChanged) {
@@ -296,6 +341,15 @@ export async function updateDeal(
       );
     }
     if (edited) await recordDealAudit(tx, actor, dealId, { action: "updated", ...edits }, meta);
+    if (contactsChanged) {
+      await recordDealAudit(
+        tx,
+        actor,
+        dealId,
+        { action: "contact_changed", before: contactSnapshot(current), after: contactSnapshot(contacts) },
+        meta,
+      );
+    }
 
     return { ok: true, deal: updated };
   });

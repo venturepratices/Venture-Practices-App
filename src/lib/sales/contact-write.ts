@@ -6,6 +6,7 @@ import { recordSalesAudit, type SalesRequestMeta } from "@/lib/sales/audit";
 import { TITLE_MAX } from "@/lib/sales/constants";
 import { visibleOrganizationWhere, visiblePersonWhere } from "@/lib/sales/contact-access";
 import { organizationKeys, personKeys } from "@/lib/sales/contact-keys";
+import type { ContactChange } from "@/lib/sales/deal-audit";
 import { fail, type SalesFail } from "@/lib/sales/http";
 
 // The one way Sales picks or adds an organization and a person: Add deal, new
@@ -113,6 +114,28 @@ export async function createContacts(
   }
 
   return { organization, person };
+}
+
+/**
+ * A contact sent in an edit, or undefined when it would leave the record's
+ * contact as it is: left out, null when there is none already, or the same id.
+ * A new contact by name is always a change.
+ */
+export function contactChange(ref: ContactRef | undefined, currentId: string | null): ContactRef | undefined {
+  if (ref === undefined) return undefined;
+  if (ref === null) return currentId === null ? undefined : null;
+  if ("id" in ref) return ref.id === currentId ? undefined : ref;
+  return ref;
+}
+
+/** A deal's or lead's organization and person with the names they have now, for a `contact_changed` history row. */
+export function contactSnapshot(contacts: ResolvedContacts): ContactChange {
+  return {
+    organizationId: contacts.organization?.id ?? null,
+    organizationName: contacts.organization?.name ?? null,
+    personId: contacts.person?.id ?? null,
+    personName: contacts.person?.name ?? null,
+  };
 }
 
 /** `checkContactRefs` then `createContacts`, for callers with no refusal after this point. */

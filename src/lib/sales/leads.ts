@@ -14,13 +14,13 @@ import {
 } from "@/lib/sales/constants";
 import {
   checkContactRefs,
+  contactChange,
   contactRefSchema,
+  contactSnapshot,
   createContacts,
-  type ContactRef,
   type ResolvedContacts,
 } from "@/lib/sales/contact-write";
 import { normalizeFieldValue, type CustomFieldShape } from "@/lib/sales/custom-fields";
-import type { ContactChange } from "@/lib/sales/deal-audit";
 import { activityDueAt } from "@/lib/sales/format";
 import { fail, type SalesFail } from "@/lib/sales/http";
 import {
@@ -285,21 +285,6 @@ type EditedLead = {
   personId: string | null;
 };
 type UpdateLeadResult = { ok: true; lead: EditedLead } | SalesFail;
-
-/** A contact sent in an edit, or undefined when it would leave the lead's contact as it is. */
-function contactChange(ref: ContactRef | undefined, currentId: string | null): ContactRef | undefined {
-  if (ref === undefined) return undefined;
-  if (ref === null) return currentId === null ? undefined : null;
-  if ("id" in ref) return ref.id === currentId ? undefined : ref;
-  return ref; // A new contact by name is always a change.
-}
-
-const contactSnapshot = (contacts: ResolvedContacts): ContactChange => ({
-  organizationId: contacts.organization?.id ?? null,
-  organizationName: contacts.organization?.name ?? null,
-  personId: contacts.person?.id ?? null,
-  personName: contacts.person?.name ?? null,
-});
 
 /**
  * Renames a lead, sets its Source, changes its owner, or changes its
