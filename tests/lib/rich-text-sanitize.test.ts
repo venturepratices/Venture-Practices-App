@@ -138,6 +138,30 @@ describe("sanitizeRichText: strips script and other dangerous markup", () => {
   });
 });
 
+describe("sanitizeRichText: style checks stay fast on crafted input", () => {
+  // A long whitespace run with a stray character at the end used to make the
+  // style patterns backtrack in time proportional to the square of its length
+  // (seconds of blocked server and frozen browser tab at the transcript limit).
+  const pad = " ".repeat(100000);
+  it.each([
+    ["text colour", `<span style="color: red${pad}x">a</span>`, "<span>a</span>"],
+    ["highlight colour", `<mark style="background-color: red${pad}x">a</mark>`, "<mark>a</mark>"],
+    ["highlight with inherit", `<mark style="background-color: red; color: inherit${pad}x">a</mark>`, "<mark>a</mark>"],
+    ["highlight before the semicolon", `<mark style="background-color: red${pad};${pad}x">a</mark>`, "<mark>a</mark>"],
+  ])("rejects a 100000-character %s style quickly", (_label, input, expected) => {
+    const started = performance.now();
+    const out = sanitizeRichText(input);
+    expect(performance.now() - started).toBeLessThan(200);
+    expect(out).toBe(expected);
+  });
+
+  it("still keeps the editor's styles when they carry spaces around them", () => {
+    const html =
+      '<span style="  color: #dc2626 ;  ">a</span><mark style=" background-color: #fef08a ; color: inherit ; ">b</mark>';
+    expect(sanitizeRichText(html)).toBe(html);
+  });
+});
+
 describe("RichTextContent", () => {
   it("cleans stored HTML again at render, so rows saved before the fix are safe too", () => {
     const markup = renderToStaticMarkup(

@@ -18,11 +18,17 @@ import sanitizeHtml from "sanitize-html";
 // parentheses, so url(...) and expression(...) can never match.
 const COLOR = String.raw`(?:#[0-9a-f]{3,8}|(?:rgba?|hsla?)\([\d\s.,%/+-]*\)|[a-z]+)`;
 const COLOR_VALUE = new RegExp(`^${COLOR}$`, "i");
+// The optional `;` and trailing spaces at the end of a style. Written as
+// `(?:\s*;)?\s*$`, not `\s*;?\s*$`: in the second form two space runs touch
+// with nothing required between them, so a long run of spaces followed by
+// anything else takes time that grows with the square of its length (100000
+// spaces took about 30 s). Both forms accept exactly the same text.
+const STYLE_END = String.raw`(?:\s*;)?\s*$`;
 // Color extension output, e.g. `color: #dc2626`.
-const TEXT_COLOR_STYLE = new RegExp(String.raw`^\s*color\s*:\s*${COLOR}\s*;?\s*$`, "i");
+const TEXT_COLOR_STYLE = new RegExp(String.raw`^\s*color\s*:\s*${COLOR}${STYLE_END}`, "i");
 // Highlight extension output, e.g. `background-color: #fef08a; color: inherit`.
 const HIGHLIGHT_STYLE = new RegExp(
-  String.raw`^\s*background-color\s*:\s*${COLOR}\s*(?:;\s*color\s*:\s*inherit\s*)?;?\s*$`,
+  String.raw`^\s*background-color\s*:\s*${COLOR}(?:\s*;\s*color\s*:\s*inherit)?${STYLE_END}`,
   "i"
 );
 
