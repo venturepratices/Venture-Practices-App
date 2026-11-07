@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Archive, GitBranch, StickyNote, Users } from "lucide-react";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { canSeeArchivedTask } from "@/lib/archived-task-snapshot";
 import { campaignLabel } from "@/lib/campaign-stage";
 import { canUseCapability, getPermissions, type Permissions } from "@/lib/permissions";
@@ -33,6 +33,23 @@ type SearchParams = {
 function archivedClientScope(viewer: Permissions) {
   if (viewer.isAdmin || viewer.allClientsAccess) return {};
   return { OR: [{ clientId: null }, { clientId: { in: [...viewer.clientIds] } }] };
+}
+
+// The archive's task privacy rule (canSeeArchivedTask) as a query, so other
+// people's private tasks never take up the page's 100 rows: a snapshot with no
+// privacy record (an old one, public), a public one, or one this viewer
+// created. Privacy sits inside the assignees JSON. Prisma turns the first
+// branch into "IS NULL" on that JSON path, which also matches an old plain
+// array or a null column; testing "isPrivate is not true" instead would drop
+// those rows, because SQL treats a comparison with NULL as unknown.
+function archivedTaskVisibleTo(viewerId: string): Prisma.ArchivedTaskWhereInput {
+  return {
+    OR: [
+      { assignees: { path: ["isPrivate"], equals: Prisma.DbNull } },
+      { assignees: { path: ["isPrivate"], equals: false } },
+      { assignees: { path: ["createdById"], equals: viewerId } },
+    ],
+  };
 }
 
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -118,7 +135,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
 
 async function TasksTab({ params, viewer }: { params: SearchParams; viewer: Permissions }) {
   const scope = archivedClientScope(viewer);
-  const where: Prisma.ArchivedTaskWhereInput = { ...scope };
+  const visible = { ...scope, AND: [archivedTaskVisibleTo(viewer.userId)] };
+  const where: Prisma.ArchivedTaskWhereInput = { ...visible };
   if (params.q) where.title = { contains: params.q, mode: "insensitive" };
   if (params.status) where.status = params.status as Prisma.ArchivedTaskWhereInput["status"];
   if (params.clientName === "INTERNAL") where.clientName = null;
@@ -139,16 +157,15 @@ async function TasksTab({ params, viewer }: { params: SearchParams; viewer: Perm
       include: { deletedBy: { select: { name: true } } },
     }),
     prisma.archivedTask.findMany({
-      where: { ...scope, clientName: { not: null } },
+      where: { ...visible, clientName: { not: null } },
       distinct: ["clientName"],
       select: { clientName: true },
       orderBy: { clientName: "asc" },
     }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  // Other people's private tasks stay hidden, as they are while live. Privacy
-  // is kept inside the snapshot's JSON, so it is checked here rather than in
-  // the query, and the list can show fewer than 100 rows.
+  // The query already leaves out other people's private tasks; this applies
+  // the exact rule the detail and restore routes use, so every row opens.
   const archivedTasks = recentTasks.filter((task) => canSeeArchivedTask(task, viewer.userId));
 
   const clientNames = clientNameRows.map((row) => row.clientName).filter((name): name is string => Boolean(name));
@@ -166,7 +183,7 @@ async function TasksTab({ params, viewer }: { params: SearchParams; viewer: Perm
         {archivedTasks.length === 0 ? (
           <EmptyState
             icon={Archive}
-            title={hasFilters ? "No archived tasks match these filters." : "Nothing has been deleted yet."}
+            title={hasFilters ? "No archived tasks match these filters." : "No deleted tasks to show."}
           />
         ) : (
           archivedTasks.map((task, i) => (

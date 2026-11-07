@@ -51,6 +51,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { CAPABILITIES } = await import("@/lib/permission-catalog");
+const { Prisma } = await import("@/generated/prisma/client");
 const taskGet = await import("@/app/api/archived-tasks/[archivedTaskId]/route");
 const campaignGet = await import("@/app/api/archived-campaigns/[archivedCampaignId]/route");
 const instanceGet = await import("@/app/api/archived-workflow-instances/[archivedInstanceId]/route");
@@ -485,6 +486,18 @@ const restoreUrls = (elements: Element[]) => named(elements, "RestoreArchivedEnt
 
 const SCOPED_TO_CLIENT_A = [{ clientId: null }, { clientId: { in: ["client-a"] } }];
 
+// The privacy rule, asked of the database: no privacy record (an old
+// snapshot: the stored value has no isPrivate), public, or created by the
+// viewer. Checked against the SQL Prisma compiles it to: the first branch is
+// "IS NULL" on the JSON path, so old snapshots are not lost to SQL's NULL rules.
+const VISIBLE_TO_STAFF = {
+  OR: [
+    { assignees: { path: ["isPrivate"], equals: Prisma.DbNull } },
+    { assignees: { path: ["isPrivate"], equals: false } },
+    { assignees: { path: ["createdById"], equals: STAFF_ID } },
+  ],
+};
+
 describe("/archive page", () => {
   it("is not found for staff without archive rights", async () => {
     signInAsStaff({ isAdmin: false });
@@ -522,6 +535,36 @@ describe("/archive page", () => {
     signInAsStaff({ allClientsAccess: true, caps: VIEW });
     await renderPage();
     expect(h.db.archivedTask.findMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
+
+  it("asks the database only for tasks the viewer may see, so others' private tasks cannot crowd out the 100 rows", async () => {
+    signInAsStaff({ clients: ["client-a"], caps: VIEW });
+
+    await renderPage(undefined, { q: "invoice" });
+
+    const [rowsQuery, namesQuery] = h.db.archivedTask.findMany.mock.calls.map((call) => call[0]);
+    expect(rowsQuery.where.AND).toStrictEqual([VISIBLE_TO_STAFF]);
+    expect(rowsQuery.where.OR).toEqual(SCOPED_TO_CLIENT_A);
+    expect(rowsQuery.where.title).toEqual({ contains: "invoice", mode: "insensitive" });
+    expect(rowsQuery.take).toBe(100);
+    // The client filter offers only clients that have a task this viewer can see.
+    expect(namesQuery.where.AND).toStrictEqual([VISIBLE_TO_STAFF]);
+  });
+
+  it("applies the privacy rule to admins too, as it does to live tasks", async () => {
+    signInAsStaff({ isAdmin: true });
+
+    await renderPage();
+
+    expect(h.db.archivedTask.findMany.mock.calls[0][0].where.AND).toStrictEqual([VISIBLE_TO_STAFF]);
+  });
+
+  it("says there is nothing to show, not that nothing was ever deleted, when the list is empty", async () => {
+    signInAsStaff({ clients: ["client-a"], caps: VIEW });
+
+    const titles = named(await renderPage(), "EmptyState").map((e) => e.props.title);
+
+    expect(titles).toEqual(["No deleted tasks to show."]);
   });
 
   it("leaves out other people's private tasks but lists every old snapshot", async () => {

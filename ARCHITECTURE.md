@@ -73,7 +73,10 @@ in the `assignees` JSON column, read through `src/lib/archived-task-snapshot.ts`
 (`canSeeArchivedTask`, `archivedTaskPrivacy`). Snapshots taken before that (a plain assignee
 array, or null) have no privacy record and are treated as public, as they always were: anyone
 with archive rights and access to that client sees and restores them, and they restore public
-with no creator (owner's decision, 2026-11-07).
+with no creator (owner's decision, 2026-11-07). The Tasks tab asks the database for the same
+rule (`archivedTaskVisibleTo` in the page, a JSON-path filter whose "no `isPrivate`" branch is
+`IS NULL`, so old snapshots are not lost to SQL's NULL rules), so other people's private
+tasks never use up its 100 rows.
 
 **Adding a new deletable model:** add an `ArchivedX` model to the schema (denormalized
 fields, `deletedAt`, `deletedById`), write `archiveX()`/`restoreArchivedX()` in `archive.ts`,
