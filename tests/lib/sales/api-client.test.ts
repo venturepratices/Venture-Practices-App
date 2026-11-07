@@ -2,15 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   addNoteFor,
+  convertLeadRequest,
+  convertLeadsRequest,
   createActivityFor,
+  createLeadRequest,
   deleteDealRequest,
   getActivitiesPage,
+  getConvertTargets,
   getDealListPage,
   getDealTimeline,
+  getLeadPanel,
+  getLeadRowsPage,
+  getLeadTimeline,
   moveDealRequest,
+  runLeadBulkRequest,
   saveDefaultViewRequest,
   searchContactsRequest,
   setDealStatusRequest,
+  setLeadArchivedRequest,
+  setLeadFieldRequest,
+  updateLeadRequest,
 } from "@/lib/sales/api-client";
 import type { BoardQuery } from "@/lib/sales/board-query";
 
@@ -148,6 +159,144 @@ describe("api-client", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: "Prefers mornings" }),
+    });
+  });
+
+  describe("leads", () => {
+    const sent = (method: string, body: unknown) => ({
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    it("asks for the next Leads Inbox page with its filters and the cursor", async () => {
+      fetchMock.mockResolvedValue(json(200, { rows: [], nextCursor: null }));
+      const result = await getLeadRowsPage({ scope: "mine", q: "oak", cursor: "l50" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads?scope=mine&q=oak&cursor=l50", { method: "GET" });
+      expect(result).toEqual({ ok: true, data: { rows: [], nextCursor: null } });
+    });
+
+    it("leaves the cursor and the defaults off the first Inbox page", async () => {
+      fetchMock.mockResolvedValue(json(200, { rows: [], nextCursor: null }));
+      await getLeadRowsPage({ scope: "everyone", q: "", cursor: null });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads?", { method: "GET" });
+    });
+
+    it("reads the lead panel by its escaped id", async () => {
+      fetchMock.mockResolvedValue(json(200, { lead: { id: "l1" } }));
+      await getLeadPanel("l1");
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1", { method: "GET" });
+
+      await getLeadPanel("l/1");
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l%2F1", { method: "GET" });
+    });
+
+    it("reads a lead's History the way it reads a deal's", async () => {
+      fetchMock.mockResolvedValue(json(200, { entries: [], nextCursor: null }));
+      await getLeadTimeline("l1", { at: "2026-11-05T15:00:00.000Z", id: "h9" });
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1/timeline?at=2026-11-05T15%3A00%3A00.000Z&id=h9", {
+        method: "GET",
+      });
+
+      await getLeadTimeline("l1", null);
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1/timeline", { method: "GET" });
+    });
+
+    it("adds a lead with POST", async () => {
+      const body = {
+        organization: { name: "Oak Creek Dental" },
+        person: { id: "p1" },
+        source: "Added by hand" as const,
+        zip: "78704",
+        ownerId: "auto",
+        firstActivity: "call-today" as const,
+      };
+      fetchMock.mockResolvedValue(json(201, { lead: { id: "l1" } }));
+      const result = await createLeadRequest(body);
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads", sent("POST", body));
+      expect(result).toEqual({ ok: true, data: { lead: { id: "l1" } } });
+    });
+
+    it("edits a lead with PATCH", async () => {
+      fetchMock.mockResolvedValue(json(200, { lead: { id: "l1" } }));
+      await updateLeadRequest("l1", { title: "Oak Creek Dental", person: null });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads/l1", sent("PATCH", { title: "Oak Creek Dental", person: null }));
+    });
+
+    it("archives or restores a lead", async () => {
+      fetchMock.mockResolvedValue(json(200, { ok: true, changed: true }));
+      await setLeadArchivedRequest("l1", true);
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1/archive", sent("POST", { archived: true }));
+
+      await setLeadArchivedRequest("l1", false);
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1/archive", sent("POST", { archived: false }));
+    });
+
+    it("sets or clears one of a lead's fields with PUT", async () => {
+      fetchMock.mockResolvedValue(json(200, { value: "78704" }));
+      const result = await setLeadFieldRequest("l1", "practice-zip", "78704");
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l1/fields/practice-zip", sent("PUT", { value: "78704" }));
+      expect(result).toEqual({ ok: true, data: { value: "78704" } });
+
+      await setLeadFieldRequest("l 1", "practice zip", null);
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/leads/l%201/fields/practice%20zip", sent("PUT", { value: null }));
+    });
+
+    it("runs a bulk action with POST and hands back each lead's result", async () => {
+      const results = [
+        { id: "l1", ok: true },
+        { id: "l2", ok: false, error: "Lead not found." },
+      ];
+      fetchMock.mockResolvedValue(json(200, { results }));
+      const result = await runLeadBulkRequest({ action: "assign", ids: ["l1", "l2"], ownerId: "u2" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads/bulk", sent("POST", { action: "assign", ids: ["l1", "l2"], ownerId: "u2" }));
+      expect(result).toEqual({ ok: true, data: { results } });
+    });
+
+    it("reads where leads can be converted to", async () => {
+      const targets = [{ id: "p1", key: "direct-mail", name: "Direct Mail", stages: [{ id: "s1", name: "New", requiresValue: false }] }];
+      fetchMock.mockResolvedValue(json(200, { targets }));
+      const result = await getConvertTargets();
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads/convert", { method: "GET" });
+      expect(result).toEqual({ ok: true, data: { targets } });
+    });
+
+    it("converts one lead with POST", async () => {
+      const deal = { id: "d1", pipelineKey: "direct-mail", pipelineName: "Direct Mail" };
+      fetchMock.mockResolvedValue(json(201, { deal }));
+      const result = await convertLeadRequest("l1", { pipelineId: "p1", stageId: "s1", valueCents: 1440000 });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/sales/leads/l1/convert",
+        sent("POST", { pipelineId: "p1", stageId: "s1", valueCents: 1440000 }),
+      );
+      expect(result).toEqual({ ok: true, data: { deal } });
+    });
+
+    it("converts many leads with POST", async () => {
+      const answer = {
+        results: [
+          { id: "l1", ok: true, dealId: "d1" },
+          { id: "l2", ok: false, error: "This lead was already converted." },
+        ],
+        pipeline: { key: "direct-mail", name: "Direct Mail" },
+      };
+      fetchMock.mockResolvedValue(json(200, answer));
+      const result = await convertLeadsRequest({ ids: ["l1", "l2"], pipelineId: "p1", stageId: "s1" });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/sales/leads/convert",
+        sent("POST", { ids: ["l1", "l2"], pipelineId: "p1", stageId: "s1" }),
+      );
+      expect(result).toEqual({ ok: true, data: answer });
+    });
+
+    it("passes a convert refusal's message through", async () => {
+      fetchMock.mockResolvedValue(json(409, { error: "This lead was already converted.", code: "LEAD_CONVERTED" }));
+      expect(await convertLeadRequest("l1", { pipelineId: "p1", stageId: "s1" })).toEqual({
+        ok: false,
+        status: 409,
+        error: "This lead was already converted.",
+        code: "LEAD_CONVERTED",
+      });
     });
   });
 

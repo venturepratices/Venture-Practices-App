@@ -9,14 +9,22 @@ import type { ContactResult } from "@/lib/sales/contacts";
 import type { DealPanelData, PanelActivity } from "@/lib/sales/deal-panel";
 import type { addDealNote, editNote, NoteInput } from "@/lib/sales/notes";
 import type { CreateDealInput, updateDeal, UpdateDealInput } from "@/lib/sales/deals";
+import type { BulkLeadInput, BulkLeadResult } from "@/lib/sales/lead-bulk";
+import type { BulkConvertInput, BulkConvertResult, ConvertLeadInput, ConvertTarget, convertLead } from "@/lib/sales/lead-convert";
+import type { LeadPanelData } from "@/lib/sales/lead-panel";
+import type { CreateLeadInput, updateLead, UpdateLeadInput } from "@/lib/sales/leads";
+import type { LeadRowsPage } from "@/lib/sales/leads-page";
+import type { LeadsQuery } from "@/lib/sales/leads-query";
+import { leadsQueryToSearch } from "@/lib/sales/leads-query";
 import type { DealStatusInput, MoveDealInput, MoveResult, setDealStatus } from "@/lib/sales/stage-moves";
 import type { TimelineCursor, TimelineEntry } from "@/lib/sales/timeline";
 
 // The browser's way to the Sales routes: one small typed wrapper per route the
-// board, the deal panel and the Activities page call. Every call answers with
-// an ApiResult instead of throwing, so a screen always has a message to show.
-// The server modules are imported for their types only (erased at build time),
-// so nothing server-side reaches the browser bundle.
+// board, the deal and lead panels, the Activities page and the Leads Inbox
+// call. Every call answers with an ApiResult instead of throwing, so a screen
+// always has a message to show. The server modules are imported for their
+// types only (erased at build time), so nothing server-side reaches the
+// browser bundle; runtime values come only from client-safe `*-query.ts`.
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string; code?: string };
 
@@ -74,12 +82,14 @@ export function getDealPanel(dealId: string): Promise<ApiResult<DealPanelData>> 
   return get(dealUrl(dealId));
 }
 
-export function getDealTimeline(
-  dealId: string,
-  cursor: TimelineCursor | null,
-): Promise<ApiResult<{ entries: TimelineEntry[]; nextCursor: TimelineCursor | null }>> {
-  const search = cursor ? `?${new URLSearchParams({ at: cursor.at, id: cursor.id })}` : "";
-  return get(`${dealUrl(dealId)}/timeline${search}`);
+type TimelinePageAnswer = { entries: TimelineEntry[]; nextCursor: TimelineCursor | null };
+
+/** "?at=...&id=..." for an older History page, or nothing for the newest. */
+const timelineSearch = (cursor: TimelineCursor | null) =>
+  cursor ? `?${new URLSearchParams({ at: cursor.at, id: cursor.id })}` : "";
+
+export function getDealTimeline(dealId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePageAnswer>> {
+  return get(`${dealUrl(dealId)}/timeline${timelineSearch(cursor)}`);
 }
 
 /** One more page of the Deals list view: the page's own filters (with its resolved pipeline) and `query.cursor`. */
@@ -121,6 +131,72 @@ export function setDealStatusRequest(dealId: string, body: DealStatusInput): Pro
   return send("POST", `${dealUrl(dealId)}/status`, body);
 }
 
+// --- Leads ---
+
+/** One more page of the Leads Inbox: the page's scope and search and `query.cursor`. */
+export function getLeadRowsPage(query: LeadsQuery): Promise<ApiResult<LeadRowsPage>> {
+  const search = new URLSearchParams(leadsQueryToSearch(query));
+  if (query.cursor) search.set("cursor", query.cursor);
+  return get(`/api/sales/leads?${search}`);
+}
+
+export function getLeadPanel(leadId: string): Promise<ApiResult<LeadPanelData>> {
+  return get(leadUrl(leadId));
+}
+
+export function getLeadTimeline(leadId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePageAnswer>> {
+  return get(`${leadUrl(leadId)}/timeline${timelineSearch(cursor)}`);
+}
+
+export function createLeadRequest(body: CreateLeadInput): Promise<ApiResult<{ lead: { id: string } }>> {
+  return send("POST", "/api/sales/leads", body);
+}
+
+export function updateLeadRequest(
+  leadId: string,
+  body: UpdateLeadInput,
+): Promise<ApiResult<{ lead: Answer<typeof updateLead>["lead"] }>> {
+  return send("PATCH", leadUrl(leadId), body);
+}
+
+/** Archive (`true`) or restore (`false`) a lead. `changed` is false when it already was. */
+export function setLeadArchivedRequest(leadId: string, archived: boolean): Promise<ApiResult<{ ok: true; changed: boolean }>> {
+  return send("POST", `${leadUrl(leadId)}/archive`, { archived });
+}
+
+/** Set (`value`) or clear (`null`) one of a lead's custom fields. */
+export function setLeadFieldRequest(
+  leadId: string,
+  fieldKey: string,
+  value: string | null,
+): Promise<ApiResult<{ value: string | null }>> {
+  return send("PUT", `${leadUrl(leadId)}/fields/${encodeURIComponent(fieldKey)}`, { value });
+}
+
+/** The Inbox bulk bar's assign, archive, restore or delete: one result per lead. */
+export function runLeadBulkRequest(body: BulkLeadInput): Promise<ApiResult<{ results: BulkLeadResult[] }>> {
+  return send("POST", "/api/sales/leads/bulk", body);
+}
+
+/** The pipelines and stages a lead may be converted into. */
+export function getConvertTargets(): Promise<ApiResult<{ targets: ConvertTarget[] }>> {
+  return get("/api/sales/leads/convert");
+}
+
+export function convertLeadRequest(
+  leadId: string,
+  body: ConvertLeadInput,
+): Promise<ApiResult<{ deal: Answer<typeof convertLead>["deal"] }>> {
+  return send("POST", `${leadUrl(leadId)}/convert`, body);
+}
+
+/** The bulk bar's Convert: one result per lead, and the pipeline they went to. */
+export function convertLeadsRequest(
+  body: BulkConvertInput,
+): Promise<ApiResult<{ results: BulkConvertResult[]; pipeline: { key: string; name: string } }>> {
+  return send("POST", "/api/sales/leads/convert", body);
+}
+
 // --- Activities and notes ---
 
 /** Schedules an activity on a deal or a lead. */
@@ -158,7 +234,7 @@ export function editNoteRequest(noteId: string, body: NoteInput): Promise<ApiRes
 
 // --- Pickers and preferences ---
 
-/** The Add deal dialog's organization and person search (up to 8 names; nothing under two letters). */
+/** The contact picker's organization and person search (up to 8 names; nothing under two letters). */
 export function searchContactsRequest(
   kind: "organization" | "person",
   q: string,

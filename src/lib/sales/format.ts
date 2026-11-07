@@ -54,6 +54,22 @@ export function shortName(name: string): string {
   return `${parts[0]} ${last[0].toUpperCase()}.`;
 }
 
+/**
+ * Ends a sentence with a period unless it already ends in ".", "!" or "?", so
+ * a sentence that ends in a short name ("...go to Robert O.") never gets a
+ * second one. Empty text stays empty.
+ */
+export function endSentence(text: string): string {
+  if (text === "" || /[.!?]$/.test(text)) return text;
+  return `${text}.`;
+}
+
+/** "Ben S.", "Ben S. and Robert O.", "Ben S., Dana Q. and Robert O."; nobody is empty text. */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 /** Which of four avatar colours a person gets: stable for the same id, spread across ids. */
 export function avatarTone(id: string): 0 | 1 | 2 | 3 {
   let hash = 0;

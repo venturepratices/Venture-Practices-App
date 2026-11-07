@@ -7,9 +7,11 @@ import {
   dayLabel,
   daysInStage,
   dueLabel,
+  endSentence,
   formatMoney,
   isRotting,
   isValidDateString,
+  joinNames,
   nextStepPill,
   parseMoneyToCents,
   shortName,
@@ -63,6 +65,43 @@ describe("shortName", () => {
     expect(shortName("  Mary Ann Example ")).toBe("Mary E.");
     expect(shortName("DJ")).toBe("DJ");
     expect(shortName("Sarah K.")).toBe("Sarah K.");
+  });
+});
+
+describe("endSentence", () => {
+  it("never puts a second period after a name that ends with one", () => {
+    expect(endSentence("Robert O.")).toBe("Robert O.");
+  });
+
+  it("ends a sentence that has no stop yet with a period", () => {
+    expect(endSentence("DJ")).toBe("DJ.");
+  });
+
+  it("leaves empty text empty", () => {
+    expect(endSentence("")).toBe("");
+  });
+
+  it("keeps a sentence that already ends in ! or ?", () => {
+    expect(endSentence("Done!")).toBe("Done!");
+    expect(endSentence("Who gets new leads?")).toBe("Who gets new leads?");
+  });
+});
+
+describe("joinNames", () => {
+  it("joins nobody into empty text", () => {
+    expect(joinNames([])).toBe("");
+  });
+
+  it("gives one name back as it is", () => {
+    expect(joinNames(["Ben S."])).toBe("Ben S.");
+  });
+
+  it("joins two names with and", () => {
+    expect(joinNames(["Ben S.", "Robert O."])).toBe("Ben S. and Robert O.");
+  });
+
+  it("joins three or more with commas and a final and", () => {
+    expect(joinNames(["Ben S.", "Dana Q.", "Robert O."])).toBe("Ben S., Dana Q. and Robert O.");
   });
 });
 

@@ -109,7 +109,8 @@ describe("grey words on the accent fill in Sales (spec 7.11)", () => {
     expect(end, "function DropBar after it").toBeGreaterThan(start);
     expect(board.slice(start, end)).not.toContain("text-muted-foreground");
 
-    const detailLines = componentSource("new-deal-dialog.tsx")
+    // The highlighted option's detail line lives in the shared contact picker (Add deal, new lead, convert, Details).
+    const detailLines = componentSource("contact-picker.tsx")
       .split(/\r?\n/)
       .filter((line) => line.includes("{choice.detail}"));
     expect(detailLines).toHaveLength(1);
