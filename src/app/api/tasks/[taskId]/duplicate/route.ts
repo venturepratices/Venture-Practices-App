@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { mentionOrName } from "@/lib/slack";
+import { mentionsOrNames } from "@/lib/slack";
 import { stripHtml } from "@/lib/text-format";
 import { deadlineLine } from "@/lib/utils";
 import { TASK_INCLUDE } from "@/app/api/tasks/[taskId]/route";
@@ -138,9 +138,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ta
   }
 
   if (!task.isPrivate && task.assignees.length > 0) {
-    const assignedMentions = await Promise.all(
-      task.assignees.map((a) => mentionOrName({ id: a.teamMemberId, email: a.teamMember.email, slackUserId: a.teamMember.slackUserId }, a.teamMember.name))
-    );
+    const assignedMentions = await mentionsOrNames(task.assignees.map((a) => a.teamMember));
     await notifyChannel({
       clientId: task.clientId,
       title: `New task: "${task.title}"`,

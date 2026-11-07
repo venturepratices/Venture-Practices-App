@@ -84,6 +84,27 @@ export async function mentionOrName(teamMember: ResolvableTeamMember, displayNam
 }
 
 /**
+ * mentionOrName() for a list of people known only by id and name: reads
+ * their email and Slack id here, so a route can mention them without
+ * loading those fields into a task it sends back to the browser. Keeps the
+ * given order; anyone no longer on the team falls back to their name.
+ */
+export async function mentionsOrNames(people: { id: string; name: string }[]): Promise<string[]> {
+  if (people.length === 0) return [];
+  const rows = await prisma.teamMember.findMany({
+    where: { id: { in: people.map((p) => p.id) } },
+    select: { id: true, email: true, slackUserId: true },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return Promise.all(
+    people.map((p) => {
+      const row = byId.get(p.id);
+      return row ? mentionOrName(row, p.name) : p.name;
+    })
+  );
+}
+
+/**
  * DMs a resolved Slack user id via chat.postMessage — passing a user id as
  * `channel` opens/uses that user's DM with the bot, no separate
  * conversations.open call needed.

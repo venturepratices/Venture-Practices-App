@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { campaignLabel } from "@/lib/campaign-stage";
 import { maybeCompleteApprovalTasksForProofAsset } from "@/lib/campaign-advance";
-import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, taskVisibilityFilter, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { updateCampaignSchema } from "@/lib/validations/campaign";
 
@@ -21,6 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
     include: {
       client: { select: { id: true, name: true } },
       tasks: {
+        // Someone else's private task stays out, as on the campaign page.
+        where: taskVisibilityFilter(session.user.id),
         include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
         orderBy: { createdAt: "desc" },
       },

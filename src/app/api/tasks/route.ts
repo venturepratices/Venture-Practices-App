@@ -61,6 +61,27 @@ export async function POST(request: Request) {
     }
   }
 
+  // A campaign task lands in that campaign's client, so the caller needs
+  // access to it, and the task must be for that same client (the campaign
+  // page always sends its own client).
+  if (parsed.data.campaignId) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: parsed.data.campaignId },
+      select: { clientId: true },
+    });
+    if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 400 });
+    }
+    try {
+      await requireClientAccess(campaign.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
+    if (campaign.clientId !== (parsed.data.clientId ?? null)) {
+      return NextResponse.json({ error: "That campaign belongs to a different client than this task" }, { status: 400 });
+    }
+  }
+
   if (parsed.data.workflowInstanceId) {
     const instance = await prisma.workflowInstance.findUnique({
       where: { id: parsed.data.workflowInstanceId },
