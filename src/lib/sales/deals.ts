@@ -47,7 +47,8 @@ const FIELD_BODY_MAX = 2_000;
 
 // --- Input ---
 
-const money = z
+/** An amount in integer cents, $0 to $10,000,000. Shared with convert (lead-convert.ts). */
+export const moneySchema = z
   .int({ error: "Enter an amount." })
   .min(0, { error: "Values can't be below $0." })
   .max(MAX_DEAL_CENTS, { error: VALUE_TOO_BIG });
@@ -59,7 +60,7 @@ export const createDealSchema = z.strictObject({
   ownerId: z.string({ error: CHOOSE_OWNER }).min(1, { error: CHOOSE_OWNER }).max(ID_MAX, { error: CHOOSE_OWNER }),
   organization: contactRefSchema.default(null),
   person: contactRefSchema.default(null),
-  valueCents: money.default(0),
+  valueCents: moneySchema.default(0),
   firstActivity: z.enum(FIRST_ACTIVITY_IDS, { error: "Pick a first activity." }),
 });
 
@@ -71,8 +72,8 @@ export const updateDealSchema = z
       .min(1, { error: "Give the deal a name." })
       .max(TITLE_MAX, { error: "Keep the name under 200 characters." })
       .optional(),
-    valueCents: money.optional(),
-    mrrCents: money.optional(),
+    valueCents: moneySchema.optional(),
+    mrrCents: moneySchema.optional(),
     ownerId: z.string({ error: CHOOSE_OWNER }).min(1, { error: CHOOSE_OWNER }).max(ID_MAX, { error: CHOOSE_OWNER }).optional(),
     source: z.enum(DEAL_SOURCES, { error: "Pick one of the listed sources." }).nullable().optional(),
   })

@@ -103,6 +103,10 @@ describe("describeAuditRow", () => {
     ["no entity, created", describeFor(undefined, "created", { title: "Oak" }), "created", "Deal created"],
     ["no entity, unknown action", describeFor(undefined, "something_new", { x: 1 }), "field", "Deal updated"],
     ["no entity, deal reopened", describeFor(undefined, "status_changed", { status: "OPEN" }, { status: "LOST" }), "reopened", "Reopened"],
+    ["deal converted from a lead", describeFor("SalesDeal", "created", { title: "Crestview Dental", source: "Referral", fromLeadId: "l1" }), "converted", "Converted from lead (Referral)"],
+    ["deal converted from a lead with no source", describeFor("SalesDeal", "created", { title: "Crestview Dental", source: null, fromLeadId: "l1" }), "converted", "Converted from a lead"],
+    ["no entity, converted from a lead", describeFor(undefined, "created", { source: "Outbound", fromLeadId: "l1" }), "converted", "Converted from lead (Outbound)"],
+    ["lead created, a stray lead id ignored", describeFor("SalesLead", "created", { title: "Oak", fromLeadId: "l1" }), "created", "Lead created"],
   ])("words lead history: %s", (_name, result, icon, text) => {
     expect(result).toEqual({ icon, text });
     expect(result.text).not.toContain(EM_DASH);
@@ -148,10 +152,16 @@ const log = (i: number, extra: Row = {}) => ({
   ...extra,
 });
 
-function fakeDb(opts: { visible?: boolean; rows?: Row[]; notes?: Row[] } = {}) {
+function fakeDb(opts: { visible?: boolean; rows?: Row[]; notes?: Row[]; fromLead?: string } = {}) {
   return {
     salesDeal: {
-      findFirst: vi.fn<(args: Args) => Promise<unknown>>(async () => (opts.visible === false ? null : { id: "d1", ownerId: "r" })),
+      // The lead a deal was converted from comes back only when the query asks for it.
+      findFirst: vi.fn<(args: Args) => Promise<unknown>>(async (args) => {
+        if (opts.visible === false) return null;
+        const deal: Row = { id: "d1", ownerId: "r" };
+        if ((args.select as Row | undefined)?.convertedFromLead) deal.convertedFromLead = opts.fromLead ? { id: opts.fromLead } : null;
+        return deal;
+      }),
     },
     salesLead: {
       findFirst: vi.fn<(args: Args) => Promise<unknown>>(async () => (opts.visible === false ? null : { id: "l1" })),
@@ -286,6 +296,37 @@ describe("loadDealTimeline", () => {
 
     expect(db.salesAuditLog.findMany.mock.calls[0][0].select).toMatchObject({ entityType: true, action: true });
     expect(page?.entries[0].text).toBe("Deal created");
+  });
+
+  it("a converted deal's History includes its lead's", async () => {
+    const sources = [
+      { entityType: "SalesDeal", entityId: "d1" },
+      { entityType: "SalesLead", entityId: "l1" },
+    ];
+    const rows = [
+      log(1, { entityType: "SalesDeal", action: "created", after: { title: "Crestview Dental", source: "Referral", fromLeadId: "l1" } }),
+      log(2, { entityType: "SalesLead", action: "created", after: { title: "Crestview Dental" } }),
+    ];
+    const db = fakeDb({ fromLead: "l1", rows });
+    const page = await loadDealTimeline(rep, "d1", null, db as never);
+
+    expect(db.salesAuditLog.findMany.mock.calls[0][0].where).toEqual({ AND: [{ OR: sources }] });
+    expect(page?.entries.map((entry) => [entry.icon, entry.text])).toEqual([
+      ["converted", "Converted from lead (Referral)"],
+      ["created", "Lead created"],
+    ]);
+
+    // "Show older" keeps both sources.
+    await loadDealTimeline(rep, "d1", { at: "2026-11-04T12:00:00.000Z", id: "log9" }, db as never);
+    const cursorAt = new Date("2026-11-04T12:00:00.000Z");
+    expect(db.salesAuditLog.findMany.mock.calls[1][0].where).toEqual({
+      AND: [{ OR: sources }, { OR: [{ at: { lt: cursorAt } }, { at: cursorAt, id: { lt: "log9" } }] }],
+    });
+
+    // A deal that did not come from a lead reads only its own rows.
+    const plain = fakeDb();
+    await loadDealTimeline(rep, "d1", null, plain as never);
+    expect(plain.salesAuditLog.findMany.mock.calls[0][0].where).toEqual({ entityType: "SalesDeal", entityId: "d1" });
   });
 });
 

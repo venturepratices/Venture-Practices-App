@@ -15,6 +15,8 @@ export const TIMELINE_PAGE_SIZE = 30;
 export const CONTACT_SEARCH_LIMIT = 8;
 /** Most leads one bulk-bar request may change; each still runs in its own transaction. */
 export const BULK_IDS_MAX = 100;
+/** Most leads one bulk convert may turn into deals; each still runs in its own transaction. */
+export const BULK_CONVERT_MAX = 25;
 
 /** Days an open deal can sit in a stage before it rots (amber card). */
 export const DEFAULT_ROTTING_DAYS = 14;
@@ -88,6 +90,9 @@ export const FIRST_ACTIVITY_PRESETS: Record<"call-today" | "call-tomorrow" | "de
   "call-tomorrow": { label: "Call tomorrow", type: "CALL", subject: "First call", offsetDays: 1 },
   "demo-2-days": { label: "Demo in 2 days", type: "MEETING", subject: "Demo", offsetDays: 2 },
 };
+
+/** The call a converted deal gets, due today for the deal owner, when no open activity moved with the lead. */
+export const CONVERT_FIRST_CALL_SUBJECT = "First call after conversion";
 
 /** The quick choices in the "Schedule the next step" prompt after a stage move. */
 export const NEXT_STEP_PRESETS: ({ id: string } & ActivityPreset)[] = [

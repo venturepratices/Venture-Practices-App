@@ -63,6 +63,10 @@ export type DealAuditEvent =
         organizationId: string | null;
         personId: string | null;
         source: string | null;
+        /** A deal made by converting a lead (lead-convert.ts): the lead, and the open activities and notes that moved with it. */
+        fromLeadId?: string;
+        movedActivityIds?: string[];
+        movedNoteIds?: string[];
       };
     }
   /** Only the keys that changed. */

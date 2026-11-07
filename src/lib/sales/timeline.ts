@@ -145,8 +145,15 @@ export function describeAuditRow(
   const fallback = { icon: "field", text: isLead ? "Lead updated" : "Deal updated" } as const;
 
   switch (row.action) {
-    case "created":
-      return { icon: "created", text: isLead ? "Lead created" : "Deal created" };
+    case "created": {
+      if (isLead) return { icon: "created", text: "Lead created" };
+      // A deal made by converting a lead (lead-convert.ts) says where it came from.
+      if (str(after, "fromLeadId")) {
+        const source = str(after, "source");
+        return { icon: "converted", text: source ? `Converted from lead (${source})` : "Converted from a lead" };
+      }
+      return { icon: "created", text: "Deal created" };
+    }
     case "stage_changed": {
       const stageName = str(after, "stageName") ?? "another stage";
       // A toast's Undo that put the earlier entry time back (stage-moves.ts), not a move by hand.
@@ -220,7 +227,7 @@ export function describeAuditRow(
 
 export type TimelinePage = { entries: TimelineEntry[]; nextCursor: TimelineCursor | null };
 
-/** Whose history rows a page reads: one record, or (for merged contacts) several. */
+/** Whose history rows a page reads: one record, or several (a converted deal and its lead; merged contacts). */
 type TimelineSource = { entityType: string; entityId: string };
 
 const CURSOR_ID_MAX = 64;
@@ -318,7 +325,9 @@ async function loadTimelinePage(
 
 /**
  * One page of a deal's History, newest first, continuing after `cursor`. Null
- * when this person may not see the deal (the route answers 404).
+ * when this person may not see the deal (the route answers 404). A deal made
+ * by converting a lead also reads that lead's rows, so the notes and calls that
+ * moved with it keep their history (Decision 14).
  */
 export async function loadDealTimeline(
   actor: SalesActor,
@@ -326,9 +335,14 @@ export async function loadDealTimeline(
   cursor: TimelineCursor | null,
   db: TimelineDb = prisma,
 ): Promise<TimelinePage | null> {
-  const deal = await db.salesDeal.findFirst({ where: visibleDealWhere(actor, dealId), select: { id: true } });
+  const deal = await db.salesDeal.findFirst({
+    where: visibleDealWhere(actor, dealId),
+    select: { id: true, convertedFromLead: { select: { id: true } } },
+  });
   if (!deal) return null;
-  return loadTimelinePage(db, actor, [{ entityType: "SalesDeal", entityId: dealId }], cursor);
+  const sources: TimelineSource[] = [{ entityType: "SalesDeal", entityId: dealId }];
+  if (deal.convertedFromLead) sources.push({ entityType: "SalesLead", entityId: deal.convertedFromLead.id });
+  return loadTimelinePage(db, actor, sources, cursor);
 }
 
 /**
