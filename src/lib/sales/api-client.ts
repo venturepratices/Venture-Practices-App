@@ -17,7 +17,7 @@ import type { LeadRowsPage } from "@/lib/sales/leads-page";
 import type { LeadsQuery } from "@/lib/sales/leads-query";
 import { leadsQueryToSearch } from "@/lib/sales/leads-query";
 import type { DealStatusInput, MoveDealInput, MoveResult, setDealStatus } from "@/lib/sales/stage-moves";
-import type { TimelineCursor, TimelineEntry } from "@/lib/sales/timeline";
+import type { TimelineCursor, TimelinePage } from "@/lib/sales/timeline";
 
 // The browser's way to the Sales routes: one small typed wrapper per route the
 // board, the deal and lead panels, the Activities page and the Leads Inbox
@@ -82,13 +82,11 @@ export function getDealPanel(dealId: string): Promise<ApiResult<DealPanelData>> 
   return get(dealUrl(dealId));
 }
 
-type TimelinePageAnswer = { entries: TimelineEntry[]; nextCursor: TimelineCursor | null };
-
 /** "?at=...&id=..." for an older History page, or nothing for the newest. */
 const timelineSearch = (cursor: TimelineCursor | null) =>
   cursor ? `?${new URLSearchParams({ at: cursor.at, id: cursor.id })}` : "";
 
-export function getDealTimeline(dealId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePageAnswer>> {
+export function getDealTimeline(dealId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePage>> {
   return get(`${dealUrl(dealId)}/timeline${timelineSearch(cursor)}`);
 }
 
@@ -144,7 +142,7 @@ export function getLeadPanel(leadId: string): Promise<ApiResult<LeadPanelData>> 
   return get(leadUrl(leadId));
 }
 
-export function getLeadTimeline(leadId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePageAnswer>> {
+export function getLeadTimeline(leadId: string, cursor: TimelineCursor | null): Promise<ApiResult<TimelinePage>> {
   return get(`${leadUrl(leadId)}/timeline${timelineSearch(cursor)}`);
 }
 

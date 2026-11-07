@@ -48,7 +48,10 @@ export function existingChoice(kind: "person" | "organization", result: ContactR
  * Search existing people or organizations (from two letters), or add a new one
  * by name: the last option is always "Add new person: {text}". Leaving the box
  * with a typed name and nothing picked keeps what was typed (an exact match
- * becomes that existing one), as the mockup's plain text box would.
+ * becomes that existing one), as the mockup's plain text box would. Opening
+ * and closing the list without typing changes nothing, even when the picker
+ * starts with a value (`existingChoice(kind, { id, name })`); keep that value
+ * the same object between renders, since a new one resets the box's text.
  */
 export function ContactPicker({
   kind,
@@ -68,9 +71,13 @@ export function ContactPicker({
   disabled?: boolean;
 }) {
   const id = useId();
-  const [text, setText] = useState("");
+  // The box's text as Base UI last reported it. Null until it reports any:
+  // Base UI fills the box from a starting `value` without reporting it, so
+  // until then the box still shows `value` (or nothing) and leaving it changes
+  // nothing. Not seeded from `value`, so a filled picker sends no search.
+  const [text, setText] = useState<string | null>(null);
   const [found, setFound] = useState<ContactResult[]>([]);
-  const query = text.trim();
+  const query = (text ?? "").trim();
 
   useEffect(() => {
     if (query.length < SEARCH_MIN) return;
@@ -101,12 +108,14 @@ export function ContactPicker({
         filter={null}
         autoHighlight
         value={value}
+        // On the root too: Base UI's box opens the list on a press beside the input unless the whole combobox is off.
+        disabled={disabled}
         itemToStringLabel={(choice) => choice.name}
         isItemEqualToValue={(a, b) => a.key === b.key}
         onValueChange={(choice) => onChange(choice ?? null)}
         onInputValueChange={(next) => setText(next)}
         onOpenChange={(isOpen, details) => {
-          if (isOpen || details.reason === "item-press") return;
+          if (isOpen || details.reason === "item-press" || text === null) return;
           if (!query) {
             if (value) onChange(null);
             return;
