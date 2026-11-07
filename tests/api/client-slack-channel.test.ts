@@ -307,15 +307,17 @@ describe("adding a client (createClientAction)", () => {
 
 describe("the client form's Slack channel help text", () => {
   // The dialog only renders when opened, and there is no browser test setup,
-  // so this reads its source.
+  // so this reads the source of its Slack channel field (rendered for both
+  // cases in tests/lib/client-form-dialog.test.ts). Editors who are not
+  // admins get a read-only field with this hint.
   const source = readFileSync(resolve(process.cwd(), "src/components/clients/client-form-dialog.tsx"), "utf8");
-  const start = source.indexOf('htmlFor="slackChannelId"');
-  const help = source.slice(start, source.indexOf("</p>", start));
+  const start = source.indexOf("export function SlackChannelField");
+  const field = source.slice(start);
 
   it("tells editors that only an admin can change the channel, with no em dash", () => {
     expect(start).toBeGreaterThan(-1);
-    expect(help.replace(/\s+/g, " ")).toMatch(/only an admin can change it/i);
-    expect(help.slice(help.indexOf("<p"))).not.toContain(String.fromCharCode(0x2014));
+    expect(field.replace(/\s+/g, " ")).toMatch(/only an admin can change this/i);
+    expect(field).not.toContain(String.fromCharCode(0x2014));
   });
 });
 
