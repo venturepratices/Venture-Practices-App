@@ -25,6 +25,21 @@ export const BULK_CONVERT_MAX = 25;
 /** Most deals, leads, notes, activities and people one merge of duplicate contacts may move, all in one transaction. */
 export const MERGE_LINKED_MAX = 500;
 
+// --- Sales dashboard and Insights ---
+
+/** Rows each dashboard box lists ("Today and overdue", "No next step", "Deals in Follow-Up"). */
+export const DASHBOARD_LIST_ROWS = 8;
+/** History lines the dashboard's "Recent activity" box shows. */
+export const RECENT_ACTIVITY_ROWS = 7;
+/** History rows "Recent activity" reads per page while it looks for lines on deals the viewer may see. */
+export const RECENT_FEED_SCAN = 50;
+/** Pages "Recent activity" reads at most, so a viewer who sees few deals never scans the whole log. */
+export const RECENT_FEED_PAGES = 4;
+/** Won deals Insights reads at most for one range; past it the page says the charts are partial. */
+export const INSIGHTS_ROW_CAP = 5000;
+/** Key of the stage the dashboard's "Deals in Follow-Up" box lists. */
+export const FOLLOW_UP_STAGE_KEY = "follow-up";
+
 // --- Deal files (final versions, stored in the private Blob store) ---
 
 /** Largest file one upload may carry: Vercel's request body limit, so the copy says "Up to 4 MB". */

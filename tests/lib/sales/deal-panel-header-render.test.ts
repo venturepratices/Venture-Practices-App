@@ -61,6 +61,7 @@ function panel(deal: Partial<DealPanelData["deal"]> = {}): DealPanelData {
       owner: MEMBERS[0],
       organization: { id: "o1", name: "Bright Smile Dental" },
       person: { id: "pe1", name: "Sarah K." },
+      expectedCloseDate: null,
       ...deal,
     },
     pipeline: { id: "p1", key: "direct-mail", name: "Direct Mail", kind: "SALES" },

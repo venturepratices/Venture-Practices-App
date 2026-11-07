@@ -27,7 +27,8 @@ type EnteredStage = StageRef | (StageRef & { stageEnteredAt: string; undo: true 
 type ActivityRef = { activityId: string; type: SalesActivityType; subject: string };
 export type FieldRef = { fieldKey: string; label: string; value: string | null };
 type Money = { valueCents: number; mrrCents: number };
-type Editable = { title: string; source: string | null };
+/** `expectedCloseDate` is the app-time day, "YYYY-MM-DD" (the column holds that day's end in app time). */
+type Editable = { title: string; source: string | null; expectedCloseDate: string | null };
 
 /** A deal's or lead's organization and person, with the names they had then, so History still reads after a rename. */
 export type ContactChange = {

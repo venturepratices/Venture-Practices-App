@@ -48,6 +48,7 @@ const deal = (extra: Row = {}) => ({
   owner: { id: "r", name: "Rachel P." },
   organization: { id: "o1", name: "Oak Creek Dental" },
   person: { id: "pe1", name: "Sarah K." },
+  expectedCloseDate: null,
   pipeline: PIPELINE,
   ...extra,
 });
@@ -169,6 +170,7 @@ describe("loadDealPanel", () => {
       owner: { id: "r", name: "Rachel P." },
       organization: { id: "o1", name: "Oak Creek Dental" },
       person: { id: "pe1", name: "Sarah K." },
+      expectedCloseDate: null,
     });
     expect(panel?.pipeline).toEqual(PIPELINE);
     expect(panel?.stages).toEqual(STAGES);
@@ -182,6 +184,17 @@ describe("loadDealPanel", () => {
       { id: "r", name: "Rachel P." },
       { id: "b", name: "Ben S." },
     ]);
+  });
+
+  it("gives the expected close as its Eastern day", async () => {
+    const db = fakeDb({ deal: deal({ expectedCloseDate: endOfDay("2026-11-30") }) });
+    const panel = await loadDealPanel(rep, "d1", db as never);
+
+    expect(db.salesDeal.findFirst.mock.calls[0][0].select).toMatchObject({ expectedCloseDate: true });
+    // Stored as 11:59 PM Eastern on Nov 30, which is already Dec 1 in UTC.
+    expect(endOfDay("2026-11-30").toISOString().slice(0, 10)).toBe("2026-12-01");
+    expect(panel?.deal.expectedCloseDate).toBe("2026-11-30");
+    expect((await loadDealPanel(rep, "d1", fakeDb() as never))?.deal.expectedCloseDate).toBeNull();
   });
 
   it("shows the deal fields for its pipeline, in order, with stored values", async () => {

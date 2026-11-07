@@ -75,6 +75,27 @@ describe("describeAuditRow", () => {
     );
   });
 
+  it("reads expected close changes", () => {
+    expect(describe_("updated", { expectedCloseDate: "2026-11-30" }, { expectedCloseDate: null })).toEqual({
+      icon: "field",
+      text: "Expected close set to Nov 30",
+    });
+    expect(describe_("updated", { expectedCloseDate: null }, { expectedCloseDate: "2026-11-30" })).toEqual({
+      icon: "field",
+      text: "Expected close cleared",
+    });
+    expect(describe_("updated", { title: "Oak", expectedCloseDate: "2027-01-04" }, { title: "Old", expectedCloseDate: null }).text).toBe(
+      "Renamed to Oak. Expected close set to Jan 4",
+    );
+    // A new name that ends in "." gets no second period.
+    expect(describe_("updated", { title: "Oak Creek Co.", expectedCloseDate: null }).text).toBe(
+      "Renamed to Oak Creek Co. Expected close cleared",
+    );
+    // A stored value that is not a real date reads as a plain change, never "Invalid Date".
+    expect(describe_("updated", { expectedCloseDate: "2026-02-30" }).text).toBe("Expected close changed");
+    expect(describe_("updated", { expectedCloseDate: 5 }).text).toBe("Expected close changed");
+  });
+
   it("never crashes on a row it does not know or a payload it does not expect", () => {
     expect(describe_("something_new", { x: 1 })).toEqual({ icon: "field", text: "Deal updated" });
     expect(describe_("owner_changed", { ownerId: "gone" }).text).toBe("Owner changed");

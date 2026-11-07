@@ -25,10 +25,10 @@ import {
 import { FIELD_TOO_LONG, normalizeFieldValue } from "@/lib/sales/custom-fields";
 import { DEAL_NOT_FOUND, findDealForEdit, visibleDealWhere } from "@/lib/sales/deal-access";
 import { recordDealAudit } from "@/lib/sales/deal-audit";
-import { activityDueAt } from "@/lib/sales/format";
+import { activityDueAt, isValidDateString } from "@/lib/sales/format";
 import { fail, type SalesFail } from "@/lib/sales/http";
 import { checkStageMove, territoryHoldCheckDueAt } from "@/lib/sales/rules";
-import { addDaysToDateString, dateInputValue } from "@/lib/utils";
+import { addDaysToDateString, dateInputValue, endOfDay } from "@/lib/utils";
 
 // Adding, editing and deleting deals, and setting their custom fields. Each
 // change runs in one transaction with its history rows. Every check that can
@@ -46,6 +46,7 @@ const VALUE_TOO_BIG = "Values can be up to $10,000,000.";
 const PROPOSAL_NEEDS_VALUE = "A deal in Proposal Sent needs a total value and a monthly value above $0.";
 const ONLY_ADMIN_DELETES = "Only an admin can delete deals.";
 const FIELD_NOT_USED = "That field is not used on this deal.";
+const NOT_A_DATE = "Enter a real date.";
 
 const TERRITORY_HOLD_RULE = "rule:territory-hold";
 const TERRITORY_HOLD_SUBJECT = "Territory hold check";
@@ -84,6 +85,12 @@ export const updateDealSchema = z
     mrrCents: moneySchema.optional(),
     ownerId: z.string({ error: CHOOSE_OWNER }).min(1, { error: CHOOSE_OWNER }).max(ID_MAX, { error: CHOOSE_OWNER }).optional(),
     source: z.enum(DEAL_SOURCES, { error: "Pick one of the listed sources." }).nullable().optional(),
+    // The app-time day the deal should close ("YYYY-MM-DD"), or null to clear it.
+    expectedCloseDate: z
+      .string({ error: NOT_A_DATE })
+      .refine(isValidDateString, { error: NOT_A_DATE })
+      .nullable()
+      .optional(),
     // Picked, new by name, or null to remove; a key left out keeps what the deal has (no default here).
     organization: contactRefSchema.optional(),
     person: contactRefSchema.optional(),
@@ -218,17 +225,25 @@ const EDITABLE_DEAL_SELECT = {
 type EditableDeal = Prisma.SalesDealGetPayload<{ select: typeof EDITABLE_DEAL_SELECT }>;
 type UpdateDealResult = { ok: true; deal: EditableDeal } | SalesFail;
 
+/** The fields one `updated` history row covers; the expected close as its app-time day, "YYYY-MM-DD". */
+type EditedFields = { title: string; source: string | null; expectedCloseDate: string | null };
+
 const EDIT_DEAL_SELECT = {
   ...EDITABLE_DEAL_SELECT,
+  expectedCloseDate: true,
   stage: { select: { requiresValue: true } },
   organization: { select: { id: true, name: true } },
   person: { select: { id: true, name: true } },
 } satisfies Prisma.SalesDealSelect;
 
 /**
- * Changes a deal's name, source, values, owner, organization or person. History
- * gets one row per kind of change (`value_changed`, `owner_changed`, `updated`,
- * `contact_changed`), and none when nothing changed. A deal in a stage that
+ * Changes a deal's name, source, expected close, values, owner, organization or
+ * person. History gets one row per kind of change (`value_changed`,
+ * `owner_changed`, `updated`, `contact_changed`), and none when nothing changed.
+ * The expected close is an app-time day, stored as that day's end in app time
+ * and written to history as the "YYYY-MM-DD" day, so a close of Nov 30 stays in
+ * November's forecast though its stored instant is Dec 1 in UTC (Decision 26).
+ * A deal in a stage that
  * needs a value (Proposal Sent) cannot have either value cleared (spec rules 2
  * and 8, Decision 27). A new owner takes the old owner's open activities on the
  * deal with it (Decision 15). A deal keeps a person or an organization; a new
@@ -260,10 +275,15 @@ export async function updateDeal(
     const valueChanged = value.valueCents !== deal.valueCents || value.mrrCents !== deal.mrrCents;
     const ownerId = input.ownerId ?? deal.ownerId;
     const ownerChanged = ownerId !== deal.ownerId;
+    const closeDate = found.deal.expectedCloseDate ? dateInputValue(found.deal.expectedCloseDate) : null;
     const edits = auditDiff(
-      { title: deal.title, source: deal.source },
-      { title: input.title ?? deal.title, source: input.source === undefined ? deal.source : input.source },
-    ) as { before: Partial<Pick<EditableDeal, "title" | "source">>; after: Partial<Pick<EditableDeal, "title" | "source">> };
+      { title: deal.title, source: deal.source, expectedCloseDate: closeDate },
+      {
+        title: input.title ?? deal.title,
+        source: input.source === undefined ? deal.source : input.source,
+        expectedCloseDate: input.expectedCloseDate === undefined ? closeDate : input.expectedCloseDate,
+      },
+    ) as { before: Partial<EditedFields>; after: Partial<EditedFields> };
     const edited = Object.keys(edits.after).length > 0;
     const organizationRef = contactChange(input.organization, current.organization?.id ?? null);
     const personRef = contactChange(input.person, current.person?.id ?? null);
@@ -306,8 +326,10 @@ export async function updateDeal(
     // Every check has passed: the writes start here.
     const contacts = contactsChanged ? await createContacts(tx, actor, contactInput, picked, ownerId, meta) : current;
 
-    // Only what changed, stamped with this request's time.
-    const data: Prisma.SalesDealUncheckedUpdateInput = { ...edits.after, updatedAt: now };
+    // Only what changed, stamped with this request's time. The expected close day is stored as its end in app time.
+    const { expectedCloseDate: closeDay, ...renamed } = edits.after;
+    const data: Prisma.SalesDealUncheckedUpdateInput = { ...renamed, updatedAt: now };
+    if ("expectedCloseDate" in edits.after) data.expectedCloseDate = closeDay ? endOfDay(closeDay) : null;
     if (value.valueCents !== deal.valueCents) data.valueCents = value.valueCents;
     if (value.mrrCents !== deal.mrrCents) data.mrrCents = value.mrrCents;
     if (ownerChanged) data.ownerId = ownerId;

@@ -14,6 +14,7 @@ import {
 import { ACTIVITIES_PAGE_SIZE, FILES_PER_DEAL_MAX, TERRITORY_HOLD_FIELD_KEY } from "@/lib/sales/constants";
 import { visibleDealWhere } from "@/lib/sales/deal-access";
 import { shortName } from "@/lib/sales/format";
+import { dateInputValue } from "@/lib/utils";
 
 // What the slide-in deal panel shows: the deal, its stage bar, the open next
 // steps, the Details fields for its pipeline, the territory hold and the
@@ -104,6 +105,8 @@ export type DealPanelData = {
     owner: SalesMemberOption;
     organization: { id: string; name: string } | null;
     person: { id: string; name: string } | null;
+    /** The app-time day the deal should close, "YYYY-MM-DD", or null when none is set (the forecast counts it under "No close date"). */
+    expectedCloseDate: string | null;
   };
   pipeline: BoardPipeline;
   stages: BoardStage[];
@@ -133,6 +136,7 @@ const PANEL_DEAL_SELECT = {
   owner: { select: { id: true, name: true } },
   organization: { select: { id: true, name: true } },
   person: { select: { id: true, name: true } },
+  expectedCloseDate: true,
   pipeline: { select: BOARD_PIPELINE_SELECT },
 } satisfies Prisma.SalesDealSelect;
 
@@ -212,6 +216,7 @@ export async function loadDealPanel(
       owner: deal.owner,
       organization: deal.organization,
       person: deal.person,
+      expectedCloseDate: deal.expectedCloseDate ? dateInputValue(deal.expectedCloseDate) : null,
     },
     pipeline: { id: pipeline.id, key: pipeline.key, name: pipeline.name, kind: pipeline.kind },
     stages,

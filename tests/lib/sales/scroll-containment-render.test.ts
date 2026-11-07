@@ -119,6 +119,7 @@ const PANEL: DealPanelData = {
     owner: MEMBERS[0],
     organization: { id: "o1", name: "Bright Smile Dental" },
     person: { id: "pe1", name: "Sarah K." },
+    expectedCloseDate: null,
   },
   pipeline: PIPELINE,
   stages: STAGES,

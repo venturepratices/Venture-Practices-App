@@ -6,9 +6,9 @@ import { ACTIVITY_TYPE_LABELS, TIMELINE_PAGE_SIZE } from "@/lib/sales/constants"
 import { visibleOrganizationWhere, visiblePersonWhere } from "@/lib/sales/contact-access";
 import type { ContactKind } from "@/lib/sales/contacts-query";
 import { visibleDealWhere } from "@/lib/sales/deal-access";
-import { formatMoney, shortName } from "@/lib/sales/format";
+import { formatMoney, isValidDateString, shortName } from "@/lib/sales/format";
 import { visibleLeadWhere } from "@/lib/sales/lead-access";
-import { formatDate } from "@/lib/utils";
+import { endOfDay, formatDate } from "@/lib/utils";
 
 // The deal, lead and contact panels' History: the locked history rows written
 // against a deal (deal-audit.ts), a lead (lead-audit.ts) or a person or
@@ -101,7 +101,14 @@ function activityAddedLine(p: Payload): string {
   return `${head}${subject ? `: ${subject}` : ""}${due ? ` (${due})` : ""}`;
 }
 
-/** "Renamed to ..." and/or "Source set to ...", for the keys that changed; `fallback` when neither reads. */
+/** "Expected close set to Nov 30" for a stored "YYYY-MM-DD" day, "Expected close cleared" for null. */
+function expectedCloseLine(day: unknown): string {
+  if (day === null) return "Expected close cleared";
+  if (typeof day !== "string" || !isValidDateString(day)) return "Expected close changed";
+  return `Expected close set to ${formatDate(endOfDay(day), { month: "short", day: "numeric" })}`;
+}
+
+/** "Renamed to ...", "Source set to ..." and/or "Expected close set to ...", for the keys that changed; `fallback` when none reads. */
 function updatedLine(after: Payload, fallback: string): string {
   const parts: string[] = [];
   const title = str(after, "title");
@@ -110,7 +117,8 @@ function updatedLine(after: Payload, fallback: string): string {
     const source = str(after, "source");
     parts.push(source ? `Source set to ${source}` : "Source cleared");
   }
-  return parts.length > 0 ? parts.join(". ") : fallback;
+  if ("expectedCloseDate" in after) parts.push(expectedCloseLine(after.expectedCloseDate));
+  return parts.length > 0 ? joinSentences(parts) : fallback;
 }
 
 /** "Organization changed to Oak Creek Dental", "Organization removed", or "Organization changed" when the name is gone. */

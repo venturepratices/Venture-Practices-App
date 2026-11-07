@@ -42,6 +42,7 @@ const baseDeal = (extra: Row = {}): Row => ({
   mrrCents: 0,
   source: "Added by hand",
   status: "OPEN",
+  expectedCloseDate: null,
   archivedAt: null,
   stage: { requiresValue: false },
   ...extra,
@@ -540,6 +541,71 @@ describe("PATCH /api/sales/deals/[dealId]", () => {
     expect((await patch("d1", {})).status).toBe(400);
     expect((await patch("d1", { source: "Billboard" })).status).toBe(400);
     expect(writes()).toEqual([]);
+  });
+
+  it("sets the expected close as an Eastern end of day", async () => {
+    state.deal = baseDeal();
+    const set = await patch("d1", { expectedCloseDate: "2026-11-30" });
+
+    expect(set.status).toBe(200);
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ expectedCloseDate: endOfDay("2026-11-30"), updatedAt: now });
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        entityType: "SalesDeal",
+        entityId: "d1",
+        action: "updated",
+        before: { expectedCloseDate: null },
+        after: { expectedCloseDate: "2026-11-30" },
+        ipAddress: "203.0.113.9",
+      }),
+    ]);
+
+    // A date that does not exist, or is not written YYYY-MM-DD, is refused before anything is read.
+    db.salesDeal.update.mockClear();
+    db.salesAuditLog.create.mockClear();
+    state.audits = [];
+    for (const expectedCloseDate of ["2026-02-30", "11/30/2026", "", 20261130]) {
+      const bad = await patch("d1", { expectedCloseDate });
+      expect(bad.status).toBe(400);
+      expect(await bad.json()).toEqual({ error: "Enter a real date." });
+    }
+    expect(writes()).toEqual([]);
+
+    // Cleared: the stored date is read back as its Eastern day.
+    state.deal = baseDeal({ expectedCloseDate: endOfDay("2026-11-30") });
+    const cleared = await patch("d1", { expectedCloseDate: null });
+    expect(cleared.status).toBe(200);
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({ expectedCloseDate: null, updatedAt: now });
+    expect(state.audits).toEqual([
+      expect.objectContaining({ action: "updated", before: { expectedCloseDate: "2026-11-30" }, after: { expectedCloseDate: null } }),
+    ]);
+  });
+
+  it("writes nothing when the expected close is the date the deal already has", async () => {
+    state.deal = baseDeal({ expectedCloseDate: endOfDay("2026-11-30") });
+    const res = await patch("d1", { expectedCloseDate: "2026-11-30" });
+
+    expect(res.status).toBe(200);
+    expect(writes()).toEqual([]);
+  });
+
+  it("logs a rename and an expected close in the same updated row", async () => {
+    state.deal = baseDeal({ expectedCloseDate: endOfDay("2026-11-30") });
+    const res = await patch("d1", { title: "Oak Creek Dental", expectedCloseDate: "2026-12-15" });
+
+    expect(res.status).toBe(200);
+    expect(db.salesDeal.update.mock.calls[0][0].data).toEqual({
+      title: "Oak Creek Dental",
+      expectedCloseDate: endOfDay("2026-12-15"),
+      updatedAt: now,
+    });
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        action: "updated",
+        before: { title: "Oak Creek Family Dentistry", expectedCloseDate: "2026-11-30" },
+        after: { title: "Oak Creek Dental", expectedCloseDate: "2026-12-15" },
+      }),
+    ]);
   });
 
   it("answers 200 and writes nothing when nothing changes", async () => {
