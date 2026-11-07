@@ -60,13 +60,30 @@ export function describePlan<F extends string>(plan: ReencryptPlan<F>): string {
   return `${plan.table}: ${plan.values} stored values, ${plan.alreadyCurrent} already on the current key, ${plan.toReencrypt} to re-encrypt, ${plan.unreadable.length} cannot be read.`;
 }
 
-/** The real deps, from the keys in the environment now. Throws at once if either key is missing or malformed. */
+/**
+ * The real deps, from the keys in the environment now. Throws at once if
+ * either key is missing or malformed.
+ *
+ * A labelled value is current when it names the current key. An unlabelled
+ * value is never current during a key change (it may be on the old key, and
+ * re-encrypting labels it). With no old key set, the app itself saves the
+ * unlabelled format, so a readable unlabelled value is already where it
+ * belongs; re-encrypting it would only give another unlabelled value, and the
+ * count to re-encrypt would never reach 0. One it cannot read is reported as
+ * unreadable.
+ */
 export function currentKeyDeps(): ReencryptDeps {
-  const [currentId] = readKeyIds();
+  const readIds = readKeyIds();
+  const [currentId] = readIds;
+  const keyChange = readIds.length > 1;
   return {
     isCurrent: (stored) => {
       try {
-        return storedKeyId(stored) === currentId;
+        const keyId = storedKeyId(stored);
+        if (keyId !== null) return keyId === currentId;
+        if (keyChange) return false;
+        decryptSecret(stored);
+        return true;
       } catch {
         return false;
       }
@@ -114,16 +131,16 @@ export function requireKeysFromTerminal(terminal: Env, loaded: Env): void {
  * everything onto a key the app does not have. Counting values "already on
  * the current key" is not proof either: with the two keys swapped, values
  * saved with the old key count as current. The app always saves with its own
- * current key, so the most recently saved vault password, re-saved in the app
- * after the redeploy, must be on this terminal's current key. Throws if not.
- * Not needed with no old key set: then a wrong key cannot read anything, so
- * nothing would be written.
+ * current key, and labels the value with it while both keys are set in Vercel,
+ * so the most recently saved vault password, re-saved in the app after the
+ * redeploy, must be labelled with this terminal's current key. Throws if not.
+ * Not needed with no old key set: then nothing is written at all.
  */
 export function confirmAppUsesCurrentKey(newestVaultPassword: string | null, deps: Pick<ReencryptDeps, "isCurrent">): void {
   if (!setValue(process.env.CREDENTIALS_ENCRYPTION_KEY_OLD)) return;
   if (newestVaultPassword !== null && deps.isCurrent(newestVaultPassword)) return;
   throw new Error(
-    "Stopped, nothing was written. The most recently saved vault password is not on the CREDENTIALS_ENCRYPTION_KEY set in this terminal, so this terminal's key cannot be confirmed as the one the app now saves with. Either no vault password has been saved since the new key went live, or the keys in this terminal are not the ones in Vercel. In the app, edit any vault password, type the same password back in and save, then run this again. If it stops again, check both keys in this terminal against Vercel.",
+    "Stopped, nothing was written. The most recently saved vault password is not on the CREDENTIALS_ENCRYPTION_KEY set in this terminal, so this terminal's key cannot be confirmed as the one the app now saves with. Either no vault password has been saved since the new key went live, CREDENTIALS_ENCRYPTION_KEY_OLD is not set in Vercel as well (the app marks what it saves with its key only while both are set there), or the keys in this terminal are not the ones in Vercel. In the app, edit any vault password, type the same password back in and save, then run this again. If it stops again, check both keys in this terminal against Vercel.",
   );
 }
 

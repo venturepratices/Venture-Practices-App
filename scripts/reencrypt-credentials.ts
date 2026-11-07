@@ -19,9 +19,11 @@ import { prisma } from "../src/lib/prisma";
  * Re-encrypts every stored secret (client vault passwords, HighLevel tokens,
  * Google Calendar tokens) with the current CREDENTIALS_ENCRYPTION_KEY, so the
  * previous key, set as CREDENTIALS_ENCRYPTION_KEY_OLD during a rotation, can
- * then be removed. It also moves values saved before key ids existed onto the
- * labelled format. The rotation steps are in .env.example, next to
- * CREDENTIALS_ENCRYPTION_KEY_OLD.
+ * then be removed. Everything it writes is in the labelled format, which names
+ * the key. The rotation steps are in .env.example, next to
+ * CREDENTIALS_ENCRYPTION_KEY_OLD. With no old key set there is nothing to move
+ * (the app then saves the unlabelled format itself), so it only counts what the
+ * current key can and cannot read, and writes nothing.
  *
  * Dry run by default: prints counts only and writes nothing. It never prints a
  * secret or a stored value. Safe to re-run: values already on the current key

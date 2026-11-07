@@ -22,6 +22,8 @@ import {
 const KEY_A = randomBytes(32).toString("base64");
 const KEY_B = randomBytes(32).toString("base64");
 const KEY_C = randomBytes(32).toString("base64");
+/** Only ever set as the old key, so the app labels what it writes (a key change is in progress). */
+const KEY_SPARE = randomBytes(32).toString("base64");
 
 function legacyEncrypt(plaintext: string, base64Key: string): string {
   const iv = randomBytes(12);
@@ -35,7 +37,18 @@ function setKeys(current: string | undefined, old?: string) {
   vi.stubEnv("CREDENTIALS_ENCRYPTION_KEY_OLD", old);
 }
 
+/**
+ * What the app saves while a key change is in progress with `key` as its
+ * current key: labelled with that key's id. (With no old key set the app
+ * saves the old unlabelled format; see appSavesWithoutOldKey.)
+ */
 function encryptWith(plaintext: string, key: string): string {
+  setKeys(key, KEY_SPARE);
+  return encryptSecret(plaintext);
+}
+
+/** What the app saves with only CREDENTIALS_ENCRYPTION_KEY set: the old unlabelled format. */
+function appSavesWithoutOldKey(plaintext: string, key: string): string {
   setKeys(key);
   return encryptSecret(plaintext);
 }
@@ -84,6 +97,7 @@ describe("planReencryption with the real keys", () => {
 
   it("keeps the value it read in `from`, so the write can skip a row changed meanwhile", () => {
     const legacy = legacyEncrypt("pw", KEY_A);
+    setKeys(KEY_B, KEY_A);
     const plan = planReencryption("ClientCredential", [{ id: "c1", values: { encryptedPassword: legacy } }], currentKeyDeps());
     expect(plan.updates).toHaveLength(1);
     expect(plan.updates[0].from).toEqual({ encryptedPassword: legacy });
@@ -147,10 +161,45 @@ describe("planReencryption with the real keys", () => {
     expect(second.updates).toEqual([]);
   });
 
+  // Review of round 2: outside a key change the app saves the unlabelled
+  // format, so re-encrypting an unlabelled value then gives another unlabelled
+  // value. Counting those as "to re-encrypt" would never reach 0.
+  it("with no old key set, counts readable unlabelled values as already current and plans nothing", () => {
+    const rows: EncryptedRow<"encryptedPassword">[] = [
+      { id: "c1", values: { encryptedPassword: legacyEncrypt("pw-legacy", KEY_A) } },
+      { id: "c2", values: { encryptedPassword: appSavesWithoutOldKey("pw-new", KEY_A) } },
+      { id: "c3", values: { encryptedPassword: legacyEncrypt("pw-other-key", KEY_C) } },
+      { id: "c4", values: { encryptedPassword: encryptWith("pw-labelled-other", KEY_C) } },
+    ];
+    setKeys(KEY_A);
+    const plan = planReencryption("ClientCredential", rows, currentKeyDeps());
+    expect(plan.values).toBe(4);
+    expect(plan.alreadyCurrent).toBe(2);
+    expect(plan.toReencrypt).toBe(0);
+    expect(plan.unreadable).toEqual([
+      { id: "c3", field: "encryptedPassword" },
+      { id: "c4", field: "encryptedPassword" },
+    ]);
+    expect(plan.updates).toEqual([]);
+  });
+
+  it("during a key change, still moves unlabelled values on the new key onto the labelled format", () => {
+    const savedAfterTheLastChange = appSavesWithoutOldKey("pw", KEY_B);
+    setKeys(KEY_B, KEY_A);
+    const plan = planReencryption(
+      "ClientCredential",
+      [{ id: "c1", values: { encryptedPassword: savedAfterTheLastChange } }],
+      currentKeyDeps(),
+    );
+    expect(plan.toReencrypt).toBe(1);
+    expect(storedKeyId(plan.updates[0].to.encryptedPassword as string)).toBe(currentKeyId());
+  });
+
   it("does not change the rows it is given", () => {
     const legacy = legacyEncrypt("pw", KEY_A);
     const rows = [{ id: "c1", values: { encryptedPassword: legacy } }];
-    planReencryption("ClientCredential", rows, currentKeyDeps());
+    setKeys(KEY_B, KEY_A);
+    expect(planReencryption("ClientCredential", rows, currentKeyDeps()).updates).toHaveLength(1);
     expect(rows).toEqual([{ id: "c1", values: { encryptedPassword: legacy } }]);
   });
 });
@@ -356,6 +405,14 @@ describe("confirmAppUsesCurrentKey", () => {
     const savedByApp = encryptWith("pw", KEY_B);
     setKeys(KEY_A, KEY_A);
     expect(() => confirmAppUsesCurrentKey(savedByApp, currentKeyDeps())).toThrow(/Stopped, nothing was written/);
+  });
+
+  it("stops when the app saved without the old key set in Vercel, and says the old key must be set there too", () => {
+    const savedByAppWithoutOldKey = appSavesWithoutOldKey("pw", KEY_B);
+    setKeys(KEY_B, KEY_A);
+    expect(() => confirmAppUsesCurrentKey(savedByAppWithoutOldKey, currentKeyDeps())).toThrow(
+      /CREDENTIALS_ENCRYPTION_KEY_OLD is not set in Vercel as well/,
+    );
   });
 
   it("stops when no vault password was saved since the new key, or there is none", () => {

@@ -8,13 +8,20 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
  * key instead. There is no silent fallback to storing plaintext: if the key
  * is missing or malformed, every call throws rather than degrading.
  *
- * Stored format: "v2:<keyId>:<iv>.<tag>.<data>" (base64 parts). keyId is a
- * short, non-secret fingerprint of the key that wrote the value, so the key
- * can be rotated: set the new key as CREDENTIALS_ENCRYPTION_KEY and the
- * previous one as CREDENTIALS_ENCRYPTION_KEY_OLD, then run
- * scripts/reencrypt-credentials.ts. Values written before the label existed
- * are the bare "<iv>.<tag>.<data>" and are still read, trying the current key
- * then the old one. Encryption always uses the current key.
+ * Stored formats (base64 parts):
+ * - "<iv>.<tag>.<data>", unlabelled. Written whenever no old key is set, which
+ *   is almost always, because every older version of this app can read it: a
+ *   rollback of production never strands a stored value.
+ * - "v2:<keyId>:<iv>.<tag>.<data>", labelled. Written only while
+ *   CREDENTIALS_ENCRYPTION_KEY_OLD holds a different key, that is during a key
+ *   change. keyId is a short, non-secret fingerprint of the key that wrote the
+ *   value. To change the key: set the new key as CREDENTIALS_ENCRYPTION_KEY
+ *   and the previous one as CREDENTIALS_ENCRYPTION_KEY_OLD, then run
+ *   scripts/reencrypt-credentials.ts, which moves every value onto the new key
+ *   in this format. Code older than the label cannot read it, so do not roll
+ *   production back past the label's arrival once a key change has started.
+ * Both are read: a labelled value with the key its id names, an unlabelled one
+ * with the current key then the old one. Encryption always uses the current key.
  */
 
 const ALGORITHM = "aes-256-gcm";
@@ -86,14 +93,21 @@ export function storedKeyId(stored: string): string | null {
   return parseStored(stored).keyId;
 }
 
+/** True while a different old key is set, i.e. CREDENTIALS_ENCRYPTION_KEY is being changed. Throws on a bad key. */
+function keyChangeInProgress(): boolean {
+  return getReadKeys().length > 1;
+}
+
 export function encryptSecret(plaintext: string): string {
   const key = getCurrentKey();
+  const labelled = keyChangeInProgress();
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, key.bytes, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   const body = [iv.toString("base64"), authTag.toString("base64"), ciphertext.toString("base64")].join(".");
-  return `${VERSION}:${key.id}:${body}`;
+  // Only a key change needs the label; without it, every older version can still read the value.
+  return labelled ? `${VERSION}:${key.id}:${body}` : body;
 }
 
 function tryDecrypt(key: Key, parsed: Parsed): string | null {
