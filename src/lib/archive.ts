@@ -109,12 +109,8 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
  *
  * Privacy and creator come back as stored. A creator who no longer exists is
  * dropped too, except on a private task, which then stays private to the
- * person restoring it. A snapshot taken before privacy was stored, of a task
- * deleted after private tasks could exist, can't say whether the task was
- * private, so it comes back private to the person restoring it (who can
- * untick Private to share it again): the one choice that can't turn someone's
- * private task public. One deleted before private tasks existed comes back
- * public (see archivedTaskPrivacy).
+ * person restoring it. A snapshot taken before privacy was stored comes back
+ * public with no creator, as it did before (see archivedTaskPrivacy).
  */
 export async function restoreArchivedTask(archivedTaskId: string, restoredById: string) {
   return prisma.$transaction(async (tx) => {
@@ -122,7 +118,7 @@ export async function restoreArchivedTask(archivedTaskId: string, restoredById: 
 
     const snapshotAssignees = archivedTaskAssigneeList(archived);
     const people = archivedTaskPrivacy(archived);
-    const memberIdsToCheck = [...snapshotAssignees.map((a) => a.id), ...(people?.createdById ? [people.createdById] : [])];
+    const memberIdsToCheck = [...snapshotAssignees.map((a) => a.id), ...(people.createdById ? [people.createdById] : [])];
 
     const [existingMembers, client] = await Promise.all([
       memberIdsToCheck.length > 0
@@ -132,8 +128,8 @@ export async function restoreArchivedTask(archivedTaskId: string, restoredById: 
     ]);
     const existingIds = new Set(existingMembers.map((a) => a.id));
 
-    const isPrivate = people ? people.isPrivate : true;
-    const creatorId = people?.createdById && existingIds.has(people.createdById) ? people.createdById : null;
+    const isPrivate = people.isPrivate;
+    const creatorId = people.createdById && existingIds.has(people.createdById) ? people.createdById : null;
     const createdById = creatorId ?? (isPrivate ? restoredById : null);
 
     // Resolve a live statusId for the restored task: prefer matching the

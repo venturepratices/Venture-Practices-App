@@ -1447,7 +1447,11 @@ model ArchivedTask {
   // populate `assignees` below with the full list; UI prefers that when present.
   assigneeId     String?
   assigneeName   String?
-  // Full multi-assignee snapshot as [{id, name}, ...]. Null on pre-Slice-2 rows.
+  // Assignees plus the task's privacy. New rows hold
+  // { list: [{id, name}, ...], isPrivate, createdById }, since this model has
+  // no isPrivate/createdById columns. Rows archived before that hold the plain
+  // [{id, name}, ...] list and are treated as public; null on pre-Slice-2 rows.
+  // Read it through src/lib/archived-task-snapshot.ts.
   assignees      Json?
   clientId       String?
   clientName     String?

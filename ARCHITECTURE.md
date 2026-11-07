@@ -71,9 +71,9 @@ listed row opens. A private task stays visible only to its creator: `ArchivedTas
 `isPrivate`/`createdById` columns, so `archiveTask()` stores `{ list, isPrivate, createdById }`
 in the `assignees` JSON column, read through `src/lib/archived-task-snapshot.ts`
 (`canSeeArchivedTask`, `archivedTaskPrivacy`). Snapshots taken before that (a plain assignee
-array) are treated as private to whoever deleted them and restore as private to the restorer,
-except those deleted before private tasks could exist (2026-07-30 05:25:33 UTC), which are
-public and restore public.
+array, or null) have no privacy record and are treated as public, as they always were: anyone
+with archive rights and access to that client sees and restores them, and they restore public
+with no creator (owner's decision, 2026-11-07).
 
 **Adding a new deletable model:** add an `ArchivedX` model to the schema (denormalized
 fields, `deletedAt`, `deletedById`), write `archiveX()`/`restoreArchivedX()` in `archive.ts`,

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { archivedTaskAssigneeList, canSeeArchivedTask, readArchivedTaskPeople } from "@/lib/archived-task-snapshot";
+import { archivedTaskAssigneeList, archivedTaskPrivacy, canSeeArchivedTask, readArchivedTaskPeople } from "@/lib/archived-task-snapshot";
 import { archivedAssigneeNames } from "@/types/task";
 
 // An archived task's `assignees` column holds, from this change on, the
 // assignee list together with the task's privacy and creator (old audit #11),
 // because ArchivedTask has no columns for them. Older snapshots hold a plain
-// assignee array (or null), and have no record of whether the task was private.
+// assignee array (or null), and have no record of whether the task was private:
+// they are treated as public, as they were before.
 
 const NEW_PUBLIC = { list: [{ id: "m-1", name: "Ann" }, { id: "m-2", name: "Bo" }], isPrivate: false, createdById: "creator-1" };
 const NEW_PRIVATE = { list: [], isPrivate: true, createdById: "owner-1" };
@@ -67,57 +68,47 @@ describe("archivedAssigneeNames", () => {
   });
 });
 
-// Private tasks were added in commit e12aa82 (2026-07-30 20:35:19 UTC). Until
-// 2026-08-01 local development ran on the live database, so the new columns
-// could have existed there for some hours before that commit. Nothing about
-// them could exist before the previous commit, 2d1ed86 (2026-07-30 05:25:33
-// UTC): that is the latest moment a deleted task is known to be public.
-const RECENT = new Date("2026-11-01T10:00:00.000Z");
-const BEFORE_PRIVATE_TASKS = new Date("2026-07-20T09:00:00.000Z");
-const LAST_MOMENT_BEFORE = new Date("2026-07-30T05:25:32.999Z");
-const FIRST_UNSURE_MOMENT = new Date("2026-07-30T05:25:33.000Z");
-// Between the previous commit and the privacy commit, while the columns were
-// being built against the live database.
-const DURING_PRIVACY_WORK = new Date("2026-07-30T12:00:00.000Z");
+describe("archivedTaskPrivacy", () => {
+  it("reads the stored privacy and creator of a new snapshot", () => {
+    expect(archivedTaskPrivacy({ assignees: NEW_PRIVATE })).toEqual({ isPrivate: true, createdById: "owner-1" });
+    expect(archivedTaskPrivacy({ assignees: NEW_PUBLIC })).toEqual({ isPrivate: false, createdById: "creator-1" });
+  });
+
+  // Owner decision (DJ, 2026-11-07): a snapshot with no saved privacy record
+  // is public, as it was before the archive stored privacy, with no creator.
+  it("treats an old snapshot (plain array or nothing) as public with no recorded creator", () => {
+    expect(archivedTaskPrivacy({ assignees: [{ id: "m-1", name: "Ann" }] })).toEqual({ isPrivate: false, createdById: null });
+    expect(archivedTaskPrivacy({ assignees: [] })).toEqual({ isPrivate: false, createdById: null });
+    expect(archivedTaskPrivacy({ assignees: null })).toEqual({ isPrivate: false, createdById: null });
+  });
+});
+
+/** An archived row as the routes load it: who deleted it and when do not change who may see it. */
+function archived(assignees: unknown, deletedById: string | null, deletedAt = new Date("2026-11-01T10:00:00.000Z")) {
+  return { assignees, deletedById, deletedAt };
+}
 
 describe("canSeeArchivedTask", () => {
   it("shows a public task to anyone", () => {
-    expect(canSeeArchivedTask({ assignees: NEW_PUBLIC, deletedById: "someone", deletedAt: RECENT }, "viewer-1")).toBe(true);
+    expect(canSeeArchivedTask({ assignees: NEW_PUBLIC }, "viewer-1")).toBe(true);
   });
 
   it("shows a private task only to its creator, whoever deleted it", () => {
-    expect(canSeeArchivedTask({ assignees: NEW_PRIVATE, deletedById: "owner-1", deletedAt: RECENT }, "owner-1")).toBe(true);
-    expect(canSeeArchivedTask({ assignees: NEW_PRIVATE, deletedById: "owner-1", deletedAt: RECENT }, "viewer-1")).toBe(false);
-    expect(canSeeArchivedTask({ assignees: NEW_PRIVATE, deletedById: "viewer-1", deletedAt: RECENT }, "viewer-1")).toBe(false);
+    expect(canSeeArchivedTask(archived(NEW_PRIVATE, "owner-1"), "owner-1")).toBe(true);
+    expect(canSeeArchivedTask(archived(NEW_PRIVATE, "owner-1"), "viewer-1")).toBe(false);
+    expect(canSeeArchivedTask(archived(NEW_PRIVATE, "viewer-1"), "viewer-1")).toBe(false);
   });
 
-  it("treats an old snapshot as possibly private, owned by the person who deleted it", () => {
+  it("hides a private task whose creator is unknown from everyone", () => {
+    expect(canSeeArchivedTask({ assignees: { list: [], isPrivate: true, createdById: null } }, "viewer-1")).toBe(false);
+  });
+
+  it("shows an old snapshot (no privacy record) to anyone, whoever deleted it and whenever", () => {
     const old = [{ id: "m-1", name: "Ann" }];
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "viewer-1", deletedAt: RECENT }, "viewer-1")).toBe(true);
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "someone", deletedAt: RECENT }, "viewer-1")).toBe(false);
-    expect(canSeeArchivedTask({ assignees: null, deletedById: "someone", deletedAt: RECENT }, "viewer-1")).toBe(false);
-  });
-
-  it("shows an old snapshot whose deleter is unknown to nobody", () => {
-    expect(canSeeArchivedTask({ assignees: [], deletedById: null, deletedAt: RECENT }, "viewer-1")).toBe(false);
-  });
-
-  it("shows an old snapshot deleted before private tasks existed to everyone, as it could not have been private", () => {
-    const old = [{ id: "m-1", name: "Ann" }];
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "someone", deletedAt: BEFORE_PRIVATE_TASKS }, "viewer-1")).toBe(true);
-    expect(canSeeArchivedTask({ assignees: null, deletedById: "someone", deletedAt: BEFORE_PRIVATE_TASKS }, "viewer-1")).toBe(true);
-    expect(canSeeArchivedTask({ assignees: [], deletedById: null, deletedAt: BEFORE_PRIVATE_TASKS }, "viewer-1")).toBe(true);
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "someone", deletedAt: LAST_MOMENT_BEFORE }, "viewer-1")).toBe(true);
-  });
-
-  it("keeps an old snapshot deleted from the moment private tasks may have existed private to its deleter", () => {
-    const old = [{ id: "m-1", name: "Ann" }];
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "someone", deletedAt: FIRST_UNSURE_MOMENT }, "viewer-1")).toBe(false);
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "someone", deletedAt: DURING_PRIVACY_WORK }, "viewer-1")).toBe(false);
-    expect(canSeeArchivedTask({ assignees: old, deletedById: "viewer-1", deletedAt: DURING_PRIVACY_WORK }, "viewer-1")).toBe(true);
-  });
-
-  it("follows a stored privacy record whenever it was taken", () => {
-    expect(canSeeArchivedTask({ assignees: NEW_PRIVATE, deletedById: "owner-1", deletedAt: BEFORE_PRIVATE_TASKS }, "viewer-1")).toBe(false);
+    expect(canSeeArchivedTask(archived(old, "someone"), "viewer-1")).toBe(true);
+    expect(canSeeArchivedTask(archived(old, "someone", new Date("2026-07-30T12:00:00.000Z")), "viewer-1")).toBe(true);
+    expect(canSeeArchivedTask(archived(old, "someone", new Date("2026-07-20T09:00:00.000Z")), "viewer-1")).toBe(true);
+    expect(canSeeArchivedTask(archived(null, "someone"), "viewer-1")).toBe(true);
+    expect(canSeeArchivedTask(archived([], null), "viewer-1")).toBe(true);
   });
 });

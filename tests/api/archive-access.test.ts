@@ -90,8 +90,9 @@ function signInAsRemovedStaff() {
 }
 
 const DELETED_AT = new Date("2026-11-01T10:00:00.000Z");
-// Before private tasks were added (2026-07-30), so such a task cannot have been private.
-const BEFORE_PRIVATE_TASKS = new Date("2026-07-20T09:00:00.000Z");
+// Snapshots taken before the archive stored privacy hold a plain assignee
+// array. Owner decision (DJ, 2026-11-07): they are public, as they were before.
+const OLD_SNAPSHOT_PEOPLE = [{ id: "m-1", name: "Ann" }];
 const publicPeople = (createdById = "creator-1") => ({ list: [{ id: "m-1", name: "Ann" }], isPrivate: false, createdById });
 const privatePeople = (createdById: string) => ({ list: [], isPrivate: true, createdById });
 
@@ -251,25 +252,18 @@ describe("GET /api/archived-tasks/[archivedTaskId]", () => {
     expect((await getTask()).status).toBe(200);
   });
 
-  it("shows an old snapshot (no privacy record) only to the person who deleted it", async () => {
+  it("shows an old snapshot (no privacy record) deleted by someone else to staff with archive rights and that client", async () => {
     signInAsStaff({ clients: ["client-a"], caps: VIEW });
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }] }));
-    expect((await getTask()).status).toBe(404);
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: OLD_SNAPSHOT_PEOPLE }));
+    expect((await getTask()).status).toBe(200);
 
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedById: STAFF_ID }));
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: null, deletedById: null }));
     expect((await getTask()).status).toBe(200);
   });
 
-  it("shows an old snapshot deleted before private tasks existed to staff with archive rights and that client", async () => {
-    signInAsStaff({ clients: ["client-a"], caps: VIEW });
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
-
-    expect((await getTask()).status).toBe(200);
-  });
-
-  it("still refuses an old snapshot deleted before private tasks existed to staff without that client", async () => {
+  it("still refuses an old snapshot to staff without that client", async () => {
     signInAsStaff({ clients: ["client-b"], caps: VIEW });
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: OLD_SNAPSHOT_PEOPLE }));
 
     expect((await getTask()).status).toBe(403);
   });
@@ -419,20 +413,27 @@ describe("restoring an archived task's privacy", () => {
     expect(h.archive.restoreArchivedTask).not.toHaveBeenCalled();
   });
 
-  it("refuses an old snapshot (no privacy record) to anyone but the person who deleted it", async () => {
-    signInAsStaff({ isAdmin: true });
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }] }));
-
-    expect((await restoreTask()).status).toBe(404);
-    expect(h.archive.restoreArchivedTask).not.toHaveBeenCalled();
-  });
-
-  it("lets an admin restore a teammate's old snapshot deleted before private tasks existed", async () => {
-    signInAsStaff({ isAdmin: true });
-    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
+  it("lets staff with restore rights and that client restore an old snapshot (no privacy record) someone else deleted", async () => {
+    signInAsStaff({ clients: ["client-a"], caps: RESTORE });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: OLD_SNAPSHOT_PEOPLE }));
 
     expect((await restoreTask()).status).toBe(201);
     expect(h.archive.restoreArchivedTask).toHaveBeenCalledWith("arch-task-1", STAFF_ID);
+  });
+
+  it("lets an admin restore a teammate's old snapshot", async () => {
+    signInAsStaff({ isAdmin: true });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: OLD_SNAPSHOT_PEOPLE }));
+
+    expect((await restoreTask()).status).toBe(201);
+  });
+
+  it("still refuses an old snapshot to staff with restore rights but not that client", async () => {
+    signInAsStaff({ clients: ["client-b"], caps: RESTORE });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: OLD_SNAPSHOT_PEOPLE }));
+
+    expect((await restoreTask()).status).toBe(403);
+    expect(h.archive.restoreArchivedTask).not.toHaveBeenCalled();
   });
 
   it("restores a public task deleted by someone else, passing who restored it", async () => {
@@ -523,7 +524,7 @@ describe("/archive page", () => {
     expect(h.db.archivedTask.findMany.mock.calls[0][0].where.OR).toBeUndefined();
   });
 
-  it("leaves out other people's private tasks and old snapshots someone else deleted", async () => {
+  it("leaves out other people's private tasks but lists every old snapshot", async () => {
     signInAsStaff({ isAdmin: true });
     h.db.archivedTask.findMany.mockImplementation(async (args: { distinct?: unknown }) =>
       args.distinct
@@ -535,11 +536,10 @@ describe("/archive page", () => {
             archivedTask({ id: "old-mine", assignees: [], deletedById: STAFF_ID }),
             archivedTask({ id: "old-theirs", assignees: [{ id: "m-1", name: "Ann" }] }),
             archivedTask({ id: "old-unknown-deleter", assignees: null, deletedById: null }),
-            archivedTask({ id: "old-before-private-tasks", assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }),
           ]
     );
 
-    expect(listedTaskIds(await renderPage())).toEqual(["public", "mine-private", "old-mine", "old-before-private-tasks"]);
+    expect(listedTaskIds(await renderPage())).toEqual(["public", "mine-private", "old-mine", "old-theirs", "old-unknown-deleter"]);
   });
 
   it.each([
