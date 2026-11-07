@@ -2,6 +2,7 @@ import { put } from "@vercel/blob";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeRichText } from "@/lib/rich-text-sanitize";
 import type { ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedSubtaskSnapshot } from "@/types/task";
 
 type ArchivedAssigneeSnapshot = { id: string; name: string };
@@ -153,7 +154,8 @@ export async function restoreArchivedTask(archivedTaskId: string) {
         data: comments.map((comment) => ({
           taskId: task.id,
           authorId: null,
-          body: comment.body,
+          // Snapshots taken before the sanitizer existed may hold raw HTML.
+          body: sanitizeRichText(comment.body),
           createdAt: new Date(comment.createdAt),
         })),
       });
@@ -412,7 +414,7 @@ export async function restoreArchivedClientNote(archivedNoteId: string) {
       data: {
         clientId: archived.clientId,
         authorId: null,
-        body: archived.body,
+        body: sanitizeRichText(archived.body),
         createdAt: archived.noteCreatedAt,
         updatedAt: archived.noteUpdatedAt,
       },
@@ -481,7 +483,7 @@ export async function restoreArchivedMeetingNote(archivedMeetingNoteId: string) 
         authorId: null,
         title: archived.title,
         meetingDate: archived.meetingDate,
-        transcript: archived.transcript,
+        transcript: sanitizeRichText(archived.transcript),
         summary: archived.summary,
         source: archived.source,
         createdAt: archived.noteCreatedAt,

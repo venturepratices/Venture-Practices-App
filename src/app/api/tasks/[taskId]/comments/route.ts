@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/activity-log";
 import { notify, notifyChannel } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { sanitizeRichText } from "@/lib/rich-text-sanitize";
 import { extractMentionedTeamMemberIds, stripHtml } from "@/lib/text-format";
 import { deadlineLine } from "@/lib/utils";
 
@@ -17,7 +18,14 @@ function excerpt(text: string, max = 80): string {
 const createCommentSchema = z.object({
   // Stores Tiptap-produced HTML (bold/lists/@mentions) — 20000 covers the
   // markup overhead the same way Task.description's limit was raised.
-  body: z.string().trim().min(1, "Comment can't be empty").max(20000),
+  // Cleaned to the editor's allow-list before anything stores or reads it.
+  body: z
+    .string()
+    .trim()
+    .min(1, "Comment can't be empty")
+    .max(20000)
+    .transform(sanitizeRichText)
+    .refine((html) => html.trim().length > 0, "Comment can't be empty"),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
