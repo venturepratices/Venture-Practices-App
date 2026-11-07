@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActivitiesPageData } from "@/lib/sales/activities-page";
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
+import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 
 // Screen-reader-only text (Tailwind `sr-only`) is a 1px box with
@@ -24,6 +25,7 @@ vi.mock("next/navigation", () => ({
 
 const { DealsView } = await import("@/components/sales/deals-view");
 const { ActivitiesView } = await import("@/components/sales/activities-view");
+const { DashboardView } = await import("@/components/sales/dashboard-view");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { Sheet } = await import("@/components/ui/sheet");
 
@@ -131,6 +133,55 @@ const PANEL: DealPanelData = {
   files: [],
 };
 
+// Every box filled, so every row's pills, avatars and screen-reader words render.
+const DASHBOARD: DashboardData = {
+  scope: "everyone",
+  canSeeEveryone: true,
+  viewerName: "Ben Example",
+  members: MEMBERS,
+  kpis: { openDeals: 3, pipelineCents: 4320000, wonThisMonthCents: 3240000, wonThisMonthCount: 2, overdueActivities: 2 },
+  forecast: { thisMonthCents: 432000, nextMonthCents: 0, noCloseDateCount: 2 },
+  today: [
+    {
+      id: "a1",
+      type: "CALL",
+      subject: "Follow-up call",
+      dueAt: "2026-11-03T15:00:00.000Z",
+      hasTime: true,
+      ownerId: "u1",
+      parent: { kind: "lead", id: "l1", title: "Crestview Dental" },
+    },
+  ],
+  todayCount: 1,
+  noNextStep: [
+    { kind: "deal", id: "d1", title: "Bright Smile Dental", since: "2026-10-20T15:00:00.000Z", stageName: "Demo Complete", ownerId: "u1" },
+  ],
+  noNextStepCount: 1,
+  followUp: [
+    {
+      id: "d2",
+      title: "Oak Creek Dental",
+      pipelineName: "Direct Mail",
+      valueCents: 1440000,
+      mrrCents: 120000,
+      ownerId: "u2",
+      next: { type: "CALL", subject: "Check in", dueAt: "2026-11-09T15:00:00.000Z", hasTime: false },
+    },
+  ],
+  followUpPipelineKey: "direct-mail",
+  recent: [
+    {
+      id: "h1",
+      at: "2026-11-05T14:00:00.000Z",
+      icon: "stage",
+      text: "Moved to Proposal Sent",
+      dealId: "d1",
+      dealTitle: "Bright Smile Dental",
+      actorName: "Ben S.",
+    },
+  ],
+};
+
 const clean = (html: string) => html.replaceAll("<!-- -->", "");
 
 /** The class lists of every element that scrolls (overflow auto, on any axis, at any size). */
@@ -161,6 +212,15 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
   it("the Activities table wrapper is relative", () => {
     const html = clean(renderToString(createElement(ActivitiesView, { data: ACTIVITIES, viewer: VIEWER, now: NOW })));
     expectScrollersContain(html, 1);
+  });
+
+  it("the Sales dashboard has no scroller that would let its screen-reader text out", () => {
+    const html = clean(renderToString(createElement(DashboardView, { data: DASHBOARD, now: NOW })));
+    // The dashboard draws no scroller today (rows cut long names short instead);
+    // any scroller added later must be relative too.
+    expect(html).toContain("Expected to close");
+    expect(html).toContain('class="sr-only"');
+    expectScrollersContain(html, 0);
   });
 
   it("the deal panel's stage bar (it scrolls sideways on phones) is relative", () => {

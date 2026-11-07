@@ -41,7 +41,8 @@ import { MUTED_TONE } from "@/components/sales/sales-pills";
 // text only (Decision 16); the note's author or an admin can edit it, and the
 // old text stays in the log. Older entries load with "Show older" (spec 7.8).
 
-const ICONS: Record<TimelineIcon, LucideIcon> = {
+/** One icon per kind of history line; the dashboard's Recent activity draws the same ones. */
+export const TIMELINE_ICONS: Record<TimelineIcon, LucideIcon> = {
   created: Plus,
   stage: ArrowRight,
   won: Check,
@@ -158,7 +159,7 @@ function actorLabel(entry: TimelineEntry): string {
 }
 
 function HistoryLine({ entry, onSaved }: { entry: TimelineEntry; onSaved: () => void }) {
-  const Icon = ICONS[entry.icon];
+  const Icon = TIMELINE_ICONS[entry.icon];
 
   return (
     <li className="flex gap-2.5 py-1.5 text-[13px]">
