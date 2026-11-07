@@ -111,7 +111,10 @@ dependency.
 
 Six Vercel Cron jobs (`vercel.json`, all under `src/app/api/cron/`), each authenticated by
 checking `Authorization: Bearer <CRON_SECRET>` — no session, fail-closed if the header is
-wrong or missing:
+wrong or missing, or if `CRON_SECRET` is unset. The check is
+`checkBearer(request, process.env.CRON_SECRET)` from `src/lib/secret-compare.ts` (constant
+time); the agent API and MCP route use the same helper, and
+`tests/lib/secret-compare-guard.test.ts` fails if any secret env value is compared with `===`:
 
 | Route | Schedule | Job |
 |---|---|---|

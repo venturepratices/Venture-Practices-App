@@ -4,6 +4,7 @@ import { LEADERSHIP_MEMBER_WHERE, quarterKeyFor, quarterLabel, ROCK_STATUS_LABEL
 import { notify } from "@/lib/notify";
 import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
+import { checkBearer } from "@/lib/secret-compare";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,9 +20,7 @@ const DEDUPE_WINDOW_HOURS = 72;
  * by CRON_SECRET like the other cron routes.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

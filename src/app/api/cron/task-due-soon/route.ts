@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { notify, notifyChannel } from "@/lib/notify";
 import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
+import { checkBearer } from "@/lib/secret-compare";
 import { mentionOrName } from "@/lib/slack";
 import { getCompleteStatusId } from "@/lib/task-status";
 import { formatDate } from "@/lib/utils";
@@ -43,9 +44,7 @@ function linkPathFor(task: { id: string; clientId: string | null; workflowInstan
  *    to not become noise, and preferences are parked for a future round.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

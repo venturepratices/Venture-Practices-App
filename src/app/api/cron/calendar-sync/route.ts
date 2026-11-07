@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { syncAllConnectedCalendars } from "@/lib/google-calendar";
+import { checkBearer } from "@/lib/secret-compare";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
@@ -14,10 +15,7 @@ export const dynamic = "force-dynamic";
  * by CRON_SECRET like every other cron route in this app.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

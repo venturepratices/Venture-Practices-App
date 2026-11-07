@@ -8,6 +8,7 @@ import {
 } from "@/lib/daily-briefing";
 import { notify, notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
+import { checkBearer } from "@/lib/secret-compare";
 import { todayDateString } from "@/lib/utils";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -27,9 +28,7 @@ export const dynamic = "force-dynamic";
  * authenticated the same CRON_SECRET-bearer way as every other cron route.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

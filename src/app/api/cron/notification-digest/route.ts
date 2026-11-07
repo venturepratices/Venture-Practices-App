@@ -4,6 +4,7 @@ import { absoluteUrlFor } from "@/lib/notification-links";
 import { ambientNotificationTypes } from "@/lib/notification-tier";
 import { parseNotificationPreferences } from "@/lib/notification-preferences";
 import { prisma } from "@/lib/prisma";
+import { checkBearer } from "@/lib/secret-compare";
 import { postSlackDM, resolveSlackUserId } from "@/lib/slack";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -25,9 +26,7 @@ export const dynamic = "force-dynamic";
  * disappears into a batch nobody ever saw.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
