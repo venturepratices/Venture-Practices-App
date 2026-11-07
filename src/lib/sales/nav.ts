@@ -8,20 +8,43 @@ import { dateInputValue, endOfDay } from "@/lib/utils";
 // group as plain data only when its viewer has Sales access. For everyone
 // else the layout passes null, so their page carries no Sales text at all.
 
-/** The Sales sidebar group, or null for someone without Sales access. */
+/**
+ * The Sales sidebar group, or null for someone without Sales access. Every
+ * Sales page in order (R28); Sales settings for admins only. Each count brings
+ * its own screen-reader words, so the shared sidebar names none of them.
+ */
 export function salesNavGroup(
   perms: { isAdmin: boolean; canUseSales: boolean },
-  dueCount: number,
+  counts: { due: number; leads: number },
 ): SidebarNavGroup | null {
   if (!perms.isAdmin && !perms.canUseSales) return null;
-  return {
-    title: "Sales",
-    badge: "NEW",
-    links: [
-      { href: "/sales/deals", label: "Deals", icon: "board", count: 0 },
-      { href: "/sales/activities", label: "Activities", icon: "calendar", count: dueCount },
-    ],
-  };
+  const links: SidebarNavGroup["links"] = [
+    { href: "/sales/dashboard", label: "Sales dashboard", icon: "home", count: 0, countLabel: "" },
+    { href: "/sales/deals", label: "Deals", icon: "board", count: 0, countLabel: "" },
+    { href: "/sales/leads", label: "Leads Inbox", icon: "inbox", count: counts.leads, countLabel: "open leads" },
+    {
+      href: "/sales/activities",
+      label: "Activities",
+      icon: "calendar",
+      count: counts.due,
+      countLabel: "due today or overdue",
+    },
+    { href: "/sales/contacts", label: "Contacts", icon: "people", count: 0, countLabel: "" },
+    { href: "/sales/insights", label: "Insights", icon: "chart", count: 0, countLabel: "" },
+  ];
+  if (perms.isAdmin) {
+    links.push({ href: "/sales/settings", label: "Sales settings", icon: "settings", count: 0, countLabel: "" });
+  }
+  return { title: "Sales", badge: "NEW", links };
+}
+
+/**
+ * The count beside Leads Inbox (R11): this person's own open leads that are
+ * not deleted. Archived and converted leads have left the Inbox, so they do
+ * not count. Uses the (ownerId, status, createdAt) lead index.
+ */
+export function salesLeadCountWhere(userId: string): Prisma.SalesLeadWhereInput {
+  return { ownerId: userId, status: "OPEN", archivedAt: null };
 }
 
 /**

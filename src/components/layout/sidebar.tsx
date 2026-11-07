@@ -4,11 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
-import { Activity, Archive, CalendarCheck, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Settings, SquareKanban, Users, Building2, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Settings, Users, Building2, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
 import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
+import { NAV_LINK, NAV_LINK_ACTIVE, NAV_LINK_IDLE, SidebarGroupLink } from "@/components/layout/sidebar-group-link";
 import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type SidebarClient = {
@@ -21,15 +22,21 @@ type SidebarClient = {
  * area only some people may see. Deliberately generic: this file ships to
  * every signed-in person, so it names nothing about any such area (no path,
  * label or prop name, all of which survive minification). The layout passes
- * null to people without access, and nothing renders.
+ * null to people without access, and nothing renders. Each link names a
+ * neutral icon key, and a count comes with its own screen-reader words
+ * (`countLabel`), so this file holds none of them.
  */
 export type SidebarNavGroup = {
   title: string;
   badge: string | null;
-  links: { href: string; label: string; icon: "board" | "calendar"; count: number }[];
+  links: {
+    href: string;
+    label: string;
+    icon: "board" | "calendar" | "home" | "inbox" | "people" | "chart" | "settings";
+    count: number;
+    countLabel: string;
+  }[];
 };
-
-const ICONS = { board: SquareKanban, calendar: CalendarCheck };
 
 const AGENCY_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -57,11 +64,6 @@ const LEADERSHIP_LINKS = [
   { href: "/issues", label: "Issues List", icon: CircleAlert },
   { href: "/rocks", label: "Rocks", icon: Mountain },
 ];
-
-const NAV_LINK = "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors";
-const NAV_LINK_ACTIVE =
-  "bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2),0_1px_3px_0_rgba(0,0,0,0.3)]";
-const NAV_LINK_IDLE = "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground";
 
 export function Sidebar({
   clients,
@@ -217,27 +219,9 @@ export function Sidebar({
                 </span>
               ) : null}
             </p>
-            {navGroup.links.map(({ href, label, icon, count }) => {
-              const Icon = ICONS[icon];
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(NAV_LINK, active ? NAV_LINK_ACTIVE : NAV_LINK_IDLE)}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="min-w-0 truncate">{label}</span>
-                  {count > 0 ? (
-                    <span className="ml-auto shrink-0 rounded-full bg-white/10 px-1.5 text-[11px] font-bold tabular-nums">
-                      {count}
-                      <span className="sr-only"> due today or overdue</span>
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
+            {navGroup.links.map((link) => (
+              <SidebarGroupLink key={link.href} link={link} active={pathname.startsWith(link.href)} />
+            ))}
           </div>
         ) : null}
 
