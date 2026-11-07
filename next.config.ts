@@ -7,8 +7,9 @@ const nextConfig: NextConfig = {
   images: {
     // Lets next/image serve resized/optimized thumbnails for IMAGE asset cards
     // instead of the full file, but only for our own asset uploads: our assets
-    // Blob store, under /assets/, with no query string (see the helper).
-    remotePatterns: assetImageRemotePatterns(process.env.ASSETS_READ_WRITE_TOKEN),
+    // Blob store, under /assets/, with no query string (see the helper). A
+    // production build with no assets store id fails here on purpose.
+    remotePatterns: assetImageRemotePatterns(process.env),
   },
   turbopack: {
     resolveAlias: {
