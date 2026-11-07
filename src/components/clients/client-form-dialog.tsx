@@ -215,7 +215,7 @@ export function ClientFormDialog(props: Props) {
               <p className="text-xs text-muted-foreground">
                 A private Slack channel for this client is created automatically. Only fill this in to point at an
                 existing channel instead, or to fix a failed auto-creation (find the ID via the channel&apos;s
-                &quot;...&quot; menu → &quot;View channel details&quot;).
+                &quot;...&quot; menu → &quot;View channel details&quot;). Only an admin can change it.
               </p>
             </div>
             {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
