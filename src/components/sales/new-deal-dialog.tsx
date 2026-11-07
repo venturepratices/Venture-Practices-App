@@ -9,6 +9,7 @@ import type { BoardPipeline, SalesMemberOption } from "@/lib/sales/board";
 import { FIRST_ACTIVITY_PRESETS } from "@/lib/sales/constants";
 import type { ContactResult } from "@/lib/sales/contacts";
 import { parseMoneyToCents, shortName } from "@/lib/sales/format";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -25,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { DealsViewer } from "@/components/sales/deal-quick-actions";
+import { MUTED_TEXT } from "@/components/sales/sales-pills";
 
 // "Add deal" (mockup `newDealModal`), opened by "+ Deal", the `n` key or
 // /sales/deals?new=1. A deal needs a person or an organization: pick an
@@ -392,7 +394,7 @@ function ContactPicker({
                   <span className="flex min-w-0 flex-col">
                     <span className="[overflow-wrap:anywhere]">{choice.name}</span>
                     {choice.detail ? (
-                      <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{choice.detail}</span>
+                      <span className={cn("text-xs [overflow-wrap:anywhere]", MUTED_TEXT)}>{choice.detail}</span>
                     ) : null}
                   </span>
                 )}

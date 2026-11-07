@@ -21,13 +21,21 @@ export const ACTIVITY_ICONS: Record<SalesActivityType, LucideIcon> = {
 };
 
 /**
+ * Grey words that can sit on the pale accent fill: a board column while a card
+ * is dragged over it, a highlighted option in a list, a ticked row. The muted
+ * grey on the accent fill is 4.32:1 in light, under spec 7.11's 4.5:1, so light
+ * uses slate-600, one step darker in the same hue; dark keeps the muted grey.
+ */
+export const MUTED_TEXT = "text-slate-600 dark:text-muted-foreground";
+
+/**
  * Grey words on the grey (muted) fill: the days-in-stage pill, History's
  * "locked" pill and a stage not reached yet. The muted grey on the muted fill
- * is 4.32:1 in light, under spec 7.11's 4.5:1, so light uses slate-600, one
- * step darker in the same hue (6.9:1); dark keeps the muted grey (5.5:1) (K3,
- * M12). An icon alone on the fill needs only 3:1 and may keep the muted grey.
+ * is 4.32:1 in light, under spec 7.11's 4.5:1, so the words take MUTED_TEXT
+ * (slate-600 in light, 6.9:1; the muted grey in dark, 5.5:1) (K3, M12). An
+ * icon alone on the fill needs only 3:1 and may keep the muted grey.
  */
-export const MUTED_TONE = "bg-muted text-slate-600 dark:text-muted-foreground";
+export const MUTED_TONE = `bg-muted ${MUTED_TEXT}`;
 
 const PILL = "inline-flex shrink-0 items-center gap-1 rounded-full px-[7px] py-0.5 text-[11px] leading-[1.4] font-semibold whitespace-nowrap [&_svg]:size-3 [&_svg]:shrink-0";
 

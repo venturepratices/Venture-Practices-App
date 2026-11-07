@@ -32,7 +32,7 @@ function nameExamples(source: string): string[] {
   return [...source.matchAll(NAME_EXAMPLE)].map((match) => `${match[1]} ${match[2]}`);
 }
 
-describe("full names in Sales code are made up (K4)", () => {
+describe("full names in Sales code are made up", () => {
   const files = sourceFiles();
 
   it("finds the Sales code, with its name-shortening examples", () => {

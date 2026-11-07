@@ -36,6 +36,7 @@ import { daysInStage, isRotting } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CARD_CLASS, DealCard, DealCardFace } from "@/components/sales/deal-card";
+import { MUTED_TEXT } from "@/components/sales/sales-pills";
 import type { CardActions, DealsViewer } from "@/components/sales/deal-quick-actions";
 import type { MoveHooks } from "@/components/sales/use-deal-moves";
 
@@ -329,7 +330,7 @@ function StageColumn({
     >
       <header className="relative border-b-2 px-[11px] pt-[9px] pb-2" title={`Win chance ${stage.probability}%`}>
         <h2 className="truncate text-[13px] font-semibold">{stage.name}</h2>
-        <p className="text-xs text-muted-foreground tabular-nums">{dealsSummary(totalCents, count)}</p>
+        <p className={cn("text-xs tabular-nums", MUTED_TEXT)}>{dealsSummary(totalCents, count)}</p>
         <span
           aria-hidden="true"
           className="absolute -bottom-0.5 left-0 h-0.5 bg-primary"
@@ -344,7 +345,7 @@ function StageColumn({
         )}
       </div>
       {count > cards.length && cards.length > 0 ? (
-        <footer className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t px-[11px] py-1.5 text-xs text-muted-foreground">
+        <footer className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t px-[11px] py-1.5 text-xs", MUTED_TEXT)}>
           <span className="tabular-nums">
             Showing {cards.length} of {count}.
           </span>
@@ -363,7 +364,7 @@ function StageColumn({
  */
 function EmptyColumn({ title, note, onNewDeal }: { title: string; note?: string; onNewDeal?: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-2 px-2 py-[18px] text-center text-xs leading-normal text-muted-foreground">
+    <div className={cn("flex flex-col items-center gap-2 px-2 py-[18px] text-center text-xs leading-normal", MUTED_TEXT)}>
       <p>
         {title}
         {note ? (
