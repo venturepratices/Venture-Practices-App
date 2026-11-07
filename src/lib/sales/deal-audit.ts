@@ -25,9 +25,29 @@ type LeftStage = StageRef & { stageEnteredAt?: string };
  */
 type EnteredStage = StageRef | (StageRef & { stageEnteredAt: string; undo: true });
 type ActivityRef = { activityId: string; type: SalesActivityType; subject: string };
-type FieldRef = { fieldKey: string; label: string; value: string | null };
+export type FieldRef = { fieldKey: string; label: string; value: string | null };
 type Money = { valueCents: number; mrrCents: number };
 type Editable = { title: string; source: string | null };
+
+/** A deal's or lead's organization and person, with the names they had then, so History still reads after a rename. */
+export type ContactChange = {
+  organizationId: string | null;
+  organizationName: string | null;
+  personId: string | null;
+  personName: string | null;
+};
+
+/** The activities and notes on a deal or a lead: the same rows, written against whichever the activity or note belongs to. */
+export type ChildAuditEvent =
+  | {
+      action: "activity_added";
+      after: { activityId: string; type: SalesActivityType; subject: string; dueAt: string; hasTime: boolean; createdBy: string };
+    }
+  | { action: "activity_done" | "activity_reopened" | "activity_missed"; after: ActivityRef }
+  | { action: "activity_removed"; before: ActivityRef }
+  | { action: "note_added"; after: { noteId: string } }
+  /** Keeps the old text, so an edit never loses what the note said. */
+  | { action: "note_edited"; before: { noteId: string; body: string }; after: { noteId: string; body: string } };
 
 export type DealAuditEvent =
   | {
@@ -61,18 +81,12 @@ export type DealAuditEvent =
       after: { ownerId: string; movedActivityIds?: string[] };
     }
   | { action: "field_changed"; before: FieldRef; after: FieldRef }
+  /** `merged` when the change came from merging duplicate contacts, not from someone editing this deal. */
+  | { action: "contact_changed"; before: ContactChange; after: ContactChange & { merged?: true } }
   | { action: "archived"; before: { archivedAt: null }; after: { archivedAt: string } }
   /** No payload: the row itself (who, when, from where) is the record of the attempt. */
   | { action: "delete_refused" }
-  | {
-      action: "activity_added";
-      after: { activityId: string; type: SalesActivityType; subject: string; dueAt: string; hasTime: boolean; createdBy: string };
-    }
-  | { action: "activity_done" | "activity_reopened" | "activity_missed"; after: ActivityRef }
-  | { action: "activity_removed"; before: ActivityRef }
-  | { action: "note_added"; after: { noteId: string } }
-  /** Keeps the old text, so an edit never loses what the note said. */
-  | { action: "note_edited"; before: { noteId: string; body: string }; after: { noteId: string; body: string } };
+  | ChildAuditEvent;
 
 export type DealAuditAction = DealAuditEvent["action"];
 

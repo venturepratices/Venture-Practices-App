@@ -4,11 +4,15 @@ import { useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   ArrowRight,
+  ArrowRightLeft,
   CalendarPlus,
   CalendarX,
   Check,
   CircleDollarSign,
+  Contact,
   Lock,
+  Merge,
+  Paperclip,
   Plus,
   RotateCcw,
   Settings2,
@@ -51,6 +55,10 @@ const ICONS: Record<TimelineIcon, LucideIcon> = {
   done: Check,
   missed: CalendarX,
   note: StickyNote,
+  converted: ArrowRightLeft,
+  contact: Contact,
+  file: Paperclip,
+  merged: Merge,
 };
 
 export type HistoryState =

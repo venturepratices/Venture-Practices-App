@@ -1,18 +1,21 @@
+import type { Prisma } from "@/generated/prisma/client";
 import type { SalesActivityType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { SalesActor } from "@/lib/sales/access";
 import { ACTIVITY_TYPE_LABELS, TIMELINE_PAGE_SIZE } from "@/lib/sales/constants";
 import { visibleDealWhere } from "@/lib/sales/deal-access";
 import { formatMoney, shortName } from "@/lib/sales/format";
+import { visibleLeadWhere } from "@/lib/sales/lead-access";
 import { formatDate } from "@/lib/utils";
 
-// The deal panel's History: the locked history rows written against a deal
-// (deal-audit.ts), newest first, each turned into one plain line that names
-// who did it. Pages of 30 with a "Show older" cursor (spec 7.8). The rows are
-// stored JSON, so every payload is read defensively: an unexpected shape gives
-// a vaguer line, never an error.
+// The deal and lead panels' History: the locked history rows written against
+// a deal (deal-audit.ts) or a lead (lead-audit.ts), newest first, each turned
+// into one plain line that names who did it. Pages of 30 with a "Show older"
+// cursor (spec 7.8). The rows are stored JSON, so every payload is read
+// defensively: an unexpected shape gives a vaguer line, never an error.
 
-type TimelineDb = Pick<typeof prisma, "salesDeal" | "salesAuditLog" | "teamMember" | "salesNote">;
+type TimelineDb = Pick<typeof prisma, "salesDeal" | "salesLead" | "salesAuditLog" | "teamMember" | "salesNote">;
+type PageDb = Pick<TimelineDb, "salesAuditLog" | "teamMember" | "salesNote">;
 
 export type TimelineIcon =
   | "created"
@@ -27,7 +30,11 @@ export type TimelineIcon =
   | "activity"
   | "done"
   | "missed"
-  | "note";
+  | "note"
+  | "converted"
+  | "contact"
+  | "file"
+  | "merged";
 
 export type TimelineEntry = {
   id: string;
@@ -88,8 +95,8 @@ function activityAddedLine(p: Payload): string {
   return `${head}${subject ? `: ${subject}` : ""}${due ? ` (${due})` : ""}`;
 }
 
-/** "Renamed to ..." and/or "Source set to ...", for the keys that changed. */
-function updatedLine(after: Payload): string {
+/** "Renamed to ..." and/or "Source set to ...", for the keys that changed; `fallback` when neither reads. */
+function updatedLine(after: Payload, fallback: string): string {
   const parts: string[] = [];
   const title = str(after, "title");
   if (title) parts.push(`Renamed to ${title}`);
@@ -97,25 +104,49 @@ function updatedLine(after: Payload): string {
     const source = str(after, "source");
     parts.push(source ? `Source set to ${source}` : "Source cleared");
   }
-  return parts.length > 0 ? parts.join(". ") : "Deal updated";
+  return parts.length > 0 ? parts.join(". ") : fallback;
 }
 
-const FALLBACK = { icon: "field", text: "Deal updated" } as const;
+/** "Organization changed to Oak Creek Dental", "Organization removed", or "Organization changed" when the name is gone. */
+function contactSideLine(label: string, after: Payload, idKey: string, nameKey: string): string {
+  if (!str(after, idKey)) return `${label} removed`;
+  const name = str(after, nameKey);
+  return name ? `${label} changed to ${name}` : `${label} changed`;
+}
+
+/**
+ * A deal's or lead's organization and person changing (deal-audit.ts
+ * `ContactChange`). The ids say which side changed; a merge of duplicate
+ * contacts says so at the end.
+ */
+function contactChangedLine(before: Payload, after: Payload): string {
+  const organizationChanged = str(before, "organizationId") !== str(after, "organizationId");
+  const personChanged = str(before, "personId") !== str(after, "personId");
+  const merged = after.merged === true ? " (merged duplicates)" : "";
+  if (organizationChanged && personChanged) return `Organization and person changed${merged}`;
+  if (organizationChanged) return `${contactSideLine("Organization", after, "organizationId", "organizationName")}${merged}`;
+  if (personChanged) return `${contactSideLine("Person", after, "personId", "personName")}${merged}`;
+  return `Contacts changed${merged}`;
+}
 
 /**
  * One History line for a stored history row. `names` maps team member ids to
- * full names (for "Owner changed to Ben S."). No line uses an em dash.
+ * full names (for "Owner changed to Ben S."). `entityType` says whose history
+ * the row is ("SalesLead" reads as a lead's; anything else, or none, as a
+ * deal's). No line uses an em dash.
  */
 export function describeAuditRow(
-  row: { action: string; actorType: string; before: unknown; after: unknown },
+  row: { entityType?: string; action: string; actorType: string; before: unknown; after: unknown },
   names: Map<string, string>,
 ): { icon: TimelineIcon; text: string } {
   const after = payload(row.after);
   const before = payload(row.before);
+  const isLead = (row.entityType ?? "SalesDeal") === "SalesLead";
+  const fallback = { icon: "field", text: isLead ? "Lead updated" : "Deal updated" } as const;
 
   switch (row.action) {
     case "created":
-      return { icon: "created", text: "Deal created" };
+      return { icon: "created", text: isLead ? "Lead created" : "Deal created" };
     case "stage_changed": {
       const stageName = str(after, "stageName") ?? "another stage";
       // A toast's Undo that put the earlier entry time back (stage-moves.ts), not a move by hand.
@@ -126,6 +157,12 @@ export function describeAuditRow(
     }
     case "status_changed": {
       const status = str(after, "status");
+      if (isLead) {
+        // A lead's Archive (status ARCHIVED, with Undo) and Restore. Delete is the "archived" row.
+        if (status === "ARCHIVED") return { icon: "deleted", text: "Archived" };
+        if (status === "OPEN") return { icon: "reopened", text: "Restored to the Inbox" };
+        return fallback;
+      }
       if (status === "WON") return { icon: "won", text: "Marked as won" };
       if (status === "LOST") {
         // The comment typed into the Lost dialog follows the reason: "Marked as lost: Price. Went with a cheaper printer".
@@ -135,7 +172,7 @@ export function describeAuditRow(
         return { icon: "lost", text: comment ? `${line}. ${comment}` : line };
       }
       if (status === "OPEN") return { icon: "reopened", text: "Reopened" };
-      return FALLBACK;
+      return fallback;
     }
     case "value_changed": {
       const mrr = cents(after, "mrrCents");
@@ -148,16 +185,20 @@ export function describeAuditRow(
       return { icon: "owner", text: name ? `Owner changed to ${shortName(name)}` : "Owner changed" };
     }
     case "updated":
-      return { icon: "field", text: updatedLine(after) };
+      return { icon: "field", text: updatedLine(after, fallback.text) };
     case "field_changed": {
       const label = str(after, "label") ?? "A field";
       const value = str(after, "value");
       return { icon: "field", text: value ? `${label} set to ${value}` : `${label} cleared` };
     }
+    case "contact_changed":
+      return { icon: "contact", text: contactChangedLine(before, after) };
+    case "converted":
+      return { icon: "converted", text: "Converted to a deal" };
     case "archived":
-      return { icon: "deleted", text: "Deal deleted" };
+      return { icon: "deleted", text: isLead ? "Lead deleted" : "Deal deleted" };
     case "delete_refused":
-      return { icon: "deleted", text: "Tried to delete this deal (refused)" };
+      return { icon: "deleted", text: isLead ? "Tried to delete this lead (refused)" : "Tried to delete this deal (refused)" };
     case "activity_added":
       return { icon: "activity", text: activityAddedLine(after) };
     case "activity_done":
@@ -173,34 +214,52 @@ export function describeAuditRow(
     case "note_edited":
       return { icon: "note", text: "Note edited" };
     default:
-      return FALLBACK;
+      return fallback;
   }
 }
 
+export type TimelinePage = { entries: TimelineEntry[]; nextCursor: TimelineCursor | null };
+
+/** Whose history rows a page reads: one record, or (for merged contacts) several. */
+type TimelineSource = { entityType: string; entityId: string };
+
+const CURSOR_ID_MAX = 64;
+
+/** `?at=<iso>&id=<id>` from "Show older". Anything unreadable means the first page, never an error. */
+export function readTimelineCursor(request: Request): TimelineCursor | null {
+  const search = new URL(request.url).searchParams;
+  const at = search.get("at");
+  const id = search.get("id");
+  if (!at || !id || id.length > CURSOR_ID_MAX) return null;
+  const ms = Date.parse(at);
+  return Number.isNaN(ms) ? null : { at: new Date(ms).toISOString(), id };
+}
+
 /**
- * One page of a deal's History, newest first, continuing after `cursor`. Null
- * when this person may not see the deal (the route answers 404). Names come
+ * One page of History over `sources`, newest first, continuing after `cursor`.
+ * The caller has already checked this person may see the record. Names come
  * from one team-member lookup, note text from one note lookup.
  */
-export async function loadDealTimeline(
+async function loadTimelinePage(
+  db: PageDb,
   actor: SalesActor,
-  dealId: string,
+  sources: TimelineSource[],
   cursor: TimelineCursor | null,
-  db: TimelineDb = prisma,
-): Promise<{ entries: TimelineEntry[]; nextCursor: TimelineCursor | null } | null> {
-  const deal = await db.salesDeal.findFirst({ where: visibleDealWhere(actor, dealId), select: { id: true } });
-  if (!deal) return null;
-
+): Promise<TimelinePage> {
   const cursorAt = cursor ? new Date(cursor.at) : null;
-  const after =
+  const cursorClause: Prisma.SalesAuditLogWhereInput | null =
     cursor && cursorAt && !Number.isNaN(cursorAt.getTime())
       ? { OR: [{ at: { lt: cursorAt } }, { at: cursorAt, id: { lt: cursor.id } }] }
-      : {};
+      : null;
+  const where: Prisma.SalesAuditLogWhereInput =
+    sources.length === 1
+      ? { ...sources[0], ...cursorClause }
+      : { AND: cursorClause ? [{ OR: sources }, cursorClause] : [{ OR: sources }] };
   const rows = await db.salesAuditLog.findMany({
-    where: { entityType: "SalesDeal", entityId: dealId, ...after },
+    where,
     orderBy: [{ at: "desc" }, { id: "desc" }],
     take: TIMELINE_PAGE_SIZE + 1,
-    select: { id: true, at: true, actorType: true, actorId: true, action: true, before: true, after: true },
+    select: { id: true, at: true, entityType: true, actorType: true, actorId: true, action: true, before: true, after: true },
   });
   const page = rows.slice(0, TIMELINE_PAGE_SIZE);
 
@@ -255,4 +314,34 @@ export async function loadDealTimeline(
     entries,
     nextCursor: rows.length > TIMELINE_PAGE_SIZE ? { at: last.at.toISOString(), id: last.id } : null,
   };
+}
+
+/**
+ * One page of a deal's History, newest first, continuing after `cursor`. Null
+ * when this person may not see the deal (the route answers 404).
+ */
+export async function loadDealTimeline(
+  actor: SalesActor,
+  dealId: string,
+  cursor: TimelineCursor | null,
+  db: TimelineDb = prisma,
+): Promise<TimelinePage | null> {
+  const deal = await db.salesDeal.findFirst({ where: visibleDealWhere(actor, dealId), select: { id: true } });
+  if (!deal) return null;
+  return loadTimelinePage(db, actor, [{ entityType: "SalesDeal", entityId: dealId }], cursor);
+}
+
+/**
+ * One page of a lead's History, newest first, continuing after `cursor`. Null
+ * when this person may not see the lead, or it is deleted (the route answers 404).
+ */
+export async function loadLeadTimeline(
+  actor: SalesActor,
+  leadId: string,
+  cursor: TimelineCursor | null,
+  db: TimelineDb = prisma,
+): Promise<TimelinePage | null> {
+  const lead = await db.salesLead.findFirst({ where: visibleLeadWhere(actor, leadId), select: { id: true } });
+  if (!lead) return null;
+  return loadTimelinePage(db, actor, [{ entityType: "SalesLead", entityId: leadId }], cursor);
 }
