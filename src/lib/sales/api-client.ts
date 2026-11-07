@@ -5,6 +5,10 @@ import type { ActivityRowsPage } from "@/lib/sales/activities-page";
 import type { DealListPage } from "@/lib/sales/board";
 import type { BoardQuery, SavedView } from "@/lib/sales/board-query";
 import { boardQueryToSearch } from "@/lib/sales/board-query";
+import type { CreateOrganizationInput, CreatePersonInput } from "@/lib/sales/contacts-edit";
+import type { ContactRowsPage } from "@/lib/sales/contacts-page";
+import type { ContactKind, ContactsQuery } from "@/lib/sales/contacts-query";
+import { CONTACT_PATHS, contactsQueryToSearch } from "@/lib/sales/contacts-query";
 import type { ContactResult } from "@/lib/sales/contacts";
 import type { DealPanelData, PanelActivity } from "@/lib/sales/deal-panel";
 import type { addDealNote, editNote, NoteInput } from "@/lib/sales/notes";
@@ -228,6 +232,23 @@ export function addNoteRequest(dealId: string, body: NoteInput): Promise<ApiResu
 
 export function editNoteRequest(noteId: string, body: NoteInput): Promise<ApiResult<Answer<typeof editNote>>> {
   return send("PATCH", `/api/sales/notes/${encodeURIComponent(noteId)}`, body);
+}
+
+// --- Contacts ---
+
+/** One more page of the Contacts list: the page's scope and search and `query.cursor`, for the tab's path. */
+export function getContactRowsPage(query: ContactsQuery): Promise<ApiResult<ContactRowsPage>> {
+  const search = new URLSearchParams(contactsQueryToSearch(query).replace(/^tab=[^&]*&?/, ""));
+  if (query.cursor) search.set("cursor", query.cursor);
+  return get(`/api/sales/contacts/${CONTACT_PATHS[query.tab === "organizations" ? "organization" : "person"]}?${search}`);
+}
+
+/** "+ Person" or "+ Organization": adds a contact owned by the actor and hands back its id and name. */
+export function createContactRequest(
+  kind: ContactKind,
+  body: CreatePersonInput | CreateOrganizationInput,
+): Promise<ApiResult<{ contact: { id: string; name: string } }>> {
+  return send("POST", `/api/sales/contacts/${CONTACT_PATHS[kind]}`, body);
 }
 
 // --- Pickers and preferences ---

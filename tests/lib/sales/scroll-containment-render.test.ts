@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActivitiesPageData } from "@/lib/sales/activities-page";
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
+import type { ContactsPageData, PersonRow } from "@/lib/sales/contacts-page";
 import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
 import type { LeadPanelData } from "@/lib/sales/lead-panel";
@@ -27,6 +28,7 @@ vi.mock("next/navigation", () => ({
 
 const { DealsView } = await import("@/components/sales/deals-view");
 const { ActivitiesView } = await import("@/components/sales/activities-view");
+const { ContactsView } = await import("@/components/sales/contacts-view");
 const { DashboardView } = await import("@/components/sales/dashboard-view");
 const { LeadsView } = await import("@/components/sales/leads-view");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
@@ -208,6 +210,24 @@ const LEADS: LeadsPageData = {
   assignment: { mode: "ROUND_ROBIN", names: ["Ben S.", "Dana Q."], fallbackName: null },
 };
 
+// One person the viewer may see, so the Contacts People tab's table wrapper scrolls.
+const CONTACT_ROW: PersonRow = {
+  kind: "person",
+  id: "p1",
+  name: "Sarah K.",
+  organizationName: "Oak Creek Dental",
+  openDeals: 2,
+  ownerId: "u1",
+};
+
+const CONTACTS: ContactsPageData = {
+  query: { tab: "people", scope: "everyone", q: "", cursor: null },
+  rows: [CONTACT_ROW],
+  nextCursor: null,
+  members: MEMBERS,
+  canSeeEveryone: true,
+};
+
 // An open lead the viewer owns, with a next step and a Details field, so every part of the panel renders.
 const LEAD_PANEL: LeadPanelData = {
   lead: {
@@ -265,6 +285,13 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
   it("the Leads Inbox table wrapper is relative", () => {
     const html = clean(renderToString(createElement(LeadsView, { data: LEADS, viewer: VIEWER, now: NOW, openNew: false })));
     expect(html).toContain('aria-label="Select Crestview Dental"');
+    expect(html).toContain('class="sr-only"');
+    expectScrollersContain(html, 1);
+  });
+
+  it("the Contacts page's table wrapper is relative", () => {
+    const html = clean(renderToString(createElement(ContactsView, { data: CONTACTS, viewer: VIEWER, openNew: null })));
+    expect(html).toContain(">Sarah K.</a>");
     expect(html).toContain('class="sr-only"');
     expectScrollersContain(html, 1);
   });

@@ -5,9 +5,11 @@ import {
   convertLeadRequest,
   convertLeadsRequest,
   createActivityFor,
+  createContactRequest,
   createLeadRequest,
   deleteDealRequest,
   getActivitiesPage,
+  getContactRowsPage,
   getConvertTargets,
   getDealListPage,
   getDealTimeline,
@@ -307,6 +309,45 @@ describe("api-client", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pipeline: "direct-mail", view: "board", scope: "everyone" }),
+    });
+  });
+
+  describe("contacts", () => {
+    const sent = (method: string, body: unknown) => ({
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    it("asks for the next Contacts page with its tab, scope, search and cursor", async () => {
+      fetchMock.mockResolvedValue(json(200, { rows: [], nextCursor: null }));
+      const result = await getContactRowsPage({ tab: "organizations", scope: "mine", q: "oak", cursor: "o50" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/organizations?scope=mine&q=oak&cursor=o50", {
+        method: "GET",
+      });
+      expect(result).toEqual({ ok: true, data: { rows: [], nextCursor: null } });
+    });
+
+    it("leaves the cursor and the defaults off the first People page", async () => {
+      fetchMock.mockResolvedValue(json(200, { rows: [], nextCursor: null }));
+      await getContactRowsPage({ tab: "people", scope: "everyone", q: "", cursor: null });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people?", { method: "GET" });
+    });
+
+    it("adds a person with POST to the people path", async () => {
+      fetchMock.mockResolvedValue(json(201, { contact: { id: "p1", name: "Sarah K." } }));
+      const result = await createContactRequest("person", { name: "Sarah K." });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people", sent("POST", { name: "Sarah K." }));
+      expect(result).toEqual({ ok: true, data: { contact: { id: "p1", name: "Sarah K." } } });
+    });
+
+    it("adds an organization with POST to the organizations path", async () => {
+      fetchMock.mockResolvedValue(json(201, { contact: { id: "o1", name: "Oak Creek Dental" } }));
+      await createContactRequest("organization", { name: "Oak Creek Dental", zip: "78704" });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/sales/contacts/organizations",
+        sent("POST", { name: "Oak Creek Dental", zip: "78704" }),
+      );
     });
   });
 });
