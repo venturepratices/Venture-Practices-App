@@ -5,7 +5,14 @@ import type { ActivityRowsPage } from "@/lib/sales/activities-page";
 import type { DealListPage } from "@/lib/sales/board";
 import type { BoardQuery, SavedView } from "@/lib/sales/board-query";
 import { boardQueryToSearch } from "@/lib/sales/board-query";
-import type { CreateOrganizationInput, CreatePersonInput } from "@/lib/sales/contacts-edit";
+import type { ContactPanelData } from "@/lib/sales/contact-panel";
+import type { MergeCounts } from "@/lib/sales/contact-merge";
+import type {
+  CreateOrganizationInput,
+  CreatePersonInput,
+  UpdateOrganizationInput,
+  UpdatePersonInput,
+} from "@/lib/sales/contacts-edit";
 import type { ContactRowsPage } from "@/lib/sales/contacts-page";
 import type { ContactKind, ContactsQuery } from "@/lib/sales/contacts-query";
 import { CONTACT_PATHS, contactsQueryToSearch } from "@/lib/sales/contacts-query";
@@ -249,6 +256,50 @@ export function createContactRequest(
   body: CreatePersonInput | CreateOrganizationInput,
 ): Promise<ApiResult<{ contact: { id: string; name: string } }>> {
   return send("POST", `/api/sales/contacts/${CONTACT_PATHS[kind]}`, body);
+}
+
+const contactUrl = (kind: ContactKind, id: string) =>
+  `/api/sales/contacts/${CONTACT_PATHS[kind]}/${encodeURIComponent(id)}`;
+
+/** The contact panel data for one person or one organization (A4: null returns 404 "Contact not found."). */
+export function getContactPanel(kind: ContactKind, id: string): Promise<ApiResult<ContactPanelData>> {
+  return get(contactUrl(kind, id));
+}
+
+/** One page of a contact's History (an older page when a cursor is sent). */
+export function getContactTimeline(
+  kind: ContactKind,
+  id: string,
+  cursor: TimelineCursor | null,
+): Promise<ApiResult<TimelinePage>> {
+  return get(`${contactUrl(kind, id)}/timeline${timelineSearch(cursor)}`);
+}
+
+/** Edits a person or an organization with PATCH; only the keys sent change. */
+export function updateContactRequest(
+  kind: ContactKind,
+  id: string,
+  body: UpdatePersonInput | UpdateOrganizationInput,
+): Promise<ApiResult<{ changed: boolean; contact: { id: string; name: string } }>> {
+  return send("PATCH", contactUrl(kind, id), body);
+}
+
+/** What merging `dropId` into `keepId` would move, for the merge dialog (admins only). */
+export function getMergePreview(
+  kind: ContactKind,
+  keepId: string,
+  dropId: string,
+): Promise<ApiResult<{ keep: { id: string; name: string }; drop: { id: string; name: string }; counts: MergeCounts }>> {
+  return get(`${contactUrl(kind, keepId)}/merge?with=${encodeURIComponent(dropId)}`);
+}
+
+/** Merges `dropId` into `keepId` (admins only); the panel swaps to the kept id. */
+export function mergeContactsRequest(
+  kind: ContactKind,
+  keepId: string,
+  dropId: string,
+): Promise<ApiResult<{ kept: { id: string; name: string } }>> {
+  return send("POST", `${contactUrl(kind, keepId)}/merge`, { dropId });
 }
 
 // --- Pickers and preferences ---

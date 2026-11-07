@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { requireSalesPage } from "@/lib/sales/page-gate";
+import { ContactPanel } from "@/components/sales/contact-panel";
 import { DealPanel } from "@/components/sales/deal-panel";
 import { LeadPanel } from "@/components/sales/lead-panel";
 import { SalesShortcuts } from "@/components/sales/sales-shortcuts";
@@ -14,11 +15,12 @@ export default async function SalesLayout({ children }: { children: React.ReactN
   return (
     <>
       {children}
-      {/* They read the URL (?deal=, ?lead=), so they sit in their own Suspense boundary. One panel shows at a time. */}
+      {/* They read the URL (?deal=, ?lead=, ?person=, ?organization=), so they sit in their own Suspense boundary. One panel shows at a time. */}
       <Suspense fallback={null}>
         <SalesShortcuts />
         <DealPanel />
         <LeadPanel />
+        <ContactPanel />
       </Suspense>
     </>
   );

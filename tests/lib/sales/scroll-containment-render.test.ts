@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActivitiesPageData } from "@/lib/sales/activities-page";
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
+import type { PersonPanelData } from "@/lib/sales/contact-panel";
 import type { ContactsPageData, PersonRow } from "@/lib/sales/contacts-page";
 import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
@@ -31,6 +32,7 @@ const { ActivitiesView } = await import("@/components/sales/activities-view");
 const { ContactsView } = await import("@/components/sales/contacts-view");
 const { DashboardView } = await import("@/components/sales/dashboard-view");
 const { LeadsView } = await import("@/components/sales/leads-view");
+const { ContactPanelBody } = await import("@/components/sales/contact-panel");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { LeadPanelBody } = await import("@/components/sales/lead-panel");
 const { Sheet } = await import("@/components/ui/sheet");
@@ -228,6 +230,30 @@ const CONTACTS: ContactsPageData = {
   canSeeEveryone: true,
 };
 
+// A person the viewer owns, with a visible organization, one open deal, one converted lead and a visible duplicate.
+const CONTACT_PANEL: PersonPanelData = {
+  kind: "person",
+  person: {
+    id: "p1",
+    name: "Sarah K.",
+    email: "sarah@oak.example",
+    phone: "(512) 555-0142",
+    role: "Office manager",
+    organization: { id: "o1", name: "Oak Creek Dental", visible: true },
+    owner: MEMBERS[0],
+    createdAt: "2026-11-02T15:00:00.000Z",
+  },
+  deals: [
+    { id: "d1", title: "Oak Creek Dental", status: "OPEN", stageName: "Demo Booked", valueCents: 1440000 },
+  ],
+  leads: [{ id: "l1", title: "Oak Creek Dental", status: "CONVERTED" }],
+  counts: { deals: 1, leads: 1 },
+  duplicates: { matches: [{ id: "p2", name: "Sarah Example" }], hiddenMatch: false },
+  canEdit: true,
+  canMerge: true,
+  redirectedFrom: null,
+};
+
 // An open lead the viewer owns, with a next step and a Details field, so every part of the panel renders.
 const LEAD_PANEL: LeadPanelData = {
   lead: {
@@ -310,6 +336,17 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
       renderToString(createElement(LeadPanelBody, { data: LEAD_PANEL, now: new Date(NOW), onChanged: vi.fn(), onClose: vi.fn() })),
     );
     expect(html).toContain("First call");
+    expect(html).toContain('class="sr-only"');
+    expectScrollersContain(html, 1);
+  });
+
+  it("the contact panel's scrolling body is relative", () => {
+    const html = clean(
+      renderToString(
+        createElement(ContactPanelBody, { data: CONTACT_PANEL, now: new Date(NOW), onChanged: vi.fn(), onClose: vi.fn() }),
+      ),
+    );
+    expect(html).toContain("Sarah K.");
     expect(html).toContain('class="sr-only"');
     expectScrollersContain(html, 1);
   });

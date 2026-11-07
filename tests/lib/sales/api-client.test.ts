@@ -9,13 +9,17 @@ import {
   createLeadRequest,
   deleteDealRequest,
   getActivitiesPage,
+  getContactPanel,
   getContactRowsPage,
+  getContactTimeline,
   getConvertTargets,
   getDealListPage,
   getDealTimeline,
   getLeadPanel,
   getLeadRowsPage,
   getLeadTimeline,
+  getMergePreview,
+  mergeContactsRequest,
   moveDealRequest,
   runLeadBulkRequest,
   saveDefaultViewRequest,
@@ -23,6 +27,7 @@ import {
   setDealStatusRequest,
   setLeadArchivedRequest,
   setLeadFieldRequest,
+  updateContactRequest,
   updateLeadRequest,
 } from "@/lib/sales/api-client";
 import type { BoardQuery } from "@/lib/sales/board-query";
@@ -348,6 +353,47 @@ describe("api-client", () => {
         "/api/sales/contacts/organizations",
         sent("POST", { name: "Oak Creek Dental", zip: "78704" }),
       );
+    });
+
+    it("reads a person panel from the people path", async () => {
+      fetchMock.mockResolvedValue(json(200, { kind: "person" }));
+      await getContactPanel("person", "p1");
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people/p1", { method: "GET" });
+    });
+
+    it("reads an organization's History from the organizations path", async () => {
+      fetchMock.mockResolvedValue(json(200, { entries: [], nextCursor: null }));
+      await getContactTimeline("organization", "o1", null);
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/organizations/o1/timeline", {
+        method: "GET",
+      });
+
+      await getContactTimeline("organization", "o1", { at: "2026-11-05T15:00:00.000Z", id: "h9" });
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "/api/sales/contacts/organizations/o1/timeline?at=2026-11-05T15%3A00%3A00.000Z&id=h9",
+        { method: "GET" },
+      );
+    });
+
+    it("edits an organization with PATCH on the organizations path", async () => {
+      fetchMock.mockResolvedValue(json(200, { changed: true, contact: { id: "o1", name: "Oak Creek Dental" } }));
+      await updateContactRequest("organization", "o1", { zip: "78704" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/organizations/o1", sent("PATCH", { zip: "78704" }));
+    });
+
+    it("reads the merge preview with a with= query", async () => {
+      const counts = { people: 0, deals: 1, leads: 0, notes: 2, activities: 0 };
+      fetchMock.mockResolvedValue(
+        json(200, { keep: { id: "p1", name: "Sarah K." }, drop: { id: "p2", name: "Sarah Example" }, counts }),
+      );
+      await getMergePreview("person", "p1", "p2");
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people/p1/merge?with=p2", { method: "GET" });
+    });
+
+    it("merges two contacts with POST and the drop id in the body", async () => {
+      fetchMock.mockResolvedValue(json(200, { kept: { id: "p1", name: "Sarah K." } }));
+      await mergeContactsRequest("person", "p1", "p2");
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people/p1/merge", sent("POST", { dropId: "p2" }));
     });
   });
 });
