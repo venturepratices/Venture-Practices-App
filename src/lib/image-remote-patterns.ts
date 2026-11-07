@@ -20,6 +20,14 @@ import type { RemotePattern } from "next/dist/shared/lib/image-config";
  * - path: `/assets/**`, the prefix every asset upload uses
  *   (`src/components/assets/new-asset-dialog.tsx`, `upload-version-dialog.tsx`).
  * - no query string, so `?x=1`, `?x=2`... cannot each buy a fresh resize.
+ *
+ * Known limit that remotePatterns cannot close: Next's matcher ignores the
+ * `#fragment`, a `user@` part and percent-encoding (`c%61t.png`), but the
+ * resizer's cache key hashes the whole address, so `cat.png#x1`, `#x2`... each
+ * buy a fresh resize of one of our pictures. That needs the Vercel Firewall on
+ * `/_next/image`: deny when the decoded `url` parameter contains `#` or has an
+ * `@` before the host ends (not anywhere: a real file name like `logo@2x.png`
+ * may keep its `@`), plus a per-IP rate limit and the Spend Management cap.
  */
 const PUBLIC_BLOB_HOST = "public.blob.vercel-storage.com";
 

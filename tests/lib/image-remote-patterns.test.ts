@@ -58,6 +58,26 @@ describe("image resizer allow-list with the assets store token set", () => {
     expect(JSON.stringify(patterns)).not.toContain("fakeSecret");
     expect(JSON.stringify(patterns)).not.toContain("vercel_blob_rw");
   });
+
+  // KNOWN LIMIT, pinned on purpose. Next's matcher ignores the #fragment, a
+  // user@ part and percent-encoding, while the resizer's cache key hashes the
+  // whole address (node_modules/next/dist/server/image-optimizer.js,
+  // getCacheKey). So `cat.png#x1`, `#x2`... each buy a fresh resize of the same
+  // picture, and remotePatterns has no setting that stops it. The Vercel
+  // Firewall rule on /_next/image covers it (see the comment in
+  // src/lib/image-remote-patterns.ts). If this test starts failing, Next has
+  // begun refusing these itself: update that comment and the Firewall notes.
+  it("cannot refuse #fragment, user@ or percent-encoded copies of an allowed picture (the Firewall must)", () => {
+    const cat = `https://${OUR_HOST}/assets/c1/cat.png`;
+    for (const variant of [
+      `${cat}#x1`,
+      `${cat}#x2`,
+      cat.replace("https://", "https://u1@"),
+      cat.replace("cat.png", "c%61t.png"),
+    ]) {
+      expect(allows(patterns, variant)).toBe(true);
+    }
+  });
 });
 
 describe("image resizer allow-list off Vercel without a usable assets store token", () => {
