@@ -1,7 +1,7 @@
 import { put } from "@vercel/blob";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { archivedTaskAssigneeList, readArchivedTaskPeople, type ArchivedTaskPeople } from "@/lib/archived-task-snapshot";
+import { archivedTaskAssigneeList, archivedTaskPrivacy, type ArchivedTaskPeople } from "@/lib/archived-task-snapshot";
 import { prisma } from "@/lib/prisma";
 import { sanitizeRichText } from "@/lib/rich-text-sanitize";
 import type { ArchivedAssigneeSnapshot, ArchivedCommentSnapshot, ArchivedLinkSnapshot, ArchivedSubtaskSnapshot } from "@/types/task";
@@ -109,17 +109,19 @@ export async function archiveTask(taskId: string, deletedById: string | null) {
  *
  * Privacy and creator come back as stored. A creator who no longer exists is
  * dropped too, except on a private task, which then stays private to the
- * person restoring it. A snapshot taken before privacy was stored can't say
- * whether the task was private, so it comes back private to the person
- * restoring it (who can untick Private to share it again): the one choice
- * that can't turn someone's private task public.
+ * person restoring it. A snapshot taken before privacy was stored, of a task
+ * deleted after private tasks could exist, can't say whether the task was
+ * private, so it comes back private to the person restoring it (who can
+ * untick Private to share it again): the one choice that can't turn someone's
+ * private task public. One deleted before private tasks existed comes back
+ * public (see archivedTaskPrivacy).
  */
 export async function restoreArchivedTask(archivedTaskId: string, restoredById: string) {
   return prisma.$transaction(async (tx) => {
     const archived = await tx.archivedTask.findUniqueOrThrow({ where: { id: archivedTaskId } });
 
     const snapshotAssignees = archivedTaskAssigneeList(archived);
-    const people = readArchivedTaskPeople(archived.assignees);
+    const people = archivedTaskPrivacy(archived);
     const memberIdsToCheck = [...snapshotAssignees.map((a) => a.id), ...(people?.createdById ? [people.createdById] : [])];
 
     const [existingMembers, client] = await Promise.all([

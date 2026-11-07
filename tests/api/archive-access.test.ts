@@ -90,6 +90,8 @@ function signInAsRemovedStaff() {
 }
 
 const DELETED_AT = new Date("2026-11-01T10:00:00.000Z");
+// Before private tasks were added (2026-07-30), so such a task cannot have been private.
+const BEFORE_PRIVATE_TASKS = new Date("2026-07-20T09:00:00.000Z");
 const publicPeople = (createdById = "creator-1") => ({ list: [{ id: "m-1", name: "Ann" }], isPrivate: false, createdById });
 const privatePeople = (createdById: string) => ({ list: [], isPrivate: true, createdById });
 
@@ -258,6 +260,20 @@ describe("GET /api/archived-tasks/[archivedTaskId]", () => {
     expect((await getTask()).status).toBe(200);
   });
 
+  it("shows an old snapshot deleted before private tasks existed to staff with archive rights and that client", async () => {
+    signInAsStaff({ clients: ["client-a"], caps: VIEW });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
+
+    expect((await getTask()).status).toBe(200);
+  });
+
+  it("still refuses an old snapshot deleted before private tasks existed to staff without that client", async () => {
+    signInAsStaff({ clients: ["client-b"], caps: VIEW });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
+
+    expect((await getTask()).status).toBe(403);
+  });
+
   it("answers 404 for an unknown id", async () => {
     signInAsStaff({ caps: VIEW });
     h.db.archivedTask.findUnique.mockResolvedValue(null);
@@ -411,6 +427,14 @@ describe("restoring an archived task's privacy", () => {
     expect(h.archive.restoreArchivedTask).not.toHaveBeenCalled();
   });
 
+  it("lets an admin restore a teammate's old snapshot deleted before private tasks existed", async () => {
+    signInAsStaff({ isAdmin: true });
+    h.db.archivedTask.findUnique.mockResolvedValue(archivedTask({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }));
+
+    expect((await restoreTask()).status).toBe(201);
+    expect(h.archive.restoreArchivedTask).toHaveBeenCalledWith("arch-task-1", STAFF_ID);
+  });
+
   it("restores a public task deleted by someone else, passing who restored it", async () => {
     signInAsStaff({ clients: ["client-a"], caps: RESTORE });
     h.db.archivedTask.findUnique.mockResolvedValue(archivedTask());
@@ -511,10 +535,11 @@ describe("/archive page", () => {
             archivedTask({ id: "old-mine", assignees: [], deletedById: STAFF_ID }),
             archivedTask({ id: "old-theirs", assignees: [{ id: "m-1", name: "Ann" }] }),
             archivedTask({ id: "old-unknown-deleter", assignees: null, deletedById: null }),
+            archivedTask({ id: "old-before-private-tasks", assignees: [{ id: "m-1", name: "Ann" }], deletedAt: BEFORE_PRIVATE_TASKS }),
           ]
     );
 
-    expect(listedTaskIds(await renderPage())).toEqual(["public", "mine-private", "old-mine"]);
+    expect(listedTaskIds(await renderPage())).toEqual(["public", "mine-private", "old-mine", "old-before-private-tasks"]);
   });
 
   it.each([

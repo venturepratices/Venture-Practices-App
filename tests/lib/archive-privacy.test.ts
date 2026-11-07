@@ -186,6 +186,32 @@ describe("restoreArchivedTask", () => {
     expect(data.assignees).toEqual({ create: [{ teamMemberId: "m-1" }] });
   });
 
+  it("brings an old snapshot deleted before private tasks existed back public, with its assignees", async () => {
+    h.tx.archivedTask.findUniqueOrThrow.mockResolvedValue(
+      archivedRow({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: new Date("2026-07-20T09:00:00.000Z") })
+    );
+
+    await restoreArchivedTask("arch-1", "restorer-1");
+
+    const data = createdTaskData();
+    expect(data.isPrivate).toBe(false);
+    // Tasks had no recorded creator before private tasks arrived.
+    expect(data.createdById).toBeNull();
+    expect(data.assignees).toEqual({ create: [{ teamMemberId: "m-1" }] });
+  });
+
+  it("still brings an old snapshot deleted while private tasks were being built back private", async () => {
+    h.tx.archivedTask.findUniqueOrThrow.mockResolvedValue(
+      archivedRow({ assignees: [{ id: "m-1", name: "Ann" }], deletedAt: new Date("2026-07-30T12:00:00.000Z") })
+    );
+
+    await restoreArchivedTask("arch-1", "restorer-1");
+
+    const data = createdTaskData();
+    expect(data.isPrivate).toBe(true);
+    expect(data.createdById).toBe("restorer-1");
+  });
+
   it("still restores the single legacy assignee of the oldest snapshots", async () => {
     h.tx.archivedTask.findUniqueOrThrow.mockResolvedValue(archivedRow({ assignees: null }));
 
