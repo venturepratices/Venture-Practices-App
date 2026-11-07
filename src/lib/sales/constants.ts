@@ -13,6 +13,8 @@ export const ACTIVITIES_PAGE_SIZE = 50;
 export const LEADS_PAGE_SIZE = 50;
 export const TIMELINE_PAGE_SIZE = 30;
 export const CONTACT_SEARCH_LIMIT = 8;
+/** Most leads one bulk-bar request may change; each still runs in its own transaction. */
+export const BULK_IDS_MAX = 100;
 
 /** Days an open deal can sit in a stage before it rots (amber card). */
 export const DEFAULT_ROTTING_DAYS = 14;
