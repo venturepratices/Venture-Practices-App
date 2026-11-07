@@ -7,10 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
-const { assignLeadOwner, nextInRotation } = await import("@/lib/sales/lead-assignment");
+const { assignLeadOwner, loadAssignmentSummary, nextInRotation } = await import("@/lib/sales/lead-assignment");
 const { SALES_MEMBER_WHERE } = await import("@/lib/sales/access");
 
-type Member = { id: string; isAdmin: boolean; canUseSales: boolean; createdAt: Date };
+type Member = { id: string; name: string; isAdmin: boolean; canUseSales: boolean; createdAt: Date };
 type Settings = {
   leadAssignMode: "ROUND_ROBIN" | "SINGLE";
   // null is what a row made without a list used to store in the database.
@@ -20,17 +20,31 @@ type Settings = {
 };
 type Where = { id?: string | { in: string[] }; isAdmin?: boolean; OR?: Record<string, unknown>[] };
 type OrderBy = { createdAt?: "asc" | "desc"; id?: "asc" | "desc" }[];
+type Select = Record<string, boolean>;
 
 const day = (n: number) => new Date(Date.UTC(2026, 0, n));
 const salesMember = (id: string, extra: Partial<Member> = {}): Member => ({
   id,
+  name: `Member ${id.toUpperCase()}.`,
   isAdmin: false,
   canUseSales: true,
   createdAt: day(10),
   ...extra,
 });
-const lostAccess = (id: string): Member => salesMember(id, { canUseSales: false });
-const admin = (id: string, createdAt: Date): Member => ({ id, isAdmin: true, canUseSales: false, createdAt });
+const lostAccess = (id: string, extra: Partial<Member> = {}): Member => salesMember(id, { canUseSales: false, ...extra });
+const admin = (id: string, createdAt: Date, name = `Admin ${id.toUpperCase()}.`): Member => ({
+  id,
+  name,
+  isAdmin: true,
+  canUseSales: false,
+  createdAt,
+});
+
+/** Like a Prisma `select`: only the columns asked for come back. */
+function pick<T extends object>(row: T, select: Select | undefined): Partial<T> {
+  if (!select) return row;
+  return Object.fromEntries(Object.entries(row).filter(([key]) => select[key])) as Partial<T>;
+}
 
 function matches(member: Member, where: Where): boolean {
   if (typeof where.id === "string" && member.id !== where.id) return false;
@@ -70,28 +84,46 @@ function fakeTx(input: { settings: Partial<Settings> | null; members: Member[] }
     settings.rrCursor += 1;
     return [{ rrCursor: settings.rrCursor, roundRobinMemberIds: settings.roundRobinMemberIds }];
   });
-  const settingsFindUnique = vi.fn(async (args: { where: { id: string } }) =>
-    settings && args.where.id === "singleton"
-      ? { leadAssignMode: settings.leadAssignMode, singleAssigneeId: settings.singleAssigneeId }
-      : null,
+  const settingsFindUnique = vi.fn(async (args: { where: { id: string }; select?: Select }) =>
+    settings && args.where.id === "singleton" ? pick(settings, args.select) : null,
   );
-  const memberFindMany = vi.fn(async (args: { where: Where }) =>
-    input.members.filter((m) => matches(m, args.where)).map((m) => ({ id: m.id })),
+  const memberFindMany = vi.fn(async (args: { where: Where; select?: Select }) =>
+    input.members.filter((m) => matches(m, args.where)).map((m) => pick(m, args.select)),
   );
   // Like the database: rows come back in no particular order (here, the order the
   // test listed them) unless the query asks for one with orderBy.
-  const memberFindFirst = vi.fn(async (args: { where: Where; orderBy?: OrderBy }) => {
+  const memberFindFirst = vi.fn(async (args: { where: Where; orderBy?: OrderBy; select?: Select }) => {
     const matching = input.members.filter((m) => matches(m, args.where));
     const found = args.orderBy ? [...matching].sort(compareBy(args.orderBy)) : matching;
-    return found[0] ? { id: found[0].id } : null;
+    return found[0] ? pick(found[0], args.select) : null;
   });
+  // Nothing in this module may write; these are here only so a test can prove that.
+  const writes = {
+    settingsUpdate: vi.fn(),
+    settingsUpdateMany: vi.fn(),
+    settingsUpsert: vi.fn(),
+    memberUpdate: vi.fn(),
+    memberUpdateMany: vi.fn(),
+    executeRaw: vi.fn(),
+  };
 
   const tx = {
     $queryRaw: queryRaw,
-    salesSettings: { findUnique: settingsFindUnique },
-    teamMember: { findMany: memberFindMany, findFirst: memberFindFirst },
+    $executeRaw: writes.executeRaw,
+    salesSettings: {
+      findUnique: settingsFindUnique,
+      update: writes.settingsUpdate,
+      updateMany: writes.settingsUpdateMany,
+      upsert: writes.settingsUpsert,
+    },
+    teamMember: {
+      findMany: memberFindMany,
+      findFirst: memberFindFirst,
+      update: writes.memberUpdate,
+      updateMany: writes.memberUpdateMany,
+    },
   };
-  return { tx: tx as never, settings, sql, queryRaw, memberFindMany };
+  return { tx: tx as never, settings, sql, queryRaw, memberFindMany, writes };
 }
 
 describe("nextInRotation", () => {
@@ -266,5 +298,87 @@ describe("assignLeadOwner in single-person mode", () => {
     });
 
     expect(await assignLeadOwner(tx)).toBe("first");
+  });
+});
+
+describe("loadAssignmentSummary", () => {
+  // The Inbox footer and the settings card read this: what assignLeadOwner would
+  // do right now, worked out from reads alone. It never moves the turn.
+  const ben = (extra: Partial<Member> = {}) => salesMember("b", { name: "Ben Example", ...extra });
+  const robert = salesMember("r", { name: "Robert O." });
+  const firstAdmin = admin("first", day(2), "Dana Example");
+  const laterAdmin = admin("late", day(20), "Laura B.");
+
+  async function summarize(settings: Partial<Settings> | null, members: Member[]) {
+    const fake = fakeTx({ settings, members });
+    const summary = await loadAssignmentSummary(fake.tx);
+    return { summary, ...fake };
+  }
+
+  function expectNoWrites(fake: Awaited<ReturnType<typeof summarize>>) {
+    expect(fake.queryRaw).not.toHaveBeenCalled();
+    for (const write of Object.values(fake.writes)) expect(write).not.toHaveBeenCalled();
+    if (fake.settings) expect(fake.settings.rrCursor).toBe(0);
+  }
+
+  it("says who gets new leads without moving the turn", async () => {
+    const noSettings = await summarize(null, [laterAdmin, firstAdmin, ben()]);
+    expect(noSettings.summary).toEqual({ mode: "ROUND_ROBIN", names: [], fallbackName: "Dana E." });
+    expectNoWrites(noSettings);
+
+    // The database hands the people back as [r, b]; the saved order is [b, r].
+    const rotation = await summarize({ roundRobinMemberIds: ["b", "r"] }, [robert, ben(), firstAdmin]);
+    expect(rotation.summary).toEqual({ mode: "ROUND_ROBIN", names: ["Ben E.", "Robert O."], fallbackName: null });
+    expectNoWrites(rotation);
+
+    const oneLostAccess = await summarize(
+      { roundRobinMemberIds: ["b", "x"] },
+      [ben(), lostAccess("x", { name: "Mark T." }), firstAdmin],
+    );
+    expect(oneLostAccess.summary).toEqual({ mode: "ROUND_ROBIN", names: ["Ben E."], fallbackName: null });
+    expectNoWrites(oneLostAccess);
+
+    const single = await summarize(
+      { leadAssignMode: "SINGLE", singleAssigneeId: "b", roundRobinMemberIds: ["r"] },
+      [ben(), robert, firstAdmin],
+    );
+    expect(single.summary).toEqual({ mode: "SINGLE", names: ["Ben E."], fallbackName: null });
+    expectNoWrites(single);
+
+    const singleLostAccess = await summarize(
+      { leadAssignMode: "SINGLE", singleAssigneeId: "b", roundRobinMemberIds: ["r"] },
+      [ben({ canUseSales: false }), robert, firstAdmin],
+    );
+    expect(singleLostAccess.summary).toEqual({ mode: "ROUND_ROBIN", names: ["Robert O."], fallbackName: null });
+    expectNoWrites(singleLostAccess);
+  });
+
+  it("names the first admin when nobody on the rotation can take a lead", async () => {
+    const everyoneGone = await summarize(
+      { roundRobinMemberIds: ["x"] },
+      [lostAccess("x", { name: "Mark T." }), laterAdmin, firstAdmin],
+    );
+    expect(everyoneGone.summary).toEqual({ mode: "ROUND_ROBIN", names: [], fallbackName: "Dana E." });
+
+    const nullList = await summarize({ roundRobinMemberIds: null }, [laterAdmin, firstAdmin]);
+    expect(nullList.summary).toEqual({ mode: "ROUND_ROBIN", names: [], fallbackName: "Dana E." });
+
+    const singleGoneNoRotation = await summarize(
+      { leadAssignMode: "SINGLE", singleAssigneeId: "gone", roundRobinMemberIds: [] },
+      [laterAdmin, firstAdmin],
+    );
+    expect(singleGoneNoRotation.summary).toEqual({ mode: "ROUND_ROBIN", names: [], fallbackName: "Dana E." });
+  });
+
+  it("gives no name at all when there is no admin either", async () => {
+    const { summary } = await summarize(null, [ben()]);
+
+    expect(summary).toEqual({ mode: "ROUND_ROBIN", names: [], fallbackName: null });
+  });
+
+  it("checks the rotation and the single person with the shared Sales-member rule", async () => {
+    const rotation = await summarize({ roundRobinMemberIds: ["b", "r"] }, [ben(), robert]);
+    expect(rotation.memberFindMany).toHaveBeenCalledTimes(1);
+    expect(rotation.memberFindMany.mock.calls[0][0].where).toEqual({ id: { in: ["b", "r"] }, ...SALES_MEMBER_WHERE });
   });
 });

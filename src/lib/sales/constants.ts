@@ -10,6 +10,7 @@ import type { SalesActivityType } from "@/generated/prisma/enums";
 export const BOARD_COLUMN_LIMIT = 50;
 export const LIST_PAGE_SIZE = 50;
 export const ACTIVITIES_PAGE_SIZE = 50;
+export const LEADS_PAGE_SIZE = 50;
 export const TIMELINE_PAGE_SIZE = 30;
 export const CONTACT_SEARCH_LIMIT = 8;
 
@@ -28,6 +29,9 @@ export const MISSED_MEETING_BATCH = 200;
 
 /** Key of the custom field that drives the territory hold check (spec rule 4). */
 export const TERRITORY_HOLD_FIELD_KEY = "territory-hold-expiry";
+
+/** Key of the lead custom field that holds the practice's ZIP (the Inbox's "· ZIP {zip}" line). */
+export const PRACTICE_ZIP_FIELD_KEY = "practice-zip";
 
 /** Delivery pipelines hold deals that are already won, so the board lists only these kinds. */
 export const BOARD_PIPELINE_KINDS = ["SALES", "CONSULTING"] as const;

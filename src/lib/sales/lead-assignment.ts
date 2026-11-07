@@ -1,5 +1,17 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE } from "@/lib/sales/access";
+import { shortName } from "@/lib/sales/format";
+
+/**
+ * Who gets the next new lead, in words: the Inbox footer and the settings card
+ * read it. SINGLE names the chosen person; ROUND_ROBIN names the people who
+ * take turns, in the saved order; when nobody on either can take a lead,
+ * `names` is empty and `fallbackName` is the first admin, who gets it instead.
+ */
+export type AssignmentSummary = { mode: "ROUND_ROBIN" | "SINGLE"; names: string[]; fallbackName: string | null };
+
+const FIRST_ADMIN_ORDER: Prisma.TeamMemberOrderByWithRelationInput[] = [{ createdAt: "asc" }, { id: "asc" }];
 
 /**
  * Who is next in a rotation. Skips nobody and wraps around; `cursor` only ever
@@ -60,9 +72,55 @@ export async function assignLeadOwner(tx: Prisma.TransactionClient): Promise<str
 
   const firstAdmin = await tx.teamMember.findFirst({
     where: { isAdmin: true },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: FIRST_ADMIN_ORDER,
     select: { id: true },
   });
   if (!firstAdmin) throw new Error("No admin is available to own this lead.");
   return firstAdmin.id;
+}
+
+/**
+ * What `assignLeadOwner` would do for a lead arriving now, read without moving
+ * the turn: the same rules (the single person while they keep Sales access,
+ * else the people on the rotation who still have it, in the saved order, else
+ * the first admin), and only reads, so opening the Inbox never uses up a turn.
+ */
+export async function loadAssignmentSummary(
+  db: Pick<typeof prisma, "salesSettings" | "teamMember"> = prisma,
+): Promise<AssignmentSummary> {
+  const settings = await db.salesSettings.findUnique({
+    where: { id: "singleton" },
+    select: { leadAssignMode: true, singleAssigneeId: true, roundRobinMemberIds: true },
+  });
+
+  if (settings?.leadAssignMode === "SINGLE" && settings.singleAssigneeId) {
+    const chosen = await db.teamMember.findFirst({
+      where: { id: settings.singleAssigneeId, ...SALES_MEMBER_WHERE },
+      select: { name: true },
+    });
+    if (chosen) return { mode: "SINGLE", names: [shortName(chosen.name)], fallbackName: null };
+  }
+
+  // An old row may hold NULL for the list (see assignLeadOwner). Treat that as an empty list.
+  const savedIds = settings?.roundRobinMemberIds ?? [];
+  if (savedIds.length > 0) {
+    const stillMembers = await db.teamMember.findMany({
+      where: { id: { in: savedIds }, ...SALES_MEMBER_WHERE },
+      select: { id: true, name: true },
+    });
+    const nameById = new Map(stillMembers.map((member) => [member.id, member.name]));
+    // Keep the saved order: the database does not return rows in list order.
+    const names = savedIds.flatMap((id) => {
+      const name = nameById.get(id);
+      return name === undefined ? [] : [shortName(name)];
+    });
+    if (names.length > 0) return { mode: "ROUND_ROBIN", names, fallbackName: null };
+  }
+
+  const firstAdmin = await db.teamMember.findFirst({
+    where: { isAdmin: true },
+    orderBy: FIRST_ADMIN_ORDER,
+    select: { name: true },
+  });
+  return { mode: "ROUND_ROBIN", names: [], fallbackName: firstAdmin ? shortName(firstAdmin.name) : null };
 }
