@@ -412,10 +412,11 @@ model VerificationToken {
 // Login brute-force lockout — DB-persisted (not in-memory) since serverless
 // functions don't hold state across invocations, same reasoning already
 // proven for AssetShareLink's password lockout (see src/lib/share-link.ts).
-// Scoped to (email, ip) rather than email alone: an attacker repeatedly
-// guessing one account's password from one IP gets locked out, without a
-// malicious actor being able to lock a real user out just by failing their
-// login from an unrelated IP.
+// Each email has a row per (email, ip) plus one row with ip = "*" that counts
+// every IP together, so spreading guesses over many IPs doesn't dodge the
+// limit (audit 2026-11-07, H2). The trade-off: anyone can lock a known email
+// out for 15 minutes by failing on purpose. Counted and enforced in the
+// Credentials provider's authorize(); see src/lib/login-lockout.ts.
 model LoginAttempt {
   id          String    @id @default(cuid())
   email       String

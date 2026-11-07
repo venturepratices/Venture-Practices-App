@@ -3,10 +3,64 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import {
+  claimLoginAttempt,
+  clearFailedLogins,
+  lockoutEmail,
+  LoginLockedError,
+  recordFailedLogin,
+  requestIp,
+} from "@/lib/login-lockout";
 
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_SECONDS = THIRTY_DAYS_MS / 1000;
+
+// A real cost-12 bcrypt hash (the cost every stored password uses) of a
+// random value that was thrown away. Checking against it when an email has
+// no account makes that answer take as long as a real wrong password, so
+// response times don't reveal which emails exist.
+const UNKNOWN_EMAIL_HASH = "$2b$12$05YdAbiqb8CfXsqYopbVf.Ff5M3Gv9EnOxxAa5NHiIYz6HIpi1E6e";
+
+// Checks TeamMember (agency staff) first, then ClientUser (a real
+// client-login account, Slice 4b) — one login page serves both, since
+// email uniqueness is enforced across both tables independently and a
+// real account only ever exists in one of them.
+async function checkPassword(email: string, password: string, remember: boolean) {
+  const member = await prisma.teamMember.findUnique({ where: { email } });
+  if (member) {
+    const passwordMatches = await bcrypt.compare(password, member.passwordHash);
+    if (!passwordMatches) return null;
+    return {
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      isAdmin: member.isAdmin,
+      mustChangePassword: member.mustChangePassword,
+      isClientUser: false,
+      remember,
+    };
+  }
+
+  const clientUser = await prisma.clientUser.findUnique({ where: { email } });
+  if (clientUser) {
+    const passwordMatches = await bcrypt.compare(password, clientUser.passwordHash);
+    if (!passwordMatches) return null;
+    return {
+      id: clientUser.id,
+      name: clientUser.name,
+      email: clientUser.email,
+      mustChangePassword: clientUser.mustChangePassword,
+      isClientUser: true,
+      clientId: clientUser.clientId,
+      remember,
+    };
+  }
+
+  await bcrypt.compare(password, UNKNOWN_EMAIL_HASH);
+  return null;
+}
 
 export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   session: {
@@ -23,11 +77,10 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         password: { label: "Password", type: "password" },
         remember: { label: "Remember me", type: "text" },
       },
-      // Checks TeamMember (agency staff) first, then ClientUser (a real
-      // client-login account, Slice 4b) — one login page serves both, since
-      // email uniqueness is enforced across both tables independently and a
-      // real account only ever exists in one of them.
-      authorize: async (credentials) => {
+      // The login lockout lives here (not in the login form's server action)
+      // so a POST straight to /api/auth/callback/credentials can't skip it.
+      // See src/lib/login-lockout.ts.
+      authorize: async (credentials, request) => {
         const email = credentials?.email;
         const password = credentials?.password;
         if (typeof email !== "string" || typeof password !== "string") {
@@ -35,38 +88,19 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         }
         const remember = credentials?.remember === "true";
 
-        const member = await prisma.teamMember.findUnique({ where: { email } });
-        if (member) {
-          const passwordMatches = await bcrypt.compare(password, member.passwordHash);
-          if (!passwordMatches) return null;
-          return {
-            id: member.id,
-            name: member.name,
-            email: member.email,
-            role: member.role,
-            isAdmin: member.isAdmin,
-            mustChangePassword: member.mustChangePassword,
-            isClientUser: false,
-            remember,
-          };
-        }
+        const attemptKey = lockoutEmail(email);
+        const ip = requestIp(request.headers);
 
-        const clientUser = await prisma.clientUser.findUnique({ where: { email } });
-        if (clientUser) {
-          const passwordMatches = await bcrypt.compare(password, clientUser.passwordHash);
-          if (!passwordMatches) return null;
-          return {
-            id: clientUser.id,
-            name: clientUser.name,
-            email: clientUser.email,
-            mustChangePassword: clientUser.mustChangePassword,
-            isClientUser: true,
-            clientId: clientUser.clientId,
-            remember,
-          };
-        }
+        const lockedUntil = await claimLoginAttempt(attemptKey, ip);
+        if (lockedUntil) throw new LoginLockedError(lockedUntil);
 
-        return null;
+        const user = await checkPassword(email, password, remember);
+        if (!user) {
+          await recordFailedLogin(attemptKey, ip);
+          return null;
+        }
+        await clearFailedLogins(attemptKey, ip).catch(() => {});
+        return user;
       },
     }),
   ],
