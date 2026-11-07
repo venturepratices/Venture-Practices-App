@@ -75,6 +75,58 @@ export function currentKeyDeps(): ReencryptDeps {
   };
 }
 
+type Env = Record<string, string | undefined>;
+
+const KEY_NAMES = ["CREDENTIALS_ENCRYPTION_KEY", "CREDENTIALS_ENCRYPTION_KEY_OLD"] as const;
+
+/** A blank value counts as not set, as it does in credential-crypto. */
+function setValue(value: string | undefined): string | undefined {
+  return value && value.trim() ? value : undefined;
+}
+
+/**
+ * Both keys must be typed into the terminal for this command. A laptop .env
+ * may hold a different key from production's, and a key quietly taken from it
+ * could let --apply move every stored value onto a key production does not
+ * have. `terminal` is the environment as the terminal set it, before .env was
+ * loaded; `loaded` is the environment now. Throws, naming the setting but
+ * never its value, if the current key is not set in the terminal or if either
+ * key in use differs from what the terminal set.
+ */
+export function requireKeysFromTerminal(terminal: Env, loaded: Env): void {
+  const [current] = KEY_NAMES;
+  if (!setValue(terminal[current])) {
+    throw new Error(
+      `${current} must be set in this terminal for this command. It is never taken from .env, which may hold a different key from the one the app uses. Nothing was read or written.`,
+    );
+  }
+  for (const name of KEY_NAMES) {
+    if (setValue(terminal[name]) !== setValue(loaded[name])) {
+      const hint = name === current ? "" : ", or set it to nothing there to run without an old key";
+      throw new Error(`${name} came from .env, not from this terminal. Set it in this terminal${hint}. Nothing was read or written.`);
+    }
+  }
+}
+
+/**
+ * With an old key set, a wrong current key in the terminal still reads every
+ * value through the old key, so the counts look right and --apply would move
+ * everything onto a key the app does not have. Counting values "already on
+ * the current key" is not proof either: with the two keys swapped, values
+ * saved with the old key count as current. The app always saves with its own
+ * current key, so the most recently saved vault password, re-saved in the app
+ * after the redeploy, must be on this terminal's current key. Throws if not.
+ * Not needed with no old key set: then a wrong key cannot read anything, so
+ * nothing would be written.
+ */
+export function confirmAppUsesCurrentKey(newestVaultPassword: string | null, deps: Pick<ReencryptDeps, "isCurrent">): void {
+  if (!setValue(process.env.CREDENTIALS_ENCRYPTION_KEY_OLD)) return;
+  if (newestVaultPassword !== null && deps.isCurrent(newestVaultPassword)) return;
+  throw new Error(
+    "Stopped, nothing was written. The most recently saved vault password is not on the CREDENTIALS_ENCRYPTION_KEY set in this terminal, so this terminal's key cannot be confirmed as the one the app now saves with. Either no vault password has been saved since the new key went live, or the keys in this terminal are not the ones in Vercel. In the app, edit any vault password, type the same password back in and save, then run this again. If it stops again, check both keys in this terminal against Vercel.",
+  );
+}
+
 export function parseReencryptArgs(args: string[]): { apply: boolean } {
   let apply = false;
   for (const arg of args) {

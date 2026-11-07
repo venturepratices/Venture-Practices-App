@@ -1,13 +1,17 @@
-import "dotenv/config";
+// Must stay the first import: it copies the environment as the terminal set it
+// before .env is loaded, and loads .env before src/lib/prisma reads DATABASE_URL.
+import { terminalEnv } from "./reencrypt-credentials-env";
 
 import { readKeyIds } from "../src/lib/credential-crypto";
 import {
   type EncryptedRow,
   type ReencryptDeps,
+  confirmAppUsesCurrentKey,
   currentKeyDeps,
   describePlan,
   parseReencryptArgs,
   planReencryption,
+  requireKeysFromTerminal,
 } from "../src/lib/credential-reencrypt";
 import { prisma } from "../src/lib/prisma";
 
@@ -16,15 +20,26 @@ import { prisma } from "../src/lib/prisma";
  * Google Calendar tokens) with the current CREDENTIALS_ENCRYPTION_KEY, so the
  * previous key, set as CREDENTIALS_ENCRYPTION_KEY_OLD during a rotation, can
  * then be removed. It also moves values saved before key ids existed onto the
- * labelled format. The rotation steps are in src/lib/credential-crypto.ts.
+ * labelled format. The rotation steps are in .env.example, next to
+ * CREDENTIALS_ENCRYPTION_KEY_OLD.
  *
  * Dry run by default: prints counts only and writes nothing. It never prints a
  * secret or a stored value. Safe to re-run: values already on the current key
  * are skipped, and a row whose value changed after it was read is left alone
  * (the next run picks it up).
  *
- * Point DATABASE_URL and both keys at the database being rotated. Values set
- * in the terminal win over .env, so set them there for this one command.
+ * Set DATABASE_URL and both keys in the terminal for this one command. The
+ * keys are never taken from .env (a laptop .env may hold a different key from
+ * production's): the script stops if CREDENTIALS_ENCRYPTION_KEY is not set in
+ * the terminal, or if either key would come from .env.
+ *
+ * With CREDENTIALS_ENCRYPTION_KEY_OLD set, it also stops, before reading any
+ * table, unless the most recently saved vault password is on the terminal's
+ * CREDENTIALS_ENCRYPTION_KEY. That proves the terminal holds the key the app
+ * now saves with, so after the redeploy with the new key, edit one vault
+ * password in the app (type the same password back in) before running this.
+ * After --apply, reveal one older vault password in the app to check the app
+ * can read it before removing CREDENTIALS_ENCRYPTION_KEY_OLD.
  *
  * Usage (from the project root):
  *   npx tsx scripts/reencrypt-credentials.ts           dry run, counts only
@@ -104,6 +119,7 @@ async function runTable<F extends string>(table: Table<F>, deps: ReencryptDeps, 
 
 async function main() {
   const { apply } = parseReencryptArgs(process.argv.slice(2));
+  requireKeysFromTerminal(terminalEnv, process.env);
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is not set. Point it at the database whose keys are being rotated.");
@@ -115,6 +131,13 @@ async function main() {
   console.log(`Database host: ${new URL(databaseUrl).host}`);
   console.log(`Current key id: ${currentId}. Old key id: ${oldId ?? "none set"}.`);
   console.log(apply ? "Mode: --apply, writing changes." : "Mode: dry run, nothing will be written. Add --apply to write.");
+
+  // With an old key set, stops unless the app's newest saved vault password is on this terminal's current key.
+  const newest = await prisma.clientCredential.findFirst({
+    orderBy: { updatedAt: "desc" },
+    select: { encryptedPassword: true },
+  });
+  confirmAppUsesCurrentKey(newest?.encryptedPassword ?? null, deps);
 
   const totals: Outcome = { unreadable: 0, written: 0, changedMeanwhile: 0, failed: 0 };
   const outcomes = [
@@ -137,7 +160,11 @@ async function main() {
   if (totals.failed > 0) console.error(`${totals.failed} rows could not be written. Run again.`);
   if (totals.unreadable > 0 || totals.failed > 0) process.exitCode = 1;
 
-  console.log(apply ? "Done. Run again without --apply to check that 0 are left to re-encrypt." : "Dry run finished. Nothing was changed.");
+  console.log(
+    apply
+      ? "Done. Run again without --apply to check that 0 are left to re-encrypt, then reveal one older vault password in the app to check the app can read it."
+      : "Dry run finished. Nothing was changed.",
+  );
 }
 
 main()

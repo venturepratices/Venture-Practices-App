@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { currentKeyId, decryptSecret, encryptSecret, storedKeyId } from "@/lib/credential-crypto";
 import {
   type EncryptedRow,
+  confirmAppUsesCurrentKey,
   currentKeyDeps,
   describePlan,
   parseReencryptArgs,
   planReencryption,
+  requireKeysFromTerminal,
 } from "@/lib/credential-reencrypt";
 
 // Audit row 18 (K6, W19): scripts/reencrypt-credentials.ts moves every stored
@@ -243,5 +245,140 @@ describe("parseReencryptArgs", () => {
   it("refuses anything else, so a typo never runs silently", () => {
     expect(() => parseReencryptArgs(["--aply"])).toThrow(/Unknown option "--aply"/);
     expect(() => parseReencryptArgs(["apply"])).toThrow(/Unknown option "apply"/);
+  });
+});
+
+// Review of row 18: the laptop .env holds an encryption key that may not be
+// production's. If the script took a key from there, --apply could move every
+// stored value onto a key production does not have. `terminal` is the
+// environment as the terminal set it, `loaded` is the same after .env.
+describe("requireKeysFromTerminal", () => {
+  const CURRENT = "CREDENTIALS_ENCRYPTION_KEY";
+  const OLD = "CREDENTIALS_ENCRYPTION_KEY_OLD";
+
+  function refusal(terminal: Record<string, string | undefined>, loaded: Record<string, string | undefined>): Error {
+    try {
+      requireKeysFromTerminal(terminal, loaded);
+    } catch (error) {
+      return error as Error;
+    }
+    throw new Error("expected requireKeysFromTerminal to refuse");
+  }
+
+  it("accepts both keys typed into the terminal", () => {
+    const env = { [CURRENT]: KEY_B, [OLD]: KEY_A };
+    expect(() => requireKeysFromTerminal(env, { ...env, DATABASE_URL: "from .env" })).not.toThrow();
+  });
+
+  it("accepts a current key with no old key anywhere, or a blank old key in .env", () => {
+    expect(() => requireKeysFromTerminal({ [CURRENT]: KEY_B }, { [CURRENT]: KEY_B })).not.toThrow();
+    expect(() => requireKeysFromTerminal({ [CURRENT]: KEY_B }, { [CURRENT]: KEY_B, [OLD]: "" })).not.toThrow();
+    expect(() => requireKeysFromTerminal({ [CURRENT]: KEY_B, [OLD]: "" }, { [CURRENT]: KEY_B, [OLD]: "" })).not.toThrow();
+  });
+
+  it("refuses a current key filled in from .env when the terminal did not set one", () => {
+    const error = refusal({ [OLD]: KEY_A }, { [CURRENT]: KEY_C, [OLD]: KEY_A });
+    expect(error.message).toMatch(/CREDENTIALS_ENCRYPTION_KEY must be set in this terminal/);
+    expect(error.message).toMatch(/never taken from \.env/);
+  });
+
+  it("refuses a blank current key in the terminal", () => {
+    expect(refusal({ [CURRENT]: "", [OLD]: KEY_A }, { [CURRENT]: "", [OLD]: KEY_A }).message).toMatch(
+      /CREDENTIALS_ENCRYPTION_KEY must be set in this terminal/,
+    );
+    expect(refusal({ [CURRENT]: "  " }, { [CURRENT]: "  " }).message).toMatch(
+      /CREDENTIALS_ENCRYPTION_KEY must be set in this terminal/,
+    );
+  });
+
+  it("refuses an old key filled in from .env when the terminal did not set one", () => {
+    const error = refusal({ [CURRENT]: KEY_B }, { [CURRENT]: KEY_B, [OLD]: KEY_C });
+    expect(error.message).toMatch(/CREDENTIALS_ENCRYPTION_KEY_OLD came from \.env, not from this terminal/);
+  });
+
+  it("refuses a key whose value in use is not the one the terminal set", () => {
+    expect(refusal({ [CURRENT]: KEY_B, [OLD]: KEY_A }, { [CURRENT]: KEY_C, [OLD]: KEY_A }).message).toMatch(
+      /CREDENTIALS_ENCRYPTION_KEY came from \.env, not from this terminal/,
+    );
+    expect(refusal({ [CURRENT]: KEY_B, [OLD]: KEY_A }, { [CURRENT]: KEY_B, [OLD]: KEY_C }).message).toMatch(
+      /CREDENTIALS_ENCRYPTION_KEY_OLD came from \.env, not from this terminal/,
+    );
+  });
+
+  it("never puts a key in its message", () => {
+    const messages = [
+      refusal({ [OLD]: KEY_A }, { [CURRENT]: KEY_C, [OLD]: KEY_A }).message,
+      refusal({ [CURRENT]: KEY_B }, { [CURRENT]: KEY_B, [OLD]: KEY_C }).message,
+      refusal({ [CURRENT]: KEY_B, [OLD]: KEY_A }, { [CURRENT]: KEY_C, [OLD]: KEY_A }).message,
+    ];
+    for (const message of messages) {
+      for (const key of [KEY_A, KEY_B, KEY_C]) expect(message).not.toContain(key);
+    }
+  });
+});
+
+// Review of row 18: with an old key set, a wrong current key in the terminal
+// still reads every value (through the old key), so the counts look fine and
+// --apply moves everything onto a key the app does not have. Even "some values
+// are already on the current key" is not proof: with the two keys swapped,
+// values saved with the old key count as current. The app always saves with
+// its own current key, so the newest saved vault password (re-saved in the
+// app after the redeploy) is the proof.
+describe("confirmAppUsesCurrentKey", () => {
+  it("is not needed when no old key is set: a wrong key alone cannot read anything", () => {
+    const fromOtherKey = encryptWith("pw", KEY_C);
+    setKeys(KEY_B);
+    expect(() => confirmAppUsesCurrentKey(fromOtherKey, currentKeyDeps())).not.toThrow();
+    expect(() => confirmAppUsesCurrentKey(null, currentKeyDeps())).not.toThrow();
+    setKeys(KEY_B, "");
+    expect(() => confirmAppUsesCurrentKey(null, currentKeyDeps())).not.toThrow();
+  });
+
+  it("passes when the newest vault password is on this terminal's current key", () => {
+    const savedByApp = encryptWith("pw", KEY_B);
+    setKeys(KEY_B, KEY_A);
+    expect(() => confirmAppUsesCurrentKey(savedByApp, currentKeyDeps())).not.toThrow();
+  });
+
+  it("stops when the terminal's current key is not the one the app saves with", () => {
+    const savedByApp = encryptWith("pw", KEY_B);
+    setKeys(KEY_C, KEY_A);
+    expect(() => confirmAppUsesCurrentKey(savedByApp, currentKeyDeps())).toThrow(/Stopped, nothing was written/);
+  });
+
+  it("stops when the two keys are swapped", () => {
+    const savedByApp = encryptWith("pw", KEY_B);
+    setKeys(KEY_A, KEY_B);
+    expect(() => confirmAppUsesCurrentKey(savedByApp, currentKeyDeps())).toThrow(/Stopped, nothing was written/);
+  });
+
+  it("stops when the same key is set as both current and old", () => {
+    const savedByApp = encryptWith("pw", KEY_B);
+    setKeys(KEY_A, KEY_A);
+    expect(() => confirmAppUsesCurrentKey(savedByApp, currentKeyDeps())).toThrow(/Stopped, nothing was written/);
+  });
+
+  it("stops when no vault password was saved since the new key, or there is none", () => {
+    const beforeTheChange = encryptWith("pw", KEY_A);
+    const beforeKeyIds = legacyEncrypt("pw", KEY_A);
+    setKeys(KEY_B, KEY_A);
+    for (const newest of [beforeTheChange, beforeKeyIds, null]) {
+      expect(() => confirmAppUsesCurrentKey(newest, currentKeyDeps())).toThrow(/edit any vault password/);
+    }
+  });
+
+  it("never puts a key or a stored value in its message", () => {
+    const savedByApp = encryptWith("pw", KEY_B);
+    setKeys(KEY_C, KEY_A);
+    let message = "";
+    try {
+      confirmAppUsesCurrentKey(savedByApp, currentKeyDeps());
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toBe("");
+    for (const secret of [KEY_A, KEY_B, KEY_C, ...savedByApp.split(/[.:]/).filter((p) => p.length >= 12)]) {
+      expect(message).not.toContain(secret);
+    }
   });
 });
