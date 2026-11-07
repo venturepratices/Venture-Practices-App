@@ -6,6 +6,7 @@ import type { ActivitiesPageData } from "@/lib/sales/activities-page";
 import type { BoardCard, BoardPageData, BoardStage } from "@/lib/sales/board";
 import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
+import type { LeadsPageData } from "@/lib/sales/leads-page";
 
 // Screen-reader-only text (Tailwind `sr-only`) is a 1px box with
 // position: absolute. Its containing block is the nearest positioned ancestor;
@@ -26,6 +27,7 @@ vi.mock("next/navigation", () => ({
 const { DealsView } = await import("@/components/sales/deals-view");
 const { ActivitiesView } = await import("@/components/sales/activities-view");
 const { DashboardView } = await import("@/components/sales/dashboard-view");
+const { LeadsView } = await import("@/components/sales/leads-view");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { Sheet } = await import("@/components/ui/sheet");
 
@@ -182,6 +184,28 @@ const DASHBOARD: DashboardData = {
   ],
 };
 
+// A lead the viewer owns (so it has a tick box) and the phone strip's box above it.
+const LEADS: LeadsPageData = {
+  query: { scope: "everyone", q: "", cursor: null },
+  rows: [
+    {
+      id: "l1",
+      title: "Crestview Dental",
+      source: "Check Availability form",
+      createdAt: "2026-11-02T15:00:00.000Z",
+      ownerId: "u1",
+      personName: "Laura B.",
+      organizationName: "Crestview Dental",
+      zip: "78704",
+      next: { type: "CALL", subject: "First call", dueAt: "2026-11-05T15:00:00.000Z", hasTime: false },
+    },
+  ],
+  nextCursor: "l1",
+  members: MEMBERS,
+  canSeeEveryone: true,
+  assignment: { mode: "ROUND_ROBIN", names: ["Ben S.", "Dana Q."], fallbackName: null },
+};
+
 const clean = (html: string) => html.replaceAll("<!-- -->", "");
 
 /** The class lists of every element that scrolls (overflow auto, on any axis, at any size). */
@@ -211,6 +235,13 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
 
   it("the Activities table wrapper is relative", () => {
     const html = clean(renderToString(createElement(ActivitiesView, { data: ACTIVITIES, viewer: VIEWER, now: NOW })));
+    expectScrollersContain(html, 1);
+  });
+
+  it("the Leads Inbox table wrapper is relative", () => {
+    const html = clean(renderToString(createElement(LeadsView, { data: LEADS, viewer: VIEWER, now: NOW, openNew: false })));
+    expect(html).toContain('aria-label="Select Crestview Dental"');
+    expect(html).toContain('class="sr-only"');
     expectScrollersContain(html, 1);
   });
 
