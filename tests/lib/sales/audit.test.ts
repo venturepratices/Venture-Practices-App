@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // used. The default `prisma` import is mocked only so loading the module stays inert.
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-const { auditDiff, recordSalesAudit, requestMeta } = await import("@/lib/sales/audit");
+const { auditDiff, recordSalesAudit, recordSalesAuditMany, requestMeta } = await import("@/lib/sales/audit");
 
 function fakeTx() {
   const create = vi.fn(async (args: { data: Record<string, unknown> }) => args.data);
@@ -136,5 +136,85 @@ describe("recordSalesAudit", () => {
     await recordSalesAudit(tx, { system: "webhook" }, entry);
     expect(create.mock.calls[0][0].data.actorType).toBe("SYSTEM");
     expect(create.mock.calls[1][0].data.actorType).toBe("WEBHOOK");
+  });
+});
+
+describe("recordSalesAuditMany", () => {
+  function fakeManyTx() {
+    const create = vi.fn(async (args: { data: Record<string, unknown> }) => args.data);
+    const createMany = vi.fn(async (args: { data: Record<string, unknown>[] }) => ({ count: args.data.length }));
+    return { tx: { salesAuditLog: { create, createMany } } as never, create, createMany };
+  }
+
+  const admin = { userId: "z", isAdmin: true, seesAllDeals: true, via: "user" as const };
+  const e1 = {
+    entityType: "SalesDeal",
+    entityId: "d4",
+    action: "contact_changed",
+    before: { personId: "p2", personName: "Sarah Example" },
+    after: { personId: "p1", personName: "Sarah K.", merged: true },
+  };
+  const e2 = { entityType: "SalesPerson", entityId: "p1", action: "merged", after: { droppedId: "p2" } };
+  const meta = { ipAddress: " 203.0.113.7 ", userAgent: "Muse/1.0" };
+
+  it("writes many rows at once, the same as one by one", async () => {
+    const { tx, create, createMany } = fakeManyTx();
+    await recordSalesAuditMany(tx, admin, [e1, e2], meta);
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+
+    // The rows recordSalesAudit writes for the same entries, one call each.
+    await recordSalesAudit(tx, admin, e1, meta);
+    await recordSalesAudit(tx, admin, e2, meta);
+    expect(createMany).toHaveBeenCalledWith({ data: [create.mock.calls[0][0].data, create.mock.calls[1][0].data] });
+    expect(createMany.mock.calls[0][0].data).toEqual([
+      {
+        actorType: "USER",
+        actorId: "z",
+        botTokenId: null,
+        entityType: "SalesDeal",
+        entityId: "d4",
+        action: "contact_changed",
+        before: { personId: "p2", personName: "Sarah Example" },
+        after: { personId: "p1", personName: "Sarah K.", merged: true },
+        ipAddress: "203.0.113.7",
+        userAgent: "Muse/1.0",
+      },
+      {
+        actorType: "USER",
+        actorId: "z",
+        botTokenId: null,
+        entityType: "SalesPerson",
+        entityId: "p1",
+        action: "merged",
+        before: undefined,
+        after: { droppedId: "p2" },
+        ipAddress: "203.0.113.7",
+        userAgent: "Muse/1.0",
+      },
+    ]);
+  });
+
+  it("writes a bot's rows as BOT with its key, and a rule's as SYSTEM", async () => {
+    const { tx, createMany } = fakeManyTx();
+    const bot = { userId: "u2", isAdmin: false, seesAllDeals: true, via: "bot" as const, botTokenId: "tok1" };
+    await recordSalesAuditMany(tx, bot, [e1]);
+    await recordSalesAuditMany(tx, { system: "rule" }, [e2]);
+    expect(createMany.mock.calls[0][0].data[0]).toMatchObject({ actorType: "BOT", actorId: "u2", botTokenId: "tok1" });
+    expect(createMany.mock.calls[1][0].data[0]).toMatchObject({ actorType: "SYSTEM", actorId: null, botTokenId: null });
+  });
+
+  it("calls nothing for no rows", async () => {
+    const { tx, create, createMany } = fakeManyTx();
+    await recordSalesAuditMany(tx, admin, [], meta);
+    expect(createMany).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a bot change that does not say which key made it", async () => {
+    const { tx, createMany } = fakeManyTx();
+    const actor = { userId: "u2", isAdmin: false, seesAllDeals: true, via: "bot" } as never;
+    await expect(recordSalesAuditMany(tx, actor, [e1, e2])).rejects.toThrow("A bot change must name the bot key that made it.");
+    expect(createMany).not.toHaveBeenCalled();
   });
 });

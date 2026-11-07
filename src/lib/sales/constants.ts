@@ -22,6 +22,8 @@ export const CONTACT_LINKED_ROWS = 20;
 export const BULK_IDS_MAX = 100;
 /** Most leads one bulk convert may turn into deals; each still runs in its own transaction. */
 export const BULK_CONVERT_MAX = 25;
+/** Most deals, leads, notes, activities and people one merge of duplicate contacts may move, all in one transaction. */
+export const MERGE_LINKED_MAX = 500;
 
 /** Days an open deal can sit in a stage before it rots (amber card). */
 export const DEFAULT_ROTTING_DAYS = 14;

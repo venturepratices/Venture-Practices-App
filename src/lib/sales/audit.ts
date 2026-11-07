@@ -35,18 +35,12 @@ export function requestMeta(req: Request): SalesRequestMeta {
   };
 }
 
-/**
- * Adds one row to the locked history log, inside the caller's transaction so the
- * change and its history commit or roll back together. A bot is logged as BOT
- * under the person it works for, with the key that made the change; rules and
- * imports are SYSTEM with no person. Pass `requestMeta(request)` from a route.
- */
-export async function recordSalesAudit(
-  tx: Prisma.TransactionClient,
+/** The history row for one entry: who acted (refusing a bot that names no key), what changed, and from where. */
+function auditRow(
   actor: SalesActor | SalesSystemActor,
   entry: SalesAuditEntry,
-  meta: Partial<SalesRequestMeta> = {},
-): Promise<void> {
+  meta: Partial<SalesRequestMeta>,
+): Prisma.SalesAuditLogCreateManyInput {
   // A history row can never be fixed later, so a bot row without its key is refused outright.
   if (!("system" in actor) && actor.via === "bot" && !actor.botTokenId) {
     throw new Error("A bot change must name the bot key that made it.");
@@ -59,18 +53,48 @@ export async function recordSalesAudit(
         ? { actorType: "BOT" as const, actorId: actor.userId, botTokenId: actor.botTokenId }
         : { actorType: "USER" as const, actorId: actor.userId, botTokenId: null };
 
-  await tx.salesAuditLog.create({
-    data: {
-      ...who,
-      entityType: entry.entityType,
-      entityId: entry.entityId,
-      action: entry.action,
-      before: entry.before as Prisma.InputJsonObject | undefined,
-      after: entry.after as Prisma.InputJsonObject | undefined,
-      ipAddress: cleanMeta(meta.ipAddress),
-      userAgent: cleanMeta(meta.userAgent),
-    },
-  });
+  return {
+    ...who,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    action: entry.action,
+    before: entry.before as Prisma.InputJsonObject | undefined,
+    after: entry.after as Prisma.InputJsonObject | undefined,
+    ipAddress: cleanMeta(meta.ipAddress),
+    userAgent: cleanMeta(meta.userAgent),
+  };
+}
+
+/**
+ * Adds one row to the locked history log, inside the caller's transaction so the
+ * change and its history commit or roll back together. A bot is logged as BOT
+ * under the person it works for, with the key that made the change; rules and
+ * imports are SYSTEM with no person. Pass `requestMeta(request)` from a route.
+ */
+export async function recordSalesAudit(
+  tx: Prisma.TransactionClient,
+  actor: SalesActor | SalesSystemActor,
+  entry: SalesAuditEntry,
+  meta: Partial<SalesRequestMeta> = {},
+): Promise<void> {
+  await tx.salesAuditLog.create({ data: auditRow(actor, entry, meta) });
+}
+
+/**
+ * Adds many rows in one insert, exactly the rows `recordSalesAudit` would write
+ * one by one, inside the caller's transaction (a merge of contacts can touch
+ * hundreds of deals, and one round trip each could outlast the transaction).
+ * No rows, no insert.
+ */
+export async function recordSalesAuditMany(
+  tx: Prisma.TransactionClient,
+  actor: SalesActor | SalesSystemActor,
+  entries: SalesAuditEntry[],
+  meta: Partial<SalesRequestMeta> = {},
+): Promise<void> {
+  const data = entries.map((entry) => auditRow(actor, entry, meta));
+  if (data.length === 0) return;
+  await tx.salesAuditLog.createMany({ data });
 }
 
 function isEqual(a: unknown, b: unknown): boolean {
