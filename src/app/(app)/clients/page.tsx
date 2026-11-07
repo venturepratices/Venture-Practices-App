@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Building2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { accessibleClientFilter, canUseCapability } from "@/lib/permissions";
+import { accessibleClientFilter, canUseCapability, isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getCompleteStatusId } from "@/lib/task-status";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     ? { AND: [accessWhere, { name: { contains: params.q, mode: "insensitive" } }] }
     : accessWhere;
   const canCreate = await canUseCapability("canCreateClients");
+  const canChangeSlackChannel = await isAdmin();
   const completeStatusId = await getCompleteStatusId();
   const [clients, totalCount, overdueByClient] = await Promise.all([
     prisma.client.findMany({
@@ -75,6 +76,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         {canCreate ? (
           <ClientFormDialog
             mode="create"
+            canChangeSlackChannel={canChangeSlackChannel}
             trigger={
               <Button>
                 <Plus className="size-4" />
@@ -104,6 +106,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               <ClientRow
                 key={client.id}
                 delayMs={Math.min(i * 40, 400)}
+                canChangeSlackChannel={canChangeSlackChannel}
                 client={{
                   id: client.id,
                   name: client.name,
