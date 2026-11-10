@@ -177,6 +177,18 @@ describe("ContactPanelBody respects read-only viewers", () => {
   });
 });
 
+describe("ContactPanelBody's owner line does not repeat its label to a screen reader", () => {
+  it("drops the sr-only 'Owner:' span so the visible 'Owner <name>' is said once", () => {
+    const html = clean(
+      renderToString(createElement(ContactPanelBody, { data: personPanel(), now: NOW, onChanged: vi.fn(), onClose: vi.fn() })),
+    );
+    // The visible text in the meta already says "Owner <name>", so a hidden
+    // "Owner:" sr-only span before it is read twice ("Owner Owner Ben S.").
+    expect(html).toContain("Owner Ben S.");
+    expect(html).not.toMatch(/sr-only[^>]*>Owner:/);
+  });
+});
+
 describe("ContactPanelBody opens a kept contact from an old link", () => {
   it("names the redirect in words when it happened", () => {
     const html = clean(

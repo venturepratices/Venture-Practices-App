@@ -194,7 +194,7 @@ function MergeDialogBody({
           aria-busy={saving || undefined}
           className="pointer-coarse:min-h-10"
         >
-          {state.status === "ready" ? `Merge into ${state.preview.keep.name}` : "Merge"}
+          {state.status === "ready" ? `Merge into ${state.preview.keep.name}` : title}
         </Button>
       </DialogFooter>
     </>

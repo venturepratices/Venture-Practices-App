@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
+import { toast } from "sonner";
 
 import { updateContactRequest, type ApiResult } from "@/lib/sales/api-client";
 import type { OrganizationPanelData, PersonPanelData } from "@/lib/sales/contact-panel";
@@ -350,6 +351,7 @@ function InlineInput({
       inputRef.current?.focus();
       return;
     }
+    toast("Saved.");
     onChanged();
     onDone();
   }
@@ -472,6 +474,7 @@ function OrganizationRow({
       typed.current = false;
       return;
     }
+    toast("Saved.");
     finish(true);
     onChanged();
   }

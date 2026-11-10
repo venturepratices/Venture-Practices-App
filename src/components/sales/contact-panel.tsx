@@ -510,7 +510,6 @@ function OwnerLine({ ownerName, ownerId }: { ownerName: string; ownerId: string 
       <span aria-hidden="true" className="inline-flex">
         <OwnerAvatar id={ownerId} name={ownerName} />
       </span>
-      <span className="sr-only">Owner: </span>
       Owner {shortName(ownerName)}
     </span>
   );
@@ -543,7 +542,6 @@ function DuplicateBar({
 
   // Mockup v2 shows only the first visible match name with a Merge button.
   const first = notice.matches[0];
-  const openPanelHref = (id: string) => `?${kind === "person" ? "person" : "organization"}=${encodeURIComponent(id)}`;
 
   return (
     <div
@@ -553,7 +551,7 @@ function DuplicateBar({
       <Merge aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <span className="min-w-0 flex-1">
         <strong className="font-semibold">{notice.label}</strong>{" "}
-        <MatchLinks matches={notice.matches} kind={kind} openPanelHref={openPanelHref} />
+        <MatchLinks matches={notice.matches} kind={kind} />
         {notice.tail ? <> {notice.tail}</> : null}
       </span>
       {canMerge && first ? (
@@ -573,11 +571,9 @@ function DuplicateBar({
 function MatchLinks({
   matches,
   kind,
-  openPanelHref,
 }: {
   matches: { id: string; name: string }[];
   kind: ContactKind;
-  openPanelHref: (id: string) => string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -601,7 +597,6 @@ function MatchLinks({
               {match.name}
             </Link>
             {index < matches.length - 1 ? ", " : "."}
-            {index === matches.length - 1 && matches.length < openPanelHref.length ? null : null}
           </span>
         );
       })}
