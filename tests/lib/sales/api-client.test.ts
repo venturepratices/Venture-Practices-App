@@ -21,6 +21,7 @@ import {
   getMergePreview,
   mergeContactsRequest,
   moveDealRequest,
+  removeDealFileRequest,
   runLeadBulkRequest,
   saveDefaultViewRequest,
   searchContactsRequest,
@@ -29,6 +30,7 @@ import {
   setLeadFieldRequest,
   updateContactRequest,
   updateLeadRequest,
+  uploadDealFileRequest,
 } from "@/lib/sales/api-client";
 import type { BoardQuery } from "@/lib/sales/board-query";
 
@@ -304,6 +306,41 @@ describe("api-client", () => {
         error: "This lead was already converted.",
         code: "LEAD_CONVERTED",
       });
+    });
+  });
+
+  describe("deal files (Task 24)", () => {
+    it("uploads a file as a multipart form without a JSON header", async () => {
+      fetchMock.mockResolvedValue(json(201, { file: { id: "f1" } }));
+      const file = new File(["%PDF-1.4 bytes"], "Contract.pdf", { type: "application/pdf" });
+      const result = await uploadDealFileRequest("d1", file);
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/deals/d1/files", expect.objectContaining({ method: "POST" }));
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      const body = init.body as FormData;
+      expect(body).toBeInstanceOf(FormData);
+      expect(body.get("confirmedFinal")).toBe("true");
+      expect(body.get("file")).toBe(file);
+      // The browser sets the multipart boundary itself, so the wrapper does not.
+      const headers = (init.headers ?? {}) as Record<string, string>;
+      expect(headers["Content-Type"]).toBeUndefined();
+      expect(result).toEqual({ ok: true, data: { file: { id: "f1" } } });
+    });
+
+    it("escapes the deal id in the upload URL", async () => {
+      fetchMock.mockResolvedValue(json(201, { file: { id: "f1" } }));
+      const file = new File(["bytes"], "Contract.pdf", { type: "application/pdf" });
+      await uploadDealFileRequest("d/1", file);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "/api/sales/deals/d%2F1/files",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    it("removes a file with DELETE", async () => {
+      fetchMock.mockResolvedValue(json(200, { ok: true, changed: true }));
+      const result = await removeDealFileRequest("f1");
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/files/f1", { method: "DELETE" });
+      expect(result).toEqual({ ok: true, data: { ok: true, changed: true } });
     });
   });
 

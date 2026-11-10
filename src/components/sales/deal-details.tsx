@@ -8,9 +8,10 @@ import { DEAL_SOURCES } from "@/lib/sales/constants";
 import { normalizeFieldValue } from "@/lib/sales/custom-fields";
 import type { DealPanelData, PanelField } from "@/lib/sales/deal-panel";
 import { formatMoney } from "@/lib/sales/format";
-import { cn } from "@/lib/utils";
+import { cn, formatDate, startOfDay } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ContactCell } from "@/components/sales/lead-details";
 import { SECTION_HEADING } from "@/components/sales/next-steps";
 
 // The panel's "Details" (mockup `.fields`): a two-column label and value grid
@@ -49,14 +50,22 @@ export function DealDetails({
       </h3>
       <dl className="m-0 grid grid-cols-[120px_minmax(0,1fr)] overflow-hidden rounded-[9px] border text-[13px] sm:grid-cols-[150px_minmax(0,1fr)] [&>:nth-last-child(-n+2)]:border-b-0">
         <dt className={LABEL_CELL}>Organization</dt>
-        <dd className="m-0 min-w-0 border-b px-2.5 py-[7px] break-words">
-          {deal.organization?.name ?? <span className="text-muted-foreground">Not set</span>}
-        </dd>
+        <ContactCell
+          kind="organization"
+          contact={deal.organization}
+          canEdit={canEdit}
+          save={(ref) => updateDealRequest(deal.id, { organization: ref })}
+          onSaved={onSaved}
+        />
 
         <dt className={LABEL_CELL}>Person</dt>
-        <dd className="m-0 min-w-0 border-b px-2.5 py-[7px] break-words">
-          {deal.person?.name ?? <span className="text-muted-foreground">Not set</span>}
-        </dd>
+        <ContactCell
+          kind="person"
+          contact={deal.person}
+          canEdit={canEdit}
+          save={(ref) => updateDealRequest(deal.id, { person: ref })}
+          onSaved={onSaved}
+        />
 
         <dt className={LABEL_CELL} id={`${id}-source`}>
           Source
@@ -83,6 +92,19 @@ export function DealDetails({
           </button>
         </dd>
 
+        <dt className={LABEL_CELL} id={`${id}-close`}>
+          Expected close
+        </dt>
+        <dd className="m-0 min-w-0 border-b">
+          <ExpectedCloseInput
+            dealId={deal.id}
+            value={deal.expectedCloseDate}
+            canEdit={canEdit}
+            labelId={`${id}-close`}
+            onSaved={onSaved}
+          />
+        </dd>
+
         {fields.map((field) => (
           <CustomFieldRow
             key={field.key}
@@ -94,6 +116,130 @@ export function DealDetails({
         ))}
       </dl>
     </section>
+  );
+}
+
+/**
+ * The Expected close row (Mockup v2 `d-close`): the stored day as a short date
+ * (or "Add" when none is set), with a click or Enter to open a native date
+ * input and save on blur. The hint under the box names the forecast on the
+ * Sales dashboard (Decision 26). A view-only cell for a reader.
+ */
+function ExpectedCloseInput({
+  dealId,
+  value,
+  canEdit,
+  labelId,
+  onSaved,
+}: {
+  dealId: string;
+  value: string | null;
+  canEdit: boolean;
+  labelId: string;
+  onSaved: () => void;
+}) {
+  const id = useId();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  // A reload brought a different stored value: refresh the box without remounting (so focus stays put).
+  const [stored, setStored] = useState(value);
+  if (value !== stored) {
+    setStored(value);
+    setDraft(value ?? "");
+  }
+
+  async function commit(raw: string) {
+    const next = raw === "" ? null : raw;
+    if (next === (value ?? null) || saving) {
+      setEditing(false);
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    const result = await updateDealRequest(dealId, { expectedCloseDate: next });
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error);
+      setDraft(value ?? "");
+      return;
+    }
+    toast("Saved.");
+    setEditing(false);
+    onSaved();
+  }
+
+  const dateLabel = value ? formatDate(startOfDay(value), { month: "short", day: "numeric", year: "numeric" }) : null;
+
+  if (!canEdit) {
+    return (
+      <div className="flex min-h-[34px] items-center px-2.5 py-[7px]">
+        {dateLabel ? (
+          <span className="tabular-nums">{dateLabel}</span>
+        ) : (
+          <span className="text-muted-foreground">Not set</span>
+        )}
+      </div>
+    );
+  }
+
+  const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+
+  if (editing) {
+    return (
+      <div aria-busy={saving || undefined}>
+        <Input
+          id={id}
+          type="date"
+          aria-labelledby={labelId}
+          aria-invalid={error !== null || undefined}
+          aria-describedby={error ? errorId : hintId}
+          value={draft}
+          autoFocus
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (error) setError(null);
+          }}
+          onBlur={() => void commit(draft)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setDraft(value ?? "");
+              setError(null);
+              setEditing(false);
+            }
+          }}
+          className={cn(CELL_CONTROL, "tabular-nums", draft === "" && "text-muted-foreground")}
+        />
+        {error ? (
+          <p id={errorId} role="alert" className="m-0 px-2.5 pb-1.5 text-xs text-destructive">
+            {error}
+          </p>
+        ) : (
+          <p id={hintId} className="m-0 px-2.5 pb-1.5 text-xs text-muted-foreground">
+            Used by the forecast on the Sales dashboard.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-labelledby={labelId}
+      aria-label={dateLabel ? `Expected close ${dateLabel}, change` : "Add an expected close date"}
+      onClick={() => setEditing(true)}
+      className="flex min-h-[34px] w-full items-center px-2.5 py-[7px] text-left tabular-nums outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset pointer-coarse:min-h-10"
+    >
+      {dateLabel ?? <span className="text-muted-foreground">Add</span>}
+    </button>
   );
 }
 

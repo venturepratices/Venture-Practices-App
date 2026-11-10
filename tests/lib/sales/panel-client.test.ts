@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   centeredScrollLeft,
   composerDueDate,
+  composerTabs,
   DEAL_PANEL_SHEET_CLASS,
   dealPanelOpen,
+  fileCheck,
+  fileMetaLine,
+  fileSizeLabel,
   groupTimelineByDay,
   holdEscapeForDraft,
   lostHeadline,
   needsNextStepPrompt,
+  nextTab,
   stageCaption,
 } from "@/lib/sales/panel-client";
+import type { PanelFile } from "@/lib/sales/deal-panel";
 import type { TimelineEntry } from "@/lib/sales/timeline";
 import { cn } from "@/lib/utils";
 
@@ -147,6 +153,93 @@ describe("centeredScrollLeft (the stage bar on phones, C4)", () => {
 
   it("does not scroll a bar that fits (desktop)", () => {
     expect(centeredScrollLeft({ start: 300, width: 80 }, { width: 524, scrollWidth: 524 })).toBe(0);
+  });
+});
+
+describe("composerTabs (Task 24)", () => {
+  it("offers a File tab on deals only", () => {
+    expect(composerTabs("deal")).toEqual(["activity", "note", "file"]);
+    expect(composerTabs("lead")).toEqual(["activity", "note"]);
+  });
+});
+
+describe("nextTab (arrow keys cycle, Home and End jump to the ends)", () => {
+  const dealTabs = ["activity", "note", "file"] as const;
+  it("wraps with ArrowLeft and ArrowRight", () => {
+    expect(nextTab([...dealTabs], "file", "ArrowRight")).toBe("activity");
+    expect(nextTab([...dealTabs], "activity", "ArrowLeft")).toBe("file");
+    expect(nextTab([...dealTabs], "note", "ArrowRight")).toBe("file");
+    expect(nextTab([...dealTabs], "note", "ArrowLeft")).toBe("activity");
+  });
+  it("Home lands on the first tab and End on the last", () => {
+    expect(nextTab([...dealTabs], "note", "Home")).toBe("activity");
+    expect(nextTab([...dealTabs], "activity", "End")).toBe("file");
+  });
+});
+
+describe("fileSizeLabel (words for a byte count)", () => {
+  it("rounds small files up to at least 1 KB", () => {
+    expect(fileSizeLabel(1)).toBe("1 KB");
+  });
+  it("rounds to a whole KB under 1 MB", () => {
+    expect(fileSizeLabel(2048)).toBe("2 KB");
+  });
+  it("reads 1.5 MB with one decimal", () => {
+    expect(fileSizeLabel(1572864)).toBe("1.5 MB");
+  });
+  it("drops the decimal when the file is a whole MB", () => {
+    expect(fileSizeLabel(4194304)).toBe("4 MB");
+  });
+});
+
+describe("fileMetaLine (what a file row says under its name)", () => {
+  const panelNow = new Date("2026-11-05T15:00:00.000Z"); // 10 AM Eastern
+  function makeFile(overrides: Partial<PanelFile>): PanelFile {
+    return {
+      id: "f1",
+      name: "Contract.pdf",
+      sizeBytes: 1572864,
+      contentType: "application/pdf",
+      stageName: "Proposal Sent",
+      uploadedBy: "Ben S.",
+      createdAt: "2026-11-05T14:00:00.000Z",
+      canRemove: false,
+      ...overrides,
+    };
+  }
+  it("names the size, stage, person and day", () => {
+    expect(fileMetaLine(makeFile({}), panelNow)).toBe("1.5 MB · Proposal Sent · Ben S., today");
+  });
+  it("says yesterday when the file came in yesterday", () => {
+    expect(fileMetaLine(makeFile({ createdAt: "2026-11-04T14:00:00.000Z" }), panelNow)).toBe(
+      "1.5 MB · Proposal Sent · Ben S., yesterday",
+    );
+  });
+  it("reads a short date for older files", () => {
+    expect(fileMetaLine(makeFile({ createdAt: "2026-11-02T14:00:00.000Z" }), panelNow)).toBe(
+      "1.5 MB · Proposal Sent · Ben S., Nov 2",
+    );
+  });
+  it("leaves the stage out when none was recorded", () => {
+    expect(fileMetaLine(makeFile({ stageName: null }), panelNow)).toBe("1.5 MB · Ben S., today");
+  });
+});
+
+describe("fileCheck (what the File tab refuses before sending)", () => {
+  it("asks for a file first", () => {
+    expect(fileCheck(null, true)).toBe("Choose a file first.");
+  });
+  it("refuses a type that is not allowed", () => {
+    expect(fileCheck({ name: "setup.exe", size: 10 }, true)).toBe("Only PDF, Word, Excel, PNG or JPG files can be added.");
+  });
+  it("refuses a file over 4 MB", () => {
+    expect(fileCheck({ name: "Contract.PDF", size: 4194305 }, true)).toBe("Files can be up to 4 MB.");
+  });
+  it("asks the person to tick the final-version box", () => {
+    expect(fileCheck({ name: "contract.pdf", size: 10 }, false)).toBe("Tick the box first. Files are for final versions only.");
+  });
+  it("accepts a JPEG with the ticked box", () => {
+    expect(fileCheck({ name: "photo.jpeg", size: 10 }, true)).toBeNull();
   });
 });
 

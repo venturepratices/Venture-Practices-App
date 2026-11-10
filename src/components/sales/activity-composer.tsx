@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { CalendarPlus, StickyNote } from "lucide-react";
+import { CalendarPlus, Paperclip, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import type { SalesActivityType } from "@/generated/prisma/enums";
 import { addNoteFor, createActivityFor, type SalesParentRef } from "@/lib/sales/api-client";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPES, DUE_CHOICES, NOTE_MAX_CHARS, SUBJECT_MAX, TIME_SLOTS } from "@/lib/sales/constants";
-import { composerDueDate, holdEscapeForDraft, type DueChoice } from "@/lib/sales/panel-client";
+import { composerDueDate, composerTabs, holdEscapeForDraft, nextTab, type ComposerTab, type DueChoice } from "@/lib/sales/panel-client";
 import { todayDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FileUploadTab } from "@/components/sales/file-upload-tab";
 import { ACTIVITY_ICONS } from "@/components/sales/sales-pills";
 import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
 
@@ -27,9 +28,13 @@ import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
 // panel (F3): from a text box it moves focus out to the tab, so a half typed
 // note is never lost to Esc.
 
-export type ComposerHandle = { openActivity(type?: SalesActivityType): void };
+export type ComposerHandle = {
+  openActivity(type?: SalesActivityType): void;
+  /** Open one of the composer's tabs. `openActivity` is still the way to focus the subject box. */
+  openTab(tab: ComposerTab): void;
+};
 
-type Tab = "activity" | "note";
+type Tab = ComposerTab;
 
 const ANY_TIME = "any";
 const DUE_ITEMS = Object.fromEntries(DUE_CHOICES.map((choice) => [choice.id, choice.label]));
@@ -66,13 +71,20 @@ export function ActivityComposer({
   const [focusRequest, setFocusRequest] = useState(0);
   const subjectRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ activity: null, note: null });
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ activity: null, note: null, file: null });
+  const tabs = composerTabs(parent.kind);
 
   useImperativeHandle(ref, () => ({
     openActivity(nextType) {
       setTab("activity");
       if (nextType) setType(nextType);
       setFocusRequest((count) => count + 1);
+    },
+    openTab(next) {
+      // The File tab belongs to deals only; a lead's composer keeps its two tabs.
+      if (!tabs.includes(next)) return;
+      setTab(next);
+      if (next === "activity") setFocusRequest((count) => count + 1);
     },
   }));
 
@@ -142,11 +154,11 @@ export function ActivityComposer({
     onSaved();
   }
 
-  /** Arrow keys move between the two tabs (the tab list's own keyboard pattern). */
+  /** Arrow keys move between the tabs (the tab list's own keyboard pattern). */
   function onTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
     event.preventDefault();
-    const next: Tab = event.key === "Home" ? "activity" : event.key === "End" ? "note" : tab === "activity" ? "note" : "activity";
+    const next = nextTab(tabs, tab, event.key);
     setTab(next);
     tabRefs.current[next]?.focus();
   }
@@ -163,7 +175,7 @@ export function ActivityComposer({
   return (
     <div className="rounded-[10px] border bg-card" onKeyDown={onComposerKeyDown}>
       <div role="tablist" aria-label={parent.kind === "lead" ? "Add to this lead" : "Add to this deal"} onKeyDown={onTabKeyDown} className="flex border-b px-1.5">
-        {(["activity", "note"] as const).map((which) => (
+        {tabs.map((which) => (
           <button
             key={which}
             ref={(element) => {
@@ -178,8 +190,8 @@ export function ActivityComposer({
             onClick={() => setTab(which)}
             className={TAB_CLASS}
           >
-            {which === "activity" ? <CalendarPlus aria-hidden="true" /> : <StickyNote aria-hidden="true" />}
-            {which === "activity" ? "Activity" : "Note"}
+            {which === "activity" ? <CalendarPlus aria-hidden="true" /> : which === "note" ? <StickyNote aria-hidden="true" /> : <Paperclip aria-hidden="true" />}
+            {which === "activity" ? "Activity" : which === "note" ? "Note" : "File"}
           </button>
         ))}
       </div>
@@ -310,6 +322,17 @@ export function ActivityComposer({
           </Button>
         </ComposerFooter>
       </form>
+
+      {parent.kind === "deal" ? (
+        <div
+          role="tabpanel"
+          id={`${id}-panel-file`}
+          aria-labelledby={`${id}-tab-file`}
+          hidden={tab !== "file"}
+        >
+          <FileUploadTab dealId={parent.id} onUploaded={onSaved} />
+        </div>
+      ) : null}
     </div>
   );
 }

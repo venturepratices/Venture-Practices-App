@@ -20,6 +20,7 @@ import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityComposer, type ComposerHandle } from "@/components/sales/activity-composer";
 import { DealDetails } from "@/components/sales/deal-details";
+import { DealFiles } from "@/components/sales/deal-files";
 import { DealHistory, type HistoryState } from "@/components/sales/deal-history";
 import { DealPanelHeader, PanelCloseButton } from "@/components/sales/deal-panel-header";
 import { NextSteps } from "@/components/sales/next-steps";
@@ -128,6 +129,7 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
   // Each load takes a ticket; only the newest one's answer is shown.
   const latestLoad = useRef(0);
   const hasData = useRef(false);
+  // Shared with DealPanelContent so "Add a file" and the composer open the same tabs.
   const composerRef = useRef<ComposerHandle>(null);
   const composeHandled = useRef(false);
 
@@ -214,9 +216,6 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
     void reload();
   }
 
-  const moves = useDealMoves(changed);
-  const done = useActivityDone(changed);
-
   if (load.kind === "loading") return <PanelSkeleton titleId={titleId} />;
 
   if (load.kind === "missing" || load.kind === "error") {
@@ -256,7 +255,53 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
     );
   }
 
-  const { data, now } = load;
+  return (
+    <DealPanelContent
+      data={load.data}
+      now={load.now}
+      history={history}
+      titleId={titleId}
+      composerRef={composerRef}
+      onChanged={changed}
+      onShowOlder={() => void showOlder()}
+      onRetryHistory={() => {
+        setHistory({ status: "loading" });
+        void reload();
+      }}
+    />
+  );
+}
+
+/**
+ * The deal panel once the deal has loaded (Task 24: pulled out of
+ * `DealPanelBody` as its own component so render tests can mount a loaded
+ * panel directly). Carries the header, the lost and no-next-step bars, the
+ * composer, Next steps, Files, Details and History, plus the move and done
+ * dialogs. `useDealMoves` and `useActivityDone` live here so the dialogs they
+ * draw stack on top of the panel and reload the data when they settle.
+ */
+export function DealPanelContent({
+  data,
+  now,
+  history,
+  titleId,
+  composerRef,
+  onChanged,
+  onShowOlder,
+  onRetryHistory,
+}: {
+  data: DealPanelData;
+  now: Date;
+  history: HistoryState;
+  titleId: string;
+  composerRef: React.RefObject<ComposerHandle | null>;
+  /** After a change is saved: reload the panel and refresh the page behind. */
+  onChanged: () => void;
+  /** Loads the next older page of History. */
+  onShowOlder: () => void;
+  /** After a History load failed: try again. */
+  onRetryHistory: () => void;
+}) {
   const { deal, canEdit } = data;
   const stage = data.stages.find((option) => option.id === deal.stageId) ?? null;
   const movable: MovableDeal = {
@@ -266,10 +311,12 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
     valueCents: deal.valueCents,
     mrrCents: deal.mrrCents,
   };
+  const moves = useDealMoves(onChanged);
+  const done = useActivityDone(onChanged);
 
   return (
     <>
-      <DealPanelHeader data={data} now={now} moves={moves} titleId={titleId} onChanged={changed} />
+      <DealPanelHeader data={data} now={now} moves={moves} titleId={titleId} onChanged={onChanged} />
 
       <div className={PANEL_BODY}>
         {deal.status === "LOST" ? <LostBar reason={deal.lostReason} comment={deal.lostComment} /> : null}
@@ -311,7 +358,7 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
           </NoticeBar>
         ) : null}
 
-        {canEdit ? <ActivityComposer ref={composerRef} parent={{ kind: "deal", id: deal.id }} onSaved={changed} /> : null}
+        {canEdit ? <ActivityComposer ref={composerRef} parent={{ kind: "deal", id: deal.id }} onSaved={onChanged} /> : null}
 
         <NextSteps
           activities={data.openActivities}
@@ -320,17 +367,22 @@ function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; t
           onMarkDone={(activity) => done.markDone(activity, { kind: "deal", id: deal.id, title: deal.title })}
         />
 
-        <DealDetails data={data} onSaved={changed} onEditValue={() => stage && moves.editValue(movable, stage)} />
+        <DealFiles
+          files={data.files}
+          canEdit={canEdit}
+          now={now}
+          onAddFile={() => composerRef.current?.openTab("file")}
+          onChanged={onChanged}
+        />
+
+        <DealDetails data={data} onSaved={onChanged} onEditValue={() => stage && moves.editValue(movable, stage)} />
 
         <DealHistory
           history={history}
           now={now}
-          onShowOlder={() => void showOlder()}
-          onRetry={() => {
-            setHistory({ status: "loading" });
-            void reload();
-          }}
-          onSaved={changed}
+          onShowOlder={onShowOlder}
+          onRetry={onRetryHistory}
+          onSaved={onChanged}
         />
       </div>
 

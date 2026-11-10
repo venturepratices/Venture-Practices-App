@@ -248,7 +248,9 @@ describe("the lead panel's wiring", () => {
     const composer = source("src/components/sales/activity-composer.tsx");
     expect(composer).toContain("createActivityFor(parent, {");
     expect(composer).toContain("addNoteFor(parent, {");
-    expect(composer).not.toMatch(/createActivityRequest|addNoteRequest|dealId/);
+    expect(composer).not.toMatch(/createActivityRequest|addNoteRequest/);
+    // "dealId" lives on the File tab (Task 24, deals only), never on the activity or note save paths.
+    expect(composer).not.toMatch(/createActivityFor\([^)]*dealId|addNoteFor\([^)]*dealId/);
     expect(source("src/components/sales/lead-panel.tsx")).toContain('parent={{ kind: "lead", id: lead.id }}');
   });
 

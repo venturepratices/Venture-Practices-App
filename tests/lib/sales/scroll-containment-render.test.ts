@@ -33,6 +33,7 @@ const { ContactsView } = await import("@/components/sales/contacts-view");
 const { DashboardView } = await import("@/components/sales/dashboard-view");
 const { LeadsView } = await import("@/components/sales/leads-view");
 const { ContactPanelBody } = await import("@/components/sales/contact-panel");
+const { DealFiles } = await import("@/components/sales/deal-files");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { LeadPanelBody } = await import("@/components/sales/lead-panel");
 const { Sheet } = await import("@/components/ui/sheet");
@@ -349,6 +350,35 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     expect(html).toContain("Sarah K.");
     expect(html).toContain('class="sr-only"');
     expectScrollersContain(html, 1);
+  });
+
+  it("the deal panel's Files section renders a scroll-safe layout (Task 24)", () => {
+    const html = clean(
+      renderToString(
+        createElement(DealFiles, {
+          files: [
+            {
+              id: "f1",
+              name: "contract.pdf",
+              sizeBytes: 1572864,
+              contentType: "application/pdf",
+              stageName: "Proposal Sent",
+              uploadedBy: "Ben S.",
+              createdAt: "2026-11-05T14:00:00.000Z",
+              canRemove: true,
+            },
+          ],
+          canEdit: true,
+          now: new Date(NOW),
+          onAddFile: vi.fn(),
+          onChanged: vi.fn(),
+        }),
+      ),
+    );
+    expect(html).toContain("contract.pdf");
+    // DealFiles draws no scroller of its own (file rows wrap on phones), but any
+    // scroller added later must be relative too.
+    for (const classes of scrollerClasses(html)) expect(classes, classes.join(" ")).toContain("relative");
   });
 
   it("the deal panel's stage bar (it scrolls sideways on phones) is relative", () => {

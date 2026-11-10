@@ -17,7 +17,7 @@ import type { ContactRowsPage } from "@/lib/sales/contacts-page";
 import type { ContactKind, ContactsQuery } from "@/lib/sales/contacts-query";
 import { CONTACT_PATHS, contactsQueryToSearch } from "@/lib/sales/contacts-query";
 import type { ContactResult } from "@/lib/sales/contacts";
-import type { DealPanelData, PanelActivity } from "@/lib/sales/deal-panel";
+import type { DealPanelData, PanelActivity, PanelFile } from "@/lib/sales/deal-panel";
 import type { addDealNote, editNote, NoteInput } from "@/lib/sales/notes";
 import type { CreateDealInput, updateDeal, UpdateDealInput } from "@/lib/sales/deals";
 import type { BulkLeadInput, BulkLeadResult } from "@/lib/sales/lead-bulk";
@@ -76,8 +76,12 @@ async function request<T>(url: string, init: RequestInit): Promise<ApiResult<T>>
 }
 
 const get = <T>(url: string) => request<T>(url, { method: "GET" });
-const send = <T>(method: "POST" | "PATCH" | "PUT", url: string, body: unknown) =>
-  request<T>(url, { method, headers: JSON_HEADERS, body: JSON.stringify(body) });
+const send = <T>(method: "POST" | "PATCH" | "PUT", url: string, body: unknown) => {
+  // A FormData body goes as is (the browser fills in the multipart Content-Type
+  // with its own boundary); JSON bodies get the JSON header.
+  if (body instanceof FormData) return request<T>(url, { method, body });
+  return request<T>(url, { method, headers: JSON_HEADERS, body: JSON.stringify(body) });
+};
 
 const dealUrl = (dealId: string) => `/api/sales/deals/${encodeURIComponent(dealId)}`;
 const leadUrl = (leadId: string) => `/api/sales/leads/${encodeURIComponent(leadId)}`;
@@ -134,6 +138,24 @@ export function setDealFieldRequest(
 
 export function moveDealRequest(dealId: string, body: MoveDealInput): Promise<ApiResult<MoveResult>> {
   return send("POST", `${dealUrl(dealId)}/move`, body);
+}
+
+/**
+ * Adds a final-version file to a deal (A7, Decision 24). The browser picks the
+ * multipart boundary itself, so the wrapper sends no `Content-Type` header; the
+ * server reads `file` and the `confirmedFinal` tick. The route returns the
+ * stored row as the panel shows it.
+ */
+export function uploadDealFileRequest(dealId: string, file: File): Promise<ApiResult<{ file: PanelFile }>> {
+  const form = new FormData();
+  form.set("file", file);
+  form.set("confirmedFinal", "true");
+  return send("POST", `${dealUrl(dealId)}/files`, form);
+}
+
+/** Soft-removes a file from a deal (Decision 24). `changed` is false when it was already removed. */
+export function removeDealFileRequest(fileId: string): Promise<ApiResult<{ ok: true; changed: boolean }>> {
+  return request(`/api/sales/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
 }
 
 export function setDealStatusRequest(dealId: string, body: DealStatusInput): Promise<ApiResult<Answer<typeof setDealStatus>>> {
