@@ -24,6 +24,8 @@ import {
   removeDealFileRequest,
   runLeadBulkRequest,
   saveDefaultViewRequest,
+  saveSettingsRequest,
+  saveStageRottingRequest,
   searchContactsRequest,
   setDealStatusRequest,
   setLeadArchivedRequest,
@@ -431,6 +433,35 @@ describe("api-client", () => {
       fetchMock.mockResolvedValue(json(200, { kept: { id: "p1", name: "Sarah K." } }));
       await mergeContactsRequest("person", "p1", "p2");
       expect(fetchMock).toHaveBeenCalledWith("/api/sales/contacts/people/p1/merge", sent("POST", { dropId: "p2" }));
+    });
+  });
+
+  describe("settings (Task 25)", () => {
+    const sent = (method: string, body: unknown) => ({
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    it("saves the lead-assignment card with PATCH /api/sales/settings", async () => {
+      fetchMock.mockResolvedValue(
+        json(200, { settings: { leadAssignMode: "ROUND_ROBIN", roundRobinMemberIds: ["b"], singleAssigneeId: null }, view: {} }),
+      );
+      await saveSettingsRequest({ roundRobinMemberIds: ["b"] });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sales/settings", sent("PATCH", { roundRobinMemberIds: ["b"] }));
+    });
+
+    it("saves stage rotting days with PATCH on the pipeline path, escaping the id", async () => {
+      fetchMock.mockResolvedValue(json(200, { stages: [{ id: "s4", rottingDays: 21 }] }));
+      await saveStageRottingRequest("pm1", { stages: [{ id: "s4", rottingDays: 21 }] });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/sales/pipelines/pm1/stages",
+        sent("PATCH", { stages: [{ id: "s4", rottingDays: 21 }] }),
+      );
+
+      fetchMock.mockResolvedValue(json(200, { stages: [] }));
+      await saveStageRottingRequest("p/1", { stages: [] });
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/sales/pipelines/p%2F1/stages", sent("PATCH", { stages: [] }));
     });
   });
 });

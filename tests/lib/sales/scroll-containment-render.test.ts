@@ -36,6 +36,7 @@ const { ContactPanelBody } = await import("@/components/sales/contact-panel");
 const { DealFiles } = await import("@/components/sales/deal-files");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { LeadPanelBody } = await import("@/components/sales/lead-panel");
+const { SettingsView } = await import("@/components/sales/settings-view");
 const { Sheet } = await import("@/components/ui/sheet");
 
 const NOW = "2026-11-05T15:00:00.000Z";
@@ -378,6 +379,29 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     expect(html).toContain("contract.pdf");
     // DealFiles draws no scroller of its own (file rows wrap on phones), but any
     // scroller added later must be relative too.
+    for (const classes of scrollerClasses(html)) expect(classes, classes.join(" ")).toContain("relative");
+  });
+
+  it("Sales settings has no scroller that would let its screen-reader text out (Task 25)", () => {
+    const assignment = {
+      mode: "ROUND_ROBIN" as const,
+      members: MEMBERS,
+      rotation: [{ id: "u1", name: "Ben Example", hasAccess: true }],
+      single: null,
+      effective: { mode: "ROUND_ROBIN" as const, names: ["Ben S."], fallbackName: null },
+      firstAdminName: "Ben E.",
+    };
+    const pipelines = [
+      {
+        id: "p1",
+        key: "direct-mail",
+        name: "Direct Mail",
+        kind: "SALES" as const,
+        stages: [{ id: "s1", name: "New Lead", probability: 10, isWon: false, isLost: false, rottingDays: 14 }],
+      },
+    ];
+    const html = clean(renderToString(createElement(SettingsView, { assignment, pipelines })));
+    expect(html).toContain("Sales settings");
     for (const classes of scrollerClasses(html)) expect(classes, classes.join(" ")).toContain("relative");
   });
 

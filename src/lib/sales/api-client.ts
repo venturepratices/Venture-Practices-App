@@ -27,6 +27,12 @@ import type { CreateLeadInput, updateLead, UpdateLeadInput } from "@/lib/sales/l
 import type { LeadRowsPage } from "@/lib/sales/leads-page";
 import type { LeadsQuery } from "@/lib/sales/leads-query";
 import { leadsQueryToSearch } from "@/lib/sales/leads-query";
+import type {
+  LeadAssignmentSettings,
+  LeadAssignmentView,
+  StageRottingInput,
+  UpdateSettingsInput,
+} from "@/lib/sales/settings";
 import type { DealStatusInput, MoveDealInput, MoveResult, setDealStatus } from "@/lib/sales/stage-moves";
 import type { TimelineCursor, TimelinePage } from "@/lib/sales/timeline";
 
@@ -337,4 +343,21 @@ export function searchContactsRequest(
 /** Remembers this person's pipeline, Board or List, and Everyone or Just me. */
 export function saveDefaultViewRequest(view: SavedView): Promise<ApiResult<{ ok: true }>> {
   return send("PUT", "/api/sales/view", view);
+}
+
+// --- Sales settings (admin only) ---
+
+/** Admin: save who gets new leads. Answers the saved settings and the view read after the save (Task 25). */
+export function saveSettingsRequest(
+  body: UpdateSettingsInput,
+): Promise<ApiResult<{ settings: LeadAssignmentSettings; view: LeadAssignmentView }>> {
+  return send("PATCH", "/api/sales/settings", body);
+}
+
+/** Admin: save per-stage rotting days for one pipeline. Answers the stages as sent (Task 25). */
+export function saveStageRottingRequest(
+  pipelineId: string,
+  body: StageRottingInput,
+): Promise<ApiResult<{ stages: { id: string; rottingDays: number | null }[] }>> {
+  return send("PATCH", `/api/sales/pipelines/${encodeURIComponent(pipelineId)}/stages`, body);
 }
