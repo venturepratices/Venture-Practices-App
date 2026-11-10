@@ -8,6 +8,7 @@ import type { PersonPanelData } from "@/lib/sales/contact-panel";
 import type { ContactsPageData, PersonRow } from "@/lib/sales/contacts-page";
 import type { DashboardData } from "@/lib/sales/dashboard";
 import type { DealPanelData } from "@/lib/sales/deal-panel";
+import type { InsightsData } from "@/lib/sales/insights";
 import type { LeadPanelData } from "@/lib/sales/lead-panel";
 import type { LeadsPageData } from "@/lib/sales/leads-page";
 
@@ -36,6 +37,7 @@ const { ContactPanelBody } = await import("@/components/sales/contact-panel");
 const { DealFiles } = await import("@/components/sales/deal-files");
 const { DealPanelHeader } = await import("@/components/sales/deal-panel-header");
 const { LeadPanelBody } = await import("@/components/sales/lead-panel");
+const { InsightsView } = await import("@/components/sales/insights-view");
 const { SettingsView } = await import("@/components/sales/settings-view");
 const { Sheet } = await import("@/components/ui/sheet");
 
@@ -410,6 +412,35 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     ];
     const html = clean(renderToString(createElement(SettingsView, { assignment, pipelines })));
     expect(html).toContain("Sales settings");
+    for (const classes of scrollerClasses(html)) expect(classes, classes.join(" ")).toContain("relative");
+  });
+
+  it("Sales Insights has no scroller that would let its screen-reader text out (Task 27)", () => {
+    const INSIGHTS: InsightsData = {
+      query: { range: 3, scope: "everyone", pipeline: "direct-mail" },
+      canSeeEveryone: true,
+      pipelines: [PIPELINE],
+      pipeline: PIPELINE,
+      months: ["2026-09", "2026-10", "2026-11"],
+      funnel: [{ stageId: "s1", name: "New Lead", count: 1, valueCents: 450000 }],
+      wonByMonth: [
+        { month: "2026-09", valueCents: 0, count: 0 },
+        { month: "2026-10", valueCents: 0, count: 0 },
+        { month: "2026-11", valueCents: 1440000, count: 2 },
+      ],
+      cycleByMonth: [
+        { month: "2026-09", avgDays: null, count: 0 },
+        { month: "2026-10", avgDays: null, count: 0 },
+        { month: "2026-11", avgDays: 12, count: 2 },
+      ],
+      activitiesByPerson: [{ ownerId: "u1", name: "Ben S.", count: 5 }],
+      capped: false,
+    };
+    const html = clean(renderToString(createElement(InsightsView, { data: INSIGHTS, now: NOW })));
+    expect(html).toContain("Insights");
+    expect(html).toContain('class="sr-only"');
+    // Charts use CSS and inline SVG only; no scrollers of their own, but any
+    // added later must be relative too.
     for (const classes of scrollerClasses(html)) expect(classes, classes.join(" ")).toContain("relative");
   });
 
