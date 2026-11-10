@@ -61,6 +61,7 @@ export function DealsToolbar({
   onNavigate,
   onNewDeal,
   onClearFilters,
+  savedViewsSlot,
 }: {
   data: BoardPageData;
   /** The query the controls show: the server's, or the one just asked for while it loads (so a click shows at once). */
@@ -68,6 +69,8 @@ export function DealsToolbar({
   onNavigate: (patch: BoardPatch) => void;
   onNewDeal: () => void;
   onClearFilters: () => void;
+  /** The Views menu, rendered right after the Filter menu. The toolbar owns the layout; its contents come from the view. */
+  savedViewsSlot?: React.ReactNode;
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const filterCount = activeFilterCount(controls);
@@ -218,11 +221,30 @@ export function DealsToolbar({
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Stage</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={controls.stage ?? ""}
+              onValueChange={(key: string) => onNavigate({ stage: key === "" ? null : key })}
+            >
+              <DropdownMenuRadioItem value="" className="pointer-coarse:min-h-10">
+                Any
+              </DropdownMenuRadioItem>
+              {data.stages.map((stage) => (
+                <DropdownMenuRadioItem key={stage.key} value={stage.key} className="pointer-coarse:min-h-10">
+                  {stage.name}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasActiveFilters(controls)} onClick={onClearFilters} className="pointer-coarse:min-h-10">
             Clear filters
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {savedViewsSlot}
 
       <div className="relative max-sm:min-w-32 max-sm:flex-1">
         <Search

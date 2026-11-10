@@ -295,13 +295,21 @@ function expectScrollersContain(html: string, expectedAtLeast: number) {
 
 describe("Sales scrollers hold their screen-reader text (server render)", () => {
   it("the board's sideways scroller and every column list are relative", () => {
-    const html = clean(renderToString(createElement(DealsView, { data: boardData("board"), viewer: VIEWER, openNew: false, now: NOW })));
+    const html = clean(
+      renderToString(
+        createElement(DealsView, { data: boardData("board"), viewer: VIEWER, openNew: false, now: NOW, savedViews: [] }),
+      ),
+    );
     // The board scroller plus one list per column.
     expectScrollersContain(html, 1 + STAGES.length);
   });
 
   it("the list view's scroller and its table wrapper are relative", () => {
-    const html = clean(renderToString(createElement(DealsView, { data: boardData("list"), viewer: VIEWER, openNew: false, now: NOW })));
+    const html = clean(
+      renderToString(
+        createElement(DealsView, { data: boardData("list"), viewer: VIEWER, openNew: false, now: NOW, savedViews: [] }),
+      ),
+    );
     expectScrollersContain(html, 2);
   });
 

@@ -12,15 +12,18 @@ import {
   dragAnnouncements,
   hasActiveFilters,
   initials,
+  isSameView,
   moneyInputValue,
   moveToast,
   needsValueFirst,
   nextBoardQuery,
   nextColumnIndex,
+  savedViewPatch,
+  savedViewSummary,
   undoMoveBody,
 } from "@/lib/sales/board-client";
 import { BOARD_COLUMN_LIMIT } from "@/lib/sales/constants";
-import { boardQueryToSearch, type BoardQuery } from "@/lib/sales/board-query";
+import { boardQueryToSearch, savedViewToQuery, type BoardQuery, type SavedBoardView } from "@/lib/sales/board-query";
 
 function stage(id: string, extra: Partial<BoardStage> = {}): BoardStage {
   return {
@@ -328,10 +331,99 @@ describe("filters", () => {
     expect(activeFilterCount({ ...DEFAULTS, status: "won" })).toBe(1);
     expect(activeFilterCount({ ...DEFAULTS, status: "lost", next: "none" })).toBe(2);
     expect(activeFilterCount({ ...DEFAULTS, q: "oak" })).toBe(0);
+    expect(activeFilterCount({ ...DEFAULTS, stage: "proposal-sent" })).toBe(1);
     expect(hasActiveFilters(DEFAULTS)).toBe(false);
     expect(hasActiveFilters({ ...DEFAULTS, q: "oak" })).toBe(true);
     expect(hasActiveFilters({ ...DEFAULTS, next: "today" })).toBe(true);
+    expect(hasActiveFilters({ ...DEFAULTS, stage: "proposal-sent" })).toBe(true);
     expect(hasActiveFilters({ ...DEFAULTS, scope: "mine", view: "list", pipeline: "direct-mail" })).toBe(false);
+  });
+});
+
+const PROPOSALS_VIEW: SavedBoardView = {
+  name: "Proposals out",
+  pipeline: "direct-mail",
+  view: "list",
+  scope: "mine",
+  status: "open",
+  next: "any",
+  stage: "proposal-sent",
+  q: "",
+};
+
+describe("savedViewSummary", () => {
+  it("sums up a saved view", () => {
+    expect(
+      savedViewSummary(
+        { pipeline: "direct-mail", view: "list", scope: "mine", status: "open", next: "any", stage: "proposal-sent", q: "oak" },
+        { pipeline: "Direct Mail", stage: "Proposal Sent" },
+      ),
+    ).toBe("Direct Mail · List · Just me · Proposal Sent · \"oak\"");
+
+    expect(
+      savedViewSummary(
+        { pipeline: "direct-mail", view: "board", scope: "everyone", status: "won", next: "overdue", stage: null, q: "" },
+        { pipeline: "Direct Mail", stage: null },
+      ),
+    ).toBe("Direct Mail · Board · Everyone · Won · Overdue");
+
+    expect(
+      savedViewSummary(
+        { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "today", stage: null, q: "" },
+        { pipeline: "Direct Mail", stage: null },
+      ),
+    ).toContain("Due today");
+
+    expect(
+      savedViewSummary(
+        { pipeline: "direct-mail", view: "board", scope: "everyone", status: "open", next: "none", stage: null, q: "" },
+        { pipeline: "Direct Mail", stage: null },
+      ),
+    ).toContain("No next step");
+
+    expect(
+      savedViewSummary(
+        { pipeline: "direct-mail", view: "board", scope: "everyone", status: "lost", next: "any", stage: null, q: "" },
+        { pipeline: "Direct Mail", stage: null },
+      ),
+    ).toContain("Lost");
+
+    expect(
+      savedViewSummary(
+        { pipeline: null, view: "board", scope: "everyone", status: "open", next: "any", stage: null, q: "" },
+        { pipeline: null, stage: null },
+      ),
+    ).toBe("Board · Everyone");
+  });
+});
+
+describe("isSameView", () => {
+  it("knows the view on screen", () => {
+    expect(isSameView(PROPOSALS_VIEW, savedViewToQuery(PROPOSALS_VIEW), "direct-mail")).toBe(true);
+    expect(isSameView(PROPOSALS_VIEW, { ...savedViewToQuery(PROPOSALS_VIEW), q: "oak" }, "direct-mail")).toBe(false);
+    // A view with pipeline: null matches a query on the shown pipeline.
+    const anyPipe: SavedBoardView = { ...PROPOSALS_VIEW, pipeline: null };
+    expect(isSameView(anyPipe, { ...savedViewToQuery(anyPipe), pipeline: "direct-mail" }, "direct-mail")).toBe(true);
+  });
+});
+
+describe("savedViewPatch", () => {
+  it("applies a view without losing it", () => {
+    const base = savedViewPatch(PROPOSALS_VIEW, "new-mover-mail");
+    expect(base).toEqual({
+      pipeline: "direct-mail",
+      view: "list",
+      scope: "mine",
+      status: "open",
+      next: "any",
+      stage: "proposal-sent",
+      q: "",
+    });
+
+    const anyPipe: SavedBoardView = { ...PROPOSALS_VIEW, pipeline: null, view: "board", scope: "everyone" };
+    const current: BoardQuery = { ...DEFAULTS, pipeline: "direct-mail" };
+    const nextQuery = nextBoardQuery(current, "direct-mail", savedViewPatch(anyPipe, "direct-mail"));
+    expect(boardQueryToSearch(nextQuery).startsWith("pipeline=direct-mail")).toBe(true);
   });
 });
 

@@ -3,7 +3,7 @@ import { SquareKanban } from "lucide-react";
 import { loadBoardPage } from "@/lib/sales/board";
 import { parseBoardQuery } from "@/lib/sales/board-query";
 import { requireSalesPage } from "@/lib/sales/page-gate";
-import { loadDefaultView } from "@/lib/sales/view-preference";
+import { loadDefaultView, loadSavedViewItems } from "@/lib/sales/view-preference";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DealsView } from "@/components/sales/deals-view";
 
@@ -23,7 +23,7 @@ export default async function DealsPage({
   const saved = bare ? await loadDefaultView(actor.userId) : undefined;
   const query = parseBoardQuery(params, saved);
   const now = new Date();
-  const data = await loadBoardPage(actor, query, now);
+  const [data, savedViews] = await Promise.all([loadBoardPage(actor, query, now), loadSavedViewItems(actor.userId)]);
 
   if (!data) {
     return (
@@ -41,6 +41,7 @@ export default async function DealsPage({
       viewer={{ userId: actor.userId, isAdmin: actor.isAdmin }}
       openNew={params.new === "1"}
       now={now.toISOString()}
+      savedViews={savedViews}
     />
   );
 }

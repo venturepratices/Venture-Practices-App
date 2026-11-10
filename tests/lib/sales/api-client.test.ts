@@ -24,6 +24,7 @@ import {
   removeDealFileRequest,
   runLeadBulkRequest,
   saveDefaultViewRequest,
+  saveSavedViewsRequest,
   saveSettingsRequest,
   saveStageRottingRequest,
   searchContactsRequest,
@@ -353,6 +354,28 @@ describe("api-client", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pipeline: "direct-mail", view: "board", scope: "everyone" }),
+    });
+  });
+
+  it("saves this person's saved views with PUT (Task 26)", async () => {
+    const views = [
+      {
+        name: "Proposals out",
+        pipeline: "direct-mail",
+        view: "list" as const,
+        scope: "mine" as const,
+        status: "open" as const,
+        next: "any" as const,
+        stage: "proposal-sent",
+        q: "",
+      },
+    ];
+    fetchMock.mockResolvedValue(json(200, { views }));
+    await saveSavedViewsRequest(views);
+    expect(fetchMock).toHaveBeenCalledWith("/api/sales/views", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ views }),
     });
   });
 

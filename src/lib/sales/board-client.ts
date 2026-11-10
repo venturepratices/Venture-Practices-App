@@ -87,9 +87,9 @@ export function nextBoardQuery(
   return otherPipeline && patch.stage === undefined ? { ...next, stage: null } : next;
 }
 
-/** How many of the Filter menu's own choices (Status, Next step) differ from the defaults. */
+/** How many of the Filter menu's own choices (Status, Next step, Stage) differ from the defaults. */
 export function activeFilterCount(query: BoardQuery): number {
-  return (query.status !== "open" ? 1 : 0) + (query.next !== "any" ? 1 : 0);
+  return (query.status !== "open" ? 1 : 0) + (query.next !== "any" ? 1 : 0) + (query.stage !== null ? 1 : 0);
 }
 
 /** True when the Filter menu or the search narrows the board ("Clear filters" undoes these). */
@@ -127,6 +127,71 @@ export function addSavedView(views: SavedBoardView[], name: string, query: Board
 export function removeSavedView(views: SavedBoardView[], name: string): SavedBoardView[] {
   const gone = name.trim().toLowerCase();
   return views.filter((view) => view.name.toLowerCase() !== gone);
+}
+
+const STATUS_WORDS = { open: null, won: "Won", lost: "Lost" } as const;
+const NEXT_WORDS = { any: null, overdue: "Overdue", today: "Due today", none: "No next step" } as const;
+
+/**
+ * One line of what a saved view shows, joined with " · " (Mockup v2 `viewSummary`).
+ * `names` holds the live pipeline name and the live stage name for the view's keys,
+ * or null when either is gone (an archived pipeline or a stage renamed since). An
+ * unknown pipeline drops the pipeline bit AND the stage bit, since a stage belongs
+ * to a pipeline the summary cannot name. The search text is quoted.
+ */
+export function savedViewSummary(
+  view: Omit<SavedBoardView, "name">,
+  names: { pipeline: string | null; stage: string | null },
+): string {
+  const bits: string[] = [];
+  if (names.pipeline) bits.push(names.pipeline);
+  bits.push(view.view === "list" ? "List" : "Board");
+  bits.push(view.scope === "mine" ? "Just me" : "Everyone");
+  const status = STATUS_WORDS[view.status];
+  if (status) bits.push(status);
+  const next = NEXT_WORDS[view.next];
+  if (next) bits.push(next);
+  if (names.pipeline && view.stage !== null && names.stage) bits.push(names.stage);
+  if (view.q) bits.push(`"${view.q}"`);
+  return bits.join(" · ");
+}
+
+/**
+ * True when `view` matches the query on screen. A view with `pipeline: null`
+ * applies on whichever pipeline is shown, so it matches when the query shows
+ * `shownPipelineKey`. The page cursor is not part of a view.
+ */
+export function isSameView(view: SavedBoardView, query: BoardQuery, shownPipelineKey: string): boolean {
+  const viewPipeline = view.pipeline ?? shownPipelineKey;
+  const queryPipeline = query.pipeline ?? shownPipelineKey;
+  return (
+    viewPipeline === queryPipeline &&
+    view.view === query.view &&
+    view.scope === query.scope &&
+    view.status === query.status &&
+    view.next === query.next &&
+    view.stage === query.stage &&
+    view.q === query.q
+  );
+}
+
+/**
+ * The patch a saved view sends through `nextBoardQuery` to open on screen.
+ * A view with `pipeline: null` applies on the pipeline already shown, so the
+ * patch names that pipeline too. Naming it (rather than leaving pipeline out)
+ * keeps `nextBoardQuery` from going through `saveDefaultViewRequest`'s bare
+ * URL path, where the remembered default view would undo the stage (Decision 29).
+ */
+export function savedViewPatch(view: SavedBoardView, shownPipelineKey: string): Omit<BoardQuery, "cursor"> {
+  return {
+    pipeline: view.pipeline ?? shownPipelineKey,
+    view: view.view,
+    scope: view.scope,
+    status: view.status,
+    next: view.next,
+    stage: view.stage,
+    q: view.q,
+  };
 }
 
 // --- "Show more" ---

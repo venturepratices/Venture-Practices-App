@@ -3,7 +3,7 @@ import { activitiesQueryToSearch } from "@/lib/sales/activities-query";
 import type { CreateActivityInput, setActivityDone } from "@/lib/sales/activities";
 import type { ActivityRowsPage } from "@/lib/sales/activities-page";
 import type { DealListPage } from "@/lib/sales/board";
-import type { BoardQuery, SavedView } from "@/lib/sales/board-query";
+import type { BoardQuery, SavedBoardView, SavedView } from "@/lib/sales/board-query";
 import { boardQueryToSearch } from "@/lib/sales/board-query";
 import type { ContactPanelData } from "@/lib/sales/contact-panel";
 import type { MergeCounts } from "@/lib/sales/contact-merge";
@@ -343,6 +343,11 @@ export function searchContactsRequest(
 /** Remembers this person's pipeline, Board or List, and Everyone or Just me. */
 export function saveDefaultViewRequest(view: SavedView): Promise<ApiResult<{ ok: true }>> {
   return send("PUT", "/api/sales/view", view);
+}
+
+/** Replaces this person's saved Deals views (Decision 29). Up to 20; a preference, so no history. */
+export function saveSavedViewsRequest(views: SavedBoardView[]): Promise<ApiResult<{ views: SavedBoardView[] }>> {
+  return send("PUT", "/api/sales/views", { views });
 }
 
 // --- Sales settings (admin only) ---

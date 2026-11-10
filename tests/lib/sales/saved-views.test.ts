@@ -21,6 +21,9 @@ const db = {
     findUnique: vi.fn<(args: Args) => Promise<Row | null>>(async () => null),
     update: vi.fn<(args: Args) => Promise<unknown>>(async () => ({ id: "r" })),
   },
+  salesPipeline: {
+    findMany: vi.fn<(args: Args) => Promise<Row[]>>(async () => []),
+  },
   salesAuditLog: {
     create: vi.fn<(args: Args) => Promise<unknown>>(async () => ({})),
     createMany: vi.fn<(args: Args) => Promise<unknown>>(async () => ({ count: 0 })),
@@ -31,7 +34,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
 const { savedViewsSchema, savedViewToQuery } = await import("@/lib/sales/board-query");
 const { addSavedView, removeSavedView } = await import("@/lib/sales/board-client");
-const { loadSavedViews, saveSavedViews } = await import("@/lib/sales/view-preference");
+const { loadSavedViews, loadSavedViewItems, saveSavedViews } = await import("@/lib/sales/view-preference");
 const viewsRoute = await import("@/app/api/sales/views/route");
 const { PermissionError } = await import("@/lib/permissions");
 
@@ -93,9 +96,11 @@ const put = (body: unknown, headers: Record<string, string> = {}) =>
   );
 
 beforeEach(() => {
-  for (const delegate of [db.teamMember, db.salesAuditLog]) for (const fn of Object.values(delegate)) fn.mockClear();
+  for (const delegate of [db.teamMember, db.salesPipeline, db.salesAuditLog])
+    for (const fn of Object.values(delegate)) fn.mockClear();
   db.$transaction.mockClear();
   db.teamMember.findUnique.mockReset().mockResolvedValue(null);
+  db.salesPipeline.findMany.mockReset().mockResolvedValue([]);
   requireSalesUserMock.mockReset().mockResolvedValue({ userId: "r", isAdmin: false, seesAllDeals: false, via: "user" });
 });
 
@@ -218,6 +223,40 @@ describe("the per-person store", () => {
     });
     expect(db.salesAuditLog.create).not.toHaveBeenCalled();
     expect(db.salesAuditLog.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadSavedViewItems", () => {
+  const livePipelines = [
+    { key: "direct-mail", name: "Direct Mail", stages: [{ key: "proposal-sent", name: "Proposal Sent" }] },
+    { key: "consulting", name: "Consulting", stages: [] },
+  ];
+
+  it("lists saved views with summaries", async () => {
+    const overdue = view("Overdue calls", { pipeline: "direct-mail", stage: null, next: "overdue" });
+    db.teamMember.findUnique.mockResolvedValueOnce({ salesSavedViews: [PROPOSALS_VIEW, overdue] });
+    db.salesPipeline.findMany.mockResolvedValueOnce(livePipelines);
+
+    const items = await loadSavedViewItems("r");
+    expect(items).toEqual([
+      { view: PROPOSALS_VIEW, summary: "Direct Mail · List · Just me · Proposal Sent" },
+      { view: overdue, summary: "Direct Mail · Board · Everyone · Overdue" },
+    ]);
+
+    expect(db.salesPipeline.findMany).toHaveBeenCalledWith({
+      where: { archivedAt: null, kind: { in: ["SALES", "CONSULTING"] } },
+      orderBy: { position: "asc" },
+      select: { key: true, name: true, stages: { where: { archivedAt: null }, select: { key: true, name: true } } },
+    });
+  });
+
+  it("drops the pipeline and stage bits when the saved view's pipeline is gone", async () => {
+    const gone = view("Old", { pipeline: "archived-pipeline", stage: "proposal-sent" });
+    db.teamMember.findUnique.mockResolvedValueOnce({ salesSavedViews: [gone] });
+    db.salesPipeline.findMany.mockResolvedValueOnce(livePipelines);
+
+    const items = await loadSavedViewItems("r");
+    expect(items).toEqual([{ view: gone, summary: "Board · Everyone" }]);
   });
 });
 

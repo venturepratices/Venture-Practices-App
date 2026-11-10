@@ -84,8 +84,15 @@ function pageData(extra: Partial<BoardPageData> = {}): BoardPageData {
 }
 
 /** The server HTML, without the comment markers React puts between adjacent text pieces. */
-function render(data: BoardPageData, viewer = { userId: "u1", isAdmin: false }) {
-  return renderToString(createElement(DealsView, { data, viewer, openNew: false, now: NOW })).replaceAll("<!-- -->", "");
+function render(
+  data: BoardPageData,
+  viewer = { userId: "u1", isAdmin: false },
+  savedViews: { view: import("@/lib/sales/board-query").SavedBoardView; summary: string }[] = [],
+) {
+  return renderToString(createElement(DealsView, { data, viewer, openNew: false, now: NOW, savedViews })).replaceAll(
+    "<!-- -->",
+    "",
+  );
 }
 
 /** One stage's column (its <section>) in the board HTML. */
@@ -111,6 +118,53 @@ describe("Deals screen (server render)", () => {
     expect(html).toContain("Showing 1 of 51.");
     expect(html).toContain("Open list view");
     expect(html).toContain("Swipe sideways for more stages. Press and hold a deal to move it.");
+  });
+
+  it("carries a Views button on the toolbar (Task 26)", () => {
+    const html = render(pageData());
+    expect(html).toMatch(/<button[^>]*aria-haspopup="menu"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Views</);
+  });
+
+  it("marks the Stage filter on the Filter button and shows the strip under the toolbar (Task 26)", () => {
+    const html = render(
+      pageData({
+        query: {
+          pipeline: "direct-mail",
+          view: "board",
+          scope: "everyone",
+          status: "open",
+          next: "any",
+          stage: "s4",
+          q: "",
+          cursor: null,
+        },
+        columns: [{ stage: PROPOSAL, count: 0, totalCents: 0, cards: [] }],
+      }),
+    );
+    expect(html).toContain('aria-label="Filter, 1 active"');
+    expect(html).toContain("Showing");
+    expect(html).toContain("Proposal Sent");
+    expect(html).toContain("only.");
+    expect(html).toContain("Show all stages");
+  });
+
+  it("hides the Stage strip when the stage key is not among the shown stages (Task 26)", () => {
+    const html = render(
+      pageData({
+        query: {
+          pipeline: "direct-mail",
+          view: "board",
+          scope: "everyone",
+          status: "open",
+          next: "any",
+          stage: "nope",
+          q: "",
+          cursor: null,
+        },
+      }),
+    );
+    // The strip's own "only." never shows, and the link button to clear a Stage filter is absent.
+    expect(html).not.toContain("Show all stages");
   });
 
   it("never lets a toolbar control that fills its line on a phone shrink to nothing", () => {

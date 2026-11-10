@@ -2,13 +2,15 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useOptimistic, useState, useTransition } from "react";
-import { Plus, SearchX, SquareKanban } from "lucide-react";
+import { ListFilter, Plus, SearchX, SquareKanban } from "lucide-react";
 
 import { saveDefaultViewRequest } from "@/lib/sales/api-client";
 import type { BoardPageData } from "@/lib/sales/board";
-import { hasActiveFilters, nextBoardQuery } from "@/lib/sales/board-client";
+import { hasActiveFilters, nextBoardQuery, savedViewPatch, savedViewSummary } from "@/lib/sales/board-client";
+import type { SavedBoardView } from "@/lib/sales/board-query";
 import { boardQueryToSearch } from "@/lib/sales/board-query";
 import { changePanelUrl, pageRendered, refreshAfterWrite } from "@/lib/sales/panel-url";
+import type { SavedViewItem } from "@/lib/sales/view-preference";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,6 +20,7 @@ import { DealsToolbar, type BoardPatch } from "@/components/sales/deals-toolbar"
 import type { DealsViewer } from "@/components/sales/deal-quick-actions";
 import { NewDealDialog } from "@/components/sales/new-deal-dialog";
 import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
+import { SavedViewsMenu } from "@/components/sales/saved-views-menu";
 import { useDealMoves } from "@/components/sales/use-deal-moves";
 
 // The Deals page on the client: toolbar, board or list, and the dialogs. It
@@ -32,6 +35,7 @@ export function DealsView({
   viewer,
   openNew,
   now: nowIso,
+  savedViews,
 }: {
   data: BoardPageData;
   viewer: DealsViewer;
@@ -39,6 +43,8 @@ export function DealsView({
   openNew: boolean;
   /** The server's clock for this render, so day colours match what the server filtered by. */
   now: string;
+  /** This person's saved views with their summary lines (Decision 29). */
+  savedViews: SavedViewItem[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -72,7 +78,48 @@ export function DealsView({
     }
   }
 
-  const clearFilters = () => navigate({ status: "open", next: "any", q: "" });
+  const clearFilters = () => navigate({ status: "open", next: "any", stage: null, q: "" });
+
+  /** The stage key names a live stage of this pipeline: null when nothing is filtered or the key is stale. */
+  const filteredStage = query.stage ? data.stages.find((stage) => stage.key === query.stage) ?? null : null;
+  /** The summary line of the board right now, for the Save view dialog. */
+  const currentSummary = savedViewSummary(
+    { pipeline: query.pipeline, view: query.view, scope: query.scope, status: query.status, next: query.next, stage: query.stage, q: query.q },
+    { pipeline: data.pipeline.name, stage: filteredStage?.name ?? null },
+  );
+
+  function applyView(view: SavedBoardView) {
+    navigate(savedViewPatch(view, data.pipeline.key));
+  }
+
+  // Keep a local copy that matches the server's props by default; a save or
+  // remove updates it at once so the menu shows the new list while the refresh
+  // the write starts is still on its way (the deal panel's own pattern).
+  const [savedViewsLocal, setSavedViewsLocal] = useState(savedViews);
+  const [savedViewsShown, setSavedViewsShown] = useState(savedViews);
+  if (savedViewsShown !== savedViews) {
+    setSavedViewsShown(savedViews);
+    setSavedViewsLocal(savedViews);
+  }
+
+  function onSavedViewsChanged(views: SavedBoardView[]) {
+    const byName = new Map(savedViewsLocal.map((item) => [item.view.name, item]));
+    setSavedViewsLocal(
+      views.map((view) => {
+        const existing = byName.get(view.name);
+        return existing
+          ? { view, summary: existing.summary }
+          : {
+              view,
+              summary: savedViewSummary(view, {
+                pipeline: data.pipelines.find((p) => p.key === view.pipeline)?.name ?? null,
+                stage: view.pipeline && view.stage ? data.stages.find((s) => s.key === view.stage)?.name ?? null : null,
+              }),
+            };
+      }),
+    );
+    refreshAfterWrite(router);
+  }
 
   /** This page's URL with the deal panel open (and Add deal closed). */
   function dealHref(dealId: string, compose = false) {
@@ -134,7 +181,37 @@ export function DealsView({
         onNavigate={navigate}
         onNewDeal={() => setNewDealOpen(true)}
         onClearFilters={clearFilters}
+        savedViewsSlot={
+          <SavedViewsMenu
+            items={savedViewsLocal}
+            query={query}
+            shownPipelineKey={data.pipeline.key}
+            currentSummary={currentSummary}
+            onApply={applyView}
+            onSaved={onSavedViewsChanged}
+          />
+        }
       />
+
+      {filteredStage ? (
+        <div
+          role="status"
+          className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-muted/40 px-4 py-2 text-[13px]"
+        >
+          <ListFilter aria-hidden="true" className="size-4 text-muted-foreground" />
+          <span>
+            Showing <b className="font-semibold">{filteredStage.name}</b> only.
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={() => navigate({ stage: null })}
+            className="h-auto px-0 pointer-coarse:min-h-10"
+          >
+            Show all stages
+          </Button>
+        </div>
+      ) : null}
 
       {empty && filtered ? (
         <div
