@@ -210,7 +210,7 @@ export function InsightsView({ data, now: nowIso }: { data: InsightsData; now: s
             />
           }
           empty={
-            funnelCount === 0 && data.funnel.length === 0 && pipeline
+            funnelCount === 0 && pipeline
               ? {
                   title: `No open deals${mineWord} in ${pipeline.name}.`,
                   body: "Open deals show here, stage by stage, as they move along.",

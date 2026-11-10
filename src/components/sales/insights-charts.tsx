@@ -3,12 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { List } from "lucide-react";
 
-import {
-  CHART_SERIES_TOKEN,
-  barPercents,
-  compactMoney,
-  niceScale,
-} from "@/lib/sales/insights-client";
+import { barPercents, compactMoney, niceScale } from "@/lib/sales/insights-client";
 import { formatMoney } from "@/lib/sales/format";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +11,17 @@ import { cn } from "@/lib/utils";
 // own Table toggle, horizontal bars (funnel and activities), and SVG columns
 // (won per month) and an SVG line (cycle days per month). CSS and inline SVG
 // only, no chart library. One series colour, read from the theme through the
-// --primary token (CHART_SERIES_TOKEN, chosen with the dataviz skill). Every
-// mark is focusable with role="img" and an aria-label sentence, so a keyboard
-// user and a screen-reader user read the same number.
+// --primary token (CHART_SERIES_TOKEN in insights-client.ts, chosen with the
+// dataviz skill). Every mark is focusable with role="img" and an aria-label
+// sentence, so a keyboard user and a screen-reader user read the same number.
+//
+// The series is painted with three Tailwind utilities, written as static
+// literal class strings below so Tailwind 4's content scanner picks them up.
+// (A dynamic class built through template-literal interpolation never reaches
+// the generated CSS, and the stroke on the line chart would default to "none"
+// in production.) If CHART_SERIES_TOKEN ever changes from "primary", update
+// these three strings too, and the contrast test in insights-client.test.ts
+// keeps the token and the classes in step.
 //
 // Columns and the line draw at a built-in width of 560 (`viewBox="0 0 560 H"`,
 // `className="block h-auto w-full"`), so the server render scales down below
@@ -32,9 +35,11 @@ const BASE_WIDTH = 560;
 /** Below 34px per band the x-axis labels every other month, as the mockup does. */
 const DENSE_BAND_PX = 34;
 
-const CHART_FILL = `fill-${CHART_SERIES_TOKEN}`;
-const CHART_STROKE = `stroke-${CHART_SERIES_TOKEN}`;
-const CHART_BG = `bg-${CHART_SERIES_TOKEN}`;
+/** Tailwind utilities for the one series colour. Must be static literal
+ * strings: see the file header for why. */
+const CHART_FILL = "fill-primary";
+const CHART_STROKE = "stroke-primary";
+const CHART_BG = "bg-primary";
 
 /** The muted grey a chart's grid, axis text and caption use, in both themes. */
 const CHART_MUTED = "text-muted-foreground";

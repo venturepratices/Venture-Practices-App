@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -214,5 +217,62 @@ describe("InsightsView (server render)", () => {
     );
     expect(html).toContain("open deals of yours");
     // The won sub reads "No deals of yours won..." only in empty state; headline reads "won in {range}" either way.
+  });
+
+  it("shows the funnel empty card when every stage has zero open deals (Mockup v2: funN ? '' : chEmpty)", () => {
+    // A live pipeline with stages but no open deals in any of them should
+    // trigger the empty card, not a horizontal-bar chart of zero-length bars.
+    const html = render(
+      base({
+        funnel: [
+          { stageId: "s1", name: "New Lead", count: 0, valueCents: 0 },
+          { stageId: "s2", name: "Demo Booked", count: 0, valueCents: 0 },
+          { stageId: "s3", name: "Demo Complete", count: 0, valueCents: 0 },
+        ],
+      }),
+    );
+    expect(html).toContain("No open deals in Direct Mail.");
+    expect(html).toContain("Open deals show here, stage by stage, as they move along.");
+    // The bars (and the stage-name row labels) are not drawn when the card is empty.
+    expect(html).not.toContain(">New Lead<");
+    expect(html).not.toContain(">Demo Booked<");
+  });
+});
+
+// Tailwind 4's content scanner does not extract classes from interpolated
+// template literals, so `className={`fill-${TOKEN}`}` never reaches the
+// generated CSS unless the string also appears as a static literal in a
+// scanned file. The chart components paint the series with one token and must
+// reference each utility statically, or the SVG line and bars render with no
+// stroke or fill in production.
+describe("insights-charts: Tailwind class names are static literals", () => {
+  function chartsSource(): string {
+    return fs.readFileSync(
+      path.join(process.cwd(), "src", "components", "sales", "insights-charts.tsx"),
+      "utf8",
+    );
+  }
+
+  it.each(["fill-primary", "stroke-primary", "bg-primary"] as const)(
+    "%s appears as a static class string in insights-charts.tsx",
+    (utility) => {
+      const source = chartsSource();
+      // The utility must appear inside a quoted string (single or double quote,
+      // or inside a backtick literal with no `${...}` interpolation touching it),
+      // so Tailwind's scanner can pick it up.
+      const staticInQuotes = new RegExp(
+        String.raw`["'\`][^"'\`]*\b${utility}\b[^"'\`]*["'\`]`,
+      );
+      expect(staticInQuotes.test(source)).toBe(true);
+    },
+  );
+
+  it("does not build the chart series utilities through template-literal interpolation", () => {
+    const source = chartsSource();
+    // Any one of these patterns would confirm the Finding 1 regression: a
+    // dynamic class name that Tailwind's scanner never resolves.
+    expect(source).not.toMatch(/`fill-\$\{[^}]+\}`/);
+    expect(source).not.toMatch(/`stroke-\$\{[^}]+\}`/);
+    expect(source).not.toMatch(/`bg-\$\{[^}]+\}`/);
   });
 });
