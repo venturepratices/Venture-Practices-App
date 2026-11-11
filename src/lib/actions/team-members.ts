@@ -38,6 +38,8 @@ function readPermissionFields(formData: FormData) {
   return {
     isAdmin: bool("isAdmin"),
     allClientsAccess: bool("allClientsAccess"),
+    // The Sales who-can-see setting (not a capability); absent = the default, true.
+    salesSeesAllDeals: formData.has("salesSeesAllDeals") ? bool("salesSeesAllDeals") : true,
     clientIds: formData.getAll("clientIds").map(String).filter(Boolean),
     caps: Object.fromEntries(CAPABILITIES.map((cap) => [cap, bool(cap)])) as Record<
       (typeof CAPABILITIES)[number],
@@ -78,6 +80,7 @@ export async function createTeamMemberAction(
       slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
+      salesSeesAllDeals: perms.salesSeesAllDeals,
       ...perms.caps,
       clientAccess: perms.clientIds.length
         ? { create: perms.clientIds.map((clientId) => ({ clientId })) }
@@ -140,7 +143,7 @@ export async function updateTeamMemberAction(
   if (before.isAdmin && !perms.isAdmin) {
     const adminCount = await prisma.teamMember.count({ where: { isAdmin: true } });
     if (adminCount <= 1) {
-      return { error: "This is the only admin — promote someone else to admin first." };
+      return { error: "This is the only admin. Promote someone else to admin first." };
     }
   }
 
@@ -152,6 +155,7 @@ export async function updateTeamMemberAction(
       slackUserId: parsed.data.slackUserId || null,
       isAdmin: perms.isAdmin,
       allClientsAccess: perms.allClientsAccess,
+      salesSeesAllDeals: perms.salesSeesAllDeals,
       ...perms.caps,
       // An admin setting someone else's password here is a recovery/temporary
       // password by definition — force them to set their own on next login.
@@ -176,6 +180,7 @@ export async function updateTeamMemberAction(
   // trail shows *that* access changed without spelling out every flag.
   const accessChanged =
     before.allClientsAccess !== member.allClientsAccess ||
+    before.salesSeesAllDeals !== member.salesSeesAllDeals ||
     CAPABILITIES.some((cap) => before[cap] !== member[cap]);
   if (accessChanged) changes.push("access updated");
   if (changes.length > 0) {
@@ -197,18 +202,45 @@ export async function updateTeamMemberAction(
   return { error: null };
 }
 
-export async function deleteTeamMemberAction(memberId: string) {
+// How many Sales rows still point at this person: deals, leads, people,
+// organizations and activities they own, notes they wrote, files they uploaded.
+// Archived rows count too. Every one of those links is onDelete: Restrict, so
+// any of them would make the delete fail. (Not exported: in a "use server"
+// file every export becomes a callable action.)
+async function countOwnedSalesRecords(memberId: string): Promise<number> {
+  const counts = await Promise.all([
+    prisma.salesDeal.count({ where: { ownerId: memberId } }),
+    prisma.salesLead.count({ where: { ownerId: memberId } }),
+    prisma.salesPerson.count({ where: { ownerId: memberId } }),
+    prisma.salesOrganization.count({ where: { ownerId: memberId } }),
+    prisma.salesActivity.count({ where: { ownerId: memberId } }),
+    prisma.salesNote.count({ where: { authorId: memberId } }),
+    prisma.salesFile.count({ where: { uploadedById: memberId } }),
+  ]);
+  return counts.reduce((total, count) => total + count, 0);
+}
+
+// The two refusals come back as `{ error }` so the Team page can show them in a
+// toast (a thrown error from a server action reaches the browser as a generic
+// failure, hiding the reason). Not being an admin still throws: the button is
+// only shown to admins, so that is not a message anyone should normally see.
+export async function deleteTeamMemberAction(memberId: string): Promise<TeamMemberFormState> {
   await requireAdmin();
 
   const member = await prisma.teamMember.findUnique({ where: { id: memberId } });
-  if (!member) return;
+  if (!member) return { error: null };
 
   // Last-admin safeguard also applies to deletion.
   if (member.isAdmin) {
     const adminCount = await prisma.teamMember.count({ where: { isAdmin: true } });
     if (adminCount <= 1) {
-      throw new PermissionError(400, "This is the only admin — promote someone else before removing them.");
+      return { error: "This is the only admin. Promote someone else before removing them." };
     }
+  }
+
+  // Checked before Slack is touched, so a refused delete leaves their channels as they were.
+  if ((await countOwnedSalesRecords(memberId)) > 0) {
+    return { error: "This person still owns Sales records. Reassign them first." };
   }
 
   await removeTeamMemberFromAllClientChannels(memberId);
@@ -228,4 +260,5 @@ export async function deleteTeamMemberAction(memberId: string) {
 
   revalidatePath("/team");
   revalidatePath("/", "layout");
+  return { error: null };
 }

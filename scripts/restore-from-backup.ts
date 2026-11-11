@@ -7,7 +7,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 
-import { reviveDates, topologicalBatches } from "../src/lib/restore-helpers";
+import { missingV3Tables, reviveDates, snapshotHasTable, topologicalBatches } from "../src/lib/restore-helpers";
 
 /**
  * Restores a database snapshot produced by src/lib/backup.ts back into a
@@ -49,25 +49,86 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   const t = snapshot.tables;
+  const has = (key: string) => snapshotHasTable(t, key);
+
+  // Snapshots from before v3 lack the 16 newer tables. Those tables are left
+  // untouched (not wiped) rather than emptied with nothing to refill them.
+  const missing = missingV3Tables(t);
+  if (missing.length > 0) {
+    console.warn(
+      `WARNING: this snapshot (v${snapshot.version}) has no data for ${missing.length} newer table(s): ${missing.join(", ")}. ` +
+        "They are left as they are in the target database (not wiped, not restored). " +
+        "Rows that cascade from a wiped parent (e.g. subtasks, AI chats, calendar data) are still removed. " +
+        "If the target database is empty, the Task insert will fail on the status foreign key: restore into a copy of the current database, or use a v3 snapshot."
+    );
+  }
+
+  // Sales rows and bot keys are wiped whatever the snapshot holds (see the wipe below),
+  // so a snapshot from before Sales existed leaves nothing to put back.
+  if (!has("salesDeals")) {
+    console.warn(
+      "WARNING: this snapshot has no Sales data. Every Sales record and every bot key in the target database will be emptied, " +
+        "because the team members who own them are being replaced. The locked Sales history log and the lead-assignment settings are kept."
+    );
+  }
 
   try {
     await prisma.$transaction(
       async (tx) => {
         // Wipe in reverse-dependency order so FKs never block a delete.
+        // Sales tables (all onDelete: Restrict against TeamMember) are always wiped,
+        // even when the snapshot has no Sales data: TeamMember is wiped below, and a
+        // surviving Sales row would block that delete and roll the whole restore back.
+        // SalesAuditLog is never wiped: a database trigger forbids deleting history,
+        // and it has no foreign keys, so nothing here depends on it (see the insert below).
+        // Bot keys would cascade away with TeamMember anyway; wiping them first keeps the order explicit.
+        // Their rate-limit counters (BotTokenUsage) are not backed up and go with them.
+        await tx.botToken.deleteMany();
+        // The settings row has no foreign keys, so an older snapshot without it leaves it as it is.
+        if (has("salesSettings")) await tx.salesSettings.deleteMany();
+        await tx.salesCustomFieldValue.deleteMany();
+        await tx.salesCustomField.deleteMany();
+        await tx.salesFile.deleteMany();
+        await tx.salesNote.deleteMany();
+        await tx.salesActivity.deleteMany();
+        await tx.salesLead.deleteMany();
+        await tx.salesDeal.deleteMany();
+        await tx.salesPerson.deleteMany();
+        await tx.salesOrganization.deleteMany();
+        await tx.salesStage.deleteMany();
+        await tx.salesPipeline.deleteMany();
+        if (has("teamMemberBusyBlocks")) await tx.teamMemberBusyBlock.deleteMany();
+        if (has("teamMemberCalendarConnections")) await tx.teamMemberCalendarConnection.deleteMany();
+        if (has("archivedMeetingNotes")) await tx.archivedMeetingNote.deleteMany();
+        if (has("archivedClientNotes")) await tx.archivedClientNote.deleteMany();
+        if (has("archivedWorkflowInstances")) await tx.archivedWorkflowInstance.deleteMany();
+        if (has("archivedCampaigns")) await tx.archivedCampaign.deleteMany();
+        if (has("issueRecommendations")) await tx.issueRecommendation.deleteMany();
+        if (has("issues")) await tx.issue.deleteMany();
+        if (has("rocks")) await tx.rock.deleteMany();
+        if (has("aiMessages")) await tx.aiMessage.deleteMany();
+        if (has("aiConversations")) await tx.aiConversation.deleteMany();
         await tx.notification.deleteMany();
         await tx.activityLog.deleteMany();
         await tx.archivedTask.deleteMany();
         await tx.taskLink.deleteMany();
         await tx.comment.deleteMany();
         await tx.taskAssignee.deleteMany();
+        if (has("taskSubtasks")) await tx.taskSubtask.deleteMany();
         await tx.task.deleteMany();
+        // Parents of Task (statusId is onDelete: Restrict) — only after Task is gone.
+        if (has("privateProjects")) await tx.privateProject.deleteMany();
+        if (has("priorityLevelOptions")) await tx.priorityLevelOption.deleteMany();
         await tx.workflowInstance.deleteMany();
         await tx.workflowFolder.deleteMany();
         await tx.workflowTaskTemplateAssignee.deleteMany();
         await tx.workflowTaskTemplateLink.deleteMany();
         await tx.workflowTaskTemplate.deleteMany();
+        // WorkflowTaskTemplate.defaultStatusId points here, so after the line above.
+        if (has("taskStatusOptions")) await tx.taskStatusOption.deleteMany();
         await tx.workflowStageTemplate.deleteMany();
         await tx.workflowTemplate.deleteMany();
+        if (has("workflowTemplateFolders")) await tx.workflowTemplateFolder.deleteMany();
         await tx.campaign.deleteMany();
         await tx.taskTemplate.deleteMany();
         await tx.stageTemplate.deleteMany();
@@ -147,6 +208,14 @@ async function main() {
         if (t.taskTemplates?.length) await tx.taskTemplate.createMany({ data: t.taskTemplates as never });
         if (t.campaigns?.length) await tx.campaign.createMany({ data: t.campaigns as never });
 
+        // Referenced by Task / WorkflowTaskTemplate / WorkflowTemplate, so they
+        // must exist before the workflow + task sections below.
+        if (t.taskStatusOptions?.length) await tx.taskStatusOption.createMany({ data: t.taskStatusOptions as never });
+        if (t.priorityLevelOptions?.length) await tx.priorityLevelOption.createMany({ data: t.priorityLevelOptions as never });
+        if (t.privateProjects?.length) await tx.privateProject.createMany({ data: t.privateProjects as never });
+        if (t.workflowTemplateFolders?.length)
+          await tx.workflowTemplateFolder.createMany({ data: t.workflowTemplateFolders as never });
+
         if (t.workflowTemplates?.length) await tx.workflowTemplate.createMany({ data: t.workflowTemplates as never });
         if (t.workflowStageTemplates?.length)
           await tx.workflowStageTemplate.createMany({ data: t.workflowStageTemplates as never });
@@ -162,13 +231,54 @@ async function main() {
         if (t.tasks?.length) await tx.task.createMany({ data: t.tasks as never });
         if (t.taskAssignees?.length) await tx.taskAssignee.createMany({ data: t.taskAssignees as never });
         if (t.comments?.length) await tx.comment.createMany({ data: t.comments as never });
+        if (t.taskSubtasks?.length) await tx.taskSubtask.createMany({ data: t.taskSubtasks as never });
         if (t.taskLinks?.length) await tx.taskLink.createMany({ data: t.taskLinks as never });
         if (t.activityLogs?.length) await tx.activityLog.createMany({ data: t.activityLogs as never });
         if (t.notifications?.length) await tx.notification.createMany({ data: t.notifications as never });
         if (t.archivedTasks?.length) await tx.archivedTask.createMany({ data: t.archivedTasks as never });
+        if (t.archivedCampaigns?.length) await tx.archivedCampaign.createMany({ data: t.archivedCampaigns as never });
+        if (t.archivedWorkflowInstances?.length)
+          await tx.archivedWorkflowInstance.createMany({ data: t.archivedWorkflowInstances as never });
+        if (t.archivedClientNotes?.length) await tx.archivedClientNote.createMany({ data: t.archivedClientNotes as never });
+        if (t.archivedMeetingNotes?.length) await tx.archivedMeetingNote.createMany({ data: t.archivedMeetingNotes as never });
+
+        // Issue.convertedTaskId / rockId are plain provenance strings, not FKs,
+        // so Issues/Rocks only need their TeamMember + Client parents (above).
+        if (t.issues?.length) await tx.issue.createMany({ data: t.issues as never });
+        if (t.issueRecommendations?.length) await tx.issueRecommendation.createMany({ data: t.issueRecommendations as never });
+        if (t.rocks?.length) await tx.rock.createMany({ data: t.rocks as never });
+        if (t.aiConversations?.length) await tx.aiConversation.createMany({ data: t.aiConversations as never });
+        if (t.aiMessages?.length) await tx.aiMessage.createMany({ data: t.aiMessages as never });
+        if (t.teamMemberCalendarConnections?.length)
+          await tx.teamMemberCalendarConnection.createMany({ data: t.teamMemberCalendarConnections as never });
+        if (t.teamMemberBusyBlocks?.length) await tx.teamMemberBusyBlock.createMany({ data: t.teamMemberBusyBlocks as never });
+
+        // Sales (after TeamMember). Deals go in before Leads because
+        // SalesLead.convertedDealId points at a deal.
+        if (t.salesPipelines?.length) await tx.salesPipeline.createMany({ data: t.salesPipelines as never });
+        if (t.salesStages?.length) await tx.salesStage.createMany({ data: t.salesStages as never });
+        if (t.salesOrganizations?.length) await tx.salesOrganization.createMany({ data: t.salesOrganizations as never });
+        if (t.salesPeople?.length) await tx.salesPerson.createMany({ data: t.salesPeople as never });
+        if (t.salesDeals?.length) await tx.salesDeal.createMany({ data: t.salesDeals as never });
+        if (t.salesLeads?.length) await tx.salesLead.createMany({ data: t.salesLeads as never });
+        if (t.salesActivities?.length) await tx.salesActivity.createMany({ data: t.salesActivities as never });
+        if (t.salesNotes?.length) await tx.salesNote.createMany({ data: t.salesNotes as never });
+        if (t.salesFiles?.length) await tx.salesFile.createMany({ data: t.salesFiles as never });
+        if (t.salesCustomFields?.length) await tx.salesCustomField.createMany({ data: t.salesCustomFields as never });
+        if (t.salesCustomFieldValues?.length) await tx.salesCustomFieldValue.createMany({ data: t.salesCustomFieldValues as never });
+        // History rows already in the database stay; only ones missing from it are added back.
+        if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
+        // Bot keys come back turned off: a restored key may be one that was meant to be dead.
+        if (t.botTokens?.length)
+          await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false })) as never });
+        if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });
       },
       { timeout: 120_000 }
     );
+
+    if (t.botTokens?.length) {
+      console.warn("Bot keys were restored turned off. Rotate each key, then turn it back on.");
+    }
 
     // Confirm the restore round-tripped by counting rows back out.
     const restored: Record<string, number> = {
@@ -217,10 +327,44 @@ async function main() {
       activityLogs: await prisma.activityLog.count(),
       notifications: await prisma.notification.count(),
       archivedTasks: await prisma.archivedTask.count(),
+      aiConversations: await prisma.aiConversation.count(),
+      aiMessages: await prisma.aiMessage.count(),
+      issues: await prisma.issue.count(),
+      issueRecommendations: await prisma.issueRecommendation.count(),
+      rocks: await prisma.rock.count(),
+      taskStatusOptions: await prisma.taskStatusOption.count(),
+      priorityLevelOptions: await prisma.priorityLevelOption.count(),
+      privateProjects: await prisma.privateProject.count(),
+      taskSubtasks: await prisma.taskSubtask.count(),
+      workflowTemplateFolders: await prisma.workflowTemplateFolder.count(),
+      archivedCampaigns: await prisma.archivedCampaign.count(),
+      archivedWorkflowInstances: await prisma.archivedWorkflowInstance.count(),
+      archivedClientNotes: await prisma.archivedClientNote.count(),
+      archivedMeetingNotes: await prisma.archivedMeetingNote.count(),
+      teamMemberCalendarConnections: await prisma.teamMemberCalendarConnection.count(),
+      teamMemberBusyBlocks: await prisma.teamMemberBusyBlock.count(),
+      salesPipelines: await prisma.salesPipeline.count(),
+      salesStages: await prisma.salesStage.count(),
+      salesOrganizations: await prisma.salesOrganization.count(),
+      salesPeople: await prisma.salesPerson.count(),
+      salesDeals: await prisma.salesDeal.count(),
+      salesLeads: await prisma.salesLead.count(),
+      salesActivities: await prisma.salesActivity.count(),
+      salesNotes: await prisma.salesNote.count(),
+      salesFiles: await prisma.salesFile.count(),
+      salesCustomFields: await prisma.salesCustomField.count(),
+      salesCustomFieldValues: await prisma.salesCustomFieldValue.count(),
+      salesAuditLogs: await prisma.salesAuditLog.count(),
+      botTokens: await prisma.botToken.count(),
+      salesSettings: await prisma.salesSettings.count(),
     };
     console.log("Row counts after restore:", restored);
 
-    const mismatches = Object.entries(snapshot.counts).filter(([key, expected]) => restored[key] !== expected);
+    // The history log is never wiped, so the target may hold newer rows than the
+    // snapshot: for it, "at least the snapshot's rows" is a correct restore.
+    const mismatches = Object.entries(snapshot.counts).filter(([key, expected]) =>
+      key === "salesAuditLogs" ? restored[key] < expected : restored[key] !== expected,
+    );
     if (mismatches.length > 0) {
       console.error("MISMATCH — these tables did not restore to their snapshot counts:", mismatches);
       process.exitCode = 1;

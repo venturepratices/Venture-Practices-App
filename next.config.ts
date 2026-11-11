@@ -26,4 +26,10 @@ const nextConfig: NextConfig = {
 
 export default withSentryConfig(nextConfig, {
   silent: true, // no CLI chatter on builds without a configured auth token
+  // Sentry puts a list of every page route into a script that loads on every
+  // page, /login included. Sales is secret from people without Sales access,
+  // so its routes stay out of that list (their Sentry transactions are named by
+  // URL instead). Guarded by tests/lib/sales/sentry-route-manifest.test.ts and
+  // `npm run check:sales-secrecy`.
+  routeManifestInjection: { exclude: (route) => /^\/sales(\/|$)/.test(route) },
 });

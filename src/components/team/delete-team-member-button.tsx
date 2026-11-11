@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { deleteTeamMemberAction } from "@/lib/actions/team-members";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,11 @@ export function DeleteTeamMemberButton({ memberId, memberName }: { memberId: str
               disabled={isPending}
               onClick={() => {
                 if (window.confirm(`Remove ${memberName} from the team? They will lose access immediately.`)) {
-                  startTransition(() => deleteTeamMemberAction(memberId));
+                  // A refusal (the only admin, or they still own Sales records) comes back as a message.
+                  startTransition(async () => {
+                    const { error } = await deleteTeamMemberAction(memberId);
+                    if (error) toast.error(error);
+                  });
                 }
               }}
             >

@@ -12,6 +12,13 @@ const TABLE_MODELS = [
   "workflowTemplate", "workflowStageTemplate", "workflowTaskTemplate", "workflowTaskTemplateLink",
   "workflowTaskTemplateAssignee", "workflowFolder", "workflowInstance", "task", "taskAssignee", "comment",
   "taskLink", "activityLog", "notification", "archivedTask",
+  "aiConversation", "aiMessage", "issue", "issueRecommendation", "rock", "taskStatusOption",
+  "priorityLevelOption", "privateProject", "taskSubtask", "workflowTemplateFolder", "archivedCampaign",
+  "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
+  "teamMemberBusyBlock",
+  "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
+  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
+  "botToken", "salesSettings",
 ];
 const prismaMock: Record<string, { findMany: (...args: unknown[]) => Promise<unknown[]> }> = {};
 for (const model of TABLE_MODELS) {
@@ -29,8 +36,15 @@ vi.mock("@vercel/blob", () => ({
   del: (...args: unknown[]) => delMock(...args),
 }));
 
-const { createDatabaseSnapshot, backupDateKey, writeBackupToBlob, pruneOldBackups, BACKUP_VERSION } =
-  await import("@/lib/backup");
+const {
+  createDatabaseSnapshot,
+  backupDateKey,
+  writeBackupToBlob,
+  pruneOldBackups,
+  BACKUP_VERSION,
+  BACKUP_MODEL_KEYS,
+  BACKUP_EXCLUDED_MODELS,
+} = await import("@/lib/backup");
 
 beforeEach(() => {
   for (const mock of Object.values(findManyMocks)) mock.mockClear().mockResolvedValue([]);
@@ -51,6 +65,70 @@ describe("createDatabaseSnapshot", () => {
     for (const model of TABLE_MODELS) {
       expect(findManyMocks[model]).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it("snapshots exactly the models listed in BACKUP_MODEL_KEYS", async () => {
+    // TABLE_MODELS is what the snapshot is observed to read; BACKUP_MODEL_KEYS is
+    // what the coverage guard trusts. If they drift, the guard is lying.
+    expect([...BACKUP_MODEL_KEYS].sort()).toEqual([...TABLE_MODELS].sort());
+    const snapshot = await createDatabaseSnapshot();
+    expect(Object.keys(snapshot.tables)).toHaveLength(TABLE_MODELS.length);
+    expect(Object.keys(snapshot.counts)).toHaveLength(TABLE_MODELS.length);
+  });
+
+  it("includes the tables added in v3 (e.g. issues, rocks, task statuses)", async () => {
+    findManyMocks.issue.mockResolvedValue([{ id: "i1" }]);
+    findManyMocks.taskStatusOption.mockResolvedValue([{ id: "NEXT_UP" }, { id: "COMPLETE" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(BACKUP_VERSION).toBe(3);
+    expect(snapshot.counts.issues).toBe(1);
+    expect(snapshot.counts.taskStatusOptions).toBe(2);
+    expect(snapshot.counts.rocks).toBe(0);
+  });
+
+  it("includes the Sales tables, keyed by their plural snapshot names", async () => {
+    findManyMocks.salesDeal.mockResolvedValue([{ id: "d1" }, { id: "d2" }]);
+    findManyMocks.salesPerson.mockResolvedValue([{ id: "p1" }]);
+    findManyMocks.salesActivity.mockResolvedValue([{ id: "a1" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.salesDeals).toBe(2);
+    expect(snapshot.counts.salesPeople).toBe(1);
+    expect(snapshot.counts.salesActivities).toBe(1);
+    expect(snapshot.tables.salesDeals).toHaveLength(2);
+    expect(snapshot.counts.salesPipelines).toBe(0);
+    expect(snapshot.counts.salesCustomFieldValues).toBe(0);
+  });
+
+  it("includes the Sales history log as salesAuditLogs", async () => {
+    findManyMocks.salesAuditLog.mockResolvedValue([{ id: "h1" }, { id: "h2" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.salesAuditLogs).toBe(2);
+    expect(snapshot.tables.salesAuditLogs).toHaveLength(2);
+  });
+
+  it("includes bot keys as botTokens and leaves out their rate-limit counters", async () => {
+    findManyMocks.botToken.mockResolvedValue([{ id: "b1" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.botTokens).toBe(1);
+    expect(snapshot.tables.botTokens).toHaveLength(1);
+    expect(BACKUP_EXCLUDED_MODELS.BotTokenUsage).toBe("Short-lived rate-limit counters, rebuilt by use");
+  });
+
+  it("includes the Sales settings row", async () => {
+    findManyMocks.salesSettings.mockResolvedValue([{ id: "singleton" }]);
+
+    const snapshot = await createDatabaseSnapshot();
+
+    expect(snapshot.counts.salesSettings).toBe(1);
+    expect(snapshot.tables.salesSettings).toHaveLength(1);
   });
 
   it("computes counts that match each table's row array length", async () => {

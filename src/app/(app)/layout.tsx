@@ -5,16 +5,30 @@ import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
+import { salesDueCountWhere, salesLeadCountWhere, salesNavGroup } from "@/lib/sales/nav";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const perms = await loadPermissions();
   const clientWhere = await accessibleClientFilter("id");
-  const [clients, teamMembers, unreadCount, recentNotifications, statusOptions, priorityLevelOptions] = await Promise.all([
+  // Sales is secret from people without access: for them nothing Sales-related
+  // is queried, and the sidebar gets no group (so the page carries no Sales text).
+  const salesOn = !!perms && (perms.isAdmin || perms.caps.canUseSales);
+  const [
+    clients,
+    teamMembers,
+    unreadCount,
+    recentNotifications,
+    statusOptions,
+    priorityLevelOptions,
+    salesDueCount,
+    salesLeadCount,
+  ] = await Promise.all([
     // Sidebar client list scoped to what this user may access.
     prisma.client.findMany({ where: clientWhere, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -29,6 +43,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : Promise.resolve([]),
     getTaskStatusOptions(),
     getPriorityLevelOptions(),
+    // The count beside Sales > Activities: their own to-dos due today or overdue.
+    salesOn && perms
+      ? prisma.salesActivity.count({ where: salesDueCountWhere(perms.userId, new Date()) })
+      : Promise.resolve(0),
+    // The count beside Sales > Leads Inbox: their own open leads.
+    salesOn && perms ? prisma.salesLead.count({ where: salesLeadCountWhere(perms.userId) }) : Promise.resolve(0),
   ]);
 
   return (
@@ -46,6 +66,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canManageWorkflows={!!perms?.caps.canManageWorkflows}
           canManageOrders={!!perms?.caps.canManageOrders}
           canUseLeadership={!!perms?.caps.canUseLeadership}
+          navGroup={salesNavGroup(
+            { isAdmin: !!perms?.isAdmin, canUseSales: !!perms?.caps.canUseSales },
+            { due: salesDueCount, leads: salesLeadCount },
+          )}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar unreadCount={unreadCount} recentNotifications={recentNotifications} />
@@ -61,6 +85,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           />
         </Suspense>
       </div>
+      {/* The one toast area for the app (Sales moves and undo, Team page refusals). */}
+      <Toaster position="bottom-center" />
     </MobileSidebarProvider>
   );
 }

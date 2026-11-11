@@ -13,12 +13,39 @@ import { prisma } from "@/lib/prisma";
  *
  * IMPORTANT: this list must cover every model in prisma/schema.prisma. When a
  * migration adds a new model, add it here in the SAME session — this snapshot
- * silently going stale (as it did once already, covering only 11 of 45 models
- * for weeks) is exactly the kind of gap a backup exists to prevent.
+ * silently going stale (as it did twice already) is exactly the kind of gap a
+ * backup exists to prevent. tests/lib/backup-coverage.test.ts fails if a model
+ * is neither in BACKUP_MODEL_KEYS nor in BACKUP_EXCLUDED_MODELS (with a reason).
+ * A new model needs: a BACKUP_MODEL_KEYS entry, a SnapshotTables field, the
+ * Promise.all read + destructure + tables entry below, and wipe/insert lines in
+ * scripts/restore-from-backup.ts (FK-safe order).
  */
 
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 export const BACKUP_PREFIX = "backups/";
+
+export const BACKUP_MODEL_KEYS: readonly string[] = [
+  "teamMember", "clientAccess", "account", "session", "verificationToken", "client", "clientIntake",
+  "clientUser", "clientLink", "clientCredential", "clientHighLevelConnection", "conversationMessage",
+  "clientNote", "planningFolder", "planningItem", "planningItemLink", "orderTemplate", "clientOrder",
+  "meetingNote", "landingPage", "assetFolder", "asset", "assetVersion", "assetReviewer", "assetDecision",
+  "assetComment", "assetShareLink", "programTemplate", "stageTemplate", "taskTemplate", "campaign",
+  "workflowTemplate", "workflowStageTemplate", "workflowTaskTemplate", "workflowTaskTemplateLink",
+  "workflowTaskTemplateAssignee", "workflowFolder", "workflowInstance", "task", "taskAssignee", "comment",
+  "taskLink", "activityLog", "notification", "archivedTask",
+  "aiConversation", "aiMessage", "issue", "issueRecommendation", "rock", "taskStatusOption",
+  "priorityLevelOption", "privateProject", "taskSubtask", "workflowTemplateFolder", "archivedCampaign",
+  "archivedWorkflowInstance", "archivedClientNote", "archivedMeetingNote", "teamMemberCalendarConnection",
+  "teamMemberBusyBlock",
+  "salesPipeline", "salesStage", "salesOrganization", "salesPerson", "salesLead", "salesDeal",
+  "salesActivity", "salesNote", "salesFile", "salesCustomField", "salesCustomFieldValue", "salesAuditLog",
+  "botToken", "salesSettings",
+];
+
+export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
+  LoginAttempt: "Short-lived login throttle rows, rebuilt by use",
+  BotTokenUsage: "Short-lived rate-limit counters, rebuilt by use",
+};
 
 type SnapshotTables = {
   teamMembers: unknown[];
@@ -66,6 +93,36 @@ type SnapshotTables = {
   activityLogs: unknown[];
   notifications: unknown[];
   archivedTasks: unknown[];
+  aiConversations: unknown[];
+  aiMessages: unknown[];
+  issues: unknown[];
+  issueRecommendations: unknown[];
+  rocks: unknown[];
+  taskStatusOptions: unknown[];
+  priorityLevelOptions: unknown[];
+  privateProjects: unknown[];
+  taskSubtasks: unknown[];
+  workflowTemplateFolders: unknown[];
+  archivedCampaigns: unknown[];
+  archivedWorkflowInstances: unknown[];
+  archivedClientNotes: unknown[];
+  archivedMeetingNotes: unknown[];
+  teamMemberCalendarConnections: unknown[];
+  teamMemberBusyBlocks: unknown[];
+  salesPipelines: unknown[];
+  salesStages: unknown[];
+  salesOrganizations: unknown[];
+  salesPeople: unknown[];
+  salesLeads: unknown[];
+  salesDeals: unknown[];
+  salesActivities: unknown[];
+  salesNotes: unknown[];
+  salesFiles: unknown[];
+  salesCustomFields: unknown[];
+  salesCustomFieldValues: unknown[];
+  salesAuditLogs: unknown[];
+  botTokens: unknown[];
+  salesSettings: unknown[];
 };
 
 export type DatabaseSnapshot = {
@@ -123,6 +180,36 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     activityLogs,
     notifications,
     archivedTasks,
+    aiConversations,
+    aiMessages,
+    issues,
+    issueRecommendations,
+    rocks,
+    taskStatusOptions,
+    priorityLevelOptions,
+    privateProjects,
+    taskSubtasks,
+    workflowTemplateFolders,
+    archivedCampaigns,
+    archivedWorkflowInstances,
+    archivedClientNotes,
+    archivedMeetingNotes,
+    teamMemberCalendarConnections,
+    teamMemberBusyBlocks,
+    salesPipelines,
+    salesStages,
+    salesOrganizations,
+    salesPeople,
+    salesLeads,
+    salesDeals,
+    salesActivities,
+    salesNotes,
+    salesFiles,
+    salesCustomFields,
+    salesCustomFieldValues,
+    salesAuditLogs,
+    botTokens,
+    salesSettings,
   ] = await Promise.all([
     prisma.teamMember.findMany(),
     prisma.clientAccess.findMany(),
@@ -169,6 +256,36 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     prisma.activityLog.findMany(),
     prisma.notification.findMany(),
     prisma.archivedTask.findMany(),
+    prisma.aiConversation.findMany(),
+    prisma.aiMessage.findMany(),
+    prisma.issue.findMany(),
+    prisma.issueRecommendation.findMany(),
+    prisma.rock.findMany(),
+    prisma.taskStatusOption.findMany(),
+    prisma.priorityLevelOption.findMany(),
+    prisma.privateProject.findMany(),
+    prisma.taskSubtask.findMany(),
+    prisma.workflowTemplateFolder.findMany(),
+    prisma.archivedCampaign.findMany(),
+    prisma.archivedWorkflowInstance.findMany(),
+    prisma.archivedClientNote.findMany(),
+    prisma.archivedMeetingNote.findMany(),
+    prisma.teamMemberCalendarConnection.findMany(),
+    prisma.teamMemberBusyBlock.findMany(),
+    prisma.salesPipeline.findMany(),
+    prisma.salesStage.findMany(),
+    prisma.salesOrganization.findMany(),
+    prisma.salesPerson.findMany(),
+    prisma.salesLead.findMany(),
+    prisma.salesDeal.findMany(),
+    prisma.salesActivity.findMany(),
+    prisma.salesNote.findMany(),
+    prisma.salesFile.findMany(),
+    prisma.salesCustomField.findMany(),
+    prisma.salesCustomFieldValue.findMany(),
+    prisma.salesAuditLog.findMany(),
+    prisma.botToken.findMany(),
+    prisma.salesSettings.findMany(),
   ]);
 
   const tables: SnapshotTables = {
@@ -217,6 +334,36 @@ export async function createDatabaseSnapshot(now: Date = new Date()): Promise<Da
     activityLogs,
     notifications,
     archivedTasks,
+    aiConversations,
+    aiMessages,
+    issues,
+    issueRecommendations,
+    rocks,
+    taskStatusOptions,
+    priorityLevelOptions,
+    privateProjects,
+    taskSubtasks,
+    workflowTemplateFolders,
+    archivedCampaigns,
+    archivedWorkflowInstances,
+    archivedClientNotes,
+    archivedMeetingNotes,
+    teamMemberCalendarConnections,
+    teamMemberBusyBlocks,
+    salesPipelines,
+    salesStages,
+    salesOrganizations,
+    salesPeople,
+    salesLeads,
+    salesDeals,
+    salesActivities,
+    salesNotes,
+    salesFiles,
+    salesCustomFields,
+    salesCustomFieldValues,
+    salesAuditLogs,
+    botTokens,
+    salesSettings,
   };
 
   const counts = Object.fromEntries(

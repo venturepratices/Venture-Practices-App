@@ -1,0 +1,474 @@
+"use client";
+
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useEffectEvent, useId, useRef, useState, useTransition } from "react";
+import { CircleX, Flag, Lock, SearchX, TriangleAlert, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { getDealPanel, getDealTimeline } from "@/lib/sales/api-client";
+import { appendPage } from "@/lib/sales/board-client";
+import type { DealPanelData } from "@/lib/sales/deal-panel";
+import { shortName } from "@/lib/sales/format";
+import { DEAL_PANEL_SHEET_CLASS, dealPanelOpen, lostHeadline } from "@/lib/sales/panel-client";
+import { activePanel, changePanelUrl, refreshAfterWrite } from "@/lib/sales/panel-url";
+import { DEAL_PANEL_ATTRIBUTE } from "@/lib/sales/shortcuts";
+import type { TimelineCursor } from "@/lib/sales/timeline";
+import { cn, endOfDay, formatDate } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ActivityComposer, type ComposerHandle } from "@/components/sales/activity-composer";
+import { DealDetails } from "@/components/sales/deal-details";
+import { DealFiles } from "@/components/sales/deal-files";
+import { DealHistory, type HistoryState } from "@/components/sales/deal-history";
+import { DealPanelHeader, PanelCloseButton } from "@/components/sales/deal-panel-header";
+import { NextSteps } from "@/components/sales/next-steps";
+import { useActivityDone } from "@/components/sales/use-activity-done";
+import { useDealMoves, type MovableDeal } from "@/components/sales/use-deal-moves";
+
+// The slide-in deal panel (mockup `renderPanel`), mounted once by the Sales
+// layout and opened by `?deal=<id>` on any Sales page, like the task panel's
+// `?taskId=`. Full screen on phones, 560px from the right on larger screens
+// (Decision 5). It loads the deal and the first page of its history from the
+// Sales routes, and after every change it saves, it loads both again and
+// refreshes the page behind it. Closing (Esc, the overlay, the close button)
+// takes `deal` out of the URL and puts focus back on the deal's card.
+
+export function DealPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // One panel at a time: the deal, lead, person or organization the URL names, in that order (Decision 35).
+  const target = activePanel(searchParams);
+  const dealId = target?.kind === "deal" ? target.id : null;
+  // "Add activity" in a card's menu opens the panel on the Activity composer.
+  const startInComposer = searchParams.get("compose") === "activity";
+  const titleId = useId();
+
+  // The last deal shown stays rendered while the panel slides away.
+  const [shownId, setShownId] = useState(dealId);
+  if (dealId !== null && dealId !== shownId) setShownId(dealId);
+  // Closing hides the panel at once (`closing` turns true straight away); the
+  // URL catches up a moment later (straight from the history API, or from the
+  // server when a change just saved here must bring the page behind back
+  // fresh, panel-url.ts). `closing` ends when the router settles, also when a
+  // reopen of the same deal (a click on its card while the close was on its
+  // way) replaced the close, so that deal opens again.
+  const [closing, startClosing] = useTransition();
+  const open = dealPanelOpen(dealId, closing);
+
+  function close() {
+    if (dealId === null) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("deal");
+    params.delete("compose");
+    const search = params.toString();
+    startClosing(() => changePanelUrl(search ? `${pathname}?${search}` : pathname, "replace", router));
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next, details) => {
+        if (next) return;
+        // A toast's Undo sits outside the panel; pressing it must not close the panel.
+        const target = details.event?.target;
+        if (details.reason === "outside-press" && target instanceof Element && target.closest("[data-sonner-toaster]")) {
+          details.cancel();
+          return;
+        }
+        close();
+      }}
+    >
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        aria-labelledby={titleId}
+        // Marks the panel for the shortcuts: `e` and `t` work only while it is the open window on top.
+        {...{ [DEAL_PANEL_ATTRIBUTE]: "" }}
+        // Back to the deal's card, found again by id: a stage change re-draws it in another column.
+        finalFocus={() => dealCard(shownId)}
+        className={cn(DEAL_PANEL_SHEET_CLASS, "ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none")}
+      >
+        {shownId ? (
+          <DealPanelBody key={shownId} dealId={shownId} titleId={titleId} startInComposer={startInComposer} />
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/** The board card for a deal, or null (Base UI then returns focus to whatever had it before). */
+function dealCard(dealId: string | null): HTMLElement | null {
+  if (!dealId || typeof document === "undefined") return null;
+  return document.querySelector<HTMLElement>(`[data-deal-id="${CSS.escape(dealId)}"]`);
+}
+
+/** The deal and the first page of its history, asked for together. */
+function fetchDeal(dealId: string) {
+  return Promise.all([getDealPanel(dealId), getDealTimeline(dealId, null)]);
+}
+
+type Loaded = Awaited<ReturnType<typeof fetchDeal>>;
+
+type PanelLoad =
+  | { kind: "loading" }
+  | { kind: "missing" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; data: DealPanelData; now: Date };
+
+/** The panel's scrolling body under its header, shared with the lead panel. */
+export const PANEL_BODY = "relative flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-[18px]";
+
+function DealPanelBody({ dealId, titleId, startInComposer }: { dealId: string; titleId: string; startInComposer: boolean }) {
+  const router = useRouter();
+  const [load, setLoad] = useState<PanelLoad>({ kind: "loading" });
+  const [history, setHistory] = useState<HistoryState>({ status: "loading" });
+  const [cursor, setCursor] = useState<TimelineCursor | null>(null);
+  // Each load takes a ticket; only the newest one's answer is shown.
+  const latestLoad = useRef(0);
+  const hasData = useRef(false);
+  // Shared with DealPanelContent so "Add a file" and the composer open the same tabs.
+  const composerRef = useRef<ComposerHandle>(null);
+  const composeHandled = useRef(false);
+
+  async function reload() {
+    const ticket = ++latestLoad.current;
+    const [panel, timeline] = await fetchDeal(dealId);
+    showLoaded(ticket, panel, timeline);
+  }
+
+  function showLoaded(ticket: number, panel: Loaded[0], timeline: Loaded[1]) {
+    if (ticket !== latestLoad.current) return;
+
+    if (panel.ok) {
+      hasData.current = true;
+      setLoad({ kind: "ready", data: panel.data, now: new Date() });
+    } else if (panel.status === 404) {
+      // Deleted, or handed to someone whose deals this person cannot see.
+      setLoad({ kind: "missing" });
+      return;
+    } else if (hasData.current) {
+      // Keep showing what loaded before; the change itself was saved.
+      toast.error(panel.error);
+    } else {
+      setLoad({ kind: "error", message: panel.error });
+      return;
+    }
+
+    if (timeline.ok) {
+      setHistory({ status: "ready", entries: timeline.data.entries, hasOlder: timeline.data.nextCursor !== null, loadingOlder: false });
+      setCursor(timeline.data.nextCursor);
+    } else {
+      setHistory({ status: "error", message: timeline.error });
+    }
+  }
+
+  const onLoaded = useEffectEvent((ticket: number, [panel, timeline]: Loaded) => showLoaded(ticket, panel, timeline));
+  useEffect(() => {
+    const ticket = ++latestLoad.current;
+    void fetchDeal(dealId).then((loaded) => onLoaded(ticket, loaded));
+  }, [dealId]);
+
+  // Opened from "Add activity": go straight to the composer once the deal is showing.
+  const ready = load.kind === "ready";
+  useEffect(() => {
+    if (!ready || !startInComposer || composeHandled.current) return;
+    composeHandled.current = true;
+    composerRef.current?.openActivity();
+  }, [ready, startInComposer]);
+
+  /** After every saved change: load the deal and its history again, and refresh the page behind. */
+  function changed() {
+    void reload();
+    refreshAfterWrite(router);
+  }
+
+  async function showOlder() {
+    if (history.status !== "ready" || !cursor || history.loadingOlder) return;
+    const ticket = latestLoad.current;
+    setHistory({ ...history, loadingOlder: true });
+    const result = await getDealTimeline(dealId, cursor);
+    // A reload since then started the history again from the top.
+    if (ticket !== latestLoad.current) return;
+    if (!result.ok) {
+      toast.error(result.error);
+      setHistory((current) => (current.status === "ready" ? { ...current, loadingOlder: false } : current));
+      return;
+    }
+    setHistory((current) =>
+      current.status === "ready"
+        ? {
+            status: "ready",
+            entries: appendPage(current.entries, result.data.entries),
+            hasOlder: result.data.nextCursor !== null,
+            loadingOlder: false,
+          }
+        : current,
+    );
+    setCursor(result.data.nextCursor);
+  }
+
+  function retry() {
+    setLoad({ kind: "loading" });
+    setHistory({ status: "loading" });
+    void reload();
+  }
+
+  if (load.kind === "loading") return <PanelSkeleton titleId={titleId} />;
+
+  if (load.kind === "missing" || load.kind === "error") {
+    const missing = load.kind === "missing";
+    return (
+      <>
+        <div className="flex flex-none justify-end px-4 pt-3 sm:px-[18px]">
+          <PanelCloseButton />
+        </div>
+        <div role={missing ? undefined : "alert"} className="flex flex-1 flex-col justify-center pb-16">
+          <span id={titleId} className="sr-only">
+            {missing ? "This deal is not available." : "Could not load this deal."}
+          </span>
+          {missing ? (
+            <EmptyState
+              icon={SearchX}
+              title="This deal is not available."
+              description="It may have been deleted, or it belongs to someone whose deals you cannot see."
+              action={
+                <SheetClose render={<Button variant="outline" className="pointer-coarse:min-h-10" />}>Close</SheetClose>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={TriangleAlert}
+              title="Could not load this deal."
+              description={load.message}
+              action={
+                <Button variant="outline" onClick={retry} className="pointer-coarse:min-h-10">
+                  Try again
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <DealPanelContent
+      data={load.data}
+      now={load.now}
+      history={history}
+      titleId={titleId}
+      composerRef={composerRef}
+      onChanged={changed}
+      onShowOlder={() => void showOlder()}
+      onRetryHistory={() => {
+        setHistory({ status: "loading" });
+        void reload();
+      }}
+    />
+  );
+}
+
+/**
+ * The deal panel once the deal has loaded (Task 24: pulled out of
+ * `DealPanelBody` as its own component so render tests can mount a loaded
+ * panel directly). Carries the header, the lost and no-next-step bars, the
+ * composer, Next steps, Files, Details and History, plus the move and done
+ * dialogs. `useDealMoves` and `useActivityDone` live here so the dialogs they
+ * draw stack on top of the panel and reload the data when they settle.
+ */
+export function DealPanelContent({
+  data,
+  now,
+  history,
+  titleId,
+  composerRef,
+  onChanged,
+  onShowOlder,
+  onRetryHistory,
+}: {
+  data: DealPanelData;
+  now: Date;
+  history: HistoryState;
+  titleId: string;
+  composerRef: React.RefObject<ComposerHandle | null>;
+  /** After a change is saved: reload the panel and refresh the page behind. */
+  onChanged: () => void;
+  /** Loads the next older page of History. */
+  onShowOlder: () => void;
+  /** After a History load failed: try again. */
+  onRetryHistory: () => void;
+}) {
+  const { deal, canEdit } = data;
+  const stage = data.stages.find((option) => option.id === deal.stageId) ?? null;
+  const movable: MovableDeal = {
+    id: deal.id,
+    title: deal.title,
+    stageId: deal.stageId,
+    valueCents: deal.valueCents,
+    mrrCents: deal.mrrCents,
+  };
+  const moves = useDealMoves(onChanged);
+  const done = useActivityDone(onChanged);
+
+  return (
+    <>
+      <DealPanelHeader data={data} now={now} moves={moves} titleId={titleId} onChanged={onChanged} />
+
+      <div className={PANEL_BODY}>
+        {deal.status === "LOST" ? <LostBar reason={deal.lostReason} comment={deal.lostComment} /> : null}
+
+        {!canEdit ? (
+          <NoticeBar tone="info" icon={Lock}>
+            Only {shortName(deal.owner.name)} or an admin can change this deal.
+          </NoticeBar>
+        ) : null}
+
+        {deal.status === "OPEN" && data.openActivities.length === 0 ? (
+          <NoticeBar
+            tone="warning"
+            icon={TriangleAlert}
+            action={
+              canEdit ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => composerRef.current?.openActivity()}
+                  className="border-status-warning-foreground/30 bg-transparent text-status-warning-foreground hover:bg-status-warning-foreground/10 pointer-coarse:min-h-10"
+                >
+                  Schedule
+                </Button>
+              ) : null
+            }
+          >
+            <strong className="font-semibold">No next step.</strong> Every open deal needs one.
+          </NoticeBar>
+        ) : null}
+
+        {data.territoryHold ? (
+          <NoticeBar tone="info" icon={Flag}>
+            Territory hold ends{" "}
+            <strong className="font-semibold">
+              {formatDate(endOfDay(data.territoryHold.expiry), { month: "short", day: "numeric" })}
+            </strong>
+            . A hold check is on the calendar 7 days before.
+          </NoticeBar>
+        ) : null}
+
+        {canEdit ? <ActivityComposer ref={composerRef} parent={{ kind: "deal", id: deal.id }} onSaved={onChanged} /> : null}
+
+        <NextSteps
+          activities={data.openActivities}
+          now={now}
+          canEdit={canEdit}
+          onMarkDone={(activity) => done.markDone(activity, { kind: "deal", id: deal.id, title: deal.title })}
+        />
+
+        <DealFiles
+          files={data.files}
+          canEdit={canEdit}
+          now={now}
+          onAddFile={() => composerRef.current?.openTab("file")}
+          onChanged={onChanged}
+        />
+
+        <DealDetails data={data} onSaved={onChanged} onEditValue={() => stage && moves.editValue(movable, stage)} />
+
+        <DealHistory
+          history={history}
+          now={now}
+          onShowOlder={onShowOlder}
+          onRetry={onRetryHistory}
+          onSaved={onChanged}
+        />
+      </div>
+
+      {/* Inside the panel, so these stack on top of it as nested dialogs. */}
+      {moves.dialogs}
+      {done.dialogs}
+    </>
+  );
+}
+
+/**
+ * A lost deal's reason and the comment typed into the Lost dialog, at the top
+ * of the panel body. The "Lost" pill in the header only carries the reason as
+ * a hover title, which phones and tablets never show. The comment keeps its
+ * line breaks.
+ */
+export function LostBar({ reason, comment }: { reason: string | null; comment: string | null }) {
+  return (
+    // A comment can run to several lines: the icon then stays beside the first one.
+    <NoticeBar tone="danger" icon={CircleX} alignTop={!!comment}>
+      <strong className="font-semibold">{lostHeadline(reason)}</strong>
+      {comment ? (
+        <span className="mt-0.5 block whitespace-pre-wrap [overflow-wrap:anywhere]">{comment}</span>
+      ) : null}
+    </NoticeBar>
+  );
+}
+
+const BAR_TONES = {
+  warning: "bg-status-warning text-status-warning-foreground",
+  info: "bg-accent text-accent-foreground",
+  danger: "bg-status-danger text-status-danger-foreground",
+} as const;
+
+/** The mockup's `.warnbar` (amber) and `.infobar` (accent) strip, plus a red one for a lost deal, with an icon and an optional button on the right. Shared with the lead panel. */
+export function NoticeBar({
+  tone,
+  icon: Icon,
+  action,
+  alignTop = false,
+  children,
+}: {
+  tone: keyof typeof BAR_TONES;
+  icon: LucideIcon;
+  action?: React.ReactNode;
+  /** For text that may wrap: the icon sits beside the first line instead of the middle. */
+  alignTop?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap gap-x-2.5 gap-y-2 rounded-[9px] px-3 py-[9px] text-[13px]",
+        alignTop ? "items-start" : "items-center",
+        BAR_TONES[tone],
+      )}
+    >
+      <Icon aria-hidden="true" className={cn("size-4 shrink-0", alignTop && "mt-0.5")} />
+      <p className="m-0 min-w-0 flex-1">{children}</p>
+      {action}
+    </div>
+  );
+}
+
+/** While the deal loads: the header's title, meta and stage bar, and three rows below, in their final places. */
+function PanelSkeleton({ titleId }: { titleId: string }) {
+  return (
+    <>
+      <div className="flex-none border-b px-4 pt-3 pb-3 sm:px-[18px] sm:pt-3.5" aria-busy="true">
+        <span id={titleId} className="sr-only">
+          Loading deal
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-3 w-40" />
+          <PanelCloseButton />
+        </div>
+        <Skeleton className="mt-1.5 h-6 w-3/5" />
+        <Skeleton className="mt-3 h-4 w-4/5" />
+        <Skeleton className="mt-3 h-6 w-full rounded-[5px] pointer-coarse:h-10" />
+        <Skeleton className="mt-[7px] h-3 w-1/2" />
+      </div>
+      <div className={PANEL_BODY} aria-hidden="true">
+        <Skeleton className="h-28 w-full rounded-[10px]" />
+        <Skeleton className="h-12 w-full rounded-[9px]" />
+        <Skeleton className="h-40 w-full rounded-[9px]" />
+      </div>
+    </>
+  );
+}

@@ -36,17 +36,22 @@ type EditDefaults = {
   defaultEmail: string;
   defaultIsAdmin: boolean;
   defaultAllClientsAccess: boolean;
+  defaultSalesSeesAllDeals: boolean;
   defaultCaps: Record<Capability, boolean>;
   defaultClientIds: string[];
   defaultSlackUserId: string | null;
 };
 
-type Props =
+type Props = (
   | ({ mode: "create"; trigger: React.ReactElement; clients: ClientOption[] })
-  | ({ mode: "edit"; trigger: React.ReactElement; clients: ClientOption[] } & EditDefaults);
+  | ({ mode: "edit"; trigger: React.ReactElement; clients: ClientOption[] } & EditDefaults)
+) & {
+  /** Open as soon as it mounts: its button was clicked while it was still loading (team-member-form-dialog-lazy.tsx). */
+  defaultOpen?: boolean;
+};
 
 export function TeamMemberFormDialog(props: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.defaultOpen ?? false);
   const action = props.mode === "create" ? createTeamMemberAction : updateTeamMemberAction.bind(null, props.memberId);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -54,6 +59,7 @@ export function TeamMemberFormDialog(props: Props) {
   const [isAdmin, setIsAdmin] = useState(isEdit ? props.defaultIsAdmin : false);
   const [allClients, setAllClients] = useState(isEdit ? props.defaultAllClientsAccess : false);
   const [caps, setCaps] = useState<Record<Capability, boolean>>(isEdit ? props.defaultCaps : ALL_FALSE_CAPS);
+  const [salesSeesAll, setSalesSeesAll] = useState(isEdit ? props.defaultSalesSeesAllDeals : true);
   const defaultClientIds = isEdit ? props.defaultClientIds : [];
   const [showPassword, setShowPassword] = useState(false);
 
@@ -135,6 +141,8 @@ export function TeamMemberFormDialog(props: Props) {
                 />
                 Administrator — full access to everything, manages the team
               </label>
+              {/* Always submitted (even when the permission list is hidden for an admin) so promoting someone never resets it. */}
+              <input type="hidden" name="salesSeesAllDeals" value={salesSeesAll ? "true" : "false"} />
 
               {!isAdmin ? (
                 <div className="space-y-4 border-t pt-3">
@@ -196,6 +204,17 @@ export function TeamMemberFormDialog(props: Props) {
                               {item.label}
                             </label>
                           ))}
+                          {group.title === "Sales" && caps.canUseSales ? (
+                            <label className="flex items-center gap-2 pl-6 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={salesSeesAll}
+                                onChange={(e) => setSalesSeesAll(e.target.checked)}
+                                className="size-4 rounded border-input"
+                              />
+                              Can see everyone&apos;s deals (off = only their own)
+                            </label>
+                          ) : null}
                         </div>
                       </div>
                     ))}

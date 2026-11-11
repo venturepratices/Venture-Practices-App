@@ -3,17 +3,39 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Activity, Archive, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Settings, Users, Building2, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
 import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
+import { NAV_LINK, NAV_LINK_ACTIVE, NAV_LINK_IDLE, SidebarGroupLink } from "@/components/layout/sidebar-group-link";
 import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
 type SidebarClient = {
   id: string;
   name: string;
+};
+
+/**
+ * A labelled group of links that the server layout hands in as data, for an
+ * area only some people may see. Deliberately generic: this file ships to
+ * every signed-in person, so it names nothing about any such area (no path,
+ * label or prop name, all of which survive minification). The layout passes
+ * null to people without access, and nothing renders. Each link names a
+ * neutral icon key, and a count comes with its own screen-reader words
+ * (`countLabel`), so this file holds none of them.
+ */
+export type SidebarNavGroup = {
+  title: string;
+  badge: string | null;
+  links: {
+    href: string;
+    label: string;
+    icon: "board" | "calendar" | "home" | "inbox" | "people" | "chart" | "settings";
+    count: number;
+    countLabel: string;
+  }[];
 };
 
 const AGENCY_LINKS = [
@@ -43,11 +65,6 @@ const LEADERSHIP_LINKS = [
   { href: "/rocks", label: "Rocks", icon: Mountain },
 ];
 
-const NAV_LINK = "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors";
-const NAV_LINK_ACTIVE =
-  "bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2),0_1px_3px_0_rgba(0,0,0,0.3)]";
-const NAV_LINK_IDLE = "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground";
-
 export function Sidebar({
   clients,
   userName,
@@ -60,6 +77,7 @@ export function Sidebar({
   canManageWorkflows = false,
   canManageOrders = false,
   canUseLeadership = false,
+  navGroup = null,
 }: {
   clients: SidebarClient[];
   userName?: string | null;
@@ -72,8 +90,10 @@ export function Sidebar({
   canManageWorkflows?: boolean;
   canManageOrders?: boolean;
   canUseLeadership?: boolean;
+  navGroup?: SidebarNavGroup | null;
 }) {
   const pathname = usePathname();
+  const navGroupLabelId = useId();
   const [clientsOpen, setClientsOpen] = useState(true);
   const onTemplatePage = TEMPLATE_LINKS.some((link) => pathname === link.href);
   const [templatesOpen, setTemplatesOpen] = useState(onTemplatePage);
@@ -184,6 +204,25 @@ export function Sidebar({
             <Settings className="size-4" />
             Settings
           </Link>
+        ) : null}
+
+        {navGroup ? (
+          <div role="group" aria-labelledby={navGroupLabelId} className="space-y-1 pt-4">
+            <p
+              id={navGroupLabelId}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50"
+            >
+              {navGroup.title}
+              {navGroup.badge ? (
+                <span className="rounded-full bg-secondary-accent px-1.5 text-[9px] leading-4 font-semibold tracking-wider text-secondary-accent-foreground uppercase">
+                  {navGroup.badge}
+                </span>
+              ) : null}
+            </p>
+            {navGroup.links.map((link) => (
+              <SidebarGroupLink key={link.href} link={link} active={pathname.startsWith(link.href)} />
+            ))}
+          </div>
         ) : null}
 
         {isAdmin || canUseLeadership ? (

@@ -278,6 +278,17 @@ model TeamMember {
   // "Full member access" preset; one switch covers viewing and editing both.
   canUseLeadership Boolean @default(false)
 
+  // Sales — the deals/leads/activities module. Off for everyone until an admin
+  // checks it (admins pass automatically). NOT in the "Full member access"
+  // preset. salesSeesAllDeals is the who-can-see setting: true = sees every
+  // sales user's deals; false = sees only the deals they own.
+  canUseSales       Boolean @default(false)
+  salesSeesAllDeals Boolean @default(true)
+  // Remembered Deals view: { pipeline, view, scope }. A preference, not Sales data.
+  salesDefaultView  Json?
+  // Named Deals views (up to 20). A preference, not Sales data, so no history row.
+  salesSavedViews   Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -313,6 +324,14 @@ model TeamMember {
   issueRecommendations         IssueRecommendation[]          @relation("IssueRecommendationAuthor")
   ownedRocks                   Rock[]                         @relation("RockOwner")
   createdRocks                 Rock[]                         @relation("RockCreatedBy")
+  salesOrganizations           SalesOrganization[]            @relation("SalesOrganizationOwner")
+  salesPeople                  SalesPerson[]                  @relation("SalesPersonOwner")
+  salesLeads                   SalesLead[]                    @relation("SalesLeadOwner")
+  salesDeals                   SalesDeal[]                    @relation("SalesDealOwner")
+  salesActivities              SalesActivity[]                @relation("SalesActivityOwner")
+  salesNotes                   SalesNote[]                    @relation("SalesNoteAuthor")
+  salesFiles                   SalesFile[]                    @relation("SalesFileUploader")
+  botTokens                    BotToken[]                     @relation("BotTokenActingFor")
 }
 
 /**
@@ -1796,4 +1815,437 @@ model TeamMemberBusyBlock {
   lastSyncAt   DateTime   @default(now())
 
   @@index([teamMemberId, startTime, endTime])
+}
+
+// ---------------------------------------------------------------------------
+// Sales Command: the deals / leads / activities module (a Pipedrive
+// replacement). Money is stored as integer cents, never floats. Deals and
+// leads are archived (archivedAt), never hard-deleted, so every relation below
+// is onDelete: Restrict: a person who owns deals cannot be removed from the
+// team until those deals are reassigned.
+// ---------------------------------------------------------------------------
+
+enum SalesPipelineKind {
+  SALES
+  CONSULTING
+  DELIVERY
+}
+
+enum SalesLeadStatus {
+  OPEN
+  CONVERTED
+  ARCHIVED
+}
+
+enum SalesDealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum SalesActivityType {
+  CALL
+  MEETING
+  TASK
+  DEADLINE
+  EMAIL
+  LUNCH
+}
+
+enum SalesCustomFieldEntity {
+  DEAL
+  LEAD
+}
+
+enum SalesCustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+}
+
+// One pipeline, e.g. key "direct-mail". Seeded config, edited by admins.
+// Archived (archivedAt), never hard-deleted; the seed leaves archived rows alone.
+model SalesPipeline {
+  id         String            @id @default(cuid())
+  key        String            @unique
+  name       String
+  kind       SalesPipelineKind
+  position   Int
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  stages SalesStage[]
+  deals  SalesDeal[]
+}
+
+// One column of a pipeline. requiresValue is true on every "Proposal Sent";
+// isNoShow is true on "No Show" and "No Show/Cancel".
+model SalesStage {
+  id            String        @id @default(cuid())
+  pipelineId    String
+  pipeline      SalesPipeline @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  key           String
+  name          String
+  position      Int
+  probability   Int
+  isWon         Boolean       @default(false)
+  isLost        Boolean       @default(false)
+  requiresValue Boolean       @default(false)
+  isNoShow      Boolean       @default(false)
+  // Days an open deal can sit here before its card turns amber. Null on won/lost stages.
+  rottingDays   Int?
+  archivedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  deals SalesDeal[]
+
+  @@unique([pipelineId, key])
+}
+
+model SalesOrganization {
+  id           String     @id @default(cuid())
+  name         String
+  ownerId      String
+  owner        TeamMember @relation("SalesOrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  address      String?
+  website      String?
+  phone        String?
+  zip          String?
+  // Lower-case letters and digits of the name, for spotting duplicates (src/lib/sales/contact-keys.ts).
+  nameKey      String?
+  // A plain id, no relation: set when this organization was merged into another one.
+  mergedIntoId String?
+  archivedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  people SalesPerson[]
+  leads  SalesLead[]
+  deals  SalesDeal[]
+  notes  SalesNote[]
+
+  @@index([ownerId])
+  @@index([archivedAt, name])
+  @@index([nameKey])
+  @@index([mergedIntoId])
+}
+
+model SalesPerson {
+  id             String             @id @default(cuid())
+  // The name as typed. Seeds, fixtures and tests use first name plus last initial; real contacts may hold full names.
+  name           String
+  organizationId String?
+  organization   SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerId        String
+  owner          TeamMember         @relation("SalesPersonOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  email          String?
+  phone          String?
+  // Their role in the practice.
+  role           String?
+  // Duplicate keys (src/lib/sales/contact-keys.ts): trimmed lower-case email,
+  // 10 US phone digits, lower-case letters and digits of the name.
+  emailKey       String?
+  phoneKey       String?
+  nameKey        String?
+  // A plain id, no relation: set when this person was merged into another one.
+  mergedIntoId   String?
+  archivedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  leads      SalesLead[]
+  deals      SalesDeal[]
+  activities SalesActivity[]
+  notes      SalesNote[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  @@index([archivedAt, name])
+  @@index([emailKey])
+  @@index([phoneKey])
+  @@index([nameKey])
+  @@index([mergedIntoId])
+}
+
+model SalesLead {
+  id              String             @id @default(cuid())
+  title           String
+  personId        String?
+  person          SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId  String?
+  organization    SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerId         String
+  owner           TeamMember         @relation("SalesLeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  source          String
+  status          SalesLeadStatus    @default(OPEN)
+  // Set when the lead is converted; the deal can never be hard-deleted while
+  // a lead points at it.
+  convertedDealId String?            @unique
+  convertedDeal   SalesDeal?         @relation("SalesLeadConvertedDeal", fields: [convertedDealId], references: [id], onDelete: Restrict)
+  ghlContactId    String?
+  archivedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  activities   SalesActivity[]
+  notes        SalesNote[]
+  files        SalesFile[]
+  customValues SalesCustomFieldValue[]
+
+  @@index([status, createdAt])
+  @@index([ownerId, status, createdAt])
+  @@index([personId])
+  @@index([organizationId])
+}
+
+model SalesDeal {
+  id                String             @id @default(cuid())
+  title             String
+  pipelineId        String
+  pipeline          SalesPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stageId           String
+  stage             SalesStage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  ownerId           String
+  owner             TeamMember         @relation("SalesDealOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  personId          String?
+  person            SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId    String?
+  organization      SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  // Integer cents. Never floats.
+  valueCents        Int                @default(0)
+  mrrCents          Int                @default(0)
+  status            SalesDealStatus    @default(OPEN)
+  lostReason        String?
+  // Optional free text that goes with lostReason.
+  lostComment       String?
+  // Where the deal came from (Check Availability form, Referral, ...).
+  source            String?
+  stageEnteredAt    DateTime
+  wonAt             DateTime?
+  lostAt            DateTime?
+  expectedCloseDate DateTime?
+  // Id of the deal in Pipedrive, for the one-time import.
+  pipedriveId       Int?               @unique
+  archivedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  convertedFromLead SalesLead?              @relation("SalesLeadConvertedDeal")
+  activities        SalesActivity[]
+  notes             SalesNote[]
+  files             SalesFile[]
+  customValues      SalesCustomFieldValue[]
+
+  @@index([pipelineId, status, stageId])
+  @@index([pipelineId, status, updatedAt])
+  @@index([ownerId, status])
+  @@index([personId])
+  @@index([organizationId])
+  @@index([status, wonAt])
+}
+
+model SalesActivity {
+  id         String            @id @default(cuid())
+  type       SalesActivityType
+  subject    String
+  dueAt      DateTime
+  // False for activities that only have a date, no time of day.
+  hasTime    Boolean           @default(true)
+  doneAt     DateTime?
+  ownerId    String
+  owner      TeamMember        @relation("SalesActivityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  dealId     String?
+  deal       SalesDeal?        @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId     String?
+  lead       SalesLead?        @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  personId   String?
+  person     SalesPerson?      @relation(fields: [personId], references: [id], onDelete: Restrict)
+  note       String?
+  // "rule:no-show", "rule:territory-hold", or a team member id.
+  createdBy  String
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([ownerId, doneAt, dueAt])
+  @@index([doneAt, dueAt])
+  @@index([dealId, doneAt])
+  @@index([leadId])
+  @@index([personId])
+}
+
+model SalesNote {
+  id             String             @id @default(cuid())
+  body           String
+  authorId       String
+  author         TeamMember         @relation("SalesNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  dealId         String?
+  deal           SalesDeal?         @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId         String?
+  lead           SalesLead?         @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  personId       String?
+  person         SalesPerson?       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  organizationId String?
+  organization   SalesOrganization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pinned         Boolean            @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([dealId])
+  @@index([leadId])
+  @@index([personId])
+  @@index([organizationId])
+}
+
+model SalesFile {
+  id               String     @id @default(cuid())
+  name             String
+  blobPathname     String
+  contentType      String
+  sizeBytes        Int
+  sha256           String
+  uploadedById     String
+  uploadedBy       TeamMember @relation("SalesFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  dealId           String?
+  deal             SalesDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId           String?
+  lead             SalesLead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  // When the uploader confirmed this is the final version the client received.
+  finalConfirmedAt DateTime
+  // The deal's stage when the file was added.
+  stageName        String?
+  archivedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([dealId])
+  @@index([leadId])
+  @@index([uploadedById, createdAt])
+}
+
+// An admin-defined extra field on deals or leads. pipelineKeys empty = shown
+// on every pipeline.
+model SalesCustomField {
+  id           String                 @id @default(cuid())
+  key          String                 @unique
+  label        String
+  entity       SalesCustomFieldEntity
+  fieldType    SalesCustomFieldType
+  options      String[]
+  pipelineKeys String[]
+  position     Int
+  archivedAt   DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  values SalesCustomFieldValue[]
+}
+
+model SalesCustomFieldValue {
+  id        String           @id @default(cuid())
+  fieldId   String
+  field     SalesCustomField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  dealId    String?
+  deal      SalesDeal?       @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  leadId    String?
+  lead      SalesLead?       @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  value     String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([fieldId, dealId])
+  @@unique([fieldId, leadId])
+  @@index([dealId])
+  @@index([leadId])
+}
+
+// ---------------------------------------------------------------------------
+// Sales history log. Append-only: database triggers (see the
+// add_sales_audit_log migration) reject any UPDATE, DELETE or TRUNCATE.
+// actorId and botTokenId are plain strings, not relations, so removing a team
+// member or a bot key never touches history.
+// ---------------------------------------------------------------------------
+
+enum SalesActorType {
+  USER
+  BOT
+  SYSTEM
+  WEBHOOK
+}
+
+model SalesAuditLog {
+  id         String         @id @default(cuid())
+  at         DateTime       @default(now())
+  actorType  SalesActorType
+  actorId    String?
+  botTokenId String?
+  entityType String
+  entityId   String
+  action     String
+  before     Json?
+  after      Json?
+  requestId  String?
+  // Where the change came from, when it came through a web request.
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([entityType, entityId, at])
+  @@index([entityType, at])
+}
+
+// A key an outside bot uses to work in Sales on behalf of one person. Only the
+// SHA-256 hash of the key is stored; the key itself is shown once, on create or
+// rotate. Deleting the person deletes their bots. pipelineKeys empty = every pipeline.
+model BotToken {
+  id           String          @id @default(cuid())
+  name         String
+  actingForId  String
+  actingFor    TeamMember      @relation("BotTokenActingFor", fields: [actingForId], references: [id], onDelete: Cascade)
+  scopes       String[]
+  pipelineKeys String[]
+  tokenHash    String          @unique
+  tokenLast4   String
+  enabled      Boolean         @default(true)
+  createdById  String
+  createdAt    DateTime        @default(now())
+  lastUsedAt   DateTime?
+  rotatedAt    DateTime?
+  usage        BotTokenUsage[]
+
+  @@index([actingForId])
+}
+
+// Rate-limit counters for a bot key, one row per key per window. kind is
+// "minute" or "day" (UTC days). Not backed up: rebuilt by use.
+model BotTokenUsage {
+  tokenId     String
+  token       BotToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  kind        String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([tokenId, kind, windowStart])
+}
+
+// Who gets a new lead. One row, id "singleton". ROUND_ROBIN deals leads out in
+// the order of roundRobinMemberIds; rrCursor counts how many have been dealt and
+// is moved only by assignLeadOwner. SINGLE sends every lead to singleAssigneeId.
+// The ids are plain strings, not relations: someone who leaves the team or loses
+// Sales access is skipped when a lead is assigned, so nothing here blocks removing a person.
+enum SalesLeadAssignMode {
+  ROUND_ROBIN
+  SINGLE
+}
+
+model SalesSettings {
+  id                  String              @id @default("singleton")
+  leadAssignMode      SalesLeadAssignMode @default(ROUND_ROBIN)
+  roundRobinMemberIds String[]            @default([])
+  singleAssigneeId    String?
+  rrCursor            Int                 @default(0)
+  updatedAt           DateTime            @updatedAt
 }
