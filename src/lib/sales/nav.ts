@@ -35,7 +35,7 @@ export function salesNavGroup(
   if (perms.isAdmin) {
     links.push({ href: "/sales/settings", label: "Sales settings", icon: "settings", count: 0, countLabel: "" });
   }
-  return { title: "Sales", badge: "NEW", links };
+  return { title: "Sales Command Center", badge: "NEW", links };
 }
 
 /**

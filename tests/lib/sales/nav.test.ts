@@ -25,7 +25,7 @@ describe("salesNavGroup", () => {
 
   it("gives an admin every Sales page in order", () => {
     expect(salesNavGroup({ isAdmin: true, canUseSales: false }, { due: 3, leads: 2 })).toEqual({
-      title: "Sales",
+      title: "Sales Command Center",
       badge: "NEW",
       links: ALL_LINKS,
     });
@@ -33,7 +33,7 @@ describe("salesNavGroup", () => {
 
   it("gives a Sales user every page but Sales settings", () => {
     expect(salesNavGroup({ isAdmin: false, canUseSales: true }, { due: 3, leads: 2 })).toEqual({
-      title: "Sales",
+      title: "Sales Command Center",
       badge: "NEW",
       links: ALL_LINKS.slice(0, 6),
     });
