@@ -276,19 +276,12 @@ export async function syncClientConversations(
   const token = decryptSecret(conn.encryptedToken);
   const conversations = await searchConversations(conn.locationId, token);
 
-  // TEMPORARY diagnostic: dump the full raw payload for every Call/Voicemail
-  // message so we can see exactly where HighLevel puts the recording URL
-  // (attachments array? a meta.call field? something else?) instead of
-  // guessing. Safe to remove once that's confirmed.
   let upserted = 0;
   for (const convo of conversations) {
     const rawMessages = await getMessages(convo.id, token);
     for (const raw of rawMessages) {
       const norm = normalizeMessage(raw, convo);
       if (!norm) continue;
-      if (norm.channel === "Call" || norm.channel === "Voicemail") {
-        console.log(`[HL-DEBUG] full raw ${norm.channel} message:`, JSON.stringify(raw));
-      }
       await prisma.conversationMessage.upsert({
         where: { ghlMessageId: norm.ghlMessageId },
         create: { clientId, ...norm },

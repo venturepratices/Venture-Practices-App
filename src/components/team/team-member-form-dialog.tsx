@@ -96,21 +96,7 @@ export function TeamMemberFormDialog(props: Props) {
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required defaultValue={isEdit ? props.defaultEmail : undefined} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="slackUserId">Slack member ID or channel ID (optional)</Label>
-              <Input
-                id="slackUserId"
-                name="slackUserId"
-                placeholder="Auto-matched by email — only set this if that doesn't work"
-                defaultValue={isEdit ? (props.defaultSlackUserId ?? undefined) : undefined}
-              />
-              <p className="text-xs text-muted-foreground">
-                Notifications DM this person on Slack automatically by matching their email. If their Slack account uses a
-                different email, paste their Slack Member ID here — or paste a channel ID instead to route their
-                notifications there (their Slack profile or channel name → &quot;...&quot; → &quot;Copy member ID&quot; /
-                &quot;Copy channel ID&quot;). They can also change this themselves anytime under Settings → Notifications.
-              </p>
-            </div>
+            <SlackMemberIdField defaultValue={isEdit ? (props.defaultSlackUserId ?? undefined) : undefined} />
             <div className="space-y-2">
               <Label htmlFor="password">{props.mode === "create" ? "Temporary password" : "Temporary password (reset)"}</Label>
               <div className="relative">
@@ -229,5 +215,31 @@ export function TeamMemberFormDialog(props: Props) {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Where this person's Slack notifications go. Admins can set any member or
+ * channel ID here; a member can only set their own member ID from Settings,
+ * and only when Slack says its email matches theirs (old audit #13).
+ */
+export function SlackMemberIdField({ defaultValue }: { defaultValue: string | undefined }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="slackUserId">Slack member ID or channel ID (optional)</Label>
+      <Input
+        id="slackUserId"
+        name="slackUserId"
+        placeholder="Auto-matched by email. Only set this if that doesn't work"
+        defaultValue={defaultValue}
+      />
+      <p className="text-xs text-muted-foreground">
+        Notifications DM this person on Slack automatically by matching their email. If their Slack account uses a
+        different email, paste their Slack member ID here, or paste a channel ID to send their notifications to that
+        channel instead (their Slack profile or the channel name, then &quot;...&quot;, then &quot;Copy member ID&quot;
+        or &quot;Copy channel ID&quot;). They can set their own Slack member ID under Settings, Notifications, but only
+        when that Slack account&apos;s email matches theirs. A different email or a channel needs an admin here.
+      </p>
+    </div>
   );
 }

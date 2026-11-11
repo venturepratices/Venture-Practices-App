@@ -37,197 +37,254 @@ type ClientDefaults = {
   slackChannelId: string | null;
 };
 
+// canChangeSlackChannel: only an admin may set or change a client's Slack
+// channel (the actions refuse anyone else), so the field is read-only for
+// everyone else.
 type Props =
-  | { mode: "create"; trigger: React.ReactElement }
-  | ({ mode: "edit"; trigger: React.ReactElement; clientId: string; defaultName: string; defaultStatus: string } & ClientDefaults);
+  | { mode: "create"; trigger: React.ReactElement; canChangeSlackChannel: boolean }
+  | ({
+      mode: "edit";
+      trigger: React.ReactElement;
+      canChangeSlackChannel: boolean;
+      clientId: string;
+      defaultName: string;
+      defaultStatus: string;
+    } & ClientDefaults);
+
+/**
+ * Runs the save and closes the dialog only when it went through. A refused
+ * save (no permission, a bad value) returns its reason for the dialog to show
+ * and leaves it open with what was typed.
+ */
+export async function runClientFormAction(
+  action: (previous: ClientFormState, formData: FormData) => Promise<ClientFormState>,
+  previous: ClientFormState,
+  formData: FormData,
+  onSaved: () => void
+): Promise<ClientFormState> {
+  const result = await action(previous, formData);
+  if (!result.error) onSaved();
+  return result;
+}
 
 export function ClientFormDialog(props: Props) {
   const [open, setOpen] = useState(false);
+
+  // The form unmounts while the dialog is closed, so each opening starts from
+  // the saved values with no leftover error.
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={props.trigger} />
+      <DialogContent>
+        <ClientForm {...props} onSaved={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ClientForm({ onSaved, ...props }: Props & { onSaved: () => void }) {
   const action = props.mode === "create" ? createClientAction : updateClientAction.bind(null, props.clientId);
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  const [state, formAction, isPending] = useActionState(
+    (previous: ClientFormState, formData: FormData) => runClientFormAction(action, previous, formData, onSaved),
+    initialState
+  );
+  const { canChangeSlackChannel } = props;
   const hasSecondaryContact =
     props.mode === "edit" && Boolean(props.secondaryContactName || props.secondaryContactEmail || props.secondaryContactPhone);
   const [showSecondaryContact, setShowSecondaryContact] = useState(hasSecondaryContact);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-      }}
-    >
-      <DialogTrigger render={props.trigger} />
-      <DialogContent>
-        <form
-          action={async (formData) => {
-            await formAction(formData);
-            setOpen(false);
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{props.mode === "create" ? "New client" : "Edit client"}</DialogTitle>
-            <DialogDescription>
-              {props.mode === "create"
-                ? "Add a new client sub-account to the agency."
-                : "Update this client's name or status."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+    <form action={formAction}>
+      <DialogHeader>
+        <DialogTitle>{props.mode === "create" ? "New client" : "Edit client"}</DialogTitle>
+        <DialogDescription>
+          {props.mode === "create"
+            ? "Add a new client sub-account to the agency."
+            : "Update this client's name or status."}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Client name</Label>
+          <Input
+            id="name"
+            name="name"
+            required
+            defaultValue={props.mode === "edit" ? props.defaultName : undefined}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="status">Status</Label>
+          <Select name="status" defaultValue={props.mode === "edit" ? props.defaultStatus : "ONBOARDING"}>
+            <SelectTrigger id="status" className="w-full">
+              <SelectValue>{(status: string) => <ClientStatusPill status={status} />}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {CLIENT_STATUS_VALUES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  <ClientStatusPill status={status} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-3 rounded-lg border p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary contact</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="name">Client name</Label>
-              <Input
-                id="name"
-                name="name"
-                required
-                defaultValue={props.mode === "edit" ? props.defaultName : undefined}
-              />
+              <Label htmlFor="contactName">Contact name</Label>
+              <Input id="contactName" name="contactName" defaultValue={props.mode === "edit" ? props.contactName ?? "" : ""} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select name="status" defaultValue={props.mode === "edit" ? props.defaultStatus : "ONBOARDING"}>
-                <SelectTrigger id="status" className="w-full">
-                  <SelectValue>{(status: string) => <ClientStatusPill status={status} />}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {CLIENT_STATUS_VALUES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      <ClientStatusPill status={status} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="contactPhone">Contact phone</Label>
+              <Input id="contactPhone" name="contactPhone" defaultValue={props.mode === "edit" ? props.contactPhone ?? "" : ""} />
             </div>
-            <div className="space-y-3 rounded-lg border p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary contact</p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="contactName">Contact name</Label>
-                  <Input id="contactName" name="contactName" defaultValue={props.mode === "edit" ? props.contactName ?? "" : ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contactPhone">Contact phone</Label>
-                  <Input id="contactPhone" name="contactPhone" defaultValue={props.mode === "edit" ? props.contactPhone ?? "" : ""} />
-                </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="contactEmail">Contact email</Label>
+            <Input
+              id="contactEmail"
+              name="contactEmail"
+              type="email"
+              defaultValue={props.mode === "edit" ? props.contactEmail ?? "" : ""}
+            />
+          </div>
+        </div>
+
+        {showSecondaryContact ? (
+          <div className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Secondary contact</p>
+              <button
+                type="button"
+                onClick={() => setShowSecondaryContact(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="secondaryContactName">Contact name</Label>
+                <Input
+                  id="secondaryContactName"
+                  name="secondaryContactName"
+                  defaultValue={props.mode === "edit" ? props.secondaryContactName ?? "" : ""}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contactEmail">Contact email</Label>
+                <Label htmlFor="secondaryContactPhone">Contact phone</Label>
                 <Input
-                  id="contactEmail"
-                  name="contactEmail"
-                  type="email"
-                  defaultValue={props.mode === "edit" ? props.contactEmail ?? "" : ""}
+                  id="secondaryContactPhone"
+                  name="secondaryContactPhone"
+                  defaultValue={props.mode === "edit" ? props.secondaryContactPhone ?? "" : ""}
                 />
               </div>
             </div>
-
-            {showSecondaryContact ? (
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Secondary contact</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowSecondaryContact(false)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="secondaryContactName">Contact name</Label>
-                    <Input
-                      id="secondaryContactName"
-                      name="secondaryContactName"
-                      defaultValue={props.mode === "edit" ? props.secondaryContactName ?? "" : ""}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="secondaryContactPhone">Contact phone</Label>
-                    <Input
-                      id="secondaryContactPhone"
-                      name="secondaryContactPhone"
-                      defaultValue={props.mode === "edit" ? props.secondaryContactPhone ?? "" : ""}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="secondaryContactEmail">Contact email</Label>
-                  <Input
-                    id="secondaryContactEmail"
-                    name="secondaryContactEmail"
-                    type="email"
-                    defaultValue={props.mode === "edit" ? props.secondaryContactEmail ?? "" : ""}
-                  />
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowSecondaryContact(true)}
-                className="text-sm text-primary underline-offset-4 hover:underline"
-              >
-                + Add secondary contact
-              </button>
-            )}
-
             <div className="space-y-2">
-              <Label htmlFor="source">Source</Label>
+              <Label htmlFor="secondaryContactEmail">Contact email</Label>
               <Input
-                id="source"
-                name="source"
-                placeholder="e.g. Referral — Dr. Smith, Google Ads, cold outreach..."
-                defaultValue={props.mode === "edit" ? props.source ?? "" : ""}
-              />
-              <p className="text-xs text-muted-foreground">Where this client came from.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                name="website"
-                placeholder="https://..."
-                defaultValue={props.mode === "edit" ? props.website ?? "" : ""}
+                id="secondaryContactEmail"
+                name="secondaryContactEmail"
+                type="email"
+                defaultValue={props.mode === "edit" ? props.secondaryContactEmail ?? "" : ""}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input id="address" name="address" defaultValue={props.mode === "edit" ? props.address ?? "" : ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="about">About</Label>
-              <Textarea
-                id="about"
-                name="about"
-                rows={3}
-                placeholder="Anything else worth knowing about this client..."
-                defaultValue={props.mode === "edit" ? props.about ?? "" : ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="slackChannelId">Slack channel ID (optional)</Label>
-              <Input
-                id="slackChannelId"
-                name="slackChannelId"
-                placeholder="Auto-created — only set this to point at an existing channel"
-                defaultValue={props.mode === "edit" ? props.slackChannelId ?? "" : ""}
-              />
-              <p className="text-xs text-muted-foreground">
-                A private Slack channel for this client is created automatically. Only fill this in to point at an
-                existing channel instead, or to fix a failed auto-creation (find the ID via the channel&apos;s
-                &quot;...&quot; menu → &quot;View channel details&quot;).
-              </p>
-            </div>
-            {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
           </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-              {isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowSecondaryContact(true)}
+            className="text-sm text-primary underline-offset-4 hover:underline"
+          >
+            + Add secondary contact
+          </button>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="source">Source</Label>
+          <Input
+            id="source"
+            name="source"
+            placeholder="e.g. Referral from Dr. Smith, Google Ads, cold outreach..."
+            defaultValue={props.mode === "edit" ? props.source ?? "" : ""}
+          />
+          <p className="text-xs text-muted-foreground">Where this client came from.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="website">Website</Label>
+          <Input
+            id="website"
+            name="website"
+            placeholder="https://..."
+            defaultValue={props.mode === "edit" ? props.website ?? "" : ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <Input id="address" name="address" defaultValue={props.mode === "edit" ? props.address ?? "" : ""} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="about">About</Label>
+          <Textarea
+            id="about"
+            name="about"
+            rows={3}
+            placeholder="Anything else worth knowing about this client..."
+            defaultValue={props.mode === "edit" ? props.about ?? "" : ""}
+          />
+        </div>
+        <SlackChannelField
+          canChange={canChangeSlackChannel}
+          defaultValue={props.mode === "edit" ? props.slackChannelId ?? "" : ""}
+        />
+        {state?.error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {state.error}
+          </p>
+        ) : null}
+      </div>
+      <DialogFooter>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {isPending ? "Saving..." : "Save"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/**
+ * The client's Slack channel ID. Read-only, not disabled, for someone who
+ * isn't an admin: a read-only field is still sent with the form, so their
+ * save keeps the stored channel instead of clearing it (which the action
+ * would refuse as a change).
+ */
+export function SlackChannelField({ canChange, defaultValue }: { canChange: boolean; defaultValue: string }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="slackChannelId">Slack channel ID (optional)</Label>
+      <Input
+        id="slackChannelId"
+        name="slackChannelId"
+        readOnly={!canChange}
+        aria-describedby="slackChannelId-help"
+        placeholder={canChange ? "Auto-created. Only set this to use an existing channel" : "Auto-created"}
+        defaultValue={defaultValue}
+        className={canChange ? undefined : "bg-muted text-muted-foreground"}
+      />
+      {canChange ? (
+        <p id="slackChannelId-help" className="text-xs text-muted-foreground">
+          A private Slack channel for this client is created automatically. Only fill this in to point at an existing
+          channel instead, or to fix a failed auto-creation (find the ID via the channel&apos;s &quot;...&quot; menu
+          → &quot;View channel details&quot;).
+        </p>
+      ) : (
+        <p id="slackChannelId-help" className="text-xs text-muted-foreground">
+          A private Slack channel for this client is created automatically. Only an admin can change this.
+        </p>
+      )}
+    </div>
   );
 }

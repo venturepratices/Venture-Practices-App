@@ -4,20 +4,24 @@ import { z } from "zod";
 import { archiveWorkflowInstance } from "@/lib/archive";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, taskVisibilityFilter, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const patchSchema = z.object({ folderId: z.string().min(1).nullable() });
 
-const INSTANCE_INCLUDE = {
-  client: { select: { id: true, name: true } },
-  workflowTemplate: { select: { id: true, name: true } },
-  createdBy: { select: { id: true, name: true } },
-  tasks: {
-    include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
-    orderBy: [{ workflowStageNumber: "asc" as const }, { createdAt: "asc" as const }],
-  },
-};
+// Someone else's private task stays out of the project, as on the project page.
+function instanceInclude(viewerId: string) {
+  return {
+    client: { select: { id: true, name: true } },
+    workflowTemplate: { select: { id: true, name: true } },
+    createdBy: { select: { id: true, name: true } },
+    tasks: {
+      where: taskVisibilityFilter(viewerId),
+      include: { assignees: { include: { teamMember: { select: { id: true, name: true } } } } },
+      orderBy: [{ workflowStageNumber: "asc" as const }, { createdAt: "asc" as const }],
+    },
+  };
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ instanceId: string }> }) {
   const session = await auth();
@@ -31,7 +35,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ins
   }
 
   const { instanceId } = await params;
-  const instance = await prisma.workflowInstance.findUnique({ where: { id: instanceId }, include: INSTANCE_INCLUDE });
+  const instance = await prisma.workflowInstance.findUnique({
+    where: { id: instanceId },
+    include: instanceInclude(session.user.id),
+  });
   if (!instance) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

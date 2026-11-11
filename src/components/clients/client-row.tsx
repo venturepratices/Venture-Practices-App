@@ -42,12 +42,21 @@ type ClientRowData = {
   slackChannelId: string | null;
 };
 
-export function ClientRow({ client, delayMs = 0 }: { client: ClientRowData; delayMs?: number }) {
+export function ClientRow({
+  client,
+  delayMs = 0,
+  canChangeSlackChannel,
+}: {
+  client: ClientRowData;
+  delayMs?: number;
+  canChangeSlackChannel: boolean;
+}) {
   return (
     <div className="group relative animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${delayMs}ms` }}>
       <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 md:block">
         <ClientFormDialog
           mode="edit"
+          canChangeSlackChannel={canChangeSlackChannel}
           clientId={client.id}
           defaultName={client.name}
           defaultStatus={client.status}

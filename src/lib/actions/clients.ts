@@ -4,12 +4,40 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { PermissionError, requireCapability, requireClientAccess, type Capability } from "@/lib/permissions";
+import { isAdmin, PermissionError, requireCapability, requireClientAccess, type Capability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { ensureClientChannel } from "@/lib/slack";
+import { SLACK_CHANNEL_ID_PATTERN } from "@/lib/slack-ids";
 import { clientSchema } from "@/lib/validations/client";
 
 export type ClientFormState = { error: string | null };
+
+// Old audit #14: a client's Slack channel decides where that client's team
+// posts go and who the channel sync invites or removes, so only an admin can
+// set or change it, and only to something shaped like a channel ID that no
+// other client (nor the team's general channel) uses. Callers run this only
+// when the value is actually changing, so editors can keep saving clients
+// they didn't touch the channel on, including older stored values. The
+// automatic channel for a new client is written by ensureClientChannel(),
+// not through here. Returns the error to show, or null when allowed.
+async function slackChannelChangeError(slackChannelId: string | null, clientId?: string): Promise<string | null> {
+  if (!(await isAdmin())) {
+    return "Only an admin can set or change a client's Slack channel. Ask an admin to do it for you.";
+  }
+  if (slackChannelId === null) return null;
+  if (!SLACK_CHANNEL_ID_PATTERN.test(slackChannelId)) {
+    return "That isn't a Slack channel ID. Channel IDs start with C or G, like C0123ABCD45.";
+  }
+  if (slackChannelId === process.env.SLACK_INTERNAL_CHANNEL_ID) {
+    return "That is the team's general Slack channel. A client needs its own channel.";
+  }
+  const usedBy = await prisma.client.findFirst({
+    where: clientId ? { slackChannelId, NOT: { id: clientId } } : { slackChannelId },
+    select: { id: true },
+  });
+  if (usedBy) return "That Slack channel is already used by another client. Each client needs its own channel.";
+  return null;
+}
 
 // Returns the error to the form rather than throwing.
 async function assertCapabilityOrError(cap: Capability, clientId?: string): Promise<ClientFormState | null> {
@@ -59,6 +87,11 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  if (parsed.data.slackChannelId !== null) {
+    const channelError = await slackChannelChangeError(parsed.data.slackChannelId);
+    if (channelError) return { error: channelError };
+  }
+
   const client = await prisma.client.create({ data: parsed.data });
   await ensureClientChannel(client);
 
@@ -89,6 +122,11 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
   }
 
   const before = await prisma.client.findUnique({ where: { id: clientId } });
+  if (parsed.data.slackChannelId !== (before?.slackChannelId ?? null)) {
+    const channelError = await slackChannelChangeError(parsed.data.slackChannelId, clientId);
+    if (channelError) return { error: channelError };
+  }
+
   const client = await prisma.client.update({ where: { id: clientId }, data: parsed.data });
 
   if (before) {

@@ -21,6 +21,7 @@ import { StatusPill } from "@/components/tasks/status-pill";
 import { TaskActivityDigest, TaskActivityTimeline } from "@/components/tasks/task-activity";
 import { StagePill } from "@/components/programs/stage-pill";
 import { TaskAssigneesPicker } from "@/components/tasks/task-assignees-picker";
+import { NO_CAMPAIGN, draftWithClient, saveFailureMessage } from "@/components/tasks/task-draft";
 import { CAMPAIGN_STAGE_LABELS, CAMPAIGN_STAGE_VALUES, campaignLabel } from "@/lib/campaign-stage";
 import { stripHtml } from "@/lib/text-format";
 import {
@@ -38,7 +39,6 @@ import { cn, dateInputValue, deadlineFromDateInput, formatDateTime } from "@/lib
 import type { TaskDetail } from "@/types/task";
 
 const NO_CLIENT = "__none__";
-const NO_CAMPAIGN = "__none__";
 const NO_PRIORITY = "__none__";
 
 type CampaignOption = { id: string; sequenceNumber: number; name?: string | null; currentStage: string };
@@ -103,7 +103,7 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignOption[] | null>(null);
+  const [campaignState, setCampaignState] = useState<{ clientId: string; list: CampaignOption[] | null } | null>(null);
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
@@ -115,9 +115,15 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
   // falls back to the Details tab / "loading" on its own — no reset effect.
   const [tabState, setTabState] = useState<{ taskId: string | null; tab: "details" | "activity" }>({ taskId: null, tab: "details" });
   const [activityState, setActivityState] = useState<{ taskId: string; events: TaskActivityEvent[] } | null>(null);
+  const [saveErrorState, setSaveErrorState] = useState<{ taskId: string | null; message: string } | null>(null);
   const tabStripRef = useRef<HTMLDivElement>(null);
   const tab = tabState.taskId === taskId ? tabState.tab : "details";
   const activity = activityState && activityState.taskId === taskId ? activityState.events : null;
+  const saveError = saveErrorState && saveErrorState.taskId === taskId ? saveErrorState.message : null;
+  // The client chosen in the panel (the saved one until the Client is
+  // changed), whose campaigns the campaign select lists.
+  const draftClientId = draft && draft.clientId !== NO_CLIENT ? draft.clientId : null;
+  const campaigns = campaignState && campaignState.clientId === draftClientId ? campaignState.list : null;
 
   const clientNames = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
@@ -158,28 +164,24 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
     };
   }, [taskId]);
 
-  // Direct Mail campaigns for the task's client — only fetched once a
-  // client-scoped task is open, since a campaign can't attach to a
-  // client-less (internal) task. Silently empty (not an error state) for a
-  // member without canViewDirectMail — the route 403s and the section just
-  // doesn't render.
+  // Direct Mail campaigns for the client chosen in the panel, since a task's
+  // campaign must belong to its own client: changing the Client lists the new
+  // client's campaigns, so one can be picked in the same save. Nothing is
+  // fetched for a client-less (internal) task, which can't have a campaign.
+  // Silently empty (not an error state) for a member without
+  // canViewDirectMail: the route 403s and the section just doesn't render.
   useEffect(() => {
-    const clientId = task?.clientId;
-    if (!clientId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting this section's own state when there's no client to fetch for, not a prop-sync
-      setCampaigns(null);
-      return;
-    }
+    if (!draftClientId) return;
     let cancelled = false;
-    fetch(`/api/campaigns?clientId=${clientId}`)
+    fetch(`/api/campaigns?clientId=${draftClientId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: CampaignOption[] | null) => {
-        if (!cancelled) setCampaigns(data);
+        if (!cancelled) setCampaignState({ clientId: draftClientId, list: data });
       });
     return () => {
       cancelled = true;
     };
-  }, [task?.clientId]);
+  }, [draftClientId]);
 
   // Every project the current user can see, for the "which specific project"
   // search-picker — fetched once per opened task (not client-scoped, since a
@@ -236,6 +238,11 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
 
   function discard() {
     if (task) setDraft(draftFromTask(task));
+    showSaveError(null);
+  }
+
+  function showSaveError(message: string | null) {
+    setSaveErrorState(message ? { taskId, message } : null);
   }
 
   async function save() {
@@ -283,17 +290,26 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
     if (Object.keys(fields).length === 0) return;
 
     setIsSaving(true);
-    const response = await fetch(`/api/tasks/${taskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fields),
-    });
-    setIsSaving(false);
-    if (response.ok) {
+    showSaveError(null);
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      // A refused save keeps the draft, so the person can fix it and try again.
+      if (!response.ok) {
+        showSaveError(await saveFailureMessage(response));
+        return;
+      }
       const updated = (await response.json()) as TaskDetail;
       setTask(updated);
       setDraft(draftFromTask(updated));
       router.refresh();
+    } catch {
+      showSaveError("Couldn't save your changes. Check your connection and try again.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -506,6 +522,11 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
                 </Button>
               </div>
             </div>
+            {saveError ? (
+              <p role="alert" className="-mt-3 text-sm text-destructive">
+                {saveError}
+              </p>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
@@ -639,7 +660,13 @@ export function TaskDetailPanel({ clients, teamMembers, currentUserId, statusOpt
 
               <div className="space-y-1.5">
                 <Label>Client</Label>
-                <Select value={draft.clientId} onValueChange={(value) => value && setField("clientId", value)}>
+                <Select
+                  value={draft.clientId}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    setDraft((prev) => (prev ? draftWithClient(prev, value, draftFromTask(task)) : prev));
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue>{(value: string) => (value === NO_CLIENT ? "Internal / Agency" : clientNames[value])}</SelectValue>
                   </SelectTrigger>

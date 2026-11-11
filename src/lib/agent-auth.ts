@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { checkBearer } from "@/lib/secret-compare";
+
 /**
  * Auth gate for the read-only agent API (src/app/api/agent/v1/**), used by
  * Viktor (or any future external agent) to answer questions about the app's
@@ -13,9 +15,7 @@ import { NextResponse } from "next/server";
  * revocable without breaking every scheduled job.
  */
 export function requireAgentToken(request: Request): NextResponse | null {
-  const secret = process.env.AGENT_API_TOKEN;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.AGENT_API_TOKEN)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;

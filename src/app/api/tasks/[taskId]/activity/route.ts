@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
-import { requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildTaskActivityEvents } from "@/lib/task-activity";
 
@@ -10,9 +9,13 @@ import { buildTaskActivityEvents } from "@/lib/task-activity";
 const MAX_ROWS = 500;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Staff only, like GET /api/tasks/[taskId]: a client-portal login gets a
+  // 401 before any task is looked up.
+  let viewer;
+  try {
+    viewer = await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const { taskId } = await params;
@@ -22,7 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tas
   });
   // Same visibility rules as GET /api/tasks/[taskId]: a private task 404s for
   // anyone but its creator, and a client-scoped member needs that client.
-  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
+  if (!task || (task.isPrivate && task.createdById !== viewer.userId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (task.clientId) {

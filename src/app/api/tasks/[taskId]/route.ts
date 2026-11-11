@@ -5,10 +5,10 @@ import { archiveTask } from "@/lib/archive";
 import { logActivity } from "@/lib/activity-log";
 import { maybeAdvanceCampaignStage } from "@/lib/campaign-advance";
 import { notify, notifyChannel } from "@/lib/notify";
-import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, requireUser, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { maybeCreateNextOccurrence } from "@/lib/recurring-tasks";
-import { mentionOrName } from "@/lib/slack";
+import { mentionsOrNames } from "@/lib/slack";
 import { deadlineLine, formatDate } from "@/lib/utils";
 import { maybeAdvanceWorkflowStage, notifyNextTaskInStage } from "@/lib/workflow-advance";
 import { isValidPriorityLevelId } from "@/lib/priority-level";
@@ -39,8 +39,11 @@ function occurrenceLabel(occurrence: string, interval: number | null, unit: stri
   return OCCURRENCE_LABELS[occurrence] ?? occurrence;
 }
 
+// Sent back to the browser as-is, so assignees carry only what the task panel
+// shows (id and name), never emails or Slack ids. Slack mentions look those
+// up separately (mentionsOrNames).
 export const TASK_INCLUDE = {
-  assignees: { include: { teamMember: { select: { id: true, name: true, email: true, slackUserId: true } } } },
+  assignees: { include: { teamMember: { select: { id: true, name: true } } } },
   client: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   statusOption: { select: { id: true, label: true, tone: true, color: true, isComplete: true } },
@@ -55,16 +58,21 @@ export const TASK_INCLUDE = {
 } as const;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Staff only: a client-portal login has no team member behind it and gets
+  // a 401 here before any task is looked up, so it can't read internal
+  // (no-client) tasks or any client's tasks through this route.
+  let viewer;
+  try {
+    viewer = await requireUser();
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   const { taskId } = await params;
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: TASK_INCLUDE });
   // A private task 404s (not 403 — leak nothing) for anyone but its creator,
   // including a stale notification link or a guessed URL.
-  if (!task || (task.isPrivate && task.createdById !== session.user.id)) {
+  if (!task || (task.isPrivate && task.createdById !== viewer.userId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   // Same client-access check PATCH/DELETE already have — without it, a
@@ -108,6 +116,42 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
   try {
     await requireCapability("canEditTasks");
     if (before.clientId) await requireClientAccess(before.clientId);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  // Where the task is going matters as much as where it is: the caller needs
+  // access to a new client, and a new campaign or project must sit in a
+  // client they can access. A campaign must also belong to the task's own
+  // client (the task panel only offers that client's campaigns); a project
+  // may be internal or any accessible client's, as the project picker allows.
+  const destinationClientId = parsed.data.clientId !== undefined ? parsed.data.clientId : before.clientId;
+  let destinationProject: { clientId: string | null; name: string } | null = null;
+  try {
+    if (parsed.data.clientId) await requireClientAccess(parsed.data.clientId);
+    if (parsed.data.campaignId) {
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: parsed.data.campaignId },
+        select: { clientId: true },
+      });
+      if (!campaign) {
+        return NextResponse.json({ error: "Campaign not found" }, { status: 400 });
+      }
+      await requireClientAccess(campaign.clientId);
+      if (campaign.clientId !== destinationClientId) {
+        return NextResponse.json({ error: "That campaign belongs to a different client than this task" }, { status: 400 });
+      }
+    }
+    if (parsed.data.workflowInstanceId) {
+      destinationProject = await prisma.workflowInstance.findUnique({
+        where: { id: parsed.data.workflowInstanceId },
+        select: { clientId: true, name: true },
+      });
+      if (!destinationProject) {
+        return NextResponse.json({ error: "Project not found" }, { status: 400 });
+      }
+      if (destinationProject.clientId) await requireClientAccess(destinationProject.clientId);
+    }
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -264,9 +308,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
         });
       }
       if (!task.isPrivate && added.length > 0) {
-        const addedMentions = await Promise.all(
-          added.map((a) => mentionOrName(a.teamMember, a.teamMember.name))
-        );
+        const addedMentions = await mentionsOrNames(added.map((a) => a.teamMember));
         await notifyChannel({
           clientId: task.clientId,
           title: `Assigned: "${task.title}"`,
@@ -307,9 +349,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ta
       });
     }
     if (parsed.data.workflowInstanceId !== undefined && parsed.data.workflowInstanceId !== before.workflowInstanceId) {
-      const project = parsed.data.workflowInstanceId
-        ? await prisma.workflowInstance.findUnique({ where: { id: parsed.data.workflowInstanceId }, select: { name: true } })
-        : null;
+      // Already looked up (and access-checked) before the update.
+      const project = destinationProject;
       changes.push(project ? `project changed to ${project.name}` : "removed from project");
       structured.push({
         field: "project",

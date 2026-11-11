@@ -412,10 +412,14 @@ model VerificationToken {
 // Login brute-force lockout — DB-persisted (not in-memory) since serverless
 // functions don't hold state across invocations, same reasoning already
 // proven for AssetShareLink's password lockout (see src/lib/share-link.ts).
-// Scoped to (email, ip) rather than email alone: an attacker repeatedly
-// guessing one account's password from one IP gets locked out, without a
-// malicious actor being able to lock a real user out just by failing their
-// login from an unrelated IP.
+// Each email has a row per (email, ip) plus one row with ip = "*" that counts
+// every IP together, so spreading guesses over many IPs doesn't dodge the
+// limit (audit 2026-11-07, H2). The trade-off: anyone can keep a known email
+// locked indefinitely, by failing 5 times again every 15 minutes. So a row
+// with ip = "ok:<ip>" records each IP's last successful sign-in (updatedAt),
+// and for 90 days that IP skips the "*" lock, keeping only its own per-IP
+// limit; a new device or network is still locked out. Counted and enforced
+// in the Credentials provider's authorize(); see src/lib/login-lockout.ts.
 model LoginAttempt {
   id          String    @id @default(cuid())
   email       String
@@ -1443,7 +1447,11 @@ model ArchivedTask {
   // populate `assignees` below with the full list; UI prefers that when present.
   assigneeId     String?
   assigneeName   String?
-  // Full multi-assignee snapshot as [{id, name}, ...]. Null on pre-Slice-2 rows.
+  // Assignees plus the task's privacy. New rows hold
+  // { list: [{id, name}, ...], isPrivate, createdById }, since this model has
+  // no isPrivate/createdById columns. Rows archived before that hold the plain
+  // [{id, name}, ...] list and are treated as public; null on pre-Slice-2 rows.
+  // Read it through src/lib/archived-task-snapshot.ts.
   assignees      Json?
   clientId       String?
   clientName     String?

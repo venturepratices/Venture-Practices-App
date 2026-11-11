@@ -3,6 +3,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 
 import { getClientDetail, listActivity, listClients, listTasks, listTeam } from "@/lib/agent-data";
+import { safeEqualSecret } from "@/lib/secret-compare";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,7 @@ export const dynamic = "force-dynamic";
  * than 401s, so a guess doesn't even confirm this endpoint exists.
  */
 function tokenIsValid(token: string): boolean {
-  const expected = process.env.MCP_ACCESS_TOKEN;
-  return Boolean(expected) && token === expected;
+  return safeEqualSecret(token, process.env.MCP_ACCESS_TOKEN);
 }
 
 const NO_ARGS = z.object({});

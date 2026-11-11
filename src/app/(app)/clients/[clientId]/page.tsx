@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Mail, MapPin, Phone, Pencil, Globe } from "lucide-react";
 
-import { canUseCapability } from "@/lib/permissions";
+import { canUseCapability, isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +57,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const canManageClientUsers = await canUseCapability("canManageClientUsers");
   const canViewDirectMail = await canUseCapability("canViewDirectMail");
   const canDeleteClient = await canUseCapability("canDeleteClients");
+  const canChangeSlackChannel = await isAdmin();
 
   const hasContactInfo = client.contactName || client.contactEmail || client.contactPhone;
   const hasSecondaryContact = client.secondaryContactName || client.secondaryContactEmail || client.secondaryContactPhone;
@@ -113,6 +114,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
         {canEditClient ? (
           <ClientFormDialog
             mode="edit"
+            canChangeSlackChannel={canChangeSlackChannel}
             clientId={client.id}
             defaultName={client.name}
             defaultStatus={client.status}

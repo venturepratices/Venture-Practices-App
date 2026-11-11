@@ -72,6 +72,30 @@ export async function resolveSlackUserId(teamMember: ResolvableTeamMember): Prom
 }
 
 /**
+ * True only when Slack confirms `slackUserId` is the Slack account with this
+ * email (the same users.lookupByEmail call resolveSlackUserId() makes).
+ * False when it is someone else's account, and also when Slack can't be
+ * asked (no token, no account with that email, a failed call), so a caller
+ * refuses an ID nobody could check rather than trusting it. Never throws.
+ */
+export async function isSlackAccountForEmail(slackUserId: string, email: string): Promise<boolean> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!token) return false;
+
+  try {
+    const res = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await res.json()) as { ok: boolean; user?: { id: string } };
+    return data.ok === true && data.user?.id === slackUserId;
+  } catch (error) {
+    console.warn("Slack email lookup failed:", error);
+    Sentry.captureException(error);
+    return false;
+  }
+}
+
+/**
  * Returns a real Slack @mention (`<@USERID>`) for this team member when
  * their Slack account is resolved, so Slack actually pings/highlights them
  * — including inside a channel post many people see — instead of rendering
@@ -81,6 +105,27 @@ export async function resolveSlackUserId(teamMember: ResolvableTeamMember): Prom
 export async function mentionOrName(teamMember: ResolvableTeamMember, displayName: string): Promise<string> {
   const slackUserId = await resolveSlackUserId(teamMember);
   return slackUserId ? `<@${slackUserId}>` : displayName;
+}
+
+/**
+ * mentionOrName() for a list of people known only by id and name: reads
+ * their email and Slack id here, so a route can mention them without
+ * loading those fields into a task it sends back to the browser. Keeps the
+ * given order; anyone no longer on the team falls back to their name.
+ */
+export async function mentionsOrNames(people: { id: string; name: string }[]): Promise<string[]> {
+  if (people.length === 0) return [];
+  const rows = await prisma.teamMember.findMany({
+    where: { id: { in: people.map((p) => p.id) } },
+    select: { id: true, email: true, slackUserId: true },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return Promise.all(
+    people.map((p) => {
+      const row = byId.get(p.id);
+      return row ? mentionOrName(row, p.name) : p.name;
+    })
+  );
 }
 
 /**

@@ -6,12 +6,20 @@ import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notify";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { sanitizeRichText } from "@/lib/rich-text-sanitize";
 import { extractMentionedTeamMemberIds } from "@/lib/text-format";
 
 const createClientNoteSchema = z.object({
   // Stores Tiptap-produced HTML (bold/lists/@mentions) — 20000 covers the
   // markup overhead the same way Task.description's limit was raised.
-  body: z.string().trim().min(1, "Note can't be empty").max(20000),
+  // Cleaned to the editor's allow-list before anything stores or reads it.
+  body: z
+    .string()
+    .trim()
+    .min(1, "Note can't be empty")
+    .max(20000)
+    .transform(sanitizeRichText)
+    .refine((html) => html.trim().length > 0, "Note can't be empty"),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {

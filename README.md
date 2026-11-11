@@ -90,6 +90,24 @@ Environment variables are split by Vercel environment: **Production** points at 
 Neon `production` branch; **Preview** and **Development** point at the `development` branch.
 Never point Production's `DATABASE_URL` anywhere but the real branch, and never point local
 `.env` or Preview at production — see the comment block at the top of `.env.example`.
+That also keeps older code away from production data: a Preview of an older branch must
+never share the production database.
+
+**Rolling back.** The November 2026 security release (the release that added archive
+privacy and key labels) saves some data in a shape that older deployments cannot read.
+After this release, fix forward (a new commit); do not use Vercel's Instant Rollback, or
+redeploy an older commit, to a deployment from before it:
+
+- **Archive privacy.** Tasks deleted from this release on keep their privacy and creator
+  inside the archived task's `assignees`. A deployment from before it shows those archived
+  tasks to everyone with archive rights, private ones included, and restoring one of them
+  fails with an error.
+- **Key labels for stored passwords and tokens.** Only once a change of
+  `CREDENTIALS_ENCRYPTION_KEY` has started (`CREDENTIALS_ENCRYPTION_KEY_OLD` set): values
+  saved from then on, and everything the re-encrypt script moves, name their key, and a
+  deployment from before this release cannot read them (vault passwords cannot be revealed,
+  HighLevel sync and Google Calendar sync stop). Outside a key change, values are saved in
+  the format every version reads.
 
 Six cron jobs run on Vercel's scheduler (`vercel.json`): daily database backup, HighLevel
 data pruning, asset/task due-soon notifications, monthly storage-usage check, and daily

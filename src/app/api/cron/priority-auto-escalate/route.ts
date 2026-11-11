@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { logActivity } from "@/lib/activity-log";
+import { checkBearer } from "@/lib/secret-compare";
 import { getCompleteStatusId } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
 import { computeTargetPriorityLevel, shouldEscalate } from "@/lib/priority-auto-escalate";
@@ -22,9 +23,7 @@ export const dynamic = "force-dynamic";
  * configured window. Skips completed tasks and tasks with no deadline.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

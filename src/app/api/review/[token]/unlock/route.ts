@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -8,8 +7,8 @@ import {
   PASSWORD_LOCKOUT_MS,
   guestCookieName,
   guestCookieOptions,
+  resolveShareLinkAccess,
   signGuestCookie,
-  verifyGuestCookie,
   verifySharePassword,
 } from "@/lib/share-link";
 
@@ -27,18 +26,17 @@ const unlockSchema = z.object({ password: z.string().max(200).optional() });
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const link = await prisma.assetShareLink.findUnique({ where: { token } });
-  if (!link) {
-    return NextResponse.json({ error: "This review link is no longer valid." }, { status: 404 });
+  // The same token lookup, expiry check and cookie check as every other guest
+  // route (resolveShareLinkAccess drops a cookie made for a different link).
+  const resolved = await resolveShareLinkAccess(token);
+  if (!resolved.ok) {
+    return NextResponse.json(
+      { error: resolved.error === "expired" ? "This review link has expired." : "This review link is no longer valid." },
+      { status: resolved.error === "expired" ? 410 : 404 }
+    );
   }
-  if (link.expiresAt && link.expiresAt.getTime() < Date.now()) {
-    return NextResponse.json({ error: "This review link has expired." }, { status: 410 });
-  }
-
-  const cookieStore = await cookies();
-  const existingCookie = verifyGuestCookie(cookieStore.get(guestCookieName(token))?.value);
-  const existingGuestReviewerId =
-    existingCookie && existingCookie.shareLinkId === link.id ? existingCookie.guestReviewerId : null;
+  const { link, cookiePayload } = resolved.access;
+  const existingGuestReviewerId = cookiePayload ? cookiePayload.guestReviewerId : null;
 
   if (!link.passwordHash) {
     // Nothing to unlock — just establish the session cookie.

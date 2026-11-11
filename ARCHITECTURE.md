@@ -63,10 +63,26 @@ archive record. Archived rows show up on `/archive`, grouped into tabs, each wit
 survives even a database-level incident. Other archived models don't need this; Task was the
 first and highest-volume case when the pattern was designed.
 
+**Access follows the live rules.** Archived rows are staff only, need `canViewArchive` to
+read (`canRestoreArchive` to restore) and `requireClientAccess(clientId)` when there is a
+client; internal (no-client) rows are open to everyone with archive rights, as live internal
+work is to all staff. The `/archive` tabs apply the same scope to their queries, so every
+listed row opens. A private task stays visible only to its creator: `ArchivedTask` has no
+`isPrivate`/`createdById` columns, so `archiveTask()` stores `{ list, isPrivate, createdById }`
+in the `assignees` JSON column, read through `src/lib/archived-task-snapshot.ts`
+(`canSeeArchivedTask`, `archivedTaskPrivacy`). Snapshots taken before that (a plain assignee
+array, or null) have no privacy record and are treated as public, as they always were: anyone
+with archive rights and access to that client sees and restores them, and they restore public
+with no creator (owner's decision, 2026-11-07). The Tasks tab asks the database for the same
+rule (`archivedTaskVisibleTo` in the page, a JSON-path filter whose "no `isPrivate`" branch is
+`IS NULL`, so old snapshots are not lost to SQL's NULL rules), so other people's private
+tasks never use up its 100 rows.
+
 **Adding a new deletable model:** add an `ArchivedX` model to the schema (denormalized
 fields, `deletedAt`, `deletedById`), write `archiveX()`/`restoreArchivedX()` in `archive.ts`,
-call `archiveX()` from the delete route instead of `prisma.x.delete()`, add a restore route,
-and add a tab to `src/app/(app)/archive/page.tsx`.
+call `archiveX()` from the delete route instead of `prisma.x.delete()`, add a restore route
+with the same capability and client checks as the others, and add a tab to
+`src/app/(app)/archive/page.tsx` scoped with `archivedClientScope`.
 
 ## Notifications
 
@@ -98,7 +114,10 @@ dependency.
 
 Six Vercel Cron jobs (`vercel.json`, all under `src/app/api/cron/`), each authenticated by
 checking `Authorization: Bearer <CRON_SECRET>` — no session, fail-closed if the header is
-wrong or missing:
+wrong or missing, or if `CRON_SECRET` is unset. The check is
+`checkBearer(request, process.env.CRON_SECRET)` from `src/lib/secret-compare.ts` (constant
+time); the agent API and MCP route use the same helper, and
+`tests/lib/secret-compare-guard.test.ts` fails if any secret env value is compared with `===`:
 
 | Route | Schedule | Job |
 |---|---|---|

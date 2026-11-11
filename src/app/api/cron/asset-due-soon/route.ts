@@ -4,6 +4,7 @@ import { AssetStatus } from "@/generated/prisma/enums";
 import { notify, notifyChannel } from "@/lib/notify";
 import { hasRecentNotification } from "@/lib/notify-dedupe";
 import { prisma } from "@/lib/prisma";
+import { checkBearer } from "@/lib/secret-compare";
 import { formatDate } from "@/lib/utils";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -23,9 +24,7 @@ const DEDUPE_WINDOW_HOURS = 20;
  * like every other notification type now, just lightly formatted.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!checkBearer(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

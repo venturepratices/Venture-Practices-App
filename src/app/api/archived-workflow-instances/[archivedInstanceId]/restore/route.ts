@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { restoreArchivedWorkflowInstance } from "@/lib/archive";
-import { requireCapability, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ archivedInstanceId: string }> }) {
@@ -23,6 +23,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
   const archived = await prisma.archivedWorkflowInstance.findUnique({ where: { id: archivedInstanceId } });
   if (!archived) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  // An internal (no-client) project needs only restore rights, as before.
+  if (archived.clientId) {
+    try {
+      await requireClientAccess(archived.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
   }
 
   const instance = await restoreArchivedWorkflowInstance(archivedInstanceId);

@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { sanitizeRichText } from "@/lib/rich-text-sanitize";
 import { extractMentionedTeamMemberIds } from "@/lib/text-format";
 import { notify } from "@/lib/notify";
 
@@ -12,8 +13,15 @@ const createMeetingNoteSchema = z.object({
   title: z.string().trim().min(1, "Title can't be empty").max(200),
   meetingDate: z.coerce.date(),
   // Stores Tiptap-produced HTML (bold/lists/@mentions) — 100000 already has
-  // ample headroom for the markup overhead.
-  transcript: z.string().trim().min(1, "Transcript can't be empty").max(100000),
+  // ample headroom for the markup overhead. Cleaned to the editor's
+  // allow-list before anything stores or reads it.
+  transcript: z
+    .string()
+    .trim()
+    .min(1, "Transcript can't be empty")
+    .max(100000)
+    .transform(sanitizeRichText)
+    .refine((html) => html.trim().length > 0, "Transcript can't be empty"),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ clientId: string }> }) {

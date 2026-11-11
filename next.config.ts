@@ -1,11 +1,15 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+import { assetImageRemotePatterns } from "./src/lib/image-remote-patterns";
+
 const nextConfig: NextConfig = {
   images: {
-    // Vercel Blob's public object host — lets next/image serve resized/
-    // optimized thumbnails for IMAGE asset cards instead of the full file.
-    remotePatterns: [{ protocol: "https", hostname: "**.public.blob.vercel-storage.com" }],
+    // Lets next/image serve resized/optimized thumbnails for IMAGE asset cards
+    // instead of the full file, but only for our own asset uploads: our assets
+    // Blob store, under /assets/, with no query string (see the helper). A
+    // production build with no assets store id fails here on purpose.
+    remotePatterns: assetImageRemotePatterns(process.env),
   },
   turbopack: {
     resolveAlias: {

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { restoreArchivedClientNote } from "@/lib/archive";
-import { requireCapability, toErrorResponse } from "@/lib/permissions";
+import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ archivedNoteId: string }> }) {
@@ -23,6 +23,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ar
   const archived = await prisma.archivedClientNote.findUnique({ where: { id: archivedNoteId } });
   if (!archived) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (archived.clientId) {
+    try {
+      await requireClientAccess(archived.clientId);
+    } catch (error) {
+      return toErrorResponse(error);
+    }
   }
 
   let note;
