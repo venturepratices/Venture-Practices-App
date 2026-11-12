@@ -25,6 +25,10 @@ const BACKOFF_BASE_MS = 1000;
 const MAX_WAIT_MS = 30_000;
 /** A download may bounce through a few redirects (Pipedrive to its file store), not forever. */
 const MAX_REDIRECTS = 3;
+/** Pipedrive's page size when no `limit` is sent. */
+const DEFAULT_PAGE_SIZE = 100;
+/** More pages than any real list here could have (10,000 x 100 rows). Past it, the list is taken to be looping. */
+const MAX_PAGES = 10_000;
 /** Pipedrive's own words in an error are cut to this, so a long reply cannot flood a screen. */
 const MAX_REASON_CHARS = 200;
 /** A request that has not answered by now is treated as a dropped connection: retried, then reported with status 0. */
@@ -47,7 +51,13 @@ export class PipedriveError extends Error {
   }
 }
 
-export type PagesOptions = { style?: "cursor" | "offset"; params?: Record<string, string | number>; limit?: number };
+export type PagesOptions = {
+  style?: "cursor" | "offset";
+  params?: Record<string, string | number>;
+  limit?: number;
+  /** Safety ceiling on pages read in one go (default 10,000). Past it the copy stops with an error instead of looping. */
+  maxPages?: number;
+};
 
 /** Where a page starts: a v2 cursor, or a v1 offset. Saved by the import so a resume never re-reads a finished page. */
 export type PageToken = { cursor: string } | { start: number };
@@ -150,9 +160,10 @@ export function createPipedriveClient(opts: {
     path: string,
     pageOpts: PagesOptions & { resumeAt?: PageToken } = {},
   ): AsyncGenerator<{ items: T[]; resumeAt: PageToken | null }, void, void> {
-    const { style = "cursor", params = {}, limit, resumeAt } = pageOpts;
+    const { style = "cursor", params = {}, limit, resumeAt, maxPages = MAX_PAGES } = pageOpts;
     if (resumeAt !== undefined && ("cursor" in resumeAt) !== (style === "cursor")) {
-      throw new Error("The saved page position does not fit this list.");
+      // A PipedriveError, so the import closes the run in plain words instead of retrying it forever.
+      throw new PipedriveError(200, "The saved page position does not fit this list.");
     }
 
     let cursor: string | null = resumeAt && "cursor" in resumeAt ? resumeAt.cursor : null;
@@ -160,7 +171,12 @@ export function createPipedriveClient(opts: {
     // circles, which would burn the company's request budget for nothing.
     const seen = new Set<string>(cursor === null ? [] : [cursor]);
     let start = resumeAt && "start" in resumeAt ? resumeAt.start : 0;
-    for (;;) {
+    // The first record id of the last offset page, to catch a list that keeps sending the same page.
+    let lastFirstId: unknown = undefined;
+    for (let pageCount = 1; ; pageCount++) {
+      if (pageCount > maxPages) {
+        throw new PipedriveError(200, "Pipedrive sent more pages than any real list has, so the copy stopped instead of looping.");
+      }
       const query: Record<string, string | number> = { ...params };
       if (limit !== undefined) query.limit = limit;
       if (style === "offset") query.start = start;
@@ -181,7 +197,12 @@ export function createPipedriveClient(opts: {
         seen.add(cursor);
         yield { items, resumeAt: { cursor } };
       } else {
-        const next = nextStart(body, start);
+        const firstId = (items[0] as { id?: unknown } | undefined)?.id;
+        if (firstId !== undefined && firstId === lastFirstId) {
+          throw new PipedriveError(200, "Pipedrive sent the same page twice, so the copy stopped instead of looping.");
+        }
+        lastFirstId = firstId;
+        const next = nextStart(body, start, items.length, limit ?? DEFAULT_PAGE_SIZE);
         if (next === null) {
           yield { items, resumeAt: null };
           return;
@@ -270,9 +291,15 @@ function nextCursor(body: Record<string, unknown>): string | null {
  * Where the next offset page starts, or null on the last one. When Pipedrive
  * says there is more but the start is missing, not a number, or does not move
  * forward (it would loop), that is an error for the same reason as a bad cursor.
+ *
+ * Some v1 lists (leads) send no pagination block at all. Then a full page
+ * (`count` equal to the page size asked for) means "ask for the next one at
+ * current + count", and a short or empty page is the last.
  */
-function nextStart(body: Record<string, unknown>, current: number): number | null {
-  const pagination = asRecord(asRecord(body.additional_data).pagination);
+function nextStart(body: Record<string, unknown>, current: number, count: number, pageSize: number): number | null {
+  const block = asRecord(body.additional_data).pagination;
+  if (block === undefined || block === null) return count >= pageSize && count > 0 ? current + count : null;
+  const pagination = asRecord(block);
   if (pagination.more_items_in_collection !== true) return null;
   const next = pagination.next_start;
   if (typeof next === "number" && next > current) return next;

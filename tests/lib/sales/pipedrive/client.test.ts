@@ -392,6 +392,73 @@ describe("read-only by construction", () => {
   });
 });
 
+describe("offset lists that send no pagination block (Pipedrive leads)", () => {
+  async function batchesOf(steps: Step[], limit?: number) {
+    const { client, calls } = makeClient(steps);
+    const out: { items: unknown[]; resumeAt: unknown }[] = [];
+    for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit })) out.push(batch);
+    return { out, starts: calls.map((c) => paramsOf(c).get("start")) };
+  }
+
+  it("keeps paging after a full page and ends cleanly after a short one", async () => {
+    const { out, starts } = await batchesOf(
+      [json({ success: true, data: [{ id: 1 }, { id: 2 }] }), json({ success: true, data: [{ id: 3 }] })],
+      2,
+    );
+    expect(out).toEqual([
+      { items: [{ id: 1 }, { id: 2 }], resumeAt: { start: 2 } },
+      { items: [{ id: 3 }], resumeAt: null },
+    ]);
+    expect(starts).toEqual(["0", "2"]);
+  });
+
+  it("ends on an empty page after a full one", async () => {
+    const { out } = await batchesOf([json({ success: true, data: [{ id: 1 }, { id: 2 }] }), json({ success: true, data: [] })], 2);
+    expect(out.map((b) => b.resumeAt)).toEqual([{ start: 2 }, null]);
+  });
+
+  it("ends after a short first page", async () => {
+    const { out, starts } = await batchesOf([json({ success: true, data: [{ id: 1 }] })], 2);
+    expect(out).toEqual([{ items: [{ id: 1 }], resumeAt: null }]);
+    expect(starts).toEqual(["0"]);
+  });
+
+  it("uses Pipedrive's default page size of 100 when no limit is sent", async () => {
+    const full = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
+    const { out, starts } = await batchesOf([json({ success: true, data: full }), json({ success: true, data: [] })]);
+    expect(out.map((b) => b.resumeAt)).toEqual([{ start: 100 }, null]);
+    expect(starts).toEqual(["0", "100"]);
+  });
+
+  it("still obeys a pagination block that says there is no more, even after a full page", async () => {
+    const { out } = await batchesOf(
+      [json({ success: true, data: [{ id: 1 }, { id: 2 }], additional_data: { pagination: { more_items_in_collection: false } } })],
+      2,
+    );
+    expect(out.map((b) => b.resumeAt)).toEqual([null]);
+  });
+
+  it("stops with an error when the same full page comes back again and again", async () => {
+    const { client, calls } = makeClient([json({ success: true, data: [{ id: 1 }, { id: 2 }] })]);
+    const failure = await (async () => {
+      for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit: 2 })) void batch;
+    })().catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).message).toContain("sent the same page twice");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("stops with an error at the page ceiling when pages never repeat and never end", async () => {
+    let n = 0;
+    const { client } = makeClient([() => json({ success: true, data: [{ id: ++n }, { id: ++n }] })]);
+    const failure = await (async () => {
+      for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit: 2, maxPages: 5 })) void batch;
+    })().catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).message).toContain("more pages than any real list");
+  });
+});
+
 describe("pageBatches (resumable pages)", () => {
   async function collectBatches<T>(gen: AsyncGenerator<{ items: T[]; resumeAt: unknown }>) {
     const out: { items: T[]; resumeAt: unknown }[] = [];
@@ -479,6 +546,15 @@ describe("pageBatches (resumable pages)", () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a bad saved place as a PipedriveError, so the import can close the run", async () => {
+    const { client } = makeClient([json({ success: true, data: [] })]);
+    const failure = await collectBatches(client.pageBatches("/api/v1/leads", { style: "offset", resumeAt: { cursor: "c1" } })).catch(
+      (e: unknown) => e,
+    );
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).message).toBe("The saved page position does not fit this list.");
   });
 
   it("sends only GET with the token in the header", async () => {
