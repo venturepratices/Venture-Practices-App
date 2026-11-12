@@ -39,8 +39,8 @@ export type SeedField = {
   position: number;
 };
 
-/** "No Show/Cancel" -> "no-show-cancel" */
-function kebab(text: string): string {
+/** "No Show/Cancel" -> "no-show-cancel". Also used by the Pipedrive import for the keys it makes. */
+export function kebab(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
