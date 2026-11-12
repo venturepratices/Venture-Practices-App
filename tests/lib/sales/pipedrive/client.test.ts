@@ -11,11 +11,15 @@ const TOKEN = "tok_9f8e7d6c5b4a39281716abcd";
 type Call = { url: string; init: RequestInit };
 type Step = Response | Error | (() => Response);
 
+/** More calls than any test here needs: past it the fake refuses, so a client that loops forever fails a test instead of hanging the run. */
+const RUNAWAY_CALLS = 100;
+
 /** A fake fetch that plays `steps` in order (the last one repeats) and records every call. */
 function fakeFetch(steps: Step[]) {
   const calls: Call[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(input), init: init ?? {} });
+    if (calls.length > RUNAWAY_CALLS) return json({ success: false, error: "runaway" }, 400);
     const step = steps[Math.min(calls.length - 1, steps.length - 1)];
     if (step instanceof Error) throw step;
     return typeof step === "function" ? step() : step.clone();
@@ -110,6 +114,49 @@ describe("cursor pages (API v2)", () => {
     expect(await collect(client.pages("/api/v2/deals"))).toEqual([[{ id: 1 }]]);
   });
 
+  it("throws, not loops, when the server hands back a cursor it already gave", async () => {
+    const same = json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: "same" } });
+    const { client, calls } = makeClient([same]);
+
+    const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(200);
+    expect((failure as PipedriveError).message).toBe(
+      "Pipedrive repeated a page cursor, so the copy stopped instead of looping.",
+    );
+    // First page names "same", the second page names it again: stop there.
+    expect(calls).toHaveLength(2);
+  });
+
+  it("throws on a cursor loop of A, B, A even when every page is empty", async () => {
+    // With no rows to hand back, the caller could never break out of this on its own.
+    const a = json({ success: true, data: [], additional_data: { next_cursor: "A" } });
+    const b = json({ success: true, data: [], additional_data: { next_cursor: "B" } });
+    const { client, calls } = makeClient([a, b, a]);
+
+    const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).message).toContain("repeated a page cursor");
+    expect(calls).toHaveLength(3);
+  });
+
+  it("throws, not ends early, when next_cursor is present but not a usable string", async () => {
+    for (const bad of [123, "", {}, false]) {
+      const { client, calls } = makeClient([
+        json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: bad } }),
+      ]);
+
+      const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(PipedriveError);
+      expect((failure as PipedriveError).status).toBe(200);
+      expect((failure as PipedriveError).message).toContain("not usable");
+      expect(calls).toHaveLength(1);
+    }
+  });
+
   it("reports a 200 reply that is not JSON as a PipedriveError", async () => {
     const { client } = makeClient([new Response("<html>maintenance</html>", { status: 200 })]);
 
@@ -161,16 +208,27 @@ describe("offset pages (API v1)", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("stops rather than loop forever when next_start does not move forward", async () => {
-    const stuck = json({
-      success: true,
-      data: [{ id: 1 }],
-      additional_data: { pagination: { more_items_in_collection: true, next_start: 0 } },
-    });
-    const { client, calls } = makeClient([stuck]);
+  it("throws, not ends early, when Pipedrive says there is more but gives no usable next_start", async () => {
+    // A quiet stop here would look like a finished import with rows missing.
+    const unusable = [
+      { more_items_in_collection: true },
+      { more_items_in_collection: true, next_start: "2" },
+      { more_items_in_collection: true, next_start: null },
+      // Does not move forward from the start of 0 it was asked for: it would loop forever.
+      { more_items_in_collection: true, next_start: 0 },
+    ];
+    for (const pagination of unusable) {
+      const { client, calls } = makeClient([
+        json({ success: true, data: [{ id: 1 }], additional_data: { pagination } }),
+      ]);
 
-    expect(await collect(client.pages("/api/v1/leads", { style: "offset" }))).toEqual([[{ id: 1 }]]);
-    expect(calls).toHaveLength(1);
+      const failure = await collect(client.pages("/api/v1/leads", { style: "offset" })).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(PipedriveError);
+      expect((failure as PipedriveError).status).toBe(200);
+      expect((failure as PipedriveError).message).toContain("no usable place to continue");
+      expect(calls).toHaveLength(1);
+    }
   });
 });
 
@@ -239,6 +297,61 @@ describe("retries", () => {
     expect((failure as PipedriveError).message).not.toContain(TOKEN);
     expect((failure as PipedriveError).message).not.toContain("api_token");
     expect(calls).toHaveLength(5);
+  });
+
+  it.each([
+    // Zero is a wait of zero. Anything Pipedrive sends that is not a plain
+    // non-negative number of seconds (its docs promise none) uses the backoff.
+    ["0", 0],
+    ["-5", 1000],
+    ["soon", 1000],
+    ["Wed, 21 Oct 2026 07:28:00 GMT", 1000],
+  ])("treats a Retry-After of %j as a wait of %i ms", async (header, expected) => {
+    const { client, sleep } = makeClient([
+      json({}, 429, { "retry-after": header }),
+      json({ success: true, data: [], additional_data: { next_cursor: null } }),
+    ]);
+
+    await collect(client.pages("/api/v2/deals"));
+
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(expected);
+  });
+
+  it("gives every request a 60 second timeout", async () => {
+    const { client, calls } = makeClient([json({ success: true, data: [], additional_data: {} })]);
+    await collect(client.pages("/api/v2/deals"));
+
+    const dl = makeClient([new Response(new Uint8Array([1]), { status: 200 })]);
+    await dl.client.download("/api/v1/files/9/download");
+
+    for (const call of [...calls, ...dl.calls]) {
+      expect(call.init.signal).toBeInstanceOf(AbortSignal);
+      expect(call.init.signal?.aborted).toBe(false);
+    }
+  });
+
+  it("treats a timed out request like a dropped connection: status 0, retried within the same bounds", async () => {
+    const timedOut = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    const { client, calls, sleep } = makeClient([timedOut]);
+
+    const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(0);
+    expect(calls).toHaveLength(5);
+    expect(sleep).toHaveBeenCalledTimes(4);
+  });
+
+  it("recovers when one attempt is aborted and the next answers", async () => {
+    const aborted = new DOMException("This operation was aborted", "AbortError");
+    const { client, calls } = makeClient([
+      aborted,
+      json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: null } }),
+    ]);
+
+    expect(await collect(client.pages("/api/v2/deals"))).toEqual([[{ id: 1 }]]);
+    expect(calls).toHaveLength(2);
   });
 
   it("does not retry a 401, 403 or 404, which would only fail again", async () => {
@@ -423,6 +536,110 @@ describe("download", () => {
     const { client } = makeClient([json({ success: false, error: "File not found" }, 404)]);
 
     await expect(client.download("/api/v1/files/404/download")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("sends the token again when a redirect through the file host comes back to Pipedrive", async () => {
+    const { client, calls } = makeClient([
+      new Response(null, { status: 302, headers: { location: "https://files.example-storage.com/abc" } }),
+      new Response(null, { status: 302, headers: { location: "https://api.pipedrive.com/api/v1/files/5/final" } }),
+      new Response(new Uint8Array([7]), { status: 200 }),
+    ]);
+
+    const file = await client.download("/api/v1/files/5/download");
+
+    expect(Array.from(file.bytes)).toEqual([7]);
+    expect(calls).toHaveLength(3);
+    expect(new Headers(calls[0].init.headers).get("x-api-token")).toBe(TOKEN);
+    expect(new Headers(calls[1].init.headers).has("x-api-token")).toBe(false);
+    expect(new Headers(calls[2].init.headers).get("x-api-token")).toBe(TOKEN);
+  });
+
+  it("refuses a redirect off Pipedrive that is not https, before sending anything there", async () => {
+    const { client, calls } = makeClient([
+      new Response(null, { status: 302, headers: { location: "http://files.example-storage.com/abc" } }),
+    ]);
+
+    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(302);
+    expect((failure as PipedriveError).message).toContain("not secure");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("turns a redirect with an unreadable Location into a PipedriveError, not a raw TypeError", async () => {
+    const { client, calls } = makeClient([new Response(null, { status: 302, headers: { location: "http://" } })]);
+
+    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(302);
+    expect((failure as PipedriveError).message).toContain("no usable destination");
+    expect((failure as PipedriveError).message).not.toContain(TOKEN);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("words a failure from the file host as the file host's, not Pipedrive's, and still keeps the token out", async () => {
+    // An expired signed link looks like a bad token if the message blames Pipedrive.
+    const { client, calls } = makeClient([
+      new Response(null, { status: 302, headers: { location: "https://files.example-storage.com/abc?sig=1" } }),
+      json({ error: `SignatureDoesNotMatch for ${TOKEN}` }, 403),
+    ]);
+
+    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(403);
+    const message = (failure as PipedriveError).message;
+    expect(message).toContain("file host");
+    expect(message).not.toContain("Pipedrive");
+    expect(message).not.toContain("token");
+    expect(message).not.toContain(TOKEN);
+    expect(message).not.toContain("files.example-storage.com");
+    expect(message).not.toContain("sig=1");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("also words an unreachable file host as the file host's", async () => {
+    const { client } = makeClient([
+      new Response(null, { status: 302, headers: { location: "https://files.example-storage.com/abc" } }),
+      new TypeError("fetch failed"),
+    ]);
+
+    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(0);
+    expect((failure as PipedriveError).message).toContain("file host");
+    expect((failure as PipedriveError).message).not.toContain("Pipedrive");
+  });
+});
+
+describe("base URL", () => {
+  const make = (baseUrl: string) => createPipedriveClient({ token: TOKEN, baseUrl });
+
+  it("must be https, so the token never goes over plain HTTP", () => {
+    expect(() => make("http://api.pipedrive.com")).toThrow(/https/);
+    expect(() => make("ftp://api.pipedrive.com")).toThrow(/https/);
+  });
+
+  it("allows https, and plain http only for localhost and 127.0.0.1 (for tests)", () => {
+    expect(() => make("https://api.pipedrive.com")).not.toThrow();
+    expect(() => make("https://example.pipedrive.com")).not.toThrow();
+    expect(() => make("http://localhost:4010")).not.toThrow();
+    expect(() => make("http://127.0.0.1:4010")).not.toThrow();
+  });
+
+  it("does not let a look-alike host pass as localhost", () => {
+    expect(() => make("http://localhost.evil.example")).toThrow(/https/);
+    expect(() => make("http://localhost@evil.example")).toThrow(/https/);
+  });
+
+  it("defaults to the real Pipedrive host", async () => {
+    const fake = fakeFetch([json({ success: true, data: [], additional_data: {} })]);
+    const client = createPipedriveClient({ token: TOKEN, fetchImpl: fake.fetchImpl });
+    await collect(client.pages("/api/v2/deals"));
+    expect(new URL(fake.calls[0].url).origin).toBe("https://api.pipedrive.com");
   });
 });
 
