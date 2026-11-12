@@ -34,7 +34,9 @@ export type ImportStatus = {
   locked: boolean;
   lockedAt: string | null;
   run: ImportRunView | null;
-  /** The check report saved on the latest run, when it has one. */
+  /** The latest real copy (practice runs never count): only the check and the final copy need it. */
+  realCopy: { status: ImportRunStatus; finishedAt: string | null } | null;
+  /** The check report saved on the latest real copy, when it has one. */
   check: SavedCheck | null;
   users: UserMatch[];
   /** Sales members, for the owner picker. */
@@ -103,7 +105,7 @@ export const ISSUES_SHOWN = 50;
 export function issueLines(groups: IssueGroup[], limit = ISSUES_SHOWN): { lines: string[]; rest: number } {
   const lines = groups.slice(0, limit).map((group) => {
     const kind = KIND_NAMES[group.phase] ?? "Other";
-    const times = `${group.count} ${group.count === 1 ? "time" : "times"}`;
+    const times = `${formatCount(group.count)} ${group.count === 1 ? "time" : "times"}`;
     const ids = group.sampleIds.length
       ? `, example ${group.sampleIds.length === 1 ? "id" : "ids"} ${group.sampleIds.join(", ")}`
       : "";
@@ -131,9 +133,16 @@ export function countRows(counts: Record<string, number>): CountRow[] {
   });
 }
 
+/** Every number on the screen goes through this, so they all read the same way (1,284). */
+export function formatCount(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+/** "Matches", or how far the app is from Pipedrive and which way: "55 short" or "3 extra". */
 export function checkResult(row: CheckRow): string {
   if (row.ok) return "Matches";
-  return `Off by ${Math.abs(row.pipedrive - (row.app + row.skipped))}`;
+  const diff = row.pipedrive - (row.app + row.skipped);
+  return diff >= 0 ? `${formatCount(diff)} short` : `${formatCount(-diff)} extra`;
 }
 
 const FAILURE_PREFIXES = ["The copy stopped", "This run stopped answering"];
@@ -144,9 +153,75 @@ export function failureMessage(run: ImportRunView): string {
   return found?.message ?? "The copy stopped before it finished.";
 }
 
-export function runTitle(run: Pick<ImportRunView, "mode" | "isFinal">): string {
-  if (run.mode === "DRY_RUN") return "Practice run";
-  return run.isFinal ? "Final copy" : "Copy for real";
+/** "The practice run", "The real copy" or "The final copy", for card titles. */
+export function runName(run: Pick<ImportRunView, "mode" | "isFinal">): string {
+  if (run.mode === "DRY_RUN") return "The practice run";
+  return run.isFinal ? "The final copy" : "The real copy";
+}
+
+// --- The loop that carries a copy forward from the browser ---
+
+export type ContinueAnswer = { done: boolean; paused: boolean; phase: string; counts: Record<string, number> };
+export type ContinueResult = { ok: true; data: ContinueAnswer } | { ok: false; status: number; error: string };
+export type DriveOutcome = { kind: "done" } | { kind: "stopped"; message: string | null } | { kind: "inactive" };
+
+export const STALL_MESSAGE = "This copy may be running in another window. Close other windows, then press Keep going.";
+
+/** Pipedrive asked us to slow down: wait this long before the next call. */
+export const PAUSE_MS = 60_000;
+/** A chunk that comes back not done faster than this did no real work (usually another window holds the copy). */
+const QUICK_MS = 10_000;
+const QUICK_WAIT_MS = 5_000;
+const QUICK_LIMIT = 6;
+const PAUSE_LIMIT = 10;
+
+/**
+ * Calls `continueFn` until the server says done. Waits a minute after a pause
+ * (and says so through `onProgress`, then clears it before the next call),
+ * waits 5 seconds after a quick answer that is not done, and stops with
+ * STALL_MESSAGE after 6 quick answers or 10 pauses in a row. A 409 means the
+ * copy ended somewhere else: it stops with no message (the refreshed status
+ * says how). Any other error stops with its message. `isActive` false (the page
+ * was left) stops quietly.
+ */
+export async function driveRun(opts: {
+  continueFn: () => Promise<ContinueResult>;
+  sleep: (ms: number) => Promise<void>;
+  now: () => number;
+  isActive: () => boolean;
+  onProgress: (answer: ContinueAnswer) => void;
+}): Promise<DriveOutcome> {
+  let quick = 0;
+  let pauses = 0;
+  while (opts.isActive()) {
+    const started = opts.now();
+    const result = await opts.continueFn();
+    if (!opts.isActive()) break;
+    if (!result.ok) return { kind: "stopped", message: result.status === 409 ? null : result.error };
+
+    const answer = result.data;
+    opts.onProgress(answer);
+    if (answer.done) return { kind: "done" };
+
+    if (answer.paused) {
+      quick = 0;
+      pauses += 1;
+      if (pauses >= PAUSE_LIMIT) return { kind: "stopped", message: STALL_MESSAGE };
+      await opts.sleep(PAUSE_MS);
+      opts.onProgress({ ...answer, paused: false });
+      continue;
+    }
+    pauses = 0;
+
+    if (opts.now() - started < QUICK_MS) {
+      quick += 1;
+      if (quick >= QUICK_LIMIT) return { kind: "stopped", message: STALL_MESSAGE };
+      await opts.sleep(QUICK_WAIT_MS);
+    } else {
+      quick = 0;
+    }
+  }
+  return { kind: "inactive" };
 }
 
 const WHEN = new Intl.DateTimeFormat("en-US", { timeZone: APP_TIME_ZONE, dateStyle: "medium", timeStyle: "short" });

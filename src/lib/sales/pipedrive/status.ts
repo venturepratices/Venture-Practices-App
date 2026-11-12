@@ -28,7 +28,11 @@ export async function loadImportStatus(env: Record<string, string | undefined> =
   const [latest, latestLive, lock, users, members] = await Promise.all([
     prisma.salesImportRun.findFirst({ orderBy: { startedAt: "desc" } }),
     // The check belongs to the latest real copy, so a later practice run does not hide it.
-    prisma.salesImportRun.findFirst({ where: { mode: "LIVE" }, orderBy: { startedAt: "desc" }, select: { cursor: true } }),
+    prisma.salesImportRun.findFirst({
+      where: { mode: "LIVE" },
+      orderBy: { startedAt: "desc" },
+      select: { status: true, finishedAt: true, cursor: true },
+    }),
     prisma.salesImportRun.findFirst({
       where: { mode: "LIVE", isFinal: true, status: "DONE" },
       orderBy: { startedAt: "desc" },
@@ -55,6 +59,7 @@ export async function loadImportStatus(env: Record<string, string | undefined> =
           finishedAt: latest.finishedAt?.toISOString() ?? null,
         }
       : null,
+    realCopy: latestLive ? { status: latestLive.status, finishedAt: latestLive.finishedAt?.toISOString() ?? null } : null,
     check: latestLive ? readSavedCheck(latestLive.cursor) : null,
     users,
     members: members.map((m) => ({ id: m.id, name: m.name })),

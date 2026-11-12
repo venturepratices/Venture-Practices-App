@@ -440,6 +440,13 @@ describe("GET status", () => {
     const body = await (await statusRoute.GET()).json();
     expect(body.run.mode).toBe("DRY_RUN");
     expect(body.check).toEqual({ report: { rows: [], spot: [] }, at });
+    expect(body.realCopy).toEqual({ status: "DONE", finishedAt: "2026-11-12T16:00:00.000Z" });
+  });
+
+  it("has no real copy before one has run", async () => {
+    run({ mode: "DRY_RUN" });
+    const body = await (await statusRoute.GET()).json();
+    expect(body.realCopy).toBeNull();
   });
 
   it("says when copying is locked and hands back the saved check", async () => {
