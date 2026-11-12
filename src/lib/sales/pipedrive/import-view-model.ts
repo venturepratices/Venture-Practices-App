@@ -4,7 +4,7 @@
 // the final copy needs. Safe for the browser: types only from the server side.
 
 import type { UserMatch } from "@/lib/sales/pipedrive/import-decide";
-import type { IssueGroup } from "@/lib/sales/pipedrive/import-state";
+import { NO_FILE_STORAGE_ISSUE, type IssueGroup } from "@/lib/sales/pipedrive/import-state";
 import type { CheckRow, SpotCheck } from "@/lib/sales/pipedrive/verify";
 import { APP_TIME_ZONE } from "@/lib/utils";
 
@@ -101,9 +101,15 @@ const KIND_NAMES: Record<string, string> = {
 
 export const ISSUES_SHOWN = 50;
 
-/** "Deals: 3 times, example ids 12, 40, 77: <message>", the first `limit` groups, and how many more there are. */
+/**
+ * "Deals: 3 times, example ids 12, 40, 77: <message>", the first `limit` groups, and how many more there are.
+ * The files step's "storage is not set up" line goes first (it explains why no more files were copied),
+ * so it is never one of the lines left out; everything else keeps its order.
+ */
 export function issueLines(groups: IssueGroup[], limit = ISSUES_SHOWN): { lines: string[]; rest: number } {
-  const lines = groups.slice(0, limit).map((group) => {
+  const isStorageLine = (group: IssueGroup) => group.phase === "files" && group.message === NO_FILE_STORAGE_ISSUE;
+  const ordered = [...groups.filter(isStorageLine), ...groups.filter((group) => !isStorageLine(group))];
+  const lines = ordered.slice(0, limit).map((group) => {
     const kind = KIND_NAMES[group.phase] ?? "Other";
     const times = `${formatCount(group.count)} ${group.count === 1 ? "time" : "times"}`;
     const ids = group.sampleIds.length
@@ -116,7 +122,7 @@ export function issueLines(groups: IssueGroup[], limit = ISSUES_SHOWN): { lines:
 
 export type CountRow = { label: string; created: number; updated: number; unchanged: number; skipped: number };
 
-const COUNTED: string[] = ["organizations", "persons", "deals", "leads", "activities", "notes"];
+const COUNTED: string[] = ["organizations", "persons", "deals", "leads", "activities", "notes", "files"];
 
 /** One row per kind of record the run has touched so far. */
 export function countRows(counts: Record<string, number>): CountRow[] {
@@ -245,4 +251,5 @@ export const NOT_COPIED: string[] = [
   "Campaigns",
 ];
 
-export const NOT_COPIED_FILES = "Files over 4 MB, or of a type the app does not take, are listed under Things to look at instead.";
+export const NOT_COPIED_FILES =
+  "Files over 4 MB, or of a type the app does not take, are not copied. The first ones are listed under Things to look at; the rest are counted.";

@@ -115,7 +115,17 @@ const TOO_BIG = "Too big to copy (over 4 MB). Attach it by hand.";
 const WRONG_TYPE = "Not a PDF, Word, Excel, PNG or JPG file. Attach it by hand if you need it.";
 const NOT_DOWNLOADED =
   "Pipedrive would not let us download it (files kept on an outside service often cannot be copied). Attach it by hand.";
-const NO_STORAGE = "File storage is not set up yet, so no files were copied.";
+const NO_STORAGE = "File storage is not set up, so no more files were copied.";
+// What stands in for the named lines once a run has used up its 30: one counted line per reason.
+const MORE_TOO_BIG = "More files than this report can name were too big to copy (over 4 MB). Sort Pipedrive's file list by size to find them.";
+const MORE_WRONG_TYPE =
+  "More files than this report can name were not a PDF, Word, Excel, PNG or JPG file. Sort Pipedrive's file list by type to find them.";
+const MORE_NOT_DOWNLOADED =
+  "More files than this report can name could not be downloaded from Pipedrive. Look first at files kept on an outside service.";
+const MORE_DEAL_FULL =
+  "More files than this report can name were left out because their deal already holds 50 files. Look for deals with a lot of files.";
+const MORE_DRY_WRONG_NAME =
+  "More files than this report can name have a name that does not end in .pdf, .docx, .xlsx, .png or .jpg, so they may not be copied. The real copy decides by looking inside each file.";
 const NOT_SAVED = "Could not save it. Try the copy again.";
 const PERSON_OR_ORG = "File is attached to a person or organization; the app keeps files on deals and leads.";
 
@@ -328,6 +338,14 @@ describe("files that cannot be copied", () => {
     expect(messages.join("")).not.toContain(override);
   });
 
+  it("cleans the deal's title in a line the same way as the file's name", async () => {
+    const override = String.fromCharCode(0x202e);
+    seed("salesDeal", { id: "d3", pipedriveId: 302, title: `Evil${override}deal`, ownerId: "m1", stageId: "s-demo", pipelineId: "dm" });
+    const runId = seedRun();
+    await carry(runId, [[listed(11, { deal_id: 302, file_size: 5 * MB })]]);
+    expect(messagesOf(runId)).toEqual([`File "Doc 11.pdf" on "Evil deal": ${TOO_BIG}`]);
+  });
+
   it("reports a remote (outside service) file that answers with a web page as not downloadable, not as the wrong type", async () => {
     const runId = seedRun();
     await carry(runId, [[listed(11, { remote_location: "googledrive", remote_id: "abc" })]], { downloads: { 11: ascii("<html>Sign in</html>") } });
@@ -392,7 +410,118 @@ describe("files that cannot be copied", () => {
   });
 });
 
+describe("keeping the report readable", () => {
+  const startsNamed = (message: string) => message.startsWith('File "');
+  const oversize = (count: number) => Array.from({ length: count }, (_, i) => listed(i + 1, { file_size: 5 * MB }));
+
+  it("names at most 30 files; the rest of a reason is one counted line, and the later kinds still show", async () => {
+    // Needs no storage: oversize files are refused by the list alone. The save fails for the last file.
+    db.salesFile.create.mockRejectedValueOnce(new Error("database down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const runId = seedRun();
+    const { result } = await carry(
+      runId,
+      [[...oversize(40), listed(41, { deal_id: null, person_id: 5 }), listed(42, { deal_id: 999 }), listed(43)]],
+      { downloads: pdfsFor(43) },
+    );
+
+    const messages = messagesOf(runId);
+    expect(messages.filter((m) => startsNamed(m) && m.endsWith(TOO_BIG))).toHaveLength(30);
+    expect(issuesOf(runId)).toContainEqual({ phase: "files", message: MORE_TOO_BIG, count: 10, sampleIds: [31, 32, 33] });
+    // The kinds that come after the oversize files are their own groups, not crowded out.
+    expect(messages).toContain(PERSON_OR_ORG);
+    expect(messages).toContain("The file's deal was not copied, so the file was not copied.");
+    expect(messages).toContain(`File "Doc 43.pdf" on "Oak deal": ${NOT_SAVED}`);
+    // Every one of the 43 is still counted.
+    expect(result.counts).toMatchObject({ "files.seen": 43, "files.skipped": 43 });
+    expect(issuesOf(runId)).toHaveLength(30 + 4);
+  });
+
+  it("keeps one counted line per reason once the 30 names are used up", async () => {
+    for (let i = 1; i <= 50; i++) seed("salesFile", { id: `g${i}`, pipedriveId: 3000 + i, dealId: "d2", name: `n${i}.pdf`, archivedAt: null });
+    const runId = seedRun();
+    await carry(
+      runId,
+      [
+        [
+          ...oversize(30),
+          listed(31, { name: "a.exe" }),
+          listed(32, { name: "b.exe" }),
+          listed(33),
+          listed(34, { file_size: 5 * MB }),
+          listed(35, { deal_id: 301 }),
+        ],
+      ],
+      { downloads: { 31: exe(), 32: exe(), 33: new PipedriveError(403, "Pipedrive refused the request"), 35: pdf() } },
+    );
+
+    const groups = issuesOf(runId);
+    expect(groups.filter((g) => startsNamed(g.message))).toHaveLength(30);
+    expect(groups).toContainEqual({ phase: "files", message: MORE_TOO_BIG, count: 1, sampleIds: [34] });
+    expect(groups).toContainEqual({ phase: "files", message: MORE_WRONG_TYPE, count: 2, sampleIds: [31, 32] });
+    expect(groups).toContainEqual({ phase: "files", message: MORE_NOT_DOWNLOADED, count: 1, sampleIds: [33] });
+    expect(groups).toContainEqual({ phase: "files", message: MORE_DEAL_FULL, count: 1, sampleIds: [35] });
+    expect(groups).toHaveLength(34);
+  });
+
+  it("counts named lines saved by an earlier chunk too", async () => {
+    const runId = seedRun();
+    runRow(runId).issues = Array.from({ length: 29 }, (_, i) => ({
+      phase: "files",
+      message: `File "Old ${i}.pdf" on "Oak deal": ${TOO_BIG}`,
+      count: 1,
+      sampleIds: [900 + i],
+    }));
+    await carry(runId, [[listed(1, { file_size: 5 * MB }), listed(2, { file_size: 5 * MB })]]);
+    const groups = issuesOf(runId);
+    expect(groups.filter((g) => startsNamed(g.message))).toHaveLength(30);
+    expect(groups).toContainEqual({ phase: "files", message: MORE_TOO_BIG, count: 1, sampleIds: [2] });
+  });
+
+  it("with no file storage: the one storage line is there too, next to the 30 names and the counted line", async () => {
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
+    const runId = seedRun();
+    await carry(runId, [[...oversize(40), listed(41)]], { downloads: pdfsFor(41) });
+
+    const groups = issuesOf(runId);
+    expect(groups.filter((g) => startsNamed(g.message))).toHaveLength(30);
+    expect(groups).toContainEqual({ phase: "files", message: MORE_TOO_BIG, count: 10, sampleIds: [31, 32, 33] });
+    expect(groups.filter((g) => g.message === NO_STORAGE)).toEqual([{ phase: "files", message: NO_STORAGE, count: 1, sampleIds: [41] }]);
+    expect(runRow(runId).status).toBe("DONE");
+  });
+
+  it("a practice run keeps to the same 30 names, then one counted line for the names it doubts", async () => {
+    const runId = seedRun("DRY_RUN");
+    const odd = Array.from({ length: 32 }, (_, i) => listed(i + 1, { name: `old ${i}.exe`, deal_name: "Oak deal" }));
+    await carry(runId, [odd]);
+    const groups = issuesOf(runId);
+    expect(groups.filter((g) => startsNamed(g.message))).toHaveLength(30);
+    expect(groups).toContainEqual({ phase: "files", message: MORE_DRY_WRONG_NAME, count: 2, sampleIds: [31, 32] });
+  });
+});
+
 describe("paging, time and the rate limit", () => {
+  it("pauses when the very first file of a chunk hits a rate limit, counts nothing for it, and retries it on the next chunk", async () => {
+    const runId = seedRun();
+    const page = [listed(11), listed(12)];
+    const limited = new PipedriveError(429, "Pipedrive request failed (HTTP 429): Pipedrive is rate limiting this token.");
+
+    const first = await carry(runId, [page], { downloads: { 11: limited, 12: pdf() } });
+
+    expect(first.result).toMatchObject({ done: false, paused: true, phase: "files" });
+    expect(first.downloads).toEqual(["/api/v1/files/11/download"]);
+    expect(first.result.counts["files.seen"]).toBeUndefined();
+    expect(first.result.counts["files.skipped"]).toBeUndefined();
+    expect(issuesOf(runId)).toEqual([]);
+    expect(store.salesFile).toHaveLength(0);
+    expect(runRow(runId).status).toBe("RUNNING");
+
+    const second = await carry(runId, [page], { downloads: pdfsFor(11, 12) });
+    expect(second.downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download"]);
+    expect(second.result).toMatchObject({ done: true });
+    expect(second.result.counts).toMatchObject({ "files.seen": 2, "files.created": 2 });
+  });
+
   it("stops mid-page when time runs out, then resumes at the next file without redoing finished ones", async () => {
     const runId = seedRun();
     const page = [listed(11), listed(12), listed(13), listed(14), listed(15)];

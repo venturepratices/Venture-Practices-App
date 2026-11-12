@@ -25,7 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { FILE_MAX_BYTES, FILES_PER_DEAL_MAX } from "@/lib/sales/constants";
 import type { PageToken } from "@/lib/sales/pipedrive/client";
 import { copyPipedriveFile, type CopyFileFailure } from "@/lib/sales/pipedrive/files";
-import { bump, type PhaseResult, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
+import { bump, NO_FILE_STORAGE_ISSUE, type PhaseResult, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
 import { leadRef, parseUtc, refId } from "@/lib/sales/pipedrive/map";
 
 const FILES_PATH = "/api/v1/files";
@@ -39,7 +39,6 @@ const WRONG_TYPE = "Not a PDF, Word, Excel, PNG or JPG file. Attach it by hand i
 const NOT_DOWNLOADED =
   "Pipedrive would not let us download it (files kept on an outside service often cannot be copied). Attach it by hand.";
 const NOT_SAVED = "Could not save it. Try the copy again.";
-const NO_STORAGE = "File storage is not set up yet, so no files were copied.";
 const DEAL_FULL = `The deal already holds ${FILES_PER_DEAL_MAX} files, so this one was not copied. Attach it by hand if you need it.`;
 const PERSON_OR_ORG = "File is attached to a person or organization; the app keeps files on deals and leads.";
 const NOT_ON_DEAL_OR_LEAD = "File is not attached to a deal or lead; the app keeps files on deals and leads.";
@@ -51,6 +50,29 @@ const LEAD_NOT_COPIED = "The file's lead was not copied, so the file was not cop
 const DRY_TOO_BIG = `${TOO_BIG} This is the size Pipedrive lists; the real copy checks the file itself.`;
 const DRY_WRONG_NAME =
   "Its name does not end in .pdf, .docx, .xlsx, .png or .jpg, so it may not be copied. The real copy decides by looking inside the file, not at its name. Attach it by hand if it is not copied.";
+
+// A run names at most this many files in its report (the whole report shares 200 lines and the
+// screen shows 50). Past it, each reason gets ONE counted line with no file name instead.
+const NAMED_LINES_MAX = 30;
+const MORE_TOO_BIG = "More files than this report can name were too big to copy (over 4 MB). Sort Pipedrive's file list by size to find them.";
+const MORE_WRONG_TYPE =
+  "More files than this report can name were not a PDF, Word, Excel, PNG or JPG file. Sort Pipedrive's file list by type to find them.";
+const MORE_NOT_DOWNLOADED =
+  "More files than this report can name could not be downloaded from Pipedrive. Look first at files kept on an outside service.";
+const MORE_DEAL_FULL = `More files than this report can name were left out because their deal already holds ${FILES_PER_DEAL_MAX} files. Look for deals with a lot of files.`;
+const MORE_DRY_WRONG_NAME =
+  "More files than this report can name have a name that does not end in .pdf, .docx, .xlsx, .png or .jpg, so they may not be copied. The real copy decides by looking inside each file.";
+
+/** A line the team acts on by hand: what it says about one file, and the counted line that takes over past the budget. */
+type ByHand = { text: string; more: string };
+const BY_HAND = {
+  tooBig: { text: TOO_BIG, more: MORE_TOO_BIG },
+  wrongType: { text: WRONG_TYPE, more: MORE_WRONG_TYPE },
+  notDownloaded: { text: NOT_DOWNLOADED, more: MORE_NOT_DOWNLOADED },
+  dealFull: { text: DEAL_FULL, more: MORE_DEAL_FULL },
+  dryTooBig: { text: DRY_TOO_BIG, more: MORE_TOO_BIG },
+  dryWrongName: { text: DRY_WRONG_NAME, more: MORE_DRY_WRONG_NAME },
+} satisfies Record<string, ByHand>;
 
 /** Endings the app takes. Word and Excel only in their current forms (.docx, .xlsx). */
 const TAKEN_ENDINGS = new Set(["pdf", "docx", "xlsx", "png", "jpg", "jpeg"]);
@@ -116,8 +138,19 @@ function nameLooksUnsupported(name: string): boolean {
 /** `File "<name>" on "<deal or lead>": <message>`, so the team can find it and attach it by hand. */
 function named(file: Listed, parent: string, message: string): string {
   const label = shown(file.name) || "unnamed file";
-  const where = shown(parent);
+  const where = shown(plain(parent));
   return where ? `File "${label}" on "${where}": ${message}` : `File "${label}": ${message}`;
+}
+
+/**
+ * The report line for a file the team must attach by hand. While the run has fewer than
+ * NAMED_LINES_MAX named lines it is its own line naming the file; after that it joins the one
+ * counted line for its reason (no file name, so it groups, keeping a count and 3 example ids).
+ * Named lines saved by an earlier chunk count too, so the budget is for the whole run.
+ */
+function byHand(work: PhaseWork, line: ByHand, file: Listed, parent: string): { message: string; exact: boolean } {
+  const used = work.issues.groups.filter((group) => group.phase === "files" && group.message.startsWith('File "')).length;
+  return used < NAMED_LINES_MAX ? { message: named(file, parent, line.text), exact: true } : { message: line.more, exact: false };
 }
 
 // --- What a page needs from the app (one query per kind, never one per file) ---
@@ -265,8 +298,8 @@ async function importPage(
     }
 
     if (!work.live) {
-      if (file.size > FILE_MAX_BYTES) skipped(named(file, file.parentName, DRY_TOO_BIG), true);
-      else if (nameLooksUnsupported(file.name)) skipped(named(file, file.parentName, DRY_WRONG_NAME), true);
+      if (file.size > FILE_MAX_BYTES) tally("skipped", [byHand(work, BY_HAND.dryTooBig, file, file.parentName)]);
+      else if (nameLooksUnsupported(file.name)) tally("skipped", [byHand(work, BY_HAND.dryWrongName, file, file.parentName)]);
       else tally("created", dateIssues);
       continue;
     }
@@ -279,7 +312,7 @@ async function importPage(
       continue;
     }
     if (deal && (onDeal.get(deal.id) ?? 0) >= FILES_PER_DEAL_MAX) {
-      skipped(named(file, parent.title, DEAL_FULL), true);
+      tally("skipped", [byHand(work, BY_HAND.dealFull, file, parent.title)]);
       continue;
     }
 
@@ -302,12 +335,12 @@ async function importPage(
       if (deal) onDeal.set(deal.id, (onDeal.get(deal.id) ?? 0) + 1);
       tally("created", dateIssues);
     } else if (result.reason === "no-storage") {
-      // Nothing can be stored, so one issue and no more tries: not one issue per file.
-      skipped(NO_STORAGE);
+      // Nothing can be stored, so one issue and no more tries: not one issue per file. Never grouped with another kind.
+      skipped(NO_FILE_STORAGE_ISSUE, true);
       await work.save();
       return "no-storage";
     } else {
-      const issue = failureIssue(result.reason, file, parent.title);
+      const issue = failureIssue(work, result.reason, file, parent.title);
       tally("skipped", [issue]);
     }
     // Saved after every file: a chunk that dies loses no copied file's count or place.
@@ -316,17 +349,23 @@ async function importPage(
   return "done";
 }
 
-/** The report line for a file that was not copied. Those the team must attach by hand are listed one by one. */
-function failureIssue(reason: Exclude<CopyFileFailure, "no-storage">, file: Listed, parentTitle: string): { message: string; exact: boolean } {
+/** The report line for a file that was not copied. Those the team must attach by hand are listed one by one, up to the budget. */
+function failureIssue(
+  work: PhaseWork,
+  reason: Exclude<CopyFileFailure, "no-storage">,
+  file: Listed,
+  parentTitle: string,
+): { message: string; exact: boolean } {
   switch (reason) {
     case "too-big":
-      return { message: named(file, parentTitle, TOO_BIG), exact: true };
+      return byHand(work, BY_HAND.tooBig, file, parentTitle);
     case "unsupported-type":
       // A file kept on an outside service often answers with a web page, not the file: that is a download problem.
-      return { message: named(file, parentTitle, file.remote ? NOT_DOWNLOADED : WRONG_TYPE), exact: true };
+      return byHand(work, file.remote ? BY_HAND.notDownloaded : BY_HAND.wrongType, file, parentTitle);
     case "download-failed":
-      return { message: named(file, parentTitle, NOT_DOWNLOADED), exact: true };
+      return byHand(work, BY_HAND.notDownloaded, file, parentTitle);
     case "save-failed":
+      // One kind however many files: retrying fixes it, so the first example is enough.
       return { message: named(file, parentTitle, NOT_SAVED), exact: false };
   }
 }

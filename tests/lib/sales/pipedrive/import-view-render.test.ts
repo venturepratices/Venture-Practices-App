@@ -257,9 +257,26 @@ describe("RunProgress", () => {
     expect(html).not.toContain("Keep going");
   });
 
+  it("shows a Files line while files are being copied, with everything looked at so far", () => {
+    const counts = { "files.seen": 1330, "files.created": 1284, "files.unchanged": 37, "files.skipped": 9 };
+    const html = clean(renderToString(createElement(RunProgress, { ...base, phase: "files", counts, paused: false, active: true })));
+    expect(html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")).toMatch(/Files 1,330 so far/);
+    expect(html).toContain("Copying files");
+  });
+
   it("finishing: says so instead of a step", () => {
     const html = clean(renderToString(createElement(RunProgress, { ...base, phase: "done", paused: false, active: true, finishing: true })));
     expect(html).toContain("Finishing up");
+  });
+});
+
+describe("a finished copy with files", () => {
+  it("shows a Files row in the counts table: new, changed, same, left out", () => {
+    const counts = { "deals.created": 7, "files.seen": 1330, "files.created": 1284, "files.unchanged": 37, "files.skipped": 9 };
+    const html = render(makeStatus({ run: makeRun({ counts }), realCopy: REAL_COPY_DONE }));
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(text).toMatch(/Deals 7 0 0 0/);
+    expect(text).toMatch(/Files 1,284 0 37 9/);
   });
 });
 
@@ -301,6 +318,40 @@ describe("pure helpers", () => {
     expect(none.lines).toEqual(["Pipelines, stages and fields: 2 times: A field was skipped."]);
     const many = model.issueLines([{ phase: "notes", message: "Long.", count: 1500, sampleIds: [1] }]);
     expect(many.lines).toEqual(["Notes: 1,500 times, example id 1: Long."]);
+  });
+
+  it("counts files like every other kind, and leaves them out until a file has been looked at", () => {
+    expect(model.countRows({ "deals.created": 2 }).map((row) => row.label)).toEqual(["Deals"]);
+    expect(model.countRows({ "deals.created": 2, "files.created": 5, "files.unchanged": 3, "files.skipped": 1 })).toEqual([
+      { label: "Deals", created: 2, updated: 0, unchanged: 0, skipped: 0 },
+      { label: "Files", created: 5, updated: 0, unchanged: 3, skipped: 1 },
+    ]);
+  });
+
+  it("lists the storage line first, so it is never off the visible lines", () => {
+    const groups = [
+      { phase: "persons" as const, message: "No name.", count: 1, sampleIds: [9] },
+      { phase: "files" as const, message: 'File "A.pdf" on "Oak deal": Too big to copy (over 4 MB). Attach it by hand.', count: 1, sampleIds: [1] },
+      { phase: "files" as const, message: "File storage is not set up, so no more files were copied.", count: 1, sampleIds: [2] },
+    ];
+    const shown = model.issueLines(groups, 2);
+    expect(shown.lines).toEqual([
+      "Files: 1 time, example id 2: File storage is not set up, so no more files were copied.",
+      "People: 1 time, example id 9: No name.",
+    ]);
+    expect(shown.rest).toBe(1);
+    // Nothing else is reordered, and the same line from another step is not moved.
+    const other = [
+      { phase: "deals" as const, message: "File storage is not set up, so no more files were copied.", count: 1, sampleIds: [] },
+      { phase: "persons" as const, message: "No name.", count: 1, sampleIds: [] },
+    ];
+    expect(model.issueLines(other).lines.map((line) => line.split(":")[0])).toEqual(["Deals", "People"]);
+  });
+
+  it("says the first files are listed and the rest are counted", () => {
+    expect(model.NOT_COPIED_FILES).toBe(
+      "Files over 4 MB, or of a type the app does not take, are not copied. The first ones are listed under Things to look at; the rest are counted.",
+    );
   });
 
   it("says how a check row came out, with its direction", () => {

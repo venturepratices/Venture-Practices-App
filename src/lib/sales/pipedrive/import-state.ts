@@ -34,6 +34,13 @@ export type IssueGroup = { phase: ImportPhase; message: string; count: number; s
 export const ISSUE_GROUPS_MAX = 200;
 const SAMPLE_IDS_MAX = 3;
 
+/**
+ * The files-step issue that says nothing more can be stored. It is its own kind
+ * (never grouped with another), and the screen lists it first, so it can never
+ * fall past the lines the screen shows.
+ */
+export const NO_FILE_STORAGE_ISSUE = "File storage is not set up, so no more files were copied.";
+
 export type Counts = Record<string, number>;
 
 export function bump(counts: Counts, key: string, by = 1): void {

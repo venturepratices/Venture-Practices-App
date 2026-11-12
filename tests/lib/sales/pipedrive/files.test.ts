@@ -226,14 +226,18 @@ describe("copyPipedriveFile", () => {
   });
 
   it("returns save-failed when the store refuses the upload, and writes no row", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     blob.put.mockRejectedValue(new Error("store down"));
     const { client } = serving(pdf());
     expect(await copy(client)).toEqual({ ok: false, reason: "save-failed" });
     expect(db.salesFile.create).not.toHaveBeenCalled();
     expect(blob.del).not.toHaveBeenCalled();
+    // One fixed line, none of the store's own words.
+    expect(errors.mock.calls).toEqual([["Pipedrive file copy: the file store refused an upload."]]);
   });
 
   it("removes the stored copy and returns save-failed when the row cannot be written", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     db.salesFile.create.mockRejectedValue(new Error("database down"));
     const { client } = serving(pdf());
 
@@ -241,21 +245,51 @@ describe("copyPipedriveFile", () => {
     expect(blob.put).toHaveBeenCalledTimes(1);
     expect(blob.del).toHaveBeenCalledTimes(1);
     expect(blob.del).toHaveBeenCalledWith(blob.put.mock.calls[0][0]);
+    expect(errors.mock.calls).toEqual([["Pipedrive file copy: saving a copied file's record failed; removing the stored copy."]]);
   });
 
   it("still answers save-failed when removing the stored copy fails too", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     db.salesFile.create.mockRejectedValue(new Error("database down"));
     blob.del.mockRejectedValue(new Error("store down"));
     const { client } = serving(pdf());
     await expect(copy(client)).resolves.toEqual({ ok: false, reason: "save-failed" });
+    expect(errors.mock.calls).toEqual([
+      ["Pipedrive file copy: saving a copied file's record failed; removing the stored copy."],
+      ["Pipedrive file copy: could not remove a stored copy after a failed save."],
+    ]);
   });
 
   it("treats a row another request just wrote (same Pipedrive id) as copied, and removes its own stored copy", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     db.salesFile.create.mockRejectedValue(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
     const { client } = serving(pdf());
 
     expect(await copy(client)).toEqual({ ok: true });
     expect(blob.del).toHaveBeenCalledWith(blob.put.mock.calls[0][0]);
+    // Not a failure, so nothing is logged.
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a path that climbs out", "../../etc/passwd", "passwd.pdf"],
+    ["a Windows path", "C:\\Users\\Ann\\scan.pdf", "scan.pdf"],
+    ["no name at all", "", "file.pdf"],
+    ["only an extension", ".pdf", "pdf.pdf"],
+    // The shared name rules drop a control character (a line break too) outright; a quote is kept.
+    ["a quote and a line break", 'Invoice "Q3"\nfinal', 'Invoice "Q3"final.pdf'],
+    ["300 characters", "a".repeat(300), `${"a".repeat(196)}.pdf`],
+  ])("stores a safe name for %s", async (_label, listedName, stored) => {
+    const { client } = serving(pdf());
+    expect(await copy(client, { name: listedName })).toEqual({ ok: true });
+    const name = String(db.salesFile.create.mock.calls[0][0].data.name);
+    expect(name).toBe(stored);
+    // However odd the listed name, what is stored has no folder part and no line break, and ends in the real type.
+    expect(name).not.toMatch(/[\\/\r\n]/);
+    expect(name.length).toBeLessThanOrEqual(200);
+    expect(name.endsWith(".pdf")).toBe(true);
+    // The name is never part of where the bytes are stored.
+    expect(blob.put.mock.calls[0][0]).toMatch(/^sales-files\/[0-9a-f-]{36}\.pdf$/);
   });
 
   it("keeps the file name and secret-looking text out of every thrown error and console line", async () => {
