@@ -32,13 +32,19 @@ describe("Pipedrive import schema", () => {
   it.each([
     "SalesOrganization",
     "SalesPerson",
-    "SalesLead",
     "SalesDeal",
     "SalesActivity",
     "SalesNote",
     "SalesFile",
-  ])("%s keeps the Pipedrive id it came from, unique", (model) => {
+  ])("%s keeps the Pipedrive id it came from, as a unique number", (model) => {
     expect(modelBlock(model)).toMatch(/^\s*pipedriveId\s+Int\?\s+@unique\s*$/m);
+  });
+
+  // Pipedrive lead ids are UUID strings, not numbers.
+  it("SalesLead keeps the Pipedrive id it came from, as unique text", () => {
+    const lead = modelBlock("SalesLead");
+    expect(lead).toMatch(/^\s*pipedriveId\s+String\?\s+@unique\s*$/m);
+    expect(lead).not.toMatch(/pipedriveId\s+Int/);
   });
 
   it("declares the two import enums", () => {
@@ -75,23 +81,52 @@ describe("Pipedrive import schema", () => {
 });
 
 describe("Pipedrive import migration", () => {
-  it("only adds: no DROP, no UPDATE, no DELETE", () => {
-    // Strip SQL comments first so a sentence in a comment cannot trip the check.
-    const sql = migration.replace(/--.*$/gm, "");
+  // Strip SQL comments first so a sentence in a comment cannot trip a check.
+  const sql = migration.replace(/--.*$/gm, "");
+
+  it("only adds: no DROP, no UPDATE, no DELETE, no TRUNCATE", () => {
     expect(sql).not.toMatch(/\bDROP\b/i);
     expect(sql).not.toMatch(/\bUPDATE\b/i);
     expect(sql).not.toMatch(/\bDELETE\b/i);
+    expect(sql).not.toMatch(/\bTRUNCATE\b/i);
   });
 
-  it.each(["SalesOrganization", "SalesPerson", "SalesLead", "SalesActivity", "SalesNote", "SalesFile"])(
-    "adds a unique pipedriveId column to %s",
+  it("every ALTER TABLE holds only ADD COLUMN clauses", () => {
+    const alters = sql
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter((statement) => /^ALTER\s+TABLE\b/i.test(statement));
+    // Six pipedriveId columns, one statement each.
+    expect(alters).toHaveLength(6);
+    for (const statement of alters) {
+      const clauses = statement.replace(/^ALTER\s+TABLE\s+"[^"]+"\s+/i, "").split(",");
+      for (const clause of clauses) {
+        expect(clause.trim(), statement).toMatch(/^ADD COLUMN\s/i);
+      }
+    }
+    // Belt and braces: none of the ways to change an existing column or table.
+    expect(sql).not.toMatch(/\bRENAME\b/i);
+    expect(sql).not.toMatch(/ALTER\s+COLUMN/i);
+    expect(sql).not.toMatch(/SET\s+NOT\s+NULL/i);
+  });
+
+  it.each(["SalesOrganization", "SalesPerson", "SalesActivity", "SalesNote", "SalesFile"])(
+    "adds a unique numeric pipedriveId column to %s",
     (table) => {
-      expect(migration).toMatch(new RegExp(`ALTER TABLE "${table}" ADD COLUMN\\s+"pipedriveId" INTEGER`));
+      expect(migration).toMatch(new RegExp(`ALTER TABLE "${table}" ADD COLUMN\\s+"pipedriveId" INTEGER;`));
       expect(migration).toMatch(
         new RegExp(`CREATE UNIQUE INDEX "${table}_pipedriveId_key" ON "${table}"\\("pipedriveId"\\)`),
       );
     },
   );
+
+  it("adds a unique text pipedriveId column to SalesLead (Pipedrive lead ids are UUIDs)", () => {
+    expect(migration).toMatch(/ALTER TABLE "SalesLead" ADD COLUMN\s+"pipedriveId" TEXT;/);
+    expect(migration).not.toMatch(/ALTER TABLE "SalesLead" ADD COLUMN\s+"pipedriveId" INTEGER/);
+    expect(migration).toMatch(
+      /CREATE UNIQUE INDEX "SalesLead_pipedriveId_key" ON "SalesLead"\("pipedriveId"\)/,
+    );
+  });
 
   it("creates the two enums and the two tables", () => {
     expect(migration).toContain(`CREATE TYPE "SalesImportMode" AS ENUM ('DRY_RUN', 'LIVE')`);

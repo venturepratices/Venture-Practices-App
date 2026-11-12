@@ -1990,8 +1990,8 @@ model SalesLead {
   convertedDealId String?            @unique
   convertedDeal   SalesDeal?         @relation("SalesLeadConvertedDeal", fields: [convertedDealId], references: [id], onDelete: Restrict)
   ghlContactId    String?
-  // Id of the lead in Pipedrive, for the one-time import.
-  pipedriveId     Int?               @unique
+  // Id of the lead in Pipedrive, for the one-time import. Text: Pipedrive lead ids are UUIDs.
+  pipedriveId     String?            @unique
   archivedAt      DateTime?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt

@@ -9,9 +9,10 @@ CREATE TYPE "SalesImportMode" AS ENUM ('DRY_RUN', 'LIVE');
 CREATE TYPE "SalesImportStatus" AS ENUM ('RUNNING', 'DONE', 'FAILED');
 
 -- The Pipedrive id each imported row came from. Null for rows made inside the app.
+-- Leads are the one exception to INTEGER: Pipedrive lead ids are UUID strings.
 ALTER TABLE "SalesOrganization" ADD COLUMN     "pipedriveId" INTEGER;
 ALTER TABLE "SalesPerson" ADD COLUMN     "pipedriveId" INTEGER;
-ALTER TABLE "SalesLead" ADD COLUMN     "pipedriveId" INTEGER;
+ALTER TABLE "SalesLead" ADD COLUMN     "pipedriveId" TEXT;
 ALTER TABLE "SalesActivity" ADD COLUMN     "pipedriveId" INTEGER;
 ALTER TABLE "SalesNote" ADD COLUMN     "pipedriveId" INTEGER;
 ALTER TABLE "SalesFile" ADD COLUMN     "pipedriveId" INTEGER;

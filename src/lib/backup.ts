@@ -46,7 +46,7 @@ export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
   LoginAttempt: "Short-lived login throttle rows, rebuilt by use",
   BotTokenUsage: "Short-lived rate-limit counters, rebuilt by use",
   SalesImportRun:
-    "One-time Pipedrive import progress log; the imported rows live in the backed-up Sales tables, and a restored RUNNING row would block a new run",
+    "One-time Pipedrive import progress log; the imported rows live in the backed-up Sales tables.",
   SalesImportUserMap:
     "Admin's Pipedrive-user-to-team-member picks for the one-time import, re-entered on the import screen",
 };
