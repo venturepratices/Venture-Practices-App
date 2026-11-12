@@ -3,7 +3,14 @@ import { z } from "zod";
 import type { Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
-import { BOT_ROLE_PRESETS, BOT_ROLES, BOT_SCOPES, BOT_SECRET_PREFIX, type BotScope } from "@/lib/sales/bot-scopes";
+import {
+  BOT_ROLE_PRESETS,
+  BOT_ROLES,
+  BOT_SCOPES,
+  BOT_SECRET_PREFIX,
+  type BotScope,
+  isCatalogueScope,
+} from "@/lib/sales/bot-scopes";
 
 // Shared by the admin Bots routes (src/app/api/sales/bots/**). The key's hash is
 // never selected here, so it can't end up in a response or a history row.
@@ -55,9 +62,14 @@ export function adminActor(perms: Permissions): SalesActor {
   return { userId: perms.userId, isAdmin: true, seesAllDeals: true, via: "user" };
 }
 
+// Every permission must be in the catalogue (bot-scopes.ts); anything else,
+// such as "delete" or "export", is refused. Strict objects: an unknown field
+// is refused too, so nothing like `isAdmin` or `tokenHash` can be slipped in.
+const catalogueScope = z.string().refine(isCatalogueScope, { message: "Unknown permission." });
+
 const accessFields = {
   role: z.enum(BOT_ROLES).optional(),
-  scopes: z.array(z.enum(BOT_SCOPES)).min(1).optional(),
+  scopes: z.array(catalogueScope).min(1).optional(),
   pipelineKeys: z
     .array(z.string().trim().min(1))
     .max(50)
@@ -65,14 +77,14 @@ const accessFields = {
     .optional(),
 };
 
-export const createBotSchema = z.object({
+export const createBotSchema = z.strictObject({
   name: z.string().trim().min(1).max(80),
   actingForId: z.string().min(1),
   ...accessFields,
 });
 
 export const updateBotSchema = z
-  .object({ enabled: z.boolean().optional(), ...accessFields })
+  .strictObject({ enabled: z.boolean().optional(), ...accessFields })
   .refine((data) => Object.values(data).some((value) => value !== undefined), { message: "Nothing to change." });
 
 /**

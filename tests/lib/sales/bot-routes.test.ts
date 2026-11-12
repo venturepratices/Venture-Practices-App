@@ -148,6 +148,20 @@ describe("POST /api/sales/bots", () => {
     expect(db.bots).toHaveLength(0);
   });
 
+  it("refuses a field it does not know, such as isAdmin or tokenHash", async () => {
+    expect((await createBot({ isAdmin: true })).res.status).toBe(400);
+    expect((await createBot({ tokenHash: "x" })).res.status).toBe(400);
+    expect(db.bots).toHaveLength(0);
+  });
+
+  it("refuses every scope outside the permission catalogue", async () => {
+    for (const scope of ["export", "settings", "admin", "READ", " read", ""]) {
+      const { res } = await createBot({ role: undefined, scopes: [scope] });
+      expect(res.status).toBe(400);
+    }
+    expect(db.bots).toHaveLength(0);
+  });
+
   it("refuses a role and a scope list together", async () => {
     const { res } = await createBot({ role: "rep", scopes: ["read"] });
     expect(res.status).toBe(400);
@@ -207,6 +221,14 @@ describe("PATCH /api/sales/bots/[botId]", () => {
     await createBot();
     const res = await botRoute.PATCH(req("PATCH", { pipelineKeys: ["nope"] }), ctx("b1"));
     expect(res.status).toBe(400);
+  });
+
+  it("refuses a field it does not know, such as a new name or person", async () => {
+    await createBot();
+    expect((await botRoute.PATCH(req("PATCH", { enabled: true, actingForId: "p2" }), ctx("b1"))).status).toBe(400);
+    expect((await botRoute.PATCH(req("PATCH", { scopes: ["delete"] }), ctx("b1"))).status).toBe(400);
+    expect((await botRoute.PATCH(req("PATCH", { role: "rep", scopes: ["read"] }), ctx("b1"))).status).toBe(400);
+    expect(db.bots[0].scopes).toEqual(["read", "notes", "activities"]);
   });
 
   it("refuses an empty change", async () => {
