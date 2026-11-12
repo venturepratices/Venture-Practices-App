@@ -5,7 +5,7 @@
 
 import { vi } from "vitest";
 
-import type { PageToken, PipedriveClient } from "@/lib/sales/pipedrive/client";
+import { PipedriveError, type PageToken, type PipedriveClient } from "@/lib/sales/pipedrive/client";
 
 type Row = Record<string, unknown>;
 type Where = Record<string, unknown>;
@@ -48,8 +48,8 @@ const UNIQUE: Partial<Record<Table, string[][]>> = {
 };
 
 export const store = Object.fromEntries(TABLES.map((t) => [t, [] as Row[]])) as Record<Table, Row[]>;
-/** Every write the engine made, in order: which table and which call. */
-export const writes: { table: Table; op: string; count: number }[] = [];
+/** Every write the engine made, in order: which table, which call, and every column name it wrote. */
+export const writes: { table: Table; op: string; count: number; keys: string[] }[] = [];
 export const clock = { now: new Date("2026-11-12T15:00:00.000Z") };
 let nextId = 1;
 
@@ -171,12 +171,12 @@ function delegate(table: Table) {
     }),
     count: vi.fn(async (args: Args = {}) => rows().filter((r) => matches(r, args.where)).length),
     create: vi.fn(async (args: Args) => {
-      writes.push({ table, op: "create", count: 1 });
+      writes.push({ table, op: "create", count: 1, keys: Object.keys(args.data as Row) });
       return project(create(args.data as Row), args.select);
     }),
     createMany: vi.fn(async (args: Args & { skipDuplicates?: boolean }) => {
       const list = args.data as Row[];
-      writes.push({ table, op: "createMany", count: list.length });
+      writes.push({ table, op: "createMany", count: list.length, keys: [...new Set(list.flatMap((d) => Object.keys(d)))] });
       let count = 0;
       for (const data of list) {
         try {
@@ -189,7 +189,7 @@ function delegate(table: Table) {
       return { count };
     }),
     update: vi.fn(async (args: Args) => {
-      writes.push({ table, op: "update", count: 1 });
+      writes.push({ table, op: "update", count: 1, keys: Object.keys(args.data as Row) });
       const index = rows().findIndex((r) => matches(r, args.where));
       if (index < 0) throw Object.assign(new Error("Not found"), { code: "P2025" });
       const next = applyData(rows()[index], { updatedAt: clock.now, ...(args.data as Row) });
@@ -198,7 +198,7 @@ function delegate(table: Table) {
       return project(next, args.select);
     }),
     updateMany: vi.fn(async (args: Args) => {
-      writes.push({ table, op: "updateMany", count: 1 });
+      writes.push({ table, op: "updateMany", count: 1, keys: Object.keys(args.data as Row) });
       let count = 0;
       rows().forEach((row, index) => {
         if (!matches(row, args.where)) return;
@@ -210,7 +210,7 @@ function delegate(table: Table) {
       return { count };
     }),
     upsert: vi.fn(async (args: Args & { create: Row; update: Row }) => {
-      writes.push({ table, op: "upsert", count: 1 });
+      writes.push({ table, op: "upsert", count: 1, keys: [...new Set([...Object.keys(args.create), ...Object.keys(args.update)])] });
       const index = rows().findIndex((r) => matches(r, args.where));
       if (index < 0) return create(args.create);
       rows()[index] = applyData(rows()[index], { updatedAt: clock.now, ...args.update });
@@ -266,8 +266,12 @@ export function fakeClient(
       calls.push({ path, resumeAt: o.resumeAt, limit: o.limit, style: o.style });
       const failure = opts.failOn?.[path];
       if (failure) throw failure;
-      const pages = lists[path] ?? [[]];
       const offset = o.style === "offset";
+      // The same refusal as the real client: a saved place of the wrong kind for the list.
+      if (o.resumeAt && "cursor" in o.resumeAt === offset) {
+        throw new PipedriveError(200, "The saved page position does not fit this list.");
+      }
+      const pages = lists[path] ?? [[]];
       let index = 0;
       if (o.resumeAt) index = "cursor" in o.resumeAt ? Number(o.resumeAt.cursor.slice(1)) : o.resumeAt.start / 100;
       for (; index < pages.length; index++) {

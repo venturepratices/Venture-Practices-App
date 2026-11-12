@@ -145,6 +145,40 @@ describe("runStructurePhase", () => {
     );
   });
 
+  it("matches a second Pipedrive pipeline, stage or field of the same name to the row it just created", async () => {
+    const w = work({
+      "/api/v2/pipelines": [
+        [
+          { id: 2, name: "Referrals", order_nr: 1 },
+          { id: 4, name: "referrals", order_nr: 2 },
+        ],
+      ],
+      "/api/v2/stages": [
+        [
+          { id: 20, name: "Asked", pipeline_id: 2, order_nr: 1 },
+          { id: 40, name: "Asked", pipeline_id: 4, order_nr: 1 },
+        ],
+      ],
+      "/api/v1/dealFields": [
+        [
+          { key: FIELD_KEY, name: "Services", field_type: "varchar" },
+          { key: LEAD_ONLY_KEY, name: "services", field_type: "varchar" },
+        ],
+      ],
+    });
+
+    await runStructurePhase(w);
+
+    const created = store.salesPipeline.filter((p) => p.key === "referrals-2");
+    expect(created).toHaveLength(1);
+    expect(store.salesPipeline).toHaveLength(3);
+    expect(store.salesStage.filter((s) => s.pipelineId === created[0].id)).toHaveLength(1);
+    expect(w.cursor.context.stages["40"]).toEqual(w.cursor.context.stages["20"]);
+    expect(store.salesCustomField.filter((f) => f.label === "Services" || f.label === "services")).toHaveLength(1);
+    expect(w.cursor.context.fields[LEAD_ONLY_KEY].dealFieldId).toBe(w.cursor.context.fields[FIELD_KEY].dealFieldId);
+    expect(w.counts).toMatchObject({ "pipelines.created": 1, "pipelines.unchanged": 1, "customFields.created": 1, "customFields.unchanged": 1 });
+  });
+
   it("is safe to run again: the second time matches everything it created the first time", async () => {
     await runStructurePhase(work(structure));
     const before = { pipelines: store.salesPipeline.length, stages: store.salesStage.length, fields: store.salesCustomField.length };

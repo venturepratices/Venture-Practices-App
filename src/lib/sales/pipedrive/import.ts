@@ -176,8 +176,9 @@ export async function continueImportRun(args: {
       await save();
       return result(true);
     }
-    // The client's messages never carry the token, a URL or a query string.
-    issues.add({ phase, pipedriveId: null, message: `The import stopped because Pipedrive refused a request. ${error.message}` }, { exact: true });
+    // The client's messages never carry the token, a URL or a query string. Some are its own checks
+    // (a repeated page, a bad saved place), not a refusal from Pipedrive, so the prefix says neither.
+    issues.add({ phase, pipedriveId: null, message: `The copy stopped: ${error.message}` }, { exact: true });
     await save({ status: "FAILED", finishedAt: now() });
     return result(false);
   }

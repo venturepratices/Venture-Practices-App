@@ -122,9 +122,11 @@ async function syncPipelines(work: PhaseWork, pdPipelines: PipedrivePipeline[], 
       if (work.live) {
         const created = await prisma.salesPipeline.create({
           data: { key: uniqueKey(kebab(name), pipelineKeys, "pipeline"), name, kind: "SALES", position: nextPosition++ },
-          select: { id: true },
+          select: { id: true, key: true },
         });
         pipelineId = created.id;
+        // Known from now on, so a second Pipedrive pipeline of the same name matches it instead of making another.
+        appPipelines.push({ id: created.id, key: created.key, name, position: nextPosition - 1, archivedAt: null });
       }
     }
 
@@ -171,6 +173,13 @@ async function syncPipelines(work: PhaseWork, pdPipelines: PipedrivePipeline[], 
         select: { id: true, key: true },
       });
       for (const row of fresh) createdIds.set(row.key, row.id);
+      // Keep the in-memory list in step with the database for a later Pipedrive pipeline that lands here too.
+      const shiftFrom = plan.shiftFrom;
+      if (shiftFrom !== null) for (const s of own) if (s.position >= shiftFrom) s.position += plan.creates.length;
+      for (const c of plan.creates) {
+        const stageId = createdIds.get(c.key);
+        if (stageId) appStages.push({ id: stageId, pipelineId: id, key: c.key, name: c.name, position: c.position, isWon: false, isLost: false, archivedAt: null });
+      }
     }
 
     for (const [pdStageId, stageId] of Object.entries(plan.matched)) ctx.stages[pdStageId] = { stageId, pipelineId };
@@ -195,7 +204,10 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
     key === null ? undefined : appFields.find((f) => f.archivedAt === null && f.entity === entity && nameKey(f.label) === key);
 
   ctx.fields = {};
-  const creates: { pdKey: string; key: string; label: string; fieldType: ReturnType<typeof appFieldType>; options: string[]; position: number }[] = [];
+  type FieldCreate = { pdKeys: string[]; key: string; label: string; fieldType: ReturnType<typeof appFieldType>; options: string[]; position: number };
+  const creates: FieldCreate[] = [];
+  // New fields by name key, so a second Pipedrive field of the same name shares the one being made.
+  const pending = new Map<string, FieldCreate>();
   for (const pd of pdFields) {
     const pdKey = pd.key as string;
     bump(work.counts, "customFields.seen");
@@ -204,7 +216,9 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
     const options = pd.field_type === "enum" || pd.field_type === "set" ? (optionLabels(pd.options) ?? {}) : null;
     const deal = findField("DEAL", key);
     ctx.fields[pdKey] = { name, options, dealFieldId: deal?.id ?? null, leadFieldId: findField("LEAD", key)?.id ?? null };
-    if (deal) {
+    const twin = key === null ? undefined : pending.get(key);
+    if (deal || twin) {
+      twin?.pdKeys.push(pdKey);
       bump(work.counts, "customFields.unchanged");
       continue;
     }
@@ -214,14 +228,16 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
       { exact: true },
     );
     const fieldType = appFieldType(pd.field_type);
-    creates.push({
-      pdKey,
+    const create: FieldCreate = {
+      pdKeys: [pdKey],
       key: uniqueKey(kebab(name), keys, "field"),
       label: name,
       fieldType,
       options: fieldType === "SELECT" && options ? Object.values(options) : [],
       position: nextPosition++,
-    });
+    };
+    creates.push(create);
+    if (key !== null) pending.set(key, create);
   }
 
   if (!work.live || creates.length === 0) return;
@@ -238,5 +254,5 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
   });
   const fresh = await prisma.salesCustomField.findMany({ where: { key: { in: creates.map((c) => c.key) } }, select: { id: true, key: true } });
   const idByKey = new Map(fresh.map((f) => [f.key, f.id]));
-  for (const c of creates) ctx.fields[c.pdKey].dealFieldId = idByKey.get(c.key) ?? null;
+  for (const c of creates) for (const pdKey of c.pdKeys) ctx.fields[pdKey].dealFieldId = idByKey.get(c.key) ?? null;
 }

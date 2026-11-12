@@ -400,6 +400,11 @@ describe("startImportRun", () => {
     expect((await startImportRun({ mode: "DRY_RUN", isFinal: false, startedById: "starter" })).ok).toBe(true);
   });
 
+  it("does not lock later real runs when a final run failed", async () => {
+    seed("salesImportRun", { mode: "LIVE", isFinal: true, status: "FAILED", phase: "deals", counts: {}, issues: [], startedById: "starter" });
+    expect((await startImportRun({ mode: "LIVE", isFinal: false, startedById: "starter" })).ok).toBe(true);
+  });
+
   it("starts a run at the users step with empty counts and issues", async () => {
     const runId = await startRun("LIVE", true);
     expect(runRow(runId)).toMatchObject({
@@ -489,10 +494,31 @@ describe("continueImportRun", () => {
     expect(issuesOf(runId)).toEqual([
       {
         phase: "users",
-        message: "The import stopped because Pipedrive refused a request. Pipedrive request failed (HTTP 401): Pipedrive did not accept the API token.",
+        message: "The copy stopped: Pipedrive request failed (HTTP 401): Pipedrive did not accept the API token.",
         count: 1,
         sampleIds: [],
       },
+    ]);
+  });
+
+  it("closes the run in plain words when its saved place does not fit the list, instead of leaving it stuck", async () => {
+    const [run] = seed("salesImportRun", {
+      mode: "LIVE",
+      status: "RUNNING",
+      phase: "organizations",
+      cursor: { context: { users: [], stages: {}, pipelines: {}, fields: {} }, source: 0, page: { start: 300 } },
+      counts: {},
+      issues: [],
+      startedById: "starter",
+    });
+    const { client } = fakeClient(pipedrive());
+
+    const result = await continueImportRun({ runId: run.id as string, client, deadline: FAR, now });
+
+    expect(result).toMatchObject({ done: false, paused: false, phase: "organizations" });
+    expect(runRow(run.id as string)).toMatchObject({ status: "FAILED", finishedAt: clock.now });
+    expect(issuesOf(run.id as string)).toEqual([
+      { phase: "organizations", message: "The copy stopped: The saved page position does not fit this list.", count: 1, sampleIds: [] },
     ]);
   });
 

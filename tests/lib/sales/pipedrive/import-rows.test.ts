@@ -145,15 +145,15 @@ describe("leads", () => {
 });
 
 describe("paging", () => {
-  it("warns when an offset list ends on a full page without saying whether more exist", async () => {
-    const page = Array.from({ length: PAGE_LIMIT }, (_, i) => ({ id: 1000 + i, content: "x", org_id: 100 }));
+  it("adds no 'might be incomplete' issue when an offset list ends on a full page", async () => {
+    const page = Array.from({ length: PAGE_LIMIT }, (_, i) => ({ id: 1000 + i, content: "x", org_id: 100, user_id: 1, add_time: "2025-01-01 00:00:00" }));
     const w = work({ "/api/v1/notes": [page] });
 
     await runRowPhase("notes", w);
 
-    expect(w.issues.groups.map((g) => g.message)).toContain(
-      "Pipedrive sent a full page of notes and did not say whether more exist. If the app shows fewer notes than Pipedrive, some were not copied.",
-    );
+    // The client now pages on until a short page when Pipedrive sends no pagination block, so a full last page is complete.
+    expect(w.issues.groups).toEqual([]);
+    expect(w.counts).toMatchObject({ "notes.seen": PAGE_LIMIT, "notes.created": PAGE_LIMIT });
   });
 
   it("stops before a page when out of time, and leaves its place where it was", async () => {

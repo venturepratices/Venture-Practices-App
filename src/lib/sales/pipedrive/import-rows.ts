@@ -129,13 +129,6 @@ export async function runRowPhase(phase: RowPhase, work: PhaseWork): Promise<Pha
 
         const log: PageLog = { counts: {}, issues: [] };
         if (!(await importPage(phase, rows, work, log))) return "stopped";
-        if (source.style === "offset" && nextPage === null && items.length >= PAGE_LIMIT) {
-          log.issues.push({
-            pipedriveId: null,
-            exact: true,
-            message: `Pipedrive sent a full page of ${phase} and did not say whether more exist. If the app shows fewer ${phase} than Pipedrive, some were not copied.`,
-          });
-        }
         for (const [key, by] of Object.entries(log.counts)) work.counts[key] = (work.counts[key] ?? 0) + by;
         for (const issue of log.issues) work.issues.add({ phase, pipedriveId: issue.pipedriveId, message: issue.message }, { exact: issue.exact });
 
