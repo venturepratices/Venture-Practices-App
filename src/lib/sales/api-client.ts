@@ -33,6 +33,8 @@ import type {
   StageRottingInput,
   UpdateSettingsInput,
 } from "@/lib/sales/settings";
+import type { UserMatch } from "@/lib/sales/pipedrive/import-decide";
+import type { ImportStatus, SavedCheck } from "@/lib/sales/pipedrive/import-view-model";
 import type { DealStatusInput, MoveDealInput, MoveResult, setDealStatus } from "@/lib/sales/stage-moves";
 import type { TimelineCursor, TimelinePage } from "@/lib/sales/timeline";
 
@@ -365,4 +367,33 @@ export function saveStageRottingRequest(
   body: StageRottingInput,
 ): Promise<ApiResult<{ stages: { id: string; rottingDays: number | null }[] }>> {
   return send("PATCH", `/api/sales/pipelines/${encodeURIComponent(pipelineId)}/stages`, body);
+}
+
+// --- Copy from Pipedrive (admin only) ---
+
+/** Admin: start a practice run, a real copy, or the final copy (which needs `confirm: "LOCK"`). */
+export function startImportRequest(body: { mode: "DRY_RUN" | "LIVE" | "FINAL"; confirm?: string }): Promise<ApiResult<{ runId: string }>> {
+  return send("POST", "/api/sales/import/start", body);
+}
+
+/** Admin: carry a running copy forward for one chunk (up to about 45 seconds). */
+export function continueImportRequest(
+  runId: string,
+): Promise<ApiResult<{ done: boolean; paused: boolean; phase: string; counts: Record<string, number> }>> {
+  return send("POST", "/api/sales/import/continue", { runId });
+}
+
+/** Admin: check the latest real copy against Pipedrive and save the report. */
+export function checkImportRequest(): Promise<ApiResult<SavedCheck>> {
+  return send("POST", "/api/sales/import/check", {});
+}
+
+/** Admin: where the copy stands. Never calls Pipedrive. */
+export function getImportStatus(): Promise<ApiResult<ImportStatus>> {
+  return get("/api/sales/import/status");
+}
+
+/** Admin: which team member a Pipedrive user's records go to. Answers the owner list as it now stands. */
+export function saveImportUserRequest(body: { pipedriveUserId: number; memberId: string }): Promise<ApiResult<{ users: UserMatch[] }>> {
+  return send("PUT", "/api/sales/import/users", body);
 }
