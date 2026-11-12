@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const client = pipedriveClientFromEnv();
     if (!client) return failResponse(fail(400, TOKEN_NOT_SET));
 
-    const result = await checkLatestRun({ client, now: new Date(), random: Math.random });
+    const result = await checkLatestRun({ client, now: new Date(), random: Math.random, env: process.env });
     if (!result.ok) return failResponse(result);
     return NextResponse.json({ report: result.report, at: result.at });
   } catch (error) {

@@ -21,6 +21,12 @@ export function pipedriveClientFromEnv(env: Record<string, string | undefined> =
   return token ? createPipedriveClient({ token }) : null;
 }
 
+/** `text` with every copy of the token replaced, so no message can carry it to the browser. */
+export function hideToken(text: string, env: Record<string, string | undefined> = process.env): string {
+  const token = env.PIPEDRIVE_API_TOKEN?.trim();
+  return token ? text.split(token).join("[hidden]") : text;
+}
+
 const SPOT_PICKS = 5;
 const CHECK_GAP_MS = 60_000;
 const ENTITIES: CheckEntity[] = ["organizations", "persons", "deals", "leads", "activities", "notes"];
@@ -55,12 +61,19 @@ export async function checkLatestRun(args: {
   client: PipedriveClient;
   now: Date;
   random: () => number;
+  env?: Record<string, string | undefined>;
 }): Promise<({ ok: true } & SavedCheck) | SalesFail> {
+  // The latest real copy. Practice runs never count, and a practice run after
+  // a real copy does not hide it. A newer real copy that is still running or
+  // stopped is the one the app now reflects, so it is refused, not skipped.
   const latest = await prisma.salesImportRun.findFirst({
+    where: { mode: "LIVE" },
     orderBy: { startedAt: "desc" },
-    select: { id: true, mode: true, status: true, cursor: true, counts: true },
+    select: { id: true, status: true, cursor: true, counts: true },
   });
-  if (!latest || latest.mode !== "LIVE" || latest.status !== "DONE") return fail(409, "Run the real copy first.");
+  if (!latest) return fail(409, "Run the real copy first.");
+  if (latest.status === "RUNNING") return fail(409, "A real copy is running. Check it once it finishes.");
+  if (latest.status !== "DONE") return fail(409, "The last real copy stopped before it finished. Run the real copy first.");
 
   const previous = readSavedCheck(latest.cursor);
   if (previous && args.now.getTime() - new Date(previous.at).getTime() < CHECK_GAP_MS) {
@@ -73,8 +86,8 @@ export async function checkLatestRun(args: {
   } catch (error) {
     if (!(error instanceof PipedriveError)) throw error;
     if (error.status === 429) return fail(409, "Pipedrive asked us to slow down. Try the check again in a minute.");
-    // The client's messages never carry the token.
-    return fail(503, `The check could not finish: ${error.message}`);
+    // The client's messages never carry the token; it is taken out here as well, in case one ever does.
+    return fail(503, hideToken(`The check could not finish: ${error.message}`, args.env ?? process.env));
   }
 
   const at = args.now.toISOString();

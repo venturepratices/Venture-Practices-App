@@ -88,6 +88,7 @@ const statusRoute = await import("@/app/api/sales/import/status/route");
 const usersRoute = await import("@/app/api/sales/import/users/route");
 const { PermissionError } = await import("@/lib/permissions");
 const { randomIndexes } = await import("@/lib/sales/pipedrive/import-check");
+const { PipedriveError } = await import("@/lib/sales/pipedrive/client");
 
 const FAKE_TOKEN = "pdtok-SECRETVALUE-0123456789abcdefZQ9x";
 const ADMIN = { userId: "admin-1", isAdmin: true };
@@ -241,13 +242,75 @@ describe("POST continue", () => {
     const res = await continueRoute.POST(req("POST", { runId: "nope" }, "continue"));
     expect(res.status).toBe(404);
   });
+
+  it("answers 409, not a crash, when the run finishes between the route's look and the engine's", async () => {
+    const row = run({ status: "RUNNING", phase: "notes", finishedAt: null });
+    continueImportRun.mockImplementation(async () => {
+      row.status = "DONE";
+      throw new Error("This import is not running, so it cannot continue.");
+    });
+    const res = await continueRoute.POST(req("POST", { runId: "run1" }, "continue"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("This copy is not running any more.");
+  });
+
+  it("still fails loudly on an unexpected error while the run is running", async () => {
+    run({ status: "RUNNING", phase: "notes", finishedAt: null });
+    continueImportRun.mockRejectedValue(new Error("database went away"));
+    await expect(continueRoute.POST(req("POST", { runId: "run1" }, "continue"))).rejects.toThrow("database went away");
+  });
+});
+
+describe("requests from another site and broken bodies", () => {
+  const fromElsewhere = (method: string, path: string, body: unknown) =>
+    new Request(`http://localhost/api/sales/import/${path}`, {
+      method,
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json", origin: "https://evil.example", host: "localhost" },
+    });
+
+  it.each([
+    ["start", () => startRoute.POST(fromElsewhere("POST", "start", { mode: "DRY_RUN" }))],
+    ["continue", () => continueRoute.POST(fromElsewhere("POST", "continue", { runId: "run1" }))],
+    ["check", () => checkRoute.POST(fromElsewhere("POST", "check", {}))],
+    ["users", () => usersRoute.PUT(fromElsewhere("PUT", "users", { pipedriveUserId: 7, memberId: "m1" }))],
+  ] as const)("%s refuses a write from another site with 403", async (_name, call) => {
+    run({ status: "RUNNING", finishedAt: null });
+    const res = await call();
+    expect(res.status).toBe(403);
+    expect(startImportRun).not.toHaveBeenCalled();
+    expect(continueImportRun).not.toHaveBeenCalled();
+    expect(buildCheckReport).not.toHaveBeenCalled();
+    expect(setUserMapping).not.toHaveBeenCalled();
+  });
+
+  const broken = (method: string, path: string) =>
+    new Request(`http://localhost/api/sales/import/${path}`, { method, body: "{not json", headers: { "content-type": "application/json" } });
+
+  it.each([
+    ["start", () => startRoute.POST(broken("POST", "start"))],
+    ["continue", () => continueRoute.POST(broken("POST", "continue"))],
+    ["users", () => usersRoute.PUT(broken("PUT", "users"))],
+  ] as const)("%s answers 400 to a body that is not JSON", async (_name, call) => {
+    const res = await call();
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("POST check", () => {
   const CHECK = { rows: [{ label: "Deals", entity: "deals", pipedrive: 3, app: 3, skipped: 0, ok: true }], spot: [] };
 
-  it("refuses when the latest run is a practice run", async () => {
-    run({ mode: "LIVE", status: "DONE" });
+  it("checks the finished real copy even when a practice run came after it", async () => {
+    buildCheckReport.mockResolvedValue(CHECK);
+    run({ mode: "LIVE", status: "DONE", cursor: { source: 0 } });
+    run({ mode: "DRY_RUN", status: "DONE", cursor: { source: 0 } });
+    const res = await checkRoute.POST(req("POST", {}, "check"));
+    expect(res.status).toBe(200);
+    expect((db.runs[0].cursor as Row).report).toBeTruthy();
+    expect((db.runs[1].cursor as Row).report).toBeUndefined();
+  });
+
+  it("refuses when there is only a practice run", async () => {
     run({ mode: "DRY_RUN", status: "DONE" });
     const res = await checkRoute.POST(req("POST", {}, "check"));
     expect(res.status).toBe(409);
@@ -260,6 +323,33 @@ describe("POST check", () => {
     const res = await checkRoute.POST(req("POST", {}, "check"));
     expect(res.status).toBe(409);
     expect(buildCheckReport).not.toHaveBeenCalled();
+  });
+
+  it.each(["RUNNING", "FAILED"] as const)("refuses when a newer real copy is %s, even after a finished one", async (status) => {
+    run({ mode: "LIVE", status: "DONE" });
+    run({ mode: "LIVE", status, finishedAt: null });
+    const res = await checkRoute.POST(req("POST", {}, "check"));
+    expect(res.status).toBe(409);
+    expect(buildCheckReport).not.toHaveBeenCalled();
+  });
+
+  it("answers a Pipedrive failure in plain words without the token, even if the error text carries it", async () => {
+    run();
+    buildCheckReport.mockRejectedValue(new PipedriveError(500, `Pipedrive answered 500 for api_token=${FAKE_TOKEN}`));
+    const res = await checkRoute.POST(req("POST", {}, "check"));
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    expect(text).not.toContain(FAKE_TOKEN);
+    expect(text).not.toContain("SECRETVALUE");
+    expect(JSON.parse(text).error).toMatch(/^The check could not finish: /);
+  });
+
+  it("answers Pipedrive's slow-down with a 409", async () => {
+    run();
+    buildCheckReport.mockRejectedValue(new PipedriveError(429, "Too many requests."));
+    const res = await checkRoute.POST(req("POST", {}, "check"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/slow down/);
   });
 
   it("refuses a second check within a minute of the saved one", async () => {
@@ -343,6 +433,15 @@ describe("GET status", () => {
     expect(buildCheckReport).not.toHaveBeenCalled();
   });
 
+  it("still hands back the real copy's check after a later practice run", async () => {
+    const at = "2026-11-12T16:05:00.000Z";
+    run({ mode: "LIVE", cursor: { source: 0, report: { report: { rows: [], spot: [] }, at } } });
+    run({ mode: "DRY_RUN", cursor: { source: 0 } });
+    const body = await (await statusRoute.GET()).json();
+    expect(body.run.mode).toBe("DRY_RUN");
+    expect(body.check).toEqual({ report: { rows: [], spot: [] }, at });
+  });
+
   it("says when copying is locked and hands back the saved check", async () => {
     const at = "2026-11-12T16:05:00.000Z";
     run({ isFinal: true, cursor: { source: 0, report: { report: { rows: [], spot: [] }, at } } });
@@ -373,6 +472,12 @@ describe("PUT users", () => {
     expect(res.status).toBe(200);
     expect(setUserMapping).toHaveBeenCalledWith({ pipedriveUserId: 7, memberId: "m1" });
     expect((await res.json()).users).toHaveLength(1);
+  });
+
+  it("refuses a Pipedrive user id too big for the database", async () => {
+    const res = await usersRoute.PUT(req("PUT", { pipedriveUserId: 2147483648, memberId: "m1" }, "users"));
+    expect(res.status).toBe(400);
+    expect(setUserMapping).not.toHaveBeenCalled();
   });
 
   it("refuses a body that is not a number and an id", async () => {

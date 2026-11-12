@@ -8,7 +8,7 @@ import { fail, failResponse, readJson } from "@/lib/sales/http";
 import { loadUserMappings, setUserMapping } from "@/lib/sales/pipedrive/import";
 
 const userMapSchema = z.strictObject({
-  pipedriveUserId: z.number().int().positive(),
+  pipedriveUserId: z.number().int().min(1).max(2147483647),
   memberId: z.string().min(1).max(100),
 });
 
