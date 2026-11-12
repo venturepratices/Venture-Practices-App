@@ -94,7 +94,7 @@ About files and notes:
 >
 > **What it costs:**
 > - No new tool is needed. The copy tool is part of the app.
-> - Copied files sit in the app's existing file storage, so they may add a little to its usage (not confirmed).
+> - Copied files use the app's existing file storage.
 > - Cancelling Pipedrive after the 2 weeks removes its monthly fee.
 >
 > **Ready when you are.**
