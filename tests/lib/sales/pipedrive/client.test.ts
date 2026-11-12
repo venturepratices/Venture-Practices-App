@@ -386,9 +386,109 @@ describe("read-only by construction", () => {
     }
   });
 
-  it("exposes only pages and download", () => {
+  it("exposes only pages, pageBatches and download", () => {
     const { client } = makeClient([json({})]);
-    expect(Object.keys(client).sort()).toEqual(["download", "pages"]);
+    expect(Object.keys(client).sort()).toEqual(["download", "pageBatches", "pages"]);
+  });
+});
+
+describe("pageBatches (resumable pages)", () => {
+  async function collectBatches<T>(gen: AsyncGenerator<{ items: T[]; resumeAt: unknown }>) {
+    const out: { items: T[]; resumeAt: unknown }[] = [];
+    for await (const batch of gen) out.push(batch);
+    return out;
+  }
+
+  it("gives each cursor page with where the next page starts, null after the last", async () => {
+    const { client, calls } = makeClient([
+      json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: "c2" } }),
+      json({ success: true, data: [{ id: 2 }], additional_data: { next_cursor: null } }),
+    ]);
+
+    const batches = await collectBatches(client.pageBatches<{ id: number }>("/api/v2/deals", { limit: 1 }));
+
+    expect(batches).toEqual([
+      { items: [{ id: 1 }], resumeAt: { cursor: "c2" } },
+      { items: [{ id: 2 }], resumeAt: null },
+    ]);
+    expect(paramsOf(calls[0]).get("cursor")).toBeNull();
+    expect(paramsOf(calls[1]).get("cursor")).toBe("c2");
+  });
+
+  it("starts at a saved cursor and never re-reads the pages before it", async () => {
+    const { client, calls } = makeClient([json({ success: true, data: [{ id: 2 }], additional_data: { next_cursor: null } })]);
+
+    const batches = await collectBatches(client.pageBatches("/api/v2/deals", { resumeAt: { cursor: "c2" } }));
+
+    expect(calls).toHaveLength(1);
+    expect(paramsOf(calls[0]).get("cursor")).toBe("c2");
+    expect(batches).toEqual([{ items: [{ id: 2 }], resumeAt: null }]);
+  });
+
+  it("refuses a cursor that sends it back to the page it resumed at", async () => {
+    const { client } = makeClient([json({ success: true, data: [{ id: 2 }], additional_data: { next_cursor: "c2" } })]);
+
+    const failure = await collectBatches(client.pageBatches("/api/v2/deals", { resumeAt: { cursor: "c2" } })).catch(
+      (e: unknown) => e,
+    );
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).message).toContain("repeated a page cursor");
+  });
+
+  it("gives each offset page with the next start, and starts at a saved start", async () => {
+    const { client, calls } = makeClient([
+      json({ success: true, data: [{ id: 3 }], additional_data: { pagination: { more_items_in_collection: true, next_start: 3 } } }),
+      json({ success: true, data: [{ id: 4 }], additional_data: { pagination: { more_items_in_collection: false } } }),
+    ]);
+
+    const batches = await collectBatches(
+      client.pageBatches("/api/v1/notes", { style: "offset", limit: 1, resumeAt: { start: 2 } }),
+    );
+
+    expect(batches).toEqual([
+      { items: [{ id: 3 }], resumeAt: { start: 3 } },
+      { items: [{ id: 4 }], resumeAt: null },
+    ]);
+    expect(paramsOf(calls[0]).get("start")).toBe("2");
+    expect(paramsOf(calls[1]).get("start")).toBe("3");
+  });
+
+  it("refuses an offset that does not move past the saved start", async () => {
+    const { client } = makeClient([
+      json({ success: true, data: [{ id: 3 }], additional_data: { pagination: { more_items_in_collection: true, next_start: 2 } } }),
+    ]);
+
+    const failure = await collectBatches(client.pageBatches("/api/v1/notes", { style: "offset", resumeAt: { start: 2 } })).catch(
+      (e: unknown) => e,
+    );
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+  });
+
+  it("gives an empty page too, so its place can still be saved", async () => {
+    const { client } = makeClient([json({ success: true, data: [], additional_data: { next_cursor: null } })]);
+
+    expect(await collectBatches(client.pageBatches("/api/v2/deals"))).toEqual([{ items: [], resumeAt: null }]);
+  });
+
+  it("refuses a saved place of the wrong kind for the paging style", async () => {
+    const { client, calls } = makeClient([json({ success: true, data: [] })]);
+
+    const failure = await collectBatches(client.pageBatches("/api/v2/deals", { resumeAt: { start: 5 } })).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("sends only GET with the token in the header", async () => {
+    const { client, calls } = makeClient([json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: null } })]);
+
+    await collectBatches(client.pageBatches("/api/v2/deals", { resumeAt: { cursor: "c9" } }));
+
+    expect(calls[0].init.method).toBe("GET");
+    expect((calls[0].init.headers as Record<string, string>)["x-api-token"]).toBe(TOKEN);
+    expect(calls[0].url).not.toContain(TOKEN);
   });
 });
 

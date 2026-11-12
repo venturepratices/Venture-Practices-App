@@ -47,12 +47,23 @@ export class PipedriveError extends Error {
   }
 }
 
+export type PagesOptions = { style?: "cursor" | "offset"; params?: Record<string, string | number>; limit?: number };
+
+/** Where a page starts: a v2 cursor, or a v1 offset. Saved by the import so a resume never re-reads a finished page. */
+export type PageToken = { cursor: string } | { start: number };
+
 export type PipedriveClient = {
   /** One array per page of the list at `path`, in order, until Pipedrive says there is no more. */
-  pages<T>(
+  pages<T>(path: string, opts?: PagesOptions): AsyncGenerator<T[], void, void>;
+  /**
+   * The same pages, each with `resumeAt`: where the NEXT page starts (null after
+   * the last page). Pass a saved `resumeAt` back in to carry on from there. Empty
+   * pages are given too, so their place can be saved.
+   */
+  pageBatches<T>(
     path: string,
-    opts?: { style?: "cursor" | "offset"; params?: Record<string, string | number>; limit?: number },
-  ): AsyncGenerator<T[], void, void>;
+    opts?: PagesOptions & { resumeAt?: PageToken },
+  ): AsyncGenerator<{ items: T[]; resumeAt: PageToken | null }, void, void>;
   /** The raw bytes of a file, from "/api/v1/files/{id}/download". */
   download(path: string): Promise<{ bytes: Uint8Array; contentType: string }>;
 };
@@ -135,41 +146,55 @@ export function createPipedriveClient(opts: {
     }
   }
 
-  async function* pages<T>(
+  async function* pageBatches<T>(
     path: string,
-    pageOpts: { style?: "cursor" | "offset"; params?: Record<string, string | number>; limit?: number } = {},
-  ): AsyncGenerator<T[], void, void> {
-    const { style = "cursor", params = {}, limit } = pageOpts;
+    pageOpts: PagesOptions & { resumeAt?: PageToken } = {},
+  ): AsyncGenerator<{ items: T[]; resumeAt: PageToken | null }, void, void> {
+    const { style = "cursor", params = {}, limit, resumeAt } = pageOpts;
+    if (resumeAt !== undefined && ("cursor" in resumeAt) !== (style === "cursor")) {
+      throw new Error("The saved page position does not fit this list.");
+    }
 
-    let cursor: string | null = null;
-    // Every cursor Pipedrive has handed back. Seeing one twice means it is going
-    // in circles, which would burn the company's request budget for nothing.
-    const seen = new Set<string>();
-    let start = 0;
+    let cursor: string | null = resumeAt && "cursor" in resumeAt ? resumeAt.cursor : null;
+    // Every cursor used so far. Seeing one twice means Pipedrive is going in
+    // circles, which would burn the company's request budget for nothing.
+    const seen = new Set<string>(cursor === null ? [] : [cursor]);
+    let start = resumeAt && "start" in resumeAt ? resumeAt.start : 0;
     for (;;) {
       const query: Record<string, string | number> = { ...params };
       if (limit !== undefined) query.limit = limit;
       if (style === "offset") query.start = start;
       else if (cursor !== null) query.cursor = cursor;
       const body = await getJson(buildUrl(path, query));
-
-      // Empty or null data means "nothing here", not a page to hand back.
-      if (Array.isArray(body.data) && body.data.length > 0) yield body.data as T[];
+      const items = (Array.isArray(body.data) ? body.data : []) as T[];
 
       if (style === "cursor") {
         cursor = nextCursor(body);
-        if (cursor === null) return;
+        if (cursor === null) {
+          yield { items, resumeAt: null };
+          return;
+        }
         // An error, not a quiet stop: a stop here would look like a complete copy.
         if (seen.has(cursor)) {
           throw new PipedriveError(200, "Pipedrive repeated a page cursor, so the copy stopped instead of looping.");
         }
         seen.add(cursor);
+        yield { items, resumeAt: { cursor } };
       } else {
         const next = nextStart(body, start);
-        if (next === null) return;
+        if (next === null) {
+          yield { items, resumeAt: null };
+          return;
+        }
         start = next;
+        yield { items, resumeAt: { start } };
       }
     }
+  }
+
+  async function* pages<T>(path: string, pageOpts: PagesOptions = {}): AsyncGenerator<T[], void, void> {
+    // Empty or null data means "nothing here", not a page to hand back.
+    for await (const batch of pageBatches<T>(path, pageOpts)) if (batch.items.length > 0) yield batch.items;
   }
 
   async function download(path: string): Promise<{ bytes: Uint8Array; contentType: string }> {
@@ -205,7 +230,7 @@ export function createPipedriveClient(opts: {
     };
   }
 
-  return { pages, download };
+  return { pages, pageBatches, download };
 }
 
 /**
