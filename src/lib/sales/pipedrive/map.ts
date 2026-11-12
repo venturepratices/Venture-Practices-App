@@ -339,13 +339,13 @@ function quoted(text: string): string {
 }
 
 /** A Pipedrive record id: a whole number above 0, plain or nested as `{ value }`. Anything else is null. */
-function refId(ref: unknown): number | null {
+export function refId(ref: unknown): number | null {
   const raw = ref !== null && typeof ref === "object" ? (ref as { value?: unknown }).value : ref;
   return typeof raw === "number" && Number.isInteger(raw) && raw > 0 ? raw : null;
 }
 
 /** A lead's UUID, plain or nested as `{ value }`. Anything else is null. */
-function leadRef(ref: unknown): string | null {
+export function leadRef(ref: unknown): string | null {
   const raw = ref !== null && typeof ref === "object" ? (ref as { value?: unknown }).value : ref;
   return clean(raw) || null;
 }
@@ -359,7 +359,7 @@ const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
  * calendar day is checked first because the Date constructor quietly turns
  * "2026-02-30" into 2 March. Null when it cannot be read.
  */
-function parseUtc(value: unknown): Date | null {
+export function parseUtc(value: unknown): Date | null {
   if (typeof value !== "string") return null;
   const match = TIMESTAMP.exec(value.trim());
   if (!match) return null;

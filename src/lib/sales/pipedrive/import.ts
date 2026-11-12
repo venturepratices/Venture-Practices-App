@@ -22,6 +22,7 @@ import { isPrismaError } from "@/lib/prisma-errors";
 import { SALES_MEMBER_WHERE } from "@/lib/sales/access";
 import { PipedriveError, type PipedriveClient } from "@/lib/sales/pipedrive/client";
 import { matchPipedriveUsers, type UserMatch } from "@/lib/sales/pipedrive/import-decide";
+import { runFilesPhase } from "@/lib/sales/pipedrive/import-files";
 import { isRowPhase, runRowPhase } from "@/lib/sales/pipedrive/import-rows";
 import {
   createIssueLog,
@@ -191,7 +192,8 @@ function runPhase(phase: ImportPhase, work: PhaseWork): Promise<PhaseResult> {
   if (phase === "users") return runUsersPhase(work);
   if (phase === "structure") return runStructurePhase(work);
   if (isRowPhase(phase)) return runRowPhase(phase, work);
-  // "files" is filled in by the file copy (Task 7); until then the step simply moves on.
+  if (phase === "files") return runFilesPhase(work);
+  // "done" has nothing to run.
   return Promise.resolve("finished");
 }
 

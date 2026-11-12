@@ -14,6 +14,8 @@ import { clock, db, fakeClient, resetDb, seed, writes } from "./import-fakes";
 
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
+// The files step stores into the private Blob store; no real store is ever reached.
+vi.mock("@vercel/blob", () => ({ put: vi.fn(async () => ({})), del: vi.fn(async () => undefined) }));
 
 const { startImportRun, continueImportRun, setUserMapping } = await import("@/lib/sales/pipedrive/import");
 
@@ -88,10 +90,22 @@ function lists(dealTitle: string, zip: string) {
       [{ id: 400, subject: dealTitle, type: "call", due_date: "2025-01-02", owner_id: 1, deal_id: 300, add_time: "2025-01-01T00:00:00Z" }],
     ],
     "/api/v1/notes": [[{ id: 500, content: dealTitle, deal_id: 300, user_id: 1, add_time: "2025-01-01 00:00:00" }]],
+    // One file on the deal, and one on the lead (so a file write for each kind of link is checked).
+    "/api/v1/files": [
+      [
+        { id: 600, file_name: "Quote.pdf", name: "Quote.pdf", file_size: 20, deal_id: 300, add_time: "2025-01-01 00:00:00", active_flag: true },
+        { id: 601, file_name: "Lead.pdf", name: "Lead.pdf", file_size: 20, lead_id: "u-1", add_time: "2025-01-01 00:00:00", active_flag: true },
+      ],
+    ],
   };
 }
 
+/** A tiny PDF: what the fake Pipedrive hands back for each file download. */
+const PDF_BYTES = Uint8Array.from("%PDF-1.7 test", (char) => char.charCodeAt(0));
+const DOWNLOADS = { 600: PDF_BYTES, 601: PDF_BYTES };
+
 beforeEach(() => {
+  vi.stubEnv("BLOB_READ_WRITE_TOKEN", "test-token");
   resetDb();
   vi.useFakeTimers({ toFake: ["Date"] });
   clock.now = new Date("2026-11-12T15:00:00.000Z");
@@ -112,6 +126,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("every column the import writes exists in the schema", () => {
@@ -122,7 +137,8 @@ describe("every column the import writes exists in the schema", () => {
     ]) {
       const started = await startImportRun({ mode: "LIVE", isFinal: false, startedById: "starter" });
       if (!started.ok) throw new Error(started.message);
-      const result = await continueImportRun({ runId: started.runId, client: fakeClient(lists(title, zip)).client, deadline: FAR, now });
+      const client = fakeClient(lists(title, zip), { downloads: DOWNLOADS }).client;
+      const result = await continueImportRun({ runId: started.runId, client, deadline: FAR, now });
       expect(result.done).toBe(true);
     }
     // A run that went quiet is closed by the next start (a conditional update on the run row).
@@ -157,6 +173,7 @@ describe("every column the import writes exists in the schema", () => {
         "SalesCustomFieldValue update",
         "SalesDeal createMany",
         "SalesDeal update",
+        "SalesFile create",
         "SalesImportRun create",
         "SalesImportRun updateMany",
         "SalesImportUserMap upsert",

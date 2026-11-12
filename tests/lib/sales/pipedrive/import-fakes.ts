@@ -22,6 +22,7 @@ export const TABLES = [
   "salesLead",
   "salesActivity",
   "salesNote",
+  "salesFile",
   "salesAuditLog",
   "salesImportRun",
   "salesImportUserMap",
@@ -44,6 +45,7 @@ const UNIQUE: Partial<Record<Table, string[][]>> = {
   salesLead: [["pipedriveId"]],
   salesActivity: [["pipedriveId"]],
   salesNote: [["pipedriveId"]],
+  salesFile: [["pipedriveId"]],
   salesImportUserMap: [["pipedriveUserId"]],
 };
 
@@ -247,20 +249,36 @@ export type ListCall = { path: string; resumeAt: PageToken | undefined; limit: n
 
 /**
  * Serves `lists[path]` as pages, in order. Page n's resumeAt is `{ cursor: "p<n>" }`
- * (cursor style) or `{ start: n * 100 }` (offset style). `failOn[path]` throws
- * that error when the list is asked for. `onPage` runs as each page is served.
+ * (cursor style) or `{ start: n * 100 }` (offset style); an offset resume at
+ * `n * 100 + k` serves page n from its k-th row on. `failOn[path]` throws that
+ * error when the list is asked for. `onPage` runs as each page is served.
+ * `downloads[fileId]` is what "/api/v1/files/{id}/download" answers (bytes, or an
+ * error to throw); `onDownload` runs first, and `downloads` in the result lists
+ * every download path asked for.
  */
 export function fakeClient(
   lists: Record<string, unknown[][]>,
-  opts: { failOn?: Record<string, Error>; onPage?: (path: string, index: number) => void } = {},
+  opts: {
+    failOn?: Record<string, Error>;
+    onPage?: (path: string, index: number) => void;
+    downloads?: Record<number, Uint8Array | Error>;
+    onDownload?: (path: string) => void;
+  } = {},
 ) {
   const calls: ListCall[] = [];
+  const downloads: string[] = [];
   const client: PipedriveClient = {
     pages: () => {
       throw new Error("The engine must use pageBatches.");
     },
-    download: async () => {
-      throw new Error("No downloads in these tests.");
+    download: async (path: string) => {
+      downloads.push(path);
+      opts.onDownload?.(path);
+      const id = Number(/\/files\/(\d+)\/download$/.exec(path)?.[1]);
+      const served = opts.downloads?.[id];
+      if (served === undefined) throw new Error("No downloads in these tests.");
+      if (served instanceof Error) throw served;
+      return { bytes: served, contentType: "application/octet-stream" };
     },
     async *pageBatches<T>(path: string, o: { style?: "cursor" | "offset"; limit?: number; resumeAt?: PageToken } = {}) {
       calls.push({ path, resumeAt: o.resumeAt, limit: o.limit, style: o.style });
@@ -273,14 +291,19 @@ export function fakeClient(
       }
       const pages = lists[path] ?? [[]];
       let index = 0;
-      if (o.resumeAt) index = "cursor" in o.resumeAt ? Number(o.resumeAt.cursor.slice(1)) : o.resumeAt.start / 100;
-      for (; index < pages.length; index++) {
+      let skip = 0;
+      if (o.resumeAt && "cursor" in o.resumeAt) index = Number(o.resumeAt.cursor.slice(1));
+      else if (o.resumeAt) {
+        index = Math.floor(o.resumeAt.start / 100);
+        skip = o.resumeAt.start % 100;
+      }
+      for (let first = true; index < pages.length; index++, first = false) {
         opts.onPage?.(path, index);
         const last = index === pages.length - 1;
         const resumeAt: PageToken | null = last ? null : offset ? { start: (index + 1) * 100 } : { cursor: `p${index + 1}` };
-        yield { items: pages[index] as T[], resumeAt };
+        yield { items: (first && skip > 0 ? pages[index].slice(skip) : pages[index]) as T[], resumeAt };
       }
     },
   };
-  return { client, calls };
+  return { client, calls, downloads };
 }
