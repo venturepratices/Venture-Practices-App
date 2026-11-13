@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { SalesActor } from "@/lib/sales/access";
 import { autoTurnOff, BOT_ABUSE_LIMITS } from "@/lib/sales/bot-alerts";
-import { alertOffKeyUsed, type BotCallInfo, logBotCall, noteAddress } from "@/lib/sales/bot-call-log";
+import { alertOffKeyUsed, type BotCallInfo, logBotCall, logRefusedCall, noteAddress } from "@/lib/sales/bot-call-log";
 import { bestEffort, countCall, countSignal, windowStarts } from "@/lib/sales/bot-counters";
 import { botsEnabled, isAddressSlowed, recordBadKey } from "@/lib/sales/bot-guard";
 import { BOT_LIMITS, BOT_SECRET_PREFIX, type BotScope } from "@/lib/sales/bot-scopes";
@@ -88,8 +88,12 @@ export async function authenticateBot(
     return { ok: false, status: 401, error: INVALID_KEY };
   }
 
-  const refuse = async (status: 401 | 403 | 429, error: string): Promise<BotAuthResult> => {
-    await logBotCall(token.id, call, status, now);
+  // A refused call is logged (at most 20 rows per key per day, so a replayed key
+  // cannot grow the log without end). Off, expired and over-limit refusals also
+  // count against the caller's address, so replays get slowed like bad keys.
+  const refuse = async (status: 401 | 403 | 429, error: string, slow = true): Promise<BotAuthResult> => {
+    if (slow) recordBadKey(call.ip, now);
+    await logRefusedCall(token.id, call, status, now);
     return { ok: false, status, error };
   };
 
@@ -123,11 +127,11 @@ export async function authenticateBot(
     if (refused >= BOT_ABUSE_LIMITS.refusedPerDay) {
       await autoTurnOff(token, `it asked ${refused} times today for things it is not allowed to do.`, now);
     }
-    return refuse(403, NOT_ALLOWED);
+    return refuse(403, NOT_ALLOWED, false);
   }
 
   await logBotCall(token.id, call, 200, now);
-  await noteAddress(token, call.ip);
+  await noteAddress(token, call.ip, now);
   if (!token.lastUsedAt || now.getTime() - token.lastUsedAt.getTime() >= LAST_USED_EVERY_MS) {
     // updateMany, so a key deleted a moment ago is a no-op rather than an error.
     await bestEffort("lastUsedAt", () =>

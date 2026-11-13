@@ -124,3 +124,25 @@ describe("alerts to admins, in the app only", () => {
     for (const row of fake.notifications) expect(["admin1", "admin2"]).toContain(row.recipientId);
   });
 });
+
+describe("bounded noise from a misbehaving key", () => {
+  it("tells admins about new addresses at most once per key per day", async () => {
+    const header = addToken();
+    for (let i = 0; i < 10; i += 1) await authenticateBot(header, at(i * 70_000), { ...CALL, ip: `198.51.100.${i + 1}` });
+    expect(fake.notifications.filter((n) => n.recipientId === "admin1")).toHaveLength(1);
+    expect(fake.notifications.filter((n) => n.recipientId === "admin2")).toHaveLength(1);
+  });
+
+  it("writes at most 20 log rows a day for a refused known key, the first with its reason", async () => {
+    const header = addToken({ enabled: false });
+    for (let i = 0; i < 100; i += 1) await authenticateBot(header, at(i), { ...CALL, ip: `198.51.100.${i % 50}` });
+    expect(fake.calls.length).toBeLessThanOrEqual(20);
+    expect(fake.calls[0]).toMatchObject({ tokenId: "bot1", status: 401 });
+  });
+
+  it("slows down an address that keeps replaying a refused key", async () => {
+    const header = addToken({ enabled: false });
+    for (let i = 0; i < BAD_KEY_LIMIT; i += 1) await authenticateBot(header, at(i), CALL);
+    await expect(authenticateBot(header, at(100), CALL)).resolves.toMatchObject({ ok: false, status: 429 });
+  });
+});

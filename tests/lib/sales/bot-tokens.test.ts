@@ -115,10 +115,9 @@ beforeEach(() => {
   usageDeleteMany.mockReset();
 });
 
-/** Nothing was counted against the key and lastUsedAt was not touched. */
+/** Nothing was counted against the key's call limits and lastUsedAt was not touched (a refused call only counts toward the refused-call log cap). */
 function expectNoBookkeeping() {
-  expect(usageUpsert).not.toHaveBeenCalled();
-  expect(db.usage.size).toBe(0);
+  expect([...db.usage.keys()].filter((key) => /\|(minute|day)\|/.test(key))).toEqual([]);
   expect(tokenUpdateMany).not.toHaveBeenCalled();
   expect(usageDeleteMany).not.toHaveBeenCalled();
   for (const token of db.tokens) expect(token.lastUsedAt).toBeNull();

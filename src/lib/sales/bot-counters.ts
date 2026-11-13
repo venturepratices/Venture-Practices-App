@@ -4,9 +4,10 @@ import { isPrismaError } from "@/lib/prisma-errors";
 // The per-key counters behind the call limits and the abuse signals, one
 // BotTokenUsage row per key, kind and window. Kinds: "minute" and "day" for the
 // limits, "limit-minutes" and "refused" (day windows) for the abuse signals, and
-// "rows" (day windows) for how many records a bot has read today.
+// "rows" (day windows) for how many records a bot has read today, "refused-log"
+// for how many refused calls were logged today and "ip-alerts" for new-address alerts.
 
-export type CounterKind = "minute" | "day" | "limit-minutes" | "refused" | "rows";
+export type CounterKind = "minute" | "day" | "limit-minutes" | "refused" | "rows" | "refused-log" | "ip-alerts";
 
 export function windowStarts(now: Date): { minute: Date; day: Date } {
   const minute = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
@@ -55,7 +56,11 @@ export async function bestEffort(label: string, write: () => Promise<unknown>): 
 }
 
 /** Counts an abuse signal for today; returns the new count, or 0 when it could not be counted. */
-export async function countSignal(tokenId: string, kind: "limit-minutes" | "refused", now: Date): Promise<number> {
+export async function countSignal(
+  tokenId: string,
+  kind: "limit-minutes" | "refused" | "refused-log" | "ip-alerts",
+  now: Date,
+): Promise<number> {
   try {
     return (await countCall(tokenId, kind, windowStarts(now).day)) ?? 0;
   } catch (error) {

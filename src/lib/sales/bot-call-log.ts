@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { alertAdmins } from "@/lib/sales/bot-alerts";
+import { countSignal } from "@/lib/sales/bot-counters";
 
 // The usage log for bot keys: one BotCallLog row per call a known key makes
 // (which key, when, what, from where, the result). Never the key or its hash.
@@ -58,10 +59,15 @@ export async function alertOffKeyUsed(bot: { id: string; name: string }, now: Da
   });
 }
 
-/** Remembers a new address for the key, sets it as the last one, and tells admins. */
+/**
+ * Remembers a new address for the key, sets it as the last one, and tells
+ * admins: at most once per key per UTC day, so a key hopping between many
+ * addresses cannot flood the admins' notifications.
+ */
 export async function noteAddress(
   bot: { id: string; name: string; knownIps: string[]; lastUsedIp: string | null },
   ip: string | null,
+  now = new Date(),
 ): Promise<void> {
   const address = cap(ip);
   if (!address) return;
@@ -73,5 +79,15 @@ export async function noteAddress(
   }
   const knownIps = [...bot.knownIps, address].slice(-MAX_KNOWN_IPS);
   await bestEffort("new IP", () => prisma.botToken.updateMany({ where: { id: bot.id }, data: { knownIps, lastUsedIp: address } }));
-  await alertAdmins(bot, `The bot "${bot.name}" was used from a new address (${address}). If you did not expect this, turn it off.`);
+  if ((await countSignal(bot.id, "ip-alerts", now)) === 1) {
+    await alertAdmins(bot, `The bot "${bot.name}" was used from a new address (${address}). If you did not expect this, turn it off.`);
+  }
+}
+
+/** Refused calls by one key logged per UTC day; later ones are refused without a row. */
+export const REFUSED_LOG_PER_DAY = 20;
+
+/** Logs a refused call, unless this key already has 20 refused rows today. */
+export async function logRefusedCall(tokenId: string, call: BotCallInfo, status: number, now: Date): Promise<void> {
+  if ((await countSignal(tokenId, "refused-log", now)) <= REFUSED_LOG_PER_DAY) await logBotCall(tokenId, call, status, now);
 }

@@ -42,6 +42,7 @@ function addToken(overrides: Partial<FakeToken> = {}, person: Partial<FakeToken[
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   fake.reset();
   resetBadKeyThrottle();
   vi.stubEnv("SALES_BOTS_ENABLED", "true");
