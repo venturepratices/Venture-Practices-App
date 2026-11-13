@@ -93,7 +93,7 @@ export function scrubUrl(url: string): string {
 }
 
 /** A bot key (vpb_ and at least 8 key characters) anywhere in text, even glued to a word, or the value after "Bearer". */
-const KEY_IN_TEXT = /\bvpb_[A-Za-z0-9_-]{8,}/g;
+const KEY_IN_TEXT = /vpb_[A-Za-z0-9_-]{8,}/g;
 const BEARER_IN_TEXT = /\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 
 /** Masks bot keys and bearer values; the rest of the text stays as it is. */
