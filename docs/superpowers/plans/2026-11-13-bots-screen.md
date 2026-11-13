@@ -77,3 +77,16 @@
 ### Task 5: Verification
 
 - [ ] `npx tsc --noEmit`, `npx eslint src tests`, guard tests, `npx vitest run`, `npm run build:ci`, `npm run check:sales-secrecy`. Report to `.superpowers/sdd/2026-11-13-bots-screen/report.md`.
+
+---
+
+## Addendum (2026-11-13): DJ's safety bar
+
+DJ asked for the app to be "bullet proof". Every item of key-safety (f) for bot keys is now in scope, plus expiry warnings, auto-off and admin-only in-app alerts. New tasks, each RED then GREEN then commit:
+
+- **Task 2a (schema):** one additive migration `20261113000001_bot_key_safety`: on `BotToken` add `expiresAt`, `allPipelines` (false = only the listed pipelines, so an empty list means none), `ownDealsOnly` (default true), `mustRotate`, `lastUsedIp`, `knownIps`, `offReason`, `offAt`, `expiryWarnedAt`; new `BotCallLog` table (key, when, method, path, scope, result status, IP, user agent); new `NotificationType` value `BOT_ALERT`.
+- **Task 2b (key check):** `authenticateBot` refuses expired, off, must-rotate and person-without-Sales keys with the one "Invalid bot key." message; a `SALES_BOTS_ENABLED` switch (off unless set to "true") pauses every key; writes a `BotCallLog` row for every call by a known key (unknown keys write nothing and are slowed per IP in memory); records the IP, alerts admins in-app on first use from a new IP and on use of a switched-off key; turns the bot off and alerts after 5 per-minute limit hits or 20 refused permission checks in one UTC day.
+- **Task 2c (admin routes):** password re-check on create, rotate and turn-on; in-app alert to every admin on those; per-person and total caps; expiry chosen per bot (1 to 90 days, default 90); `allPipelines` and `ownDealsOnly` fields; DELETE; activity route; turn-on refused while `mustRotate`.
+- **Task 2d (Sales routes):** `requireSalesActor(request, scope | null)` in every Sales route (null = bots never allowed), with a guard test that fails if a Sales route calls `requireSalesUser` directly; bots limited to their pipelines, the person's own deals by default, and a daily cap of rows read.
+- **Task 2e (lifecycle):** offboarding turns off a person's bots when their Sales access goes; restore marks keys `mustRotate`; a daily cron trims `BotCallLog` to 90 days and warns admins 7 days before a key expires.
+- **Task 2f (general (f) items still missing):** safe security headers, Sentry scrubbing of keys and Authorization headers, `docs/credentials.md` register (no keys in it), a test that fails if a bot key shape appears in tracked files.
