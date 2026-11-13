@@ -4,6 +4,7 @@ import type { Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
 import {
+  BOT_KEY_MAX_DAYS,
   BOT_ROLE_PRESETS,
   BOT_ROLES,
   BOT_SCOPES,
@@ -28,6 +29,13 @@ export const BOT_PUBLIC_SELECT = {
   createdAt: true,
   lastUsedAt: true,
   rotatedAt: true,
+  expiresAt: true,
+  allPipelines: true,
+  ownDealsOnly: true,
+  mustRotate: true,
+  offReason: true,
+  offAt: true,
+  lastUsedIp: true,
 } as const;
 
 type PublicBotRow = {
@@ -38,6 +46,8 @@ type PublicBotRow = {
   pipelineKeys: string[];
   tokenLast4: string;
   enabled: boolean;
+  allPipelines?: boolean;
+  ownDealsOnly?: boolean;
 };
 
 /** What the Bots screen gets: the last 4 characters of the key, never more. */
@@ -53,6 +63,8 @@ export function botAuditView(row: PublicBotRow) {
     actingForId: row.actingForId,
     scopes: row.scopes,
     pipelineKeys: row.pipelineKeys,
+    allPipelines: row.allPipelines,
+    ownDealsOnly: row.ownDealsOnly,
     enabled: row.enabled,
   };
 }
@@ -75,17 +87,37 @@ const accessFields = {
     .max(50)
     .transform((keys) => [...new Set(keys)])
     .optional(),
+  allPipelines: z.boolean().optional(),
+  ownDealsOnly: z.boolean().optional(),
+  expiresInDays: z.int().min(1).max(BOT_KEY_MAX_DAYS).optional(),
 };
+
+/** The admin's own password, typed again before a key is made, rotated or turned on. Never stored or logged. */
+const password = z.string().min(1).max(200);
 
 export const createBotSchema = z.strictObject({
   name: z.string().trim().min(1).max(80),
   actingForId: z.string().min(1),
   ...accessFields,
+  password,
 });
 
 export const updateBotSchema = z
-  .strictObject({ enabled: z.boolean().optional(), ...accessFields })
-  .refine((data) => Object.values(data).some((value) => value !== undefined), { message: "Nothing to change." });
+  .strictObject({ enabled: z.boolean().optional(), ...accessFields, password: password.optional() })
+  .refine(
+    ({ password: _typed, ...change }) => Object.values(change).some((value) => value !== undefined),
+    { message: "Nothing to change." },
+  );
+
+export const rotateBotSchema = z.strictObject({
+  password,
+  expiresInDays: z.int().min(1).max(BOT_KEY_MAX_DAYS).optional(),
+});
+
+/** True when the bot would be left able to touch no pipeline at all. */
+export function hasNoPipelines(allPipelines: boolean, pipelineKeys: readonly string[]): boolean {
+  return !allPipelines && pipelineKeys.length === 0;
+}
 
 /**
  * A role picks a preset; a scope list is used as given (once each, standard

@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
+import bcrypt from "bcryptjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The admin types their own password again before a key is made or rotated.
+const PASSWORD = "correct horse battery";
+const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 
 // The admin Bots routes, run directly with a fake database and a fake admin
 // check. Nothing here reaches a real database or a real session.
@@ -42,6 +47,7 @@ const botDelegate = {
     Object.assign(row, Object.fromEntries(Object.entries(args.data).filter(([, value]) => value !== undefined)));
     return withPerson(row, args.select);
   },
+  count: async () => 0,
 };
 const tx = {
   botToken: botDelegate,
@@ -51,8 +57,13 @@ const tx = {
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     botToken: botDelegate,
-    teamMember: { findFirst: (...args: unknown[]) => teamMemberFindFirst(...args) },
+    teamMember: {
+      findFirst: (...args: unknown[]) => teamMemberFindFirst(...args),
+      findUnique: async () => ({ passwordHash: PASSWORD_HASH }),
+      findMany: async () => [],
+    },
     salesPipeline: { findMany: (...args: unknown[]) => pipelineFindMany(...args) },
+    notification: { createMany: async () => ({ count: 0 }) },
     $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
@@ -74,7 +85,9 @@ const req = (method: string, body?: unknown, url = "http://localhost/api/sales/b
 const ctx = (botId: string) => ({ params: Promise.resolve({ botId }) });
 
 async function createBot(body: Row = {}) {
-  const res = await listRoute.POST(req("POST", { name: "Muse", actingForId: "p1", role: "helper", ...body }));
+  const res = await listRoute.POST(
+    req("POST", { name: "Muse", actingForId: "p1", role: "helper", allPipelines: true, password: PASSWORD, ...body }),
+  );
   return { res, body: (await res.json()) as Row };
 }
 
@@ -89,6 +102,7 @@ function deleteBotRightAfterLookup() {
 }
 
 beforeEach(() => {
+  vi.stubEnv("SALES_BOTS_ENABLED", "true");
   db.bots = [];
   db.audits = [];
   requireAdminMock.mockReset().mockResolvedValue({ userId: "admin1", isAdmin: true });
@@ -104,7 +118,7 @@ describe("admin only", () => {
     expect((await listRoute.GET()).status).toBe(403);
     expect((await listRoute.POST(req("POST", {}))).status).toBe(403);
     expect((await botRoute.PATCH(req("PATCH", { enabled: false }), ctx("b1"))).status).toBe(403);
-    expect((await botRoute.POST(req("POST", undefined, "http://localhost/api/sales/bots/b1?action=rotate"), ctx("b1"))).status).toBe(403);
+    expect((await botRoute.POST(req("POST", { password: PASSWORD }, "http://localhost/api/sales/bots/b1?action=rotate"), ctx("b1"))).status).toBe(403);
   });
 });
 
@@ -180,7 +194,7 @@ describe("POST /api/sales/bots", () => {
   });
 
   it("accepts known pipelines", async () => {
-    const { res } = await createBot({ pipelineKeys: ["direct-mail"] });
+    const { res } = await createBot({ allPipelines: false, pipelineKeys: ["direct-mail"] });
     expect(res.status).toBe(201);
     expect(db.bots[0].pipelineKeys).toEqual(["direct-mail"]);
   });
@@ -252,27 +266,29 @@ describe("PATCH /api/sales/bots/[botId]", () => {
     spy.mockRestore();
   });
 
-  it("opens a bot to every pipeline when sent an empty pipeline list", async () => {
-    await createBot({ pipelineKeys: ["direct-mail"] });
+  // Changed on 2026-11-13 (key safety (f) 9): an empty list now means no pipelines,
+  // so opening a bot to every pipeline takes allPipelines, said out loud.
+  it("opens a bot to every pipeline only through allPipelines", async () => {
+    await createBot({ allPipelines: false, pipelineKeys: ["direct-mail"] });
     pipelineFindMany.mockClear();
 
-    const res = await botRoute.PATCH(req("PATCH", { pipelineKeys: [] }), ctx("b1"));
+    expect((await botRoute.PATCH(req("PATCH", { pipelineKeys: [] }), ctx("b1"))).status).toBe(400);
+    const res = await botRoute.PATCH(req("PATCH", { allPipelines: true }), ctx("b1"));
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { bot: Row }).bot.pipelineKeys).toEqual([]);
-    expect(db.bots[0].pipelineKeys).toEqual([]);
+    expect(((await res.json()) as { bot: Row }).bot).toMatchObject({ allPipelines: true, pipelineKeys: [] });
     expect(pipelineFindMany).not.toHaveBeenCalled();
     expect(db.audits[1]).toMatchObject({
       action: "updated",
-      before: { pipelineKeys: ["direct-mail"] },
-      after: { pipelineKeys: [] },
+      before: { pipelineKeys: ["direct-mail"], allPipelines: false },
+      after: { pipelineKeys: [], allPipelines: true },
     });
   });
 });
 
 describe("POST /api/sales/bots/[botId]?action=rotate", () => {
   const rotate = (botId: string, action = "rotate") =>
-    botRoute.POST(req("POST", undefined, `http://localhost/api/sales/bots/${botId}?action=${action}`), ctx(botId));
+    botRoute.POST(req("POST", { password: PASSWORD }, `http://localhost/api/sales/bots/${botId}?action=${action}`), ctx(botId));
 
   it("replaces the key, returns the new one once, and logs without it", async () => {
     const { body: created } = await createBot();
@@ -286,7 +302,10 @@ describe("POST /api/sales/bots/[botId]?action=rotate", () => {
     expect(db.bots[0].rotatedAt).toBeInstanceOf(Date);
     expect(db.audits[1]).toMatchObject({ entityType: "BotToken", entityId: "b1", action: "rotated" });
     // Stored in the history as an ISO string, the way Json keeps it, not as a Date.
-    expect(db.audits[1].after).toEqual({ rotatedAt: (db.bots[0].rotatedAt as Date).toISOString() });
+    expect(db.audits[1].after).toEqual({
+      rotatedAt: (db.bots[0].rotatedAt as Date).toISOString(),
+      expiresAt: (db.bots[0].expiresAt as Date).toISOString(),
+    });
     expect(json(db.audits[1])).not.toContain(secret);
     expect(json(db.audits[1])).not.toContain(sha256(secret));
   });
@@ -317,7 +336,7 @@ describe("history rows from the Bots routes", () => {
   it("record the caller's IP address and user agent on create, change and rotate", async () => {
     await createBot();
     await botRoute.PATCH(req("PATCH", { enabled: false }), ctx("b1"));
-    await botRoute.POST(req("POST", undefined, "http://localhost/api/sales/bots/b1?action=rotate"), ctx("b1"));
+    await botRoute.POST(req("POST", { password: PASSWORD }, "http://localhost/api/sales/bots/b1?action=rotate"), ctx("b1"));
 
     expect(db.audits.map((row) => row.action)).toEqual(["created", "updated", "rotated"]);
     for (const row of db.audits) {
