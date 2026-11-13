@@ -111,6 +111,9 @@ export const BOT_LIMITS = { perMinute: 60, perDay: 2000 };
 /** A key stops working this many days after it is made or rotated, at most. */
 export const BOT_KEY_MAX_DAYS = 90;
 
+/** The key lengths an admin may pick, in days. */
+export const BOT_KEY_DAY_CHOICES = [90, 60, 30, 7] as const;
+
 /** How many bots one person may have, and how many may exist in total. */
 export const BOT_CAPS = { perPerson: 2, total: 10 };
 

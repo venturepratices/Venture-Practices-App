@@ -4,7 +4,7 @@ import type { Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
 import {
-  BOT_KEY_MAX_DAYS,
+  BOT_KEY_DAY_CHOICES,
   BOT_ROLE_PRESETS,
   BOT_ROLES,
   BOT_SCOPES,
@@ -79,6 +79,9 @@ export function adminActor(perms: Permissions): SalesActor {
 // is refused too, so nothing like `isAdmin` or `tokenHash` can be slipped in.
 const catalogueScope = z.string().refine(isCatalogueScope, { message: "Unknown permission." });
 
+/** How long a key may last: only the choices the screen offers. */
+const keyDays = z.union(BOT_KEY_DAY_CHOICES.map((days) => z.literal(days)) as [z.ZodLiteral<number>, ...z.ZodLiteral<number>[]]);
+
 const accessFields = {
   role: z.enum(BOT_ROLES).optional(),
   scopes: z.array(catalogueScope).min(1).optional(),
@@ -89,7 +92,7 @@ const accessFields = {
     .optional(),
   allPipelines: z.boolean().optional(),
   ownDealsOnly: z.boolean().optional(),
-  expiresInDays: z.int().min(1).max(BOT_KEY_MAX_DAYS).optional(),
+  expiresInDays: keyDays.optional(),
 };
 
 /** The admin's own password, typed again before a key is made, rotated or turned on. Never stored or logged. */
@@ -112,7 +115,7 @@ export const updateBotSchema = z
 
 export const rotateBotSchema = z.strictObject({
   password,
-  expiresInDays: z.int().min(1).max(BOT_KEY_MAX_DAYS).optional(),
+  expiresInDays: keyDays.optional(),
 });
 
 /** True when the bot would be left able to touch no pipeline at all. */

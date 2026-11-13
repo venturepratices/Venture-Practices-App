@@ -81,7 +81,7 @@ describe("expiry", () => {
   });
 
   it("starts a new expiry on rotate and clears the must-rotate mark", async () => {
-    await create({ expiresInDays: 5 });
+    await create({ expiresInDays: 7 });
     fake.bots[0].mustRotate = true;
     expect((await rotate("b1", { password: ADMIN_PASSWORD, expiresInDays: 60 })).status).toBe(200);
     expect((fake.bots[0].expiresAt as Date).getTime()).toBeGreaterThan(Date.now() + 59 * DAY);
@@ -160,5 +160,14 @@ describe("more power needs the password, less power does not", () => {
   ])("allows %s without the password", async (_label, change) => {
     await create({ allPipelines: false, pipelineKeys: ["direct-mail", "consulting"], role: "helper", ownDealsOnly: false });
     expect((await patch("b1", change)).status).toBe(200);
+  });
+});
+
+describe("key length choices", () => {
+  it("accepts only 7, 30, 60 or 90 days", async () => {
+    expect((await create({ expiresInDays: 45 })).res.status).toBe(400);
+    expect((await create({ expiresInDays: 7 })).res.status).toBe(201);
+    expect((await rotate("b1", { password: ADMIN_PASSWORD, expiresInDays: 45 })).status).toBe(400);
+    expect((await patch("b1", { expiresInDays: 45, password: ADMIN_PASSWORD })).status).toBe(400);
   });
 });

@@ -5,6 +5,7 @@ import { Bot } from "lucide-react";
 
 import type { BotView } from "@/lib/sales/bots-screen";
 import { createBodyRequestSafe, type MadeKeyHandler } from "@/components/sales/bot-editor-submit";
+import { BOT_KEY_DAY_CHOICES } from "@/lib/sales/bot-scopes";
 import { type BotDraft, draftError, draftFromBot, emptyDraft } from "@/lib/sales/bots-view-model";
 import { Button } from "@/components/ui/button";
 import { BODY, CARD, CardHeader, TOUCH } from "@/components/sales/bot-card";
@@ -78,7 +79,7 @@ export function BotEditor({ mode, bot, members, pipelines, onCancel, onSaved }: 
             <div>
               <label htmlFor={`${id}-days`} className={LABEL}>Key lasts</label>
               <select id={`${id}-days`} className={FIELD} value={draft.expiresInDays} onChange={(e) => setDraft({ ...draft, expiresInDays: Number(e.target.value) })}>
-                {[90, 60, 30, 7].map((d) => (
+                {BOT_KEY_DAY_CHOICES.map((d) => (
                   <option key={d} value={d}>{d} days</option>
                 ))}
               </select>
