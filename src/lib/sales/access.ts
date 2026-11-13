@@ -7,8 +7,10 @@ type SalesActorBase = {
   /** The who-can-see setting: false = this person sees only deals they own. */
   seesAllDeals: boolean;
   scopes?: readonly string[];
-  /** Bots only: the pipelines this key may work in. Empty = every pipeline. */
+  /** Bots only: the pipelines this key may work in (an empty list means none), unless allPipelines. */
   pipelineKeys?: readonly string[];
+  /** Bots only: true = every pipeline. */
+  allPipelines?: boolean;
 };
 
 /**

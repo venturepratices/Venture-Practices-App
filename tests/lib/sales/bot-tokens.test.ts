@@ -56,12 +56,21 @@ vi.mock("@/lib/prisma", () => ({
       update: (args: UsageWhere & { data: unknown }) => usageUpdate(args),
       deleteMany: (args: unknown) => usageDeleteMany(args),
     },
+    // The call log, alerts and history are covered in bot-key-refusals and bot-key-abuse tests.
+    botCallLog: { create: async () => ({}), count: async () => 1 },
+    notification: { createMany: async () => ({ count: 0 }) },
+    teamMember: { findMany: async () => [] },
+    salesAuditLog: { create: async () => ({}) },
   },
 }));
 
 const { BOT_LIMITS, BOT_ROLE_PRESETS, BOT_SCOPES, authenticateBot, botCan, generateBotSecret } = await import(
   "@/lib/sales/bot-tokens"
 );
+
+/** A read call with no address, so only the limit and lastUsedAt rules run here. */
+const CALL = { method: "GET", path: "/api/sales/deals", ip: null, userAgent: null, scope: "read" as const };
+const auth = (header: string | null, now: Date) => authenticateBot(header, now, CALL);
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -77,6 +86,18 @@ function addToken(overrides: Partial<FakeToken> = {}, person: Partial<FakeToken[
     actingFor: { id: "p1", isAdmin: false, canUseSales: true, salesSeesAllDeals: false, ...person },
     ...overrides,
   });
+  // The newer safety fields: a live key that may see what its person sees.
+  Object.assign(db.tokens[db.tokens.length - 1], {
+    name: "Muse",
+    actingForId: "p1",
+    expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    mustRotate: false,
+    ownDealsOnly: false,
+    allPipelines: false,
+    knownIps: [],
+    lastUsedIp: null,
+    ...overrides,
+  });
   return `Bearer ${secret}`;
 }
 
@@ -84,6 +105,7 @@ const T0 = new Date("2026-11-05T10:00:00.000Z");
 const at = (ms: number) => new Date(T0.getTime() + ms);
 
 beforeEach(() => {
+  vi.stubEnv("SALES_BOTS_ENABLED", "true");
   db.tokens = [];
   db.usage.clear();
   // mockReset also drops any one-off failure a test queued, back to the fakes above.
@@ -148,18 +170,18 @@ describe("bot roles", () => {
 
 describe("authenticateBot", () => {
   it("rejects a missing header (401)", async () => {
-    await expect(authenticateBot(null, T0)).resolves.toMatchObject({ ok: false, status: 401 });
+    await expect(auth(null, T0)).resolves.toMatchObject({ ok: false, status: 401 });
   });
 
   it("rejects a header that is not a vpb_ bearer key (401)", async () => {
-    await expect(authenticateBot("Basic abc", T0)).resolves.toMatchObject({ ok: false, status: 401 });
-    await expect(authenticateBot("Bearer sk_abc", T0)).resolves.toMatchObject({ ok: false, status: 401 });
+    await expect(auth("Basic abc", T0)).resolves.toMatchObject({ ok: false, status: 401 });
+    await expect(auth("Bearer sk_abc", T0)).resolves.toMatchObject({ ok: false, status: 401 });
   });
 
   it("rejects an unknown key (401) with the same message as a missing one", async () => {
     addToken();
-    const missing = await authenticateBot(null, T0);
-    const unknown = await authenticateBot(`Bearer ${generateBotSecret().secret}`, T0);
+    const missing = await auth(null, T0);
+    const unknown = await auth(`Bearer ${generateBotSecret().secret}`, T0);
     expect(unknown).toMatchObject({ ok: false, status: 401 });
     expect(!unknown.ok && unknown.error).toBe(!missing.ok && missing.error);
     expectNoBookkeeping();
@@ -167,23 +189,23 @@ describe("authenticateBot", () => {
 
   it("rejects a turned-off key (401) without counting the call or stamping lastUsedAt", async () => {
     const header = addToken({ enabled: false });
-    await expect(authenticateBot(header, T0)).resolves.toEqual({
+    await expect(auth(header, T0)).resolves.toEqual({
       ok: false,
       status: 401,
-      error: "This bot is turned off.",
+      error: "Invalid bot key.",
     });
     expectNoBookkeeping();
   });
 
-  it("stops at once when the person it works for loses Sales access (403), without counting the call", async () => {
+  it("stops at once when the person it works for loses Sales access (the same invalid-key 401), without counting the call", async () => {
     const header = addToken({}, { canUseSales: false, isAdmin: false });
-    await expect(authenticateBot(header, T0)).resolves.toMatchObject({ ok: false, status: 403 });
+    await expect(auth(header, T0)).resolves.toEqual({ ok: false, status: 401, error: "Invalid bot key." });
     expectNoBookkeeping();
   });
 
   it("works for an admin even with the Sales switch off, but never as an admin", async () => {
     const header = addToken({}, { canUseSales: false, isAdmin: true, salesSeesAllDeals: true });
-    const result = await authenticateBot(header, T0);
+    const result = await auth(header, T0);
     expect(result).toMatchObject({ ok: true, actor: { userId: "p1", isAdmin: false, seesAllDeals: true, via: "bot" } });
   });
 
@@ -191,19 +213,19 @@ describe("authenticateBot", () => {
     const header = addToken();
     const secret = header.slice("Bearer ".length);
     for (const scheme of ["bearer", "BEARER", "bEaReR"]) {
-      expect((await authenticateBot(`${scheme} ${secret}`, at(1000))).ok, scheme).toBe(true);
+      expect((await auth(`${scheme} ${secret}`, at(1000))).ok, scheme).toBe(true);
     }
-    await expect(authenticateBot(`Bearer ${secret.replace("vpb_", "VPB_")}`, T0)).resolves.toMatchObject({
+    await expect(auth(`Bearer ${secret.replace("vpb_", "VPB_")}`, T0)).resolves.toMatchObject({
       ok: false,
       status: 401,
       error: "Invalid bot key.",
     });
-    await expect(authenticateBot(`Bearer ${secret.slice(0, -1)}`, T0)).resolves.toMatchObject({ ok: false, status: 401 });
+    await expect(auth(`Bearer ${secret.slice(0, -1)}`, T0)).resolves.toMatchObject({ ok: false, status: 401 });
   });
 
   it("returns the person it works for, as a bot, with the token's scopes", async () => {
     const header = addToken({ scopes: ["read"], pipelineKeys: ["direct-mail"] });
-    const result = await authenticateBot(header, T0);
+    const result = await auth(header, T0);
     expect(result).toEqual({
       ok: true,
       actor: {
@@ -214,6 +236,7 @@ describe("authenticateBot", () => {
         botTokenId: "bot1",
         scopes: ["read"],
         pipelineKeys: ["direct-mail"],
+        allPipelines: false,
       },
     });
   });
@@ -222,34 +245,34 @@ describe("authenticateBot", () => {
     expect(BOT_LIMITS).toEqual({ perMinute: 60, perDay: 2000 });
     const header = addToken();
     for (let i = 0; i < 60; i += 1) {
-      expect((await authenticateBot(header, at(i * 500))).ok).toBe(true);
+      expect((await auth(header, at(i * 500))).ok).toBe(true);
     }
-    await expect(authenticateBot(header, at(59_000))).resolves.toMatchObject({ ok: false, status: 429 });
+    await expect(auth(header, at(59_000))).resolves.toMatchObject({ ok: false, status: 429 });
     // A new minute starts a new count.
-    await expect(authenticateBot(header, at(60_000))).resolves.toMatchObject({ ok: true });
+    await expect(auth(header, at(60_000))).resolves.toMatchObject({ ok: true });
   });
 
   it(`allows ${BOT_LIMITS.perDay} calls a UTC day and refuses the next one (429)`, async () => {
     const header = addToken();
     // Two seconds apart keeps every minute well under its own limit.
     for (let i = 0; i < 2000; i += 1) {
-      expect((await authenticateBot(header, at(i * 2000))).ok).toBe(true);
+      expect((await auth(header, at(i * 2000))).ok).toBe(true);
     }
-    await expect(authenticateBot(header, at(2000 * 2000))).resolves.toMatchObject({ ok: false, status: 429 });
+    await expect(auth(header, at(2000 * 2000))).resolves.toMatchObject({ ok: false, status: 429 });
     // The next UTC day starts a new count.
-    await expect(authenticateBot(header, new Date("2026-11-06T00:00:05.000Z"))).resolves.toMatchObject({ ok: true });
+    await expect(auth(header, new Date("2026-11-06T00:00:05.000Z"))).resolves.toMatchObject({ ok: true });
   });
 
   it("writes lastUsedAt at most once a minute, with updateMany", async () => {
     const header = addToken();
-    await authenticateBot(header, T0);
-    await authenticateBot(header, at(30_000));
-    await authenticateBot(header, at(59_999));
+    await auth(header, T0);
+    await auth(header, at(30_000));
+    await auth(header, at(59_999));
     expect(tokenUpdateMany).toHaveBeenCalledTimes(1);
     expect(tokenUpdateMany).toHaveBeenCalledWith({ where: { id: "bot1" }, data: { lastUsedAt: T0 } });
     expect(db.tokens[0].lastUsedAt).toEqual(T0);
 
-    await authenticateBot(header, at(60_000));
+    await auth(header, at(60_000));
     expect(tokenUpdateMany).toHaveBeenCalledTimes(2);
     expect(db.tokens[0].lastUsedAt).toEqual(at(60_000));
   });
@@ -267,7 +290,7 @@ describe("authenticateBot bookkeeping", () => {
       throw prismaError("P2002");
     });
 
-    await expect(authenticateBot(header, T0)).resolves.toMatchObject({ ok: true });
+    await expect(auth(header, T0)).resolves.toMatchObject({ ok: true });
 
     expect(usageUpdate).toHaveBeenCalledTimes(1);
     expect(usageUpdate).toHaveBeenCalledWith({
@@ -285,7 +308,7 @@ describe("authenticateBot bookkeeping", () => {
       throw prismaError("P2002");
     });
 
-    await expect(authenticateBot(header, T0)).resolves.toMatchObject({ ok: false, status: 429 });
+    await expect(auth(header, T0)).resolves.toMatchObject({ ok: false, status: 429 });
   });
 
   it("gives the invalid-key 401 when the key is deleted before its call is counted", async () => {
@@ -294,7 +317,7 @@ describe("authenticateBot bookkeeping", () => {
       throw prismaError("P2003");
     });
 
-    await expect(authenticateBot(header, T0)).resolves.toEqual({ ok: false, status: 401, error: "Invalid bot key." });
+    await expect(auth(header, T0)).resolves.toEqual({ ok: false, status: 401, error: "Invalid bot key." });
     expect(tokenUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -304,14 +327,14 @@ describe("authenticateBot bookkeeping", () => {
       throw prismaError("P2002");
     });
 
-    await expect(authenticateBot(header, T0)).resolves.toEqual({ ok: false, status: 401, error: "Invalid bot key." });
+    await expect(auth(header, T0)).resolves.toEqual({ ok: false, status: 401, error: "Invalid bot key." });
   });
 
   it("lets other counter errors through instead of hiding them", async () => {
     const header = addToken();
     usageUpsert.mockRejectedValueOnce(new Error("connection reset"));
 
-    await expect(authenticateBot(header, T0)).rejects.toThrow("connection reset");
+    await expect(auth(header, T0)).rejects.toThrow("connection reset");
   });
 
   it("never fails an allowed call because lastUsedAt or the old-counter cleanup could not be written", async () => {
@@ -320,7 +343,7 @@ describe("authenticateBot bookkeeping", () => {
     tokenUpdateMany.mockRejectedValueOnce(new Error("connection reset"));
     usageDeleteMany.mockRejectedValueOnce(new Error("connection reset"));
 
-    await expect(authenticateBot(header, T0)).resolves.toMatchObject({ ok: true });
+    await expect(auth(header, T0)).resolves.toMatchObject({ ok: true });
 
     // The cleanup still ran after the lastUsedAt write failed.
     expect(usageDeleteMany).toHaveBeenCalledTimes(1);
@@ -332,18 +355,18 @@ describe("authenticateBot bookkeeping", () => {
 describe("rate-limit counter cleanup", () => {
   it("clears the key's finished windows on the same once-a-minute beat", async () => {
     const header = addToken();
-    await authenticateBot(header, T0);
-    await authenticateBot(header, at(10_000));
+    await auth(header, T0);
+    await auth(header, at(10_000));
     expect(usageDeleteMany).toHaveBeenCalledTimes(1);
 
-    await authenticateBot(header, at(90_000));
+    await auth(header, at(90_000));
     expect(usageDeleteMany).toHaveBeenCalledTimes(2);
     expect(usageDeleteMany).toHaveBeenLastCalledWith({
       where: {
         tokenId: "bot1",
         OR: [
           { kind: "minute", windowStart: { lt: at(60_000) } },
-          { kind: "day", windowStart: { lt: new Date("2026-11-05T00:00:00.000Z") } },
+          { kind: { not: "minute" }, windowStart: { lt: new Date("2026-11-05T00:00:00.000Z") } },
         ],
       },
     });
