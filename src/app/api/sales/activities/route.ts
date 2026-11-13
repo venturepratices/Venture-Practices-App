@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { loadActivityRows } from "@/lib/sales/activities-page";
 import { parseActivitiesQuery } from "@/lib/sales/activities-query";
 import { searchParamsRecord } from "@/lib/sales/http";
@@ -13,7 +13,7 @@ import { searchParamsRecord } from "@/lib/sales/http";
  */
 export async function GET(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const query = parseActivitiesQuery(searchParamsRecord(request));
     return NextResponse.json(await loadActivityRows(actor, query, new Date()));
   } catch (error) {

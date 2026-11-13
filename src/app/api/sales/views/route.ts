@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { savedViewsSchema } from "@/lib/sales/board-query";
 import { failResponse, readJson } from "@/lib/sales/http";
 import { saveSavedViews } from "@/lib/sales/view-preference";
@@ -16,7 +16,7 @@ const bodySchema = z.strictObject({ views: savedViewsSchema });
  */
 export async function PUT(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
 
     const body = await readJson(request, bodySchema);
     if (!body.ok) return failResponse(body);

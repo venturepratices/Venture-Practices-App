@@ -70,6 +70,13 @@ const FOLDER_RULES: Record<string, { who: string; checks: Check[] }> = {
     who: "guests reviewing one asset; the share-link token in the address is their only key",
     checks: [{ module: "@/lib/share-link", name: "resolveShareLinkAccess", reports: true }],
   },
+  sales: {
+    who: "signed-in Sales members and bot keys; each route calls requireSalesActor (a bot key checked against the route's permission, else the session), or requireAdmin for admin screens",
+    checks: [
+      { module: "@/lib/sales/actor", name: "requireSalesActor" },
+      { module: PERMISSIONS, name: "requireAdmin" },
+    ],
+  },
   webhooks: {
     who: "outside services sending events (no routes yet); each must prove it is the sender with its shared secret, and any other proof (a signature check) is added here on purpose",
     checks: [

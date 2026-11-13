@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { activityDoneSchema, setActivityDone } from "@/lib/sales/activities";
 import { requestMeta } from "@/lib/sales/audit";
 import { failResponse, readJson } from "@/lib/sales/http";
@@ -15,7 +15,7 @@ type Context = { params: Promise<{ activityId: string }> };
  */
 export async function PATCH(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { activityId } = await params;
 
     const body = await readJson(request, activityDoneSchema);

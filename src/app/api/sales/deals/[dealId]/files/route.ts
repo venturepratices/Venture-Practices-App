@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { FILE_MAX_BYTES, FORM_OVERHEAD_BYTES } from "@/lib/sales/constants";
 import { FILE_TOO_BIG, uploadDealFile } from "@/lib/sales/files";
@@ -67,7 +67,7 @@ async function readForm(request: Request): Promise<{ ok: true; form: FormData } 
 /** Add a final-version file to a deal (owner or admin). Answers 201 `{ file }`. */
 export async function POST(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const blocked = assertSameOrigin(request);
     if (blocked) return failResponse(blocked);
     const { dealId } = await params;

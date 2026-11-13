@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { chargeBotRows, requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { loadDealListPage } from "@/lib/sales/board";
 import { parseBoardQuery } from "@/lib/sales/board-query";
@@ -15,9 +15,10 @@ import { failResponse, readJson, searchParamsRecord } from "@/lib/sales/http";
  */
 export async function GET(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, "read");
     const query = parseBoardQuery(searchParamsRecord(request));
     const page = await loadDealListPage(actor, query, new Date());
+    await chargeBotRows(actor, page?.rows.length ?? 0);
     return NextResponse.json(page ?? { rows: [], nextCursor: null });
   } catch (error) {
     return toErrorResponse(error);
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
 /** Add deal: the deal, its first activity and any new organization or person (201 `{ deal: { id, pipelineKey } }`). */
 export async function POST(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, "create");
 
     const body = await readJson(request, createDealSchema);
     if (!body.ok) return failResponse(body);

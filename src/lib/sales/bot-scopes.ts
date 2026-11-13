@@ -49,7 +49,7 @@ export const BOT_SCOPE_CATALOGUE: Record<BotScope, BotScopeInfo> = {
   activities: {
     key: "activities",
     label: "Add calls, meetings and tasks",
-    description: "Can add calls, meetings and to-dos to deals and leads, and tick them off.",
+    description: "Can add calls, meetings and to-dos to deals and leads.",
     area: "sales",
     risk: "medium",
   },

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { chargeBotRows, requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { failResponse, readJson, searchParamsRecord } from "@/lib/sales/http";
 import { createLead, createLeadSchema } from "@/lib/sales/leads";
@@ -15,9 +15,11 @@ import { parseLeadsQuery } from "@/lib/sales/leads-query";
  */
 export async function GET(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, "read");
     const query = parseLeadsQuery(searchParamsRecord(request));
-    return NextResponse.json(await loadLeadRows(actor, query));
+    const page = await loadLeadRows(actor, query);
+    await chargeBotRows(actor, page.rows.length);
+    return NextResponse.json(page);
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
 /** New lead: the lead, its first activity, its Practice ZIP and any new organization or person (201 `{ lead: { id } }`). */
 export async function POST(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, "create");
 
     const body = await readJson(request, createLeadSchema);
     if (!body.ok) return failResponse(body);

@@ -56,6 +56,21 @@ export function dealOwnerWhere(actor: SalesActor, scope: "everyone" | "mine"): {
   return {};
 }
 
+/**
+ * Bots only: `where` on SalesPipeline for the pipelines this key may touch.
+ * Empty for people and for all-pipeline bots; an empty list means none.
+ */
+export function botPipelineFilter(actor: SalesActor): { key?: { in: string[] } } {
+  if (actor.via !== "bot" || actor.allPipelines === true) return {};
+  return { key: { in: [...(actor.pipelineKeys ?? [])] } };
+}
+
+/** The same rule as a `where` fragment on SalesDeal. */
+export function dealPipelineWhere(actor: SalesActor): { pipeline?: { key: { in: string[] } } } {
+  const filter = botPipelineFilter(actor);
+  return filter.key ? { pipeline: { key: filter.key } } : {};
+}
+
 export function canEditDeal(actor: SalesActor, deal: { ownerId: string }): boolean {
   return actor.isAdmin || deal.ownerId === actor.userId;
 }

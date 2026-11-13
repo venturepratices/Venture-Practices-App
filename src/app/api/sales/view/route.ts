@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { savedViewSchema } from "@/lib/sales/board-query";
 import { failResponse, readJson } from "@/lib/sales/http";
 import { saveDefaultView } from "@/lib/sales/view-preference";
@@ -12,7 +12,7 @@ import { saveDefaultView } from "@/lib/sales/view-preference";
  */
 export async function PUT(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
 
     const body = await readJson(request, savedViewSchema);
     if (!body.ok) return failResponse(body);

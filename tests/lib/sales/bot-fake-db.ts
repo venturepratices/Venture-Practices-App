@@ -64,9 +64,9 @@ const botToken = {
 };
 
 const botTokenUsage = {
-  upsert: vi.fn(async (args: { where: { tokenId_kind_windowStart: UsageKey } }) => {
+  upsert: vi.fn(async (args: { where: { tokenId_kind_windowStart: UsageKey }; update?: { count: { increment: number } } }) => {
     const key = usageKey(args.where.tokenId_kind_windowStart);
-    const count = (fake.usage.get(key) ?? 0) + 1;
+    const count = (fake.usage.get(key) ?? 0) + (args.update?.count.increment ?? 1);
     fake.usage.set(key, count);
     return { count };
   }),

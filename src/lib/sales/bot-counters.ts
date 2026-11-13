@@ -3,9 +3,10 @@ import { isPrismaError } from "@/lib/prisma-errors";
 
 // The per-key counters behind the call limits and the abuse signals, one
 // BotTokenUsage row per key, kind and window. Kinds: "minute" and "day" for the
-// limits, "limit-minutes" and "refused" (day windows) for the abuse signals.
+// limits, "limit-minutes" and "refused" (day windows) for the abuse signals, and
+// "rows" (day windows) for how many records a bot has read today.
 
-export type CounterKind = "minute" | "day" | "limit-minutes" | "refused";
+export type CounterKind = "minute" | "day" | "limit-minutes" | "refused" | "rows";
 
 export function windowStarts(now: Date): { minute: Date; day: Date } {
   const minute = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
@@ -18,13 +19,13 @@ export function windowStarts(now: Date): { minute: Date; day: Date } {
  * or null when the key was deleted while the call was being checked (its
  * counters go with it, so there is nothing left to count against).
  */
-export async function countCall(tokenId: string, kind: CounterKind, windowStart: Date): Promise<number | null> {
+export async function countCall(tokenId: string, kind: CounterKind, windowStart: Date, by = 1): Promise<number | null> {
   const where = { tokenId_kind_windowStart: { tokenId, kind, windowStart } };
-  const increment = { count: { increment: 1 } };
+  const increment = { count: { increment: by } };
   try {
     const row = await prisma.botTokenUsage.upsert({
       where,
-      create: { tokenId, kind, windowStart, count: 1 },
+      create: { tokenId, kind, windowStart, count: by },
       update: increment,
       select: { count: true },
     });

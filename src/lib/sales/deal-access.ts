@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { canEditDeal, dealOwnerWhere, type SalesActor } from "@/lib/sales/access";
+import { canEditDeal, dealOwnerWhere, dealPipelineWhere, type SalesActor } from "@/lib/sales/access";
 import { fail, type SalesFail } from "@/lib/sales/http";
 
 // The two questions every deal read and write asks first: may this person see
@@ -9,9 +9,10 @@ import { fail, type SalesFail } from "@/lib/sales/http";
 export const DEAL_NOT_FOUND = "Deal not found.";
 export const NOT_YOUR_DEAL = "Only the deal owner or an admin can change this deal.";
 
-/** `where` for one deal this person may see: not archived, and theirs unless they see everyone's. */
+/** `where` for one deal this person may see: not archived, theirs unless they see everyone's, and for a bot only in its pipelines. */
 export function visibleDealWhere(actor: SalesActor, dealId: string): Prisma.SalesDealWhereInput {
-  return { id: dealId, archivedAt: null, ...dealOwnerWhere(actor, "everyone") };
+  // A bot also sees only deals in its pipelines (an empty pipeline list means none).
+  return { id: dealId, archivedAt: null, ...dealOwnerWhere(actor, "everyone"), ...dealPipelineWhere(actor) };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { failResponse, readJson } from "@/lib/sales/http";
 import { bulkLeadSchema, runLeadBulk } from "@/lib/sales/lead-bulk";
@@ -12,7 +12,7 @@ import { bulkLeadSchema, runLeadBulk } from "@/lib/sales/lead-bulk";
  */
 export async function POST(request: Request) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
 
     const body = await readJson(request, bulkLeadSchema);
     if (!body.ok) return failResponse(body);

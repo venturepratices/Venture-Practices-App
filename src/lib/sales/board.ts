@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { SalesActivityType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { dealOwnerWhere, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
+import { dealOwnerWhere, dealPipelineWhere, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
 import type { BoardQuery } from "@/lib/sales/board-query";
 import { BOARD_COLUMN_LIMIT, BOARD_PIPELINE_KINDS, LIST_PAGE_SIZE } from "@/lib/sales/constants";
 import { dateInputValue, endOfDay, startOfDay } from "@/lib/utils";
@@ -181,6 +181,8 @@ export function boardDealWhere(
     archivedAt: null,
     status: STATUS_BY_FILTER[query.status],
     ...dealOwnerWhere(actor, query.scope),
+    // A bot sees only its pipelines (an empty list means none).
+    ...dealPipelineWhere(actor),
     ...(activities ? { activities } : {}),
     ...(query.q ? { OR: [{ title: contains }, { organization: { name: contains } }, { person: { name: contains } }] } : {}),
   };
