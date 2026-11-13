@@ -196,7 +196,7 @@ describe("Bot keys in the restore script", () => {
   };
 
   const BOT_INSERT =
-    "await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false })) as never });";
+    "await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false, mustRotate: true })) as never });";
 
   it("wipes bot keys before TeamMember and puts them back after it", () => {
     expect(BACKUP_MODEL_KEYS).toContain("botToken");
