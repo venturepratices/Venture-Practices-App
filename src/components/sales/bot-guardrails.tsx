@@ -41,6 +41,7 @@ export function BotConnectPanel({ appUrl }: { appUrl: string | null }) {
         How to connect a bot
       </CardHeader>
       <div className={`${BODY} flex flex-col gap-3`}>
+        <p className="m-0 font-semibold">This part is for whoever sets up the bot.</p>
         <ol className="m-0 flex list-decimal flex-col gap-1.5 pl-5">
           <li>Make the bot here, with only the permissions it needs. Copy its key when it is shown, once.</li>
           <li>Paste the key straight into the bot&apos;s own secret store. Never into chat, email, Slack or a doc.</li>

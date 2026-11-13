@@ -29,7 +29,10 @@ export function PasswordConfirm({
       aria-busy={busy}
       onSubmit={(e) => {
         e.preventDefault();
-        if (password) onConfirm(password);
+        if (!password) return;
+        onConfirm(password);
+        // Never kept on screen after a try; a wrong one is typed again.
+        setPassword("");
       }}
     >
       {warning ? <p className={`${WARN} m-0`}>{warning}</p> : null}
@@ -39,7 +42,7 @@ export function PasswordConfirm({
       <input
         id={id}
         type="password"
-        autoComplete="current-password"
+        autoComplete="new-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="min-h-10 w-full rounded-lg border bg-background px-3 text-[14px] focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11"

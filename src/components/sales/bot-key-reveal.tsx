@@ -1,11 +1,11 @@
 "use client";
 
-import { Component, useId, useRef, useState } from "react";
+import { Component, useEffect, useId, useRef, useState } from "react";
 import { KeyRound, TriangleAlert } from "lucide-react";
 
-import { copyMessage } from "@/lib/sales/bots-view-model";
+import { canCloseReveal, copyKey, warnBeforeLeaving } from "@/lib/sales/bot-screen-state";
 import { Button } from "@/components/ui/button";
-import { BODY, CARD, CardHeader, TOUCH, WARN } from "@/components/sales/bot-card";
+import { BODY, CARD, CardHeader, scrollAndFocus, TOUCH, WARN } from "@/components/sales/bot-card";
 
 // The one-time key box. The key lives only in this component's props (React
 // memory): never in storage, the address bar or a toast. Copy can fail (no
@@ -16,7 +16,16 @@ export function BotKeyReveal({ secret, botName, onDone }: { secret: string; botN
   const [saved, setSaved] = useState(false);
   const [message, setMessage] = useState("");
   const keyRef = useRef<HTMLElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const savedId = useId();
+
+  // Bring the box into view and put focus on its heading as soon as it opens.
+  useEffect(() => scrollAndFocus(sectionRef.current), []);
+  // While the key is on screen, the browser asks before the page is closed or reloaded.
+  useEffect(() => {
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, []);
 
   function selectKey() {
     const el = keyRef.current;
@@ -29,19 +38,14 @@ export function BotKeyReveal({ secret, botName, onDone }: { secret: string; botN
   }
 
   async function copy() {
-    try {
-      if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(secret);
-      setMessage(copyMessage(true));
-    } catch {
-      selectKey();
-      setMessage(copyMessage(false));
-    }
+    const result = await copyKey(secret, typeof navigator !== "undefined" ? navigator.clipboard : undefined);
+    if (!result.copied) selectKey();
+    setMessage(result.message);
   }
 
   return (
-    <section className={`${CARD} border-primary/40`} aria-labelledby="bot-key-title">
-      <CardHeader icon={KeyRound} id="bot-key-title">
+    <section ref={sectionRef} className={`${CARD} border-primary/40`} aria-labelledby="bot-key-title">
+      <CardHeader icon={KeyRound} id="bot-key-title" focusable>
         Save the key for {botName} now
       </CardHeader>
       <div className={`${BODY} flex flex-col gap-3`}>
@@ -68,7 +72,7 @@ export function BotKeyReveal({ secret, botName, onDone }: { secret: string; botN
             <input id={savedId} type="checkbox" className="size-5" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
             I have saved it
           </label>
-          <Button type="button" disabled={!saved} onClick={onDone} className={`ml-auto ${TOUCH}`}>
+          <Button type="button" disabled={!canCloseReveal(saved)} onClick={onDone} className={`ml-auto ${TOUCH}`}>
             Done
           </Button>
         </div>
@@ -83,7 +87,7 @@ export function RevealFailed({ botName }: { botName: string }) {
     <div role="alert" className={`${WARN} flex gap-2`}>
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <p className="m-0">
-        A key was made for {botName}, but the screen could not show it, and it cannot be shown again. Use Rotate key on {botName} to get a new
+        A key was made for {botName}, but the screen could not show it, and it cannot be shown again. Use Make a new key on {botName} to get a new
         one. The old one stops working at once.
       </p>
     </div>

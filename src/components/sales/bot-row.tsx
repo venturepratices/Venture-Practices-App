@@ -26,7 +26,7 @@ export function BotRow({
   pipelines,
   now,
   ...callbacks
-}: { bot: BotView; pipelines: { key: string; name: string }[]; now: string } & RowCallbacks) {
+}: { bot: BotView; pipelines: { key: string; name: string }[]; now: string; keyBlocked?: string | null } & RowCallbacks) {
   const [showActivity, setShowActivity] = useState(false);
   const status = statusInfo(bot);
   const expiry = expiryInfo(bot.expiresAt, now);
@@ -34,7 +34,7 @@ export function BotRow({
   return (
     <li className="flex flex-col gap-2 px-4 py-3.5">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="m-0 text-[15px] font-semibold">{bot.name}</h3>
+        <h3 className="m-0 min-w-0 break-words text-[15px] font-semibold [overflow-wrap:anywhere]">{bot.name}</h3>
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium",

@@ -71,8 +71,8 @@ describe("plain words for a bot", () => {
     expect(vm.expiryInfo("2027-01-30T12:00:00.000Z", NOW)).toEqual({ text: "Key works until Jan 30, 2027", warn: false });
     expect(vm.expiryInfo("2026-11-20T12:00:00.000Z", NOW)).toEqual({ text: "Key expires in 7 days", warn: true });
     expect(vm.expiryInfo("2026-11-14T06:00:00.000Z", NOW)).toEqual({ text: "Key expires in 1 day", warn: true });
-    expect(vm.expiryInfo("2026-11-13T11:00:00.000Z", NOW)).toEqual({ text: "Key expired. Rotate it to use this bot again.", warn: true });
-    expect(vm.expiryInfo(null, NOW)).toEqual({ text: "Key has no end date. Rotate it to set one.", warn: true });
+    expect(vm.expiryInfo("2026-11-13T11:00:00.000Z", NOW)).toEqual({ text: "Key expired. Use Make a new key to use this bot again.", warn: true });
+    expect(vm.expiryInfo(null, NOW)).toEqual({ text: "Key has no end date. Use Make a new key to set one.", warn: true });
   });
 
   it("explains its state", () => {

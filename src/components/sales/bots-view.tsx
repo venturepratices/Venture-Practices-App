@@ -13,6 +13,7 @@ import type { SavedBot } from "@/components/sales/bot-editor-submit";
 import { BotConnectPanel, BotGuardrails } from "@/components/sales/bot-guardrails";
 import { BotKeyReveal, RevealGuard } from "@/components/sales/bot-key-reveal";
 import { BotRow } from "@/components/sales/bot-row";
+import { keyActionBlocked, showKey } from "@/lib/sales/bot-screen-state";
 
 // The Bots screen (admins only; the page gates it). Everything comes from the
 // server; after a change the page data is read again with router.refresh().
@@ -33,14 +34,21 @@ export function BotsView({ data }: { data: BotsScreenData }) {
     setStatus(message);
     startRefresh(() => router.refresh());
   };
+  // New bot and Make a new key are off while a key is on screen (so a second key
+  // can never replace one not saved yet) and while bot keys are switched off.
+  const keyBlocked = keyActionBlocked({ keyOnScreen: reveal !== null, paused: !data.botsEnabled });
+
+  /** Shows a new key, the key first before anything else can fail; never over one not saved yet. */
+  const showNewKey = (next: Reveal) => {
+    setReveal((current) => showKey(current, next).shown);
+  };
   const onSaved = (saved: SavedBot) => {
-    // The key first, before anything else can fail.
-    if (saved.secret) setReveal({ botId: saved.botId, botName: saved.botName, secret: saved.secret });
+    if (saved.secret) showNewKey({ botId: saved.botId, botName: saved.botName, secret: saved.secret });
     setEditing(null);
-    refresh(saved.secret ? `${saved.botName} is ready. Save its key below.` : `${saved.botName} was saved.`);
+    refresh(saved.secret ? `${saved.botName} is ready. Save its key in the box at the top.` : `${saved.botName} was saved.`);
   };
   const onKey = (saved: Reveal) => {
-    setReveal(saved);
+    showNewKey(saved);
     refresh(`${saved.botName} has a new key. The old one no longer works.`);
   };
 
@@ -58,8 +66,8 @@ export function BotsView({ data }: { data: BotsScreenData }) {
 
       {!data.botsEnabled ? (
         <p className={`${WARN} m-0`} role="status">
-          Bot keys are paused. No bot can call the app and no key can be made until bot keys are switched on in the hosting settings
-          (SALES_BOTS_ENABLED). That happens only after the key checklist is done.
+          The master switch for bot keys is off. Ask whoever runs the app to turn it on. Until then no bot can call the app and no key can
+          be made.
         </p>
       ) : null}
 
@@ -80,6 +88,7 @@ export function BotsView({ data }: { data: BotsScreenData }) {
           pipelines={data.pipelines}
           onCancel={() => setEditing(null)}
           onSaved={onSaved}
+          keyBlocked={keyBlocked}
         />
       ) : null}
 
@@ -88,13 +97,19 @@ export function BotsView({ data }: { data: BotsScreenData }) {
           icon={Bot}
           id="bots-list"
           action={
-            <Button type="button" onClick={() => setEditing({ mode: "create" })} disabled={editing?.mode === "create"} className={TOUCH}>
+            <Button
+              type="button"
+              onClick={() => setEditing({ mode: "create" })}
+              disabled={editing?.mode === "create" || Boolean(keyBlocked)}
+              className={TOUCH}
+            >
               New bot
             </Button>
           }
         >
           Your bots
         </CardHeader>
+        {keyBlocked ? <p className={`${MUTED} m-0 border-b px-4 py-2`}>{keyBlocked}</p> : null}
         {data.bots.length === 0 ? (
           <div className="px-4 py-6 text-[13.5px]">
             <p className="m-0 font-semibold">No bots yet</p>
@@ -113,6 +128,7 @@ export function BotsView({ data }: { data: BotsScreenData }) {
                 onEdit={(b) => setEditing({ mode: "edit", bot: b })}
                 onChanged={refresh}
                 onKey={onKey}
+                keyBlocked={keyBlocked}
               />
             ))}
           </ul>

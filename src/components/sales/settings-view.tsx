@@ -179,7 +179,7 @@ export function SettingsView({
                   size="sm"
                   aria-label={`Edit stages for ${pipeline.name}`}
                   onClick={() => setEditing(pipeline)}
-                  className="pointer-coarse:min-h-10 max-sm:w-full"
+                  className="pointer-coarse:min-h-11 max-sm:w-full"
                 >
                   Edit stages
                 </Button>
@@ -212,7 +212,7 @@ export function SettingsView({
             </p>
             <Link
               href="/sales/settings/bots"
-              className="inline-flex min-h-8 items-center justify-center rounded-lg border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-10 max-sm:w-full"
+              className="inline-flex min-h-8 items-center justify-center rounded-lg border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11 max-sm:w-full"
             >
               Manage bots
             </Link>

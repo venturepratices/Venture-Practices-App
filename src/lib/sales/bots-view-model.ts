@@ -45,9 +45,9 @@ export function lastUsedText(lastUsedAt: string | null, now: string): string {
 export const EXPIRY_WARN_DAYS = 14;
 
 export function expiryInfo(expiresAt: string | null, now: string): { text: string; warn: boolean } {
-  if (!expiresAt) return { text: "Key has no end date. Rotate it to set one.", warn: true };
+  if (!expiresAt) return { text: "Key has no end date. Use Make a new key to set one.", warn: true };
   const left = Date.parse(expiresAt) - Date.parse(now);
-  if (left <= 0) return { text: "Key expired. Rotate it to use this bot again.", warn: true };
+  if (left <= 0) return { text: "Key expired. Use Make a new key to use this bot again.", warn: true };
   const days = Math.ceil(left / DAY);
   if (days < EXPIRY_WARN_DAYS) return { text: `Key expires in ${plural(days, "day")}`, warn: true };
   const date = new Date(expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -56,7 +56,7 @@ export function expiryInfo(expiresAt: string | null, now: string): { text: strin
 
 export function statusInfo(bot: Pick<BotView, "enabled" | "offReason" | "mustRotate">): { label: string; on: boolean; reason: string | null } {
   if (bot.enabled) return { label: "On", on: true, reason: null };
-  if (bot.mustRotate) return { label: "Off", on: false, reason: "Its key came back from a backup. Rotate the key before turning it on." };
+  if (bot.mustRotate) return { label: "Off", on: false, reason: "Its key came back from a backup. Use Make a new key before turning it on." };
   if (bot.offReason) return { label: "Off", on: false, reason: `The app turned it off because ${bot.offReason}` };
   return { label: "Off", on: false, reason: null };
 }

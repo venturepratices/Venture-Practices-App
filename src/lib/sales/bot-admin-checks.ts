@@ -14,7 +14,7 @@ export const PAUSED_MESSAGE =
 export const WRONG_PASSWORD = "That password is not right.";
 export const PASSWORD_NEEDED = "Type your password to do this.";
 export const NO_PIPELINES = "Pick at least one pipeline, or all pipelines.";
-export const ROTATE_FIRST = "Rotate this bot's key before turning it on. Its key came back from a backup.";
+export const ROTATE_FIRST = "Make a new key for this bot before turning it on. Its key came back from a backup.";
 
 /** The key's end time, `days` from now (at most 90). */
 export function expiryFrom(now: Date, days: number = BOT_KEY_MAX_DAYS): Date {

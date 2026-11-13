@@ -20,19 +20,30 @@ export function CardHeader({
   children,
   action,
   id,
+  focusable = false,
 }: {
   icon: LucideIcon;
   children: React.ReactNode;
   action?: React.ReactNode;
   id?: string;
+  /** The heading can take focus from code (tabIndex -1), for a box that just opened. */
+  focusable?: boolean;
 }) {
   return (
     <div className={CARD_HEAD}>
       <Icon aria-hidden="true" />
-      <h2 id={id} className="m-0 text-[14px] font-semibold">
+      <h2 id={id} tabIndex={focusable ? -1 : undefined} className="m-0 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {children}
       </h2>
       {action ? <div className={cn("ml-auto")}>{action}</div> : null}
     </div>
   );
+}
+
+/** Scrolls a box that just opened into view and moves focus to its heading. */
+export function scrollAndFocus(section: HTMLElement | null): void {
+  if (!section) return;
+  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  section.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  section.querySelector<HTMLElement>("h2[tabindex]")?.focus({ preventScroll: true });
 }

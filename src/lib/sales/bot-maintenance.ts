@@ -24,7 +24,7 @@ export async function runBotMaintenance(now = new Date()): Promise<{ trimmed: nu
   });
   for (const bot of soon) {
     const daysLeft = Math.max(1, Math.ceil(((bot.expiresAt as Date).getTime() - now.getTime()) / DAY));
-    await alertAdmins(bot, `The key of the bot "${bot.name}" expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Rotate it to keep it working.`);
+    await alertAdmins(bot, `The key of the bot "${bot.name}" expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Use Make a new key on the Bots screen to keep it working.`);
     await prisma.botToken.updateMany({ where: { id: bot.id }, data: { expiryWarnedAt: now } });
   }
   return { trimmed, warned: soon.length };

@@ -25,7 +25,8 @@ export async function createBodyRequestSafe(
   if (!bot) return "This bot is gone. Refresh the page.";
   const body = updateBody(draft, bot);
   if (!body) return "Nothing changed.";
-  const result = await updateBotRequest(bot.id, body);
+  // The password goes only with a change that gives the bot more power.
+  const result = await updateBotRequest(bot.id, password ? { ...body, password } : body);
   if (!result.ok) return result.error;
   onSaved({ botId: bot.id, botName: bot.name, secret: null });
   return null;

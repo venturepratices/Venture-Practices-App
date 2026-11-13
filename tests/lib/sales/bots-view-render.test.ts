@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 const { BotsView } = await import("@/components/sales/bots-view");
 const { BotKeyReveal, RevealFailed } = await import("@/components/sales/bot-key-reveal");
 const { BotEditor } = await import("@/components/sales/bot-editor");
+const { BotRow } = await import("@/components/sales/bot-row");
 
 const clean = (html: string) => html.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
 
@@ -59,12 +60,12 @@ describe("BotsView", () => {
     const html = render(data());
     expect(html).toContain("No bots yet");
     expect(html).toContain("New bot");
-    expect(html).not.toContain("Bot keys are paused");
+    expect(html).not.toContain("master switch for bot keys is off");
   });
 
   it("a bot row says everything in plain words", () => {
     const html = render(data({ bots: [BOT] }));
-    for (const text of ["Muse", "Works for Ben E.", "Helper", "See deals and leads, Add notes, Add calls, meetings and tasks", "All pipelines", "Only Ben E.'s own deals and leads", "Never used", "0 of 2,000 calls today", "On", "Key expires in 6 days", "Turn off", "Rotate key", "Delete", "Recent activity", "Edit"]) {
+    for (const text of ["Muse", "Works for Ben E.", "Helper", "See deals and leads, Add notes, Add calls, meetings and tasks", "All pipelines", "Only Ben E.'s own deals and leads", "Never used", "0 of 2,000 calls today", "On", "Key expires in 6 days", "Turn off", "Make a new key", "Delete", "Recent activity", "Edit"]) {
       expect(html, text).toContain(text);
     }
   });
@@ -80,8 +81,55 @@ describe("BotsView", () => {
   });
 
   it("shows the paused notice when bot keys are switched off", () => {
-    expect(render(data({ botsEnabled: false }))).toContain("Bot keys are paused");
+    const html = render(data({ botsEnabled: false, bots: [BOT] }));
+    expect(html).toContain("The master switch for bot keys is off. Ask whoever runs the app to turn it on.");
+    expect(html).not.toContain("SALES_BOTS_ENABLED");
+    expect(html).not.toContain("checklist");
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>New bot<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Make a new key<\/button>/);
   });
+
+  it("a long bot name wraps instead of pushing the page sideways", () => {
+    expect(render(data({ bots: [{ ...BOT, name: "M".repeat(80) }] }))).toMatch(/<h3[^>]*break-words[^>]*>M{80}/);
+  });
+
+  it("the setup panel says who it is for", () => {
+    expect(render(data())).toContain("This part is for whoever sets up the bot.");
+  });
+});
+
+describe("BotRow while a key is on screen", () => {
+  it("turns off Make a new key and says why", () => {
+    const html = clean(
+      renderToString(
+        createElement(BotRow, {
+          bot: BOT,
+          pipelines: [],
+          now: "2026-11-13T12:00:00.000Z",
+          keyBlocked: "Save the key first.",
+          onEdit: () => {},
+          onChanged: () => {},
+          onKey: () => {},
+        }),
+      ),
+    );
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Make a new key<\/button>/);
+    expect(html).toContain("Save the key first.");
+  });
+});
+
+describe("BotEditor on an edit", () => {
+  it("shows no password box until the change gives the bot more power", () => {
+    const html = clean(
+      renderToString(
+        createElement(BotEditor, { mode: "edit", bot: BOT, members: data().members, pipelines: data().pipelines, onCancel: () => {}, onSaved: () => {} }),
+      ),
+    );
+    expect(html).not.toContain('type="password"');
+  });
+});
+
+describe("BotsView guardrails and setup", () => {
 
   it("guardrails say what a bot can never do, the limits, and that it can be turned off", () => {
     const html = render(data());
@@ -123,7 +171,7 @@ describe("RevealFailed", () => {
   it("says a key was made but could not be shown, and to rotate", () => {
     const html = clean(renderToString(createElement(RevealFailed, { botName: "Muse" })));
     expect(html).toContain("A key was made for Muse");
-    expect(html).toContain("Rotate key");
+    expect(html).toContain("Make a new key");
   });
 });
 
@@ -136,6 +184,6 @@ describe("BotEditor", () => {
     for (const text of ["Name", "Works for", "Sarah K.", "Read only", "Helper", "Rep", "Sales", "Move deals between stages", "Higher risk", "Low risk", "All pipelines", "Direct Mail", "Key lasts", "Your password"]) {
       expect(html, text).toContain(text);
     }
-    expect(html).toMatch(/type="password"[^>]*autoComplete="current-password"|autoComplete="current-password"[^>]*type="password"/i);
+    expect(html).toMatch(/type="password"[^>]*autoComplete="new-password"|autoComplete="new-password"[^>]*type="password"/i);
   });
 });

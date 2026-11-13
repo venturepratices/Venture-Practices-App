@@ -93,7 +93,7 @@ describe("expiry", () => {
     Object.assign(fake.bots[0], { enabled: false, mustRotate: true });
     const res = await patch("b1", { enabled: true, password: ADMIN_PASSWORD });
     expect(res.status).toBe(400);
-    expect(((await res.json()) as Row).error).toMatch(/[Rr]otate/);
+    expect(((await res.json()) as Row).error).toMatch(/new key/);
   });
 });
 
