@@ -48,7 +48,10 @@ export function BotConnectPanel({ appUrl }: { appUrl: string | null }) {
           <li>
             The bot sends the key in a header on every call: <code className="break-all font-mono text-[12.5px]">Authorization: Bearer &lt;key&gt;</code>
           </li>
-          <li>Make one test call, then check the bot&apos;s Recent activity and calls today.</li>
+          <li>
+            Make one test call, then reload this page. The bot should show &quot;Used a minute ago&quot; and a calls-today count.
+            Recent activity lists only changes the bot makes, so a read-only bot shows nothing there.
+          </li>
         </ol>
         <div>
           <h3 className="m-0 text-[13.5px] font-semibold">What a bot can call, per permission</h3>
