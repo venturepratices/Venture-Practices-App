@@ -16,13 +16,13 @@ import {
   updateBotSchema,
 } from "@/lib/sales/bot-admin";
 import {
-  checkAdminPassword,
+  verifyAdminPassword,
+  widensBot,
   expiryFrom,
   NO_PIPELINES,
   PASSWORD_NEEDED,
   PAUSED_MESSAGE,
   ROTATE_FIRST,
-  WRONG_PASSWORD,
 } from "@/lib/sales/bot-admin-checks";
 import { alertAdmins } from "@/lib/sales/bot-alerts";
 import { botsEnabled } from "@/lib/sales/bot-guard";
@@ -64,13 +64,16 @@ export async function PATCH(request: Request, { params }: Context) {
     const turningOn = change.enabled === true && !before.enabled;
     if (turningOn && !botsEnabled()) return bad(PAUSED_MESSAGE, 403);
     if (turningOn && before.mustRotate) return bad(ROTATE_FIRST);
-    if (turningOn || change.expiresInDays !== undefined) {
-      if (!change.password) return bad(PASSWORD_NEEDED);
-      if (!(await checkAdminPassword(admin.userId, change.password))) return bad(WRONG_PASSWORD, 403);
-    }
-
     const allPipelines = change.allPipelines ?? before.allPipelines;
     const pipelineKeys = allPipelines ? [] : (change.pipelineKeys ?? before.pipelineKeys);
+    const ownDealsOnly = change.ownDealsOnly ?? before.ownDealsOnly;
+    // Turning on, a new end date, or more power (a permission, pipelines, everyone's
+    // deals) needs the password; taking power away never does.
+    const widens = widensBot(before, { scopes: scopes ?? before.scopes, allPipelines, pipelineKeys, ownDealsOnly });
+    if (turningOn || change.expiresInDays !== undefined || widens) {
+      const pw = await verifyAdminPassword(admin.userId, change.password);
+      if (!pw.ok) return bad(pw.error, pw.status);
+    }
     if (hasNoPipelines(allPipelines, pipelineKeys)) return bad(NO_PIPELINES);
     const problem = await checkBotTarget({ pipelineKeys: change.pipelineKeys });
     if (problem) return bad(problem);
@@ -126,7 +129,8 @@ export async function POST(request: Request, { params }: Context) {
     if (!parsed.success) return bad(PASSWORD_NEEDED);
     const existing = await prisma.botToken.findUnique({ where: { id: botId }, select: { id: true } });
     if (!existing) return NextResponse.json(NOT_FOUND, { status: 404 });
-    if (!(await checkAdminPassword(admin.userId, parsed.data.password))) return bad(WRONG_PASSWORD, 403);
+    const pw = await verifyAdminPassword(admin.userId, parsed.data.password);
+    if (!pw.ok) return bad(pw.error, pw.status);
 
     const { secret, hash, last4 } = generateBotSecret();
     const rotatedAt = new Date();

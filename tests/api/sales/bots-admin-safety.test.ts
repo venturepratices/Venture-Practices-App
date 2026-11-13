@@ -140,3 +140,25 @@ describe("admins are told, in the app", () => {
     expect(fake.bots[0]).toMatchObject({ enabled: true, offReason: null, offAt: null });
   });
 });
+
+describe("more power needs the password, less power does not", () => {
+  it.each([
+    ["a new permission", { role: "rep" }],
+    ["all pipelines", { allPipelines: true }],
+    ["another pipeline", { pipelineKeys: ["direct-mail", "consulting"] }],
+    ["everyone's deals", { ownDealsOnly: false }],
+  ])("refuses %s without the password", async (_label, change) => {
+    await create({ allPipelines: false, pipelineKeys: ["direct-mail"], role: "helper" });
+    expect((await patch("b1", change)).status).toBe(400);
+    expect((await patch("b1", { ...change, password: ADMIN_PASSWORD })).status).toBe(200);
+  });
+
+  it.each([
+    ["fewer permissions", { role: "read" }],
+    ["fewer pipelines", { pipelineKeys: ["direct-mail"] }],
+    ["own deals only", { ownDealsOnly: true }],
+  ])("allows %s without the password", async (_label, change) => {
+    await create({ allPipelines: false, pipelineKeys: ["direct-mail", "consulting"], role: "helper", ownDealsOnly: false });
+    expect((await patch("b1", change)).status).toBe(200);
+  });
+});

@@ -14,12 +14,11 @@ import {
   toPublicBot,
 } from "@/lib/sales/bot-admin";
 import {
-  checkAdminPassword,
+  verifyAdminPassword,
   checkBotCaps,
   expiryFrom,
   NO_PIPELINES,
   PAUSED_MESSAGE,
-  WRONG_PASSWORD,
 } from "@/lib/sales/bot-admin-checks";
 import { alertAdmins } from "@/lib/sales/bot-alerts";
 import { botsEnabled } from "@/lib/sales/bot-guard";
@@ -57,7 +56,8 @@ export async function POST(request: Request) {
     const pipelineKeys = parsed.data.pipelineKeys ?? [];
     const allPipelines = parsed.data.allPipelines ?? false;
     if (hasNoPipelines(allPipelines, pipelineKeys)) return bad(NO_PIPELINES);
-    if (!(await checkAdminPassword(admin.userId, parsed.data.password))) return bad(WRONG_PASSWORD, 403);
+    const pw = await verifyAdminPassword(admin.userId, parsed.data.password);
+    if (!pw.ok) return bad(pw.error, pw.status);
     const problem =
       (await checkBotTarget({ actingForId: parsed.data.actingForId, pipelineKeys })) ??
       (await checkBotCaps(parsed.data.actingForId));

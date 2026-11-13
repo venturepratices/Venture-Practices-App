@@ -27,6 +27,58 @@ export async function checkAdminPassword(userId: string, password: string): Prom
   return bcrypt.compare(password, me.passwordHash);
 }
 
+// Wrong-password strikes per admin, so the re-check cannot be guessed at by
+// someone holding a stolen admin session. In this server's memory, bounded.
+export const PASSWORD_LOCKED = "Too many wrong passwords. Try again in 15 minutes.";
+const MAX_WRONG = 5;
+const LOCK_MS = 15 * 60_000;
+const MAX_TRACKED = 1000;
+const strikes = new Map<string, { count: number; first: number; lockedUntil: number }>();
+
+/** Tests only: forget every strike. */
+export function resetPasswordStrikes(): void {
+  strikes.clear();
+}
+
+/**
+ * The password check every Bots route uses: refuses (429) after 5 wrong tries
+ * in 15 minutes, even when the next try is right; a right password clears the count.
+ */
+export async function verifyAdminPassword(
+  userId: string,
+  password: string | undefined,
+  now = Date.now(),
+): Promise<{ ok: true } | { ok: false; status: 400 | 403 | 429; error: string }> {
+  const strike = strikes.get(userId);
+  if (strike && strike.lockedUntil > now) return { ok: false, status: 429, error: PASSWORD_LOCKED };
+  // An old window (or a lock that has run out) starts again from nothing.
+  if (strike && (strike.lockedUntil > 0 || now - strike.first >= LOCK_MS)) strikes.delete(userId);
+  if (!password) return { ok: false, status: 400, error: PASSWORD_NEEDED };
+  if (await checkAdminPassword(userId, password)) {
+    strikes.delete(userId);
+    return { ok: true };
+  }
+  const current = strikes.get(userId);
+  if (current) current.count += 1;
+  else {
+    if (strikes.size >= MAX_TRACKED) strikes.delete(strikes.keys().next().value as string);
+    strikes.set(userId, { count: 1, first: now, lockedUntil: 0 });
+  }
+  const updated = strikes.get(userId)!;
+  if (updated.count >= MAX_WRONG) updated.lockedUntil = now + LOCK_MS;
+  return { ok: false, status: 403, error: WRONG_PASSWORD };
+}
+
+type Reach = { scopes: readonly string[]; allPipelines: boolean; pipelineKeys: readonly string[]; ownDealsOnly: boolean };
+
+/** True when a change gives the bot more power: a new permission, more pipelines, or everyone's deals. */
+export function widensBot(before: Reach, after: Reach): boolean {
+  if (after.scopes.some((s) => !before.scopes.includes(s))) return true;
+  if (after.allPipelines && !before.allPipelines) return true;
+  if (!after.allPipelines && after.pipelineKeys.some((k) => !before.allPipelines && !before.pipelineKeys.includes(k))) return true;
+  return before.ownDealsOnly && !after.ownDealsOnly;
+}
+
 /** A plain refusal when one more bot for this person would pass a limit, else null. */
 export async function checkBotCaps(actingForId: string): Promise<string | null> {
   const [forPerson, total] = await Promise.all([

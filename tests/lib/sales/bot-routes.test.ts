@@ -227,7 +227,7 @@ describe("PATCH /api/sales/bots/[botId]", () => {
 
   it("changes the role", async () => {
     await createBot();
-    await botRoute.PATCH(req("PATCH", { role: "rep" }), ctx("b1"));
+    await botRoute.PATCH(req("PATCH", { role: "rep", password: PASSWORD }), ctx("b1"));
     expect(db.bots[0].scopes).toEqual(["read", "notes", "activities", "move", "create"]);
   });
 
@@ -273,7 +273,7 @@ describe("PATCH /api/sales/bots/[botId]", () => {
     pipelineFindMany.mockClear();
 
     expect((await botRoute.PATCH(req("PATCH", { pipelineKeys: [] }), ctx("b1"))).status).toBe(400);
-    const res = await botRoute.PATCH(req("PATCH", { allPipelines: true }), ctx("b1"));
+    const res = await botRoute.PATCH(req("PATCH", { allPipelines: true, password: PASSWORD }), ctx("b1"));
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { bot: Row }).bot).toMatchObject({ allPipelines: true, pipelineKeys: [] });
