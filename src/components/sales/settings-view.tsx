@@ -192,7 +192,7 @@ export function SettingsView({
           <CardHeader icon={DatabaseZap}>Copy from Pipedrive</CardHeader>
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 max-sm:flex-col max-sm:items-start">
             <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug">
-              Copy organizations, people, deals, leads, activities and notes from Pipedrive into the app. Start with a practice run.
+              Copy organizations, people, deals, leads, activities, notes and files from Pipedrive into the app. Start with a practice run.
             </p>
             <Link
               href="/sales/settings/import"

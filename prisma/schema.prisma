@@ -2287,6 +2287,7 @@ enum SalesImportStatus {
 // sales_pipedrive_import migration enforces it (Prisma schema syntax cannot
 // express that index, same as the audit-log triggers). startedById is a plain
 // string, not a relation, so removing a team member never touches import history.
+// If `prisma migrate dev` ever proposes DROP INDEX "SalesImportRun_one_running", delete that line (the raw partial index lives only in the migration SQL).
 model SalesImportRun {
   id          String            @id @default(cuid())
   mode        SalesImportMode

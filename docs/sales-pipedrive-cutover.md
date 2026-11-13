@@ -74,6 +74,9 @@ About files and notes:
 - A practice run can show slightly more activities and notes than the real copy. It cannot check links, so it counts a few rows the real copy later leaves out.
 - "Check the copy" can take up to a minute because it reads every Pipedrive list.
 - The report names about 30 left-out files in all. After that it gives one line per reason, with a count.
+- Copying does not write to the history log (the Sales history). Look at the run report instead.
+- If Check the copy shows a general error, wait a minute and press it again.
+- Old meetings copied from Pipedrive never trigger the morning missed-meeting rule. Only meetings made in the app after the copy do.
 
 ## If something goes wrong
 

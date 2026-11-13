@@ -163,6 +163,7 @@ describe("SettingsView (server render)", () => {
     const html = renderView(ASSIGNMENT_OK);
     expect(html).toContain("Copy from Pipedrive");
     expect(html).toContain('href="/sales/settings/import"');
+    expect(html).toContain("activities, notes and files from Pipedrive");
   });
 
   it("names the lost-access bar for a saved single person who lost access and opens the Pick a person placeholder", () => {
