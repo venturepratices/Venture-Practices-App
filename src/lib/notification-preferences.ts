@@ -17,6 +17,7 @@ export const CATEGORY_BY_TYPE: Record<NotificationType, NotificationCategory> = 
   TASK_DUE_SOON: "tasks",
   TASK_OVERDUE: "tasks",
   ROCK_CHECKIN: "tasks",
+  BOT_ALERT: "tasks",
 
   WORKFLOW_STAGE_STARTED: "projects",
   WORKFLOW_COMPLETED: "projects",
