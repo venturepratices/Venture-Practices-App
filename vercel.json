@@ -49,6 +49,10 @@
       "schedule": "0 21 * * *"
     },
     {
+      "path": "/api/cron/bot-maintenance",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/cron/sales-no-show",
       "schedule": "0 11 * * *"
     },
