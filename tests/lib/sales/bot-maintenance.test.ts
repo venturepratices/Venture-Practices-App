@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown>;
 const db = { bots: [] as Row[], notifications: [] as Row[] };
-const deleteMany = vi.fn(async (_args: unknown) => ({ count: 3 }));
+const deleteMany = vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 3 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
