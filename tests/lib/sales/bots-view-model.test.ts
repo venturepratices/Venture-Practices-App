@@ -172,3 +172,16 @@ describe("the bot form", () => {
     expect(vm.copyMessage(false)).toMatch(/selected/);
   });
 });
+
+describe("password on an edit", () => {
+  it("is needed only when the change gives more power", () => {
+    const bot = makeBot({ allPipelines: false, pipelineKeys: ["direct-mail"] });
+    const draft = vm.draftFromBot(bot);
+    expect(vm.editNeedsPassword(draft, bot)).toBe(false);
+    expect(vm.editNeedsPassword(vm.pickRole(draft, "rep"), bot)).toBe(true);
+    expect(vm.editNeedsPassword(vm.pickRole(draft, "read"), bot)).toBe(false);
+    expect(vm.editNeedsPassword({ ...draft, allPipelines: true }, bot)).toBe(true);
+    expect(vm.editNeedsPassword({ ...draft, pipelineKeys: ["direct-mail", "consulting"] }, bot)).toBe(true);
+    expect(vm.editNeedsPassword({ ...draft, ownDealsOnly: false }, bot)).toBe(true);
+  });
+});

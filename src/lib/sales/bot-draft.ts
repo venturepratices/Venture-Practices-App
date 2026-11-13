@@ -114,3 +114,18 @@ export function copyMessage(ok: boolean): string {
     ? "Copied. Paste it straight into the bot's secret store."
     : "Copy did not work here. The key is selected: press Ctrl+C (or Cmd+C), or long-press and Copy.";
 }
+
+type Reach = { scopes: readonly string[]; allPipelines: boolean; pipelineKeys: readonly string[]; ownDealsOnly: boolean };
+
+/** True when a change gives the bot more power: a new permission, more pipelines, or everyone's deals. */
+export function widensBot(before: Reach, after: Reach): boolean {
+  if (after.scopes.some((s) => !before.scopes.includes(s))) return true;
+  if (after.allPipelines && !before.allPipelines) return true;
+  if (!after.allPipelines && after.pipelineKeys.some((k) => !before.allPipelines && !before.pipelineKeys.includes(k))) return true;
+  return before.ownDealsOnly && !after.ownDealsOnly;
+}
+
+/** On an edit, the password is needed only when the change gives the bot more power. */
+export function editNeedsPassword(draft: BotDraft, bot: DraftSource): boolean {
+  return widensBot(bot, draft);
+}

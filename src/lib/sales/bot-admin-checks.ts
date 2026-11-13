@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { BOT_CAPS, BOT_KEY_MAX_DAYS } from "@/lib/sales/bot-scopes";
 
+export { widensBot } from "@/lib/sales/bot-draft";
+
 // The checks the admin Bots routes run before a key is made, rotated or turned
 // on: the admin types their password again, the bot limits per person and in
 // total, and the plain-words refusals the screen shows.
@@ -67,16 +69,6 @@ export async function verifyAdminPassword(
   const updated = strikes.get(userId)!;
   if (updated.count >= MAX_WRONG) updated.lockedUntil = now + LOCK_MS;
   return { ok: false, status: 403, error: WRONG_PASSWORD };
-}
-
-type Reach = { scopes: readonly string[]; allPipelines: boolean; pipelineKeys: readonly string[]; ownDealsOnly: boolean };
-
-/** True when a change gives the bot more power: a new permission, more pipelines, or everyone's deals. */
-export function widensBot(before: Reach, after: Reach): boolean {
-  if (after.scopes.some((s) => !before.scopes.includes(s))) return true;
-  if (after.allPipelines && !before.allPipelines) return true;
-  if (!after.allPipelines && after.pipelineKeys.some((k) => !before.allPipelines && !before.pipelineKeys.includes(k))) return true;
-  return before.ownDealsOnly && !after.ownDealsOnly;
 }
 
 /** A plain refusal when one more bot for this person would pass a limit, else null. */
