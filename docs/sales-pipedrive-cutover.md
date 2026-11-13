@@ -71,6 +71,7 @@ About files and notes:
 - A custom field value you clear in Pipedrive stays in the app.
 - A lead you converted in the app is reset to Pipedrive's status on the next copy.
 - A Pipedrive user who is deactivated but still matches a Sales member by email maps to that member.
+- A practice run can show slightly more activities and notes than the real copy. It cannot check links, so it counts a few rows the real copy later leaves out.
 - "Check the copy" can take up to a minute because it reads every Pipedrive list.
 - The report names about 30 left-out files in all. After that it gives one line per reason, with a count.
 
