@@ -159,6 +159,12 @@ describe("SettingsView (server render)", () => {
     expect(html).toContain('aria-label="Edit stages for Marketing Agency Services"');
   });
 
+  it("links to the Bots screen with one plain sentence, same card style", () => {
+    const html = renderView(ASSIGNMENT_OK);
+    expect(html).toMatch(/<a[^>]*href="\/sales\/settings\/bots"/);
+    expect(html).toContain("Let a helper app such as Muse work in Sales for one person, with only the permissions you give it.");
+  });
+
   it("links to the Copy from Pipedrive screen (the page is admins only)", () => {
     const html = renderView(ASSIGNMENT_OK);
     expect(html).toContain("Copy from Pipedrive");

@@ -104,8 +104,9 @@ export const createBotSchema = z.strictObject({
 
 export const updateBotSchema = z
   .strictObject({ enabled: z.boolean().optional(), ...accessFields, password: password.optional() })
+  // The password alone is not a change.
   .refine(
-    ({ password: _typed, ...change }) => Object.values(change).some((value) => value !== undefined),
+    (data) => Object.entries(data).some(([key, value]) => key !== "password" && value !== undefined),
     { message: "Nothing to change." },
   );
 
