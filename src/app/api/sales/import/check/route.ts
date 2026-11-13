@@ -7,6 +7,9 @@ import { checkLatestRun, pipedriveClientFromEnv, TOKEN_NOT_SET } from "@/lib/sal
 // The check walks every Pipedrive list, one after another.
 export const maxDuration = 60;
 
+/** The check's own time limit, inside maxDuration with room to answer. */
+const CHECK_MS = 50_000;
+
 /**
  * Admin: "Check the copy". Counts Pipedrive against the app for the latest
  * real copy and picks 5 deals to compare by eye; saves the result on that run
@@ -19,7 +22,8 @@ export async function POST(request: Request) {
     const blocked = assertSameOrigin(request);
     if (blocked) return failResponse(blocked);
 
-    const client = pipedriveClientFromEnv();
+    // Past this the client stops retrying and pauses (a 429), which the check answers with "try again in a minute".
+    const client = pipedriveClientFromEnv(process.env, { deadline: new Date(Date.now() + CHECK_MS) });
     if (!client) return failResponse(fail(400, TOKEN_NOT_SET));
 
     const result = await checkLatestRun({ client, now: new Date(), random: Math.random, env: process.env });

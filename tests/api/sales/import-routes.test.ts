@@ -76,6 +76,19 @@ vi.mock("@/lib/sales/pipedrive/import", () => ({
   loadUserMappings: (...args: unknown[]) => loadUserMappings(...args),
 }));
 
+/** The options each real Pipedrive client was built with (it is never asked to send anything here). */
+const clientOptions: Record<string, unknown>[] = [];
+vi.mock("@/lib/sales/pipedrive/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/sales/pipedrive/client")>();
+  return {
+    ...actual,
+    createPipedriveClient: (opts: Parameters<typeof actual.createPipedriveClient>[0]) => {
+      clientOptions.push(opts);
+      return actual.createPipedriveClient(opts);
+    },
+  };
+});
+
 const buildCheckReport = vi.fn();
 vi.mock("@/lib/sales/pipedrive/verify", () => ({
   buildCheckReport: (...args: unknown[]) => buildCheckReport(...args),
@@ -228,6 +241,8 @@ describe("POST continue", () => {
     expect(ahead).toBeGreaterThanOrEqual(44_000);
     expect(ahead).toBeLessThanOrEqual(46_000);
     expect(args.now()).toBeInstanceOf(Date);
+    // The client stops its own retries at the same deadline, so a slow Pipedrive pauses the run instead of timing out.
+    expect((clientOptions.at(-1)?.deadline as Date).getTime()).toBe(args.deadline.getTime());
   });
 
   it("answers 409 for a run that is not running", async () => {
@@ -350,6 +365,18 @@ describe("POST check", () => {
     const res = await checkRoute.POST(req("POST", {}, "check"));
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/slow down/);
+  });
+
+  it("gives its client a 50 second deadline, and answers the client's pause with wait a minute", async () => {
+    run();
+    buildCheckReport.mockRejectedValue(new PipedriveError(429, "Pipedrive is slow right now. The copy will continue in a minute."));
+    const before = Date.now();
+    const res = await checkRoute.POST(req("POST", {}, "check"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pipedrive asked us to slow down. Try the check again in a minute.");
+    const ahead = (clientOptions.at(-1)?.deadline as Date).getTime() - before;
+    expect(ahead).toBeGreaterThanOrEqual(49_000);
+    expect(ahead).toBeLessThanOrEqual(51_000);
   });
 
   it("refuses a second check within a minute of the saved one", async () => {

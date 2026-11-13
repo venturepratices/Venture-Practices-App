@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createPipedriveClient, PipedriveError, pipedriveTokenInfo } from "@/lib/sales/pipedrive/client";
+import { createPipedriveClient, PipedriveError, pipedriveTokenInfo, requestTimeoutMs } from "@/lib/sales/pipedrive/client";
 
 // The read-only Pipedrive client. Every test hands it a fake fetch that records
 // what the client sent, so these check real requests: which URL, which method,
@@ -836,5 +836,71 @@ describe("pipedriveTokenInfo", () => {
 
   it("shows no characters of a token too short to hide half of", () => {
     expect(pipedriveTokenInfo({ PIPEDRIVE_API_TOKEN: "abc123" })).toEqual({ set: true, last4: null });
+  });
+});
+
+describe("a chunk deadline", () => {
+  const T0 = new Date("2026-11-13T15:00:00.000Z");
+  const PAUSE = "Pipedrive is slow right now. The copy will continue in a minute.";
+
+  function deadlineClient(steps: Step[], secondsLeft: number) {
+    const fake = fakeFetch(steps);
+    let clock = T0.getTime();
+    const sleep = vi.fn<(ms: number) => Promise<void>>(async (ms) => {
+      clock += ms;
+    });
+    const client = createPipedriveClient({
+      token: TOKEN,
+      fetchImpl: fake.fetchImpl,
+      sleep,
+      deadline: new Date(T0.getTime() + secondsLeft * 1000),
+      now: () => new Date(clock),
+    });
+    return { ...fake, sleep, client };
+  }
+
+  it("pauses at once, without sleeping, when the wait would cross the deadline", async () => {
+    const { client, calls, sleep } = deadlineClient([json({ error: "slow down" }, 429, { "retry-after": "10" })], 12);
+    const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect(failure).toMatchObject({ status: 429, message: PAUSE });
+    expect(sleep).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(1);
+    expect((failure as Error).message).not.toContain(TOKEN);
+  });
+
+  it("still retries when the wait fits before the deadline", async () => {
+    const { client, sleep } = deadlineClient(
+      [json({ error: "slow down" }, 429), json({ success: true, data: [{ id: 1 }], additional_data: { next_cursor: null } })],
+      40,
+    );
+    expect(await collect(client.pages("/api/v2/deals"))).toEqual([[{ id: 1 }]]);
+    expect(sleep.mock.calls).toEqual([[1000]]);
+  });
+
+  it("pauses before sending when fewer than 3 seconds are left", async () => {
+    const { client, calls } = deadlineClient([json({ success: true, data: [] })], 7);
+    const failure = await collect(client.pages("/api/v2/deals")).catch((e: unknown) => e);
+    expect(failure).toMatchObject({ status: 429, message: PAUSE });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps the old retry sequence when there is no deadline", async () => {
+    const { client, sleep } = makeClient([json({ error: "down" }, 503)]);
+    await collect(client.pages("/api/v2/deals")).catch(() => undefined);
+    expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [8000]]);
+  });
+});
+
+describe("requestTimeoutMs", () => {
+  const now = new Date("2026-11-13T15:00:00.000Z");
+  const at = (seconds: number) => new Date(now.getTime() + seconds * 1000);
+
+  it("is 20 seconds with no deadline or plenty of time, shrinks near the deadline, and is null under 3 seconds", () => {
+    expect(requestTimeoutMs(undefined, now)).toBe(20_000);
+    expect(requestTimeoutMs(at(45), now)).toBe(20_000);
+    expect(requestTimeoutMs(at(15), now)).toBe(10_000);
+    expect(requestTimeoutMs(at(8), now)).toBe(3_000);
+    expect(requestTimeoutMs(at(7.9), now)).toBeNull();
   });
 });

@@ -32,7 +32,24 @@ const MAX_PAGES = 10_000;
 /** Pipedrive's own words in an error are cut to this, so a long reply cannot flood a screen. */
 const MAX_REASON_CHARS = 200;
 /** A request that has not answered by now is treated as a dropped connection: retried, then reported with status 0. */
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 20_000;
+/** Room kept before a chunk deadline to save the run and answer. */
+const DEADLINE_MARGIN_MS = 5_000;
+/** Less time than this left is not worth a request. */
+const MIN_REQUEST_MS = 3_000;
+/** A 429, so the import's own rate-limit path pauses the run instead of the host cutting the request off. */
+const PAUSE_MESSAGE = "Pipedrive is slow right now. The copy will continue in a minute.";
+
+/**
+ * How long one request may take: 20 seconds, or less near a chunk deadline
+ * (the time left before the deadline, minus room to save). Null when under 3
+ * seconds would be left, so the caller pauses instead of sending.
+ */
+export function requestTimeoutMs(deadline: Date | undefined, now: Date): number | null {
+  if (!deadline) return REQUEST_TIMEOUT_MS;
+  const left = deadline.getTime() - DEADLINE_MARGIN_MS - now.getTime();
+  return left < MIN_REQUEST_MS ? null : Math.min(REQUEST_TIMEOUT_MS, left);
+}
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -83,6 +100,9 @@ export function createPipedriveClient(opts: {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  /** When the caller's time is up. Retries and timeouts stay inside it; past it the client answers with a pause (429). */
+  deadline?: Date;
+  now?: () => Date;
 }): PipedriveClient {
   // A token pasted into an env var often carries a trailing newline, which is
   // not a legal header value, so it is trimmed here once.
@@ -97,6 +117,8 @@ export function createPipedriveClient(opts: {
   // Looked up at call time, not now, so the host's own fetch is the one used.
   const fetchImpl: typeof fetch = opts.fetchImpl ?? ((input, init) => fetch(input, init));
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const now = opts.now ?? (() => new Date());
+  const { deadline } = opts;
 
   /**
    * A full URL under the Pipedrive host. A path that points anywhere else is
@@ -119,6 +141,8 @@ export function createPipedriveClient(opts: {
    */
   async function send(url: URL, withToken: boolean, accept: string): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
+      const timeoutMs = requestTimeoutMs(deadline, now());
+      if (timeoutMs === null) throw new PipedriveError(429, PAUSE_MESSAGE);
       let res: Response | null = null;
       try {
         res = await fetchImpl(url.toString(), {
@@ -126,7 +150,7 @@ export function createPipedriveClient(opts: {
           headers: withToken ? { "x-api-token": token, Accept: accept } : { Accept: accept },
           redirect: "manual",
           cache: "no-store",
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
         // The thrown error is dropped on purpose: a network failure's text can
@@ -140,7 +164,12 @@ export function createPipedriveClient(opts: {
 
       // Let go of the unread reply so its connection is freed; no need to wait for it.
       void res?.body?.cancel().catch(() => {});
-      await sleep(waitMs(res, attempt));
+      const wait = waitMs(res, attempt);
+      // A wait that would run past the deadline is not taken: the run pauses and carries on next chunk.
+      if (deadline && now().getTime() + wait > deadline.getTime() - DEADLINE_MARGIN_MS) {
+        throw new PipedriveError(429, PAUSE_MESSAGE);
+      }
+      await sleep(wait);
     }
   }
 

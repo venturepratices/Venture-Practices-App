@@ -37,7 +37,9 @@ export async function POST(request: Request) {
     const notRunning = await notRunningAnswer(body.data.runId);
     if (notRunning) return notRunning;
 
-    const client = pipedriveClientFromEnv();
+    // The client and the engine share one deadline, so a slow Pipedrive pauses the run instead of the request timing out.
+    const deadline = new Date(Date.now() + CHUNK_MS);
+    const client = pipedriveClientFromEnv(process.env, { deadline });
     if (!client) return failResponse(fail(400, TOKEN_NOT_SET));
 
     let result: Awaited<ReturnType<typeof continueImportRun>>;
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
       result = await continueImportRun({
         runId: body.data.runId,
         client,
-        deadline: new Date(Date.now() + CHUNK_MS),
+        deadline,
         now: () => new Date(),
       });
     } catch (error) {

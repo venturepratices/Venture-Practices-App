@@ -15,10 +15,16 @@ import { buildCheckReport, type CheckEntity } from "@/lib/sales/pipedrive/verify
 
 export const TOKEN_NOT_SET = "The Pipedrive token is not set yet.";
 
-/** A client built from PIPEDRIVE_API_TOKEN, or null when it is not set. The token goes no further than the client. */
-export function pipedriveClientFromEnv(env: Record<string, string | undefined> = process.env): PipedriveClient | null {
+/**
+ * A client built from PIPEDRIVE_API_TOKEN, or null when it is not set. The token goes no further than the client.
+ * `deadline` keeps its retries and timeouts inside the request's own time limit (past it, it pauses with a 429).
+ */
+export function pipedriveClientFromEnv(
+  env: Record<string, string | undefined> = process.env,
+  opts: { deadline?: Date } = {},
+): PipedriveClient | null {
   const token = env.PIPEDRIVE_API_TOKEN?.trim();
-  return token ? createPipedriveClient({ token }) : null;
+  return token ? createPipedriveClient({ token, deadline: opts.deadline }) : null;
 }
 
 /** `text` with every copy of the token replaced, so no message can carry it to the browser. */
