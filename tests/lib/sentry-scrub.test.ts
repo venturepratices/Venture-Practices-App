@@ -510,3 +510,17 @@ describe("bot keys and bearer values never reach Sentry", () => {
     expect(sent(scrubBreadcrumb({ message: `retry ${BOT_KEY}` }))).not.toContain(BOT_KEY);
   });
 });
+
+describe("bot keys anywhere in an event", () => {
+  const BOT_KEY = "vpb_" + "Qw7".repeat(14) + "z";
+
+  it("masks a key glued to a word, such as x_vpb_...", () => {
+    expect(sent(scrubEvent({ message: `token=x_${BOT_KEY}` } as Event))).not.toContain(BOT_KEY);
+  });
+
+  it("masks keys in extra and tags", () => {
+    const event = scrubEvent({ extra: { header: `Bearer ${BOT_KEY}`, nested: { k: BOT_KEY } }, tags: { key: BOT_KEY } } as Event);
+    expect(sent(event)).not.toContain(BOT_KEY);
+    expect(sent(event)).not.toContain(BOT_KEY.slice(4));
+  });
+});

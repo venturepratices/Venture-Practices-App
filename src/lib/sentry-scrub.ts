@@ -92,7 +92,7 @@ export function scrubUrl(url: string): string {
   return scheme + host + scrubPath(path);
 }
 
-/** A bot key (vpb_...) or the value after "Bearer", anywhere in text. */
+/** A bot key (vpb_ and at least 8 key characters) anywhere in text, even glued to a word, or the value after "Bearer". */
 const KEY_IN_TEXT = /\bvpb_[A-Za-z0-9_-]{8,}/g;
 const BEARER_IN_TEXT = /\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 
@@ -119,7 +119,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * instance) is kept as it is.
  */
 function scrubData(value: unknown, key = "", depth = 0): unknown {
-  if (typeof value === "string") return URL_KEY.test(key) ? scrubUrl(value) : scrubText(value);
+  if (typeof value === "string") return URL_KEY.test(key) ? scrubUrl(maskKeys(value)) : scrubText(value);
   if (depth >= 5) return value;
   if (Array.isArray(value)) return value.map((item) => scrubData(item, "", depth + 1));
   if (!isPlainObject(value)) return value;
@@ -170,6 +170,8 @@ export function scrubEvent<T extends Event>(event: T): T {
     };
   }
   if (out.contexts) out.contexts = scrubRecord(out.contexts);
+  if (out.extra) out.extra = scrubRecord(out.extra);
+  if (out.tags) out.tags = scrubRecord(out.tags);
   if (out.breadcrumbs) out.breadcrumbs = out.breadcrumbs.map(scrubBreadcrumb);
   if (out.spans) {
     out.spans = out.spans.map((span) => ({
