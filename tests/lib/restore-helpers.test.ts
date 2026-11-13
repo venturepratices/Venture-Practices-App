@@ -196,7 +196,7 @@ describe("Bot keys in the restore script", () => {
   };
 
   const BOT_INSERT =
-    "await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false, mustRotate: true })) as never });";
+    "await tx.botToken.createMany({ data: t.botTokens.map((row) => restoredBotToken(row as object)) as never });";
 
   it("wipes bot keys before TeamMember and puts them back after it", () => {
     expect(BACKUP_MODEL_KEYS).toContain("botToken");
@@ -239,5 +239,14 @@ describe("Sales settings in the restore script", () => {
       "if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });",
     );
     expect(script).toContain("salesSettings: await prisma.salesSettings.count(),");
+  });
+});
+
+describe("restoredBotToken", () => {
+  it("puts a bot key back turned off and needing a new key", async () => {
+    const { restoredBotToken } = await import("@/lib/restore-helpers");
+    const row = { id: "b1", name: "Muse", enabled: true, mustRotate: false, tokenHash: "h" };
+    expect(restoredBotToken(row)).toEqual({ ...row, enabled: false, mustRotate: true });
+    expect(row.enabled).toBe(true);
   });
 });

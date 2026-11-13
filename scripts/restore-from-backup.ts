@@ -7,7 +7,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 
-import { missingV3Tables, reviveDates, snapshotHasTable, topologicalBatches } from "../src/lib/restore-helpers";
+import { missingV3Tables, restoredBotToken, reviveDates, snapshotHasTable, topologicalBatches } from "../src/lib/restore-helpers";
 
 /**
  * Restores a database snapshot produced by src/lib/backup.ts back into a
@@ -270,7 +270,7 @@ async function main() {
         if (t.salesAuditLogs?.length) await tx.salesAuditLog.createMany({ data: t.salesAuditLogs as never, skipDuplicates: true });
         // Bot keys come back turned off: a restored key may be one that was meant to be dead.
         if (t.botTokens?.length)
-          await tx.botToken.createMany({ data: t.botTokens.map((row) => ({ ...row, enabled: false, mustRotate: true })) as never });
+          await tx.botToken.createMany({ data: t.botTokens.map((row) => restoredBotToken(row as object)) as never });
         if (t.salesSettings?.length) await tx.salesSettings.createMany({ data: t.salesSettings as never });
       },
       { timeout: 120_000 }

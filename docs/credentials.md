@@ -10,6 +10,8 @@ One row per key, token or webhook secret the app uses or hands out. **Never writ
 
 - Made only on the Bots screen (`/sales/settings/bots`), by an admin who types their password again.
 - Paused for everyone until `SALES_BOTS_ENABLED` is set to `true` in Vercel (Production only). Unset or anything else: every bot key is refused and none can be made.
+- While paused, a bot call gets 403 "Bot keys are paused." on purpose (not the 401 invalid-key answer). It says only that keys are paused, never whether a key is real.
+- A turned-off or expired key does a little more work than an unknown one (one lookup, a capped log row, one alert a day). Unknown keys write nothing.
 - The app stores only a fingerprint (hash) and the last 4 characters. The full key is shown once.
 - Lives 90 days at most. Admins get an in-app note 7 days before.
 - Cancel: the Off switch on the Bots screen (works at once), or Delete.
