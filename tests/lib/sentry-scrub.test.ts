@@ -489,3 +489,24 @@ describe("sentryScrubHooks", () => {
     expect(sentryScrubHooks.beforeBreadcrumb(crumb)).toEqual({ category: "fetch", data: { url: "/api/mcp/[token]" } });
   });
 });
+
+describe("bot keys and bearer values never reach Sentry", () => {
+  const BOT_KEY = "vpb_" + "Zq3".repeat(14) + "x";
+  const BEARER = "Bearer abcDEF123456ghiJKL";
+
+  it("masks them in an error's message and exception text, keeping the rest", () => {
+    const event = scrubEvent({
+      message: `call failed with ${BOT_KEY}`,
+      exception: { values: [{ type: "Error", value: `bad header ${BEARER} for ${BOT_KEY}` }] },
+    } as Event);
+    const text = sent(event);
+    expect(text).not.toContain(BOT_KEY);
+    expect(text).not.toContain("abcDEF123456ghiJKL");
+    expect(text).toContain("call failed with [bot key]");
+    expect(event.exception?.values?.[0].type).toBe("Error");
+  });
+
+  it("masks them in a breadcrumb message", () => {
+    expect(sent(scrubBreadcrumb({ message: `retry ${BOT_KEY}` }))).not.toContain(BOT_KEY);
+  });
+});

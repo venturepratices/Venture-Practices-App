@@ -92,9 +92,18 @@ export function scrubUrl(url: string): string {
   return scheme + host + scrubPath(path);
 }
 
+/** A bot key (vpb_...) or the value after "Bearer", anywhere in text. */
+const KEY_IN_TEXT = /\bvpb_[A-Za-z0-9_-]{8,}/g;
+const BEARER_IN_TEXT = /\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
+
+/** Masks bot keys and bearer values; the rest of the text stays as it is. */
+function maskKeys(text: string): string {
+  return text.replace(KEY_IN_TEXT, "[bot key]").replace(BEARER_IN_TEXT, "$1 [secret]");
+}
+
 /** Scrubs every URL and path inside free text such as "GET /review/abc?x=1". */
 function scrubText(text: string): string {
-  return text.replace(URL_IN_TEXT, (_match, before: string, url: string) => before + scrubUrl(url));
+  return maskKeys(text).replace(URL_IN_TEXT, (_match, before: string, url: string) => before + scrubUrl(url));
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -152,6 +161,14 @@ export function scrubEvent<T extends Event>(event: T): T {
     else delete out.user;
   }
   if (typeof out.transaction === "string") out.transaction = scrubText(out.transaction);
+  // Messages keep their words so errors still group; only key-shaped values are masked.
+  if (typeof out.message === "string") out.message = maskKeys(out.message);
+  if (out.exception?.values) {
+    out.exception = {
+      ...out.exception,
+      values: out.exception.values.map((v) => (typeof v.value === "string" ? { ...v, value: maskKeys(v.value) } : v)),
+    };
+  }
   if (out.contexts) out.contexts = scrubRecord(out.contexts);
   if (out.breadcrumbs) out.breadcrumbs = out.breadcrumbs.map(scrubBreadcrumb);
   if (out.spans) {

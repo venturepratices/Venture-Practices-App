@@ -2,8 +2,13 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 import { assetImageRemotePatterns } from "./src/lib/image-remote-patterns";
+import { SECURITY_HEADERS } from "./src/lib/security-headers";
 
 const nextConfig: NextConfig = {
+  // Safe security headers on every page and route (see src/lib/security-headers.ts).
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   images: {
     // Lets next/image serve resized/optimized thumbnails for IMAGE asset cards
     // instead of the full file, but only for our own asset uploads: our assets

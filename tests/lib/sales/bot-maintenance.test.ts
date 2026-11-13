@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown>;
 const db = { bots: [] as Row[], notifications: [] as Row[] };
-const deleteMany = vi.fn(async () => ({ count: 3 }));
+const deleteMany = vi.fn(async (_args: unknown) => ({ count: 3 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    botCallLog: { deleteMany: (args: unknown) => deleteMany(args as never) },
+    botCallLog: { deleteMany: (args: unknown) => deleteMany(args) },
     botToken: {
       findMany: async (args: { where: { expiresAt: { lte: Date; gt: Date } } }) =>
         db.bots.filter(
