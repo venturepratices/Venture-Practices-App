@@ -49,6 +49,7 @@ function makeStatus(overrides: Partial<ImportStatus> = {}): ImportStatus {
       { id: "m1", name: "Ben Example" },
       { id: "m2", name: "Robert O." },
     ],
+    autoSync: { enabled: false, lastSyncedAt: null },
     ...overrides,
   };
 }

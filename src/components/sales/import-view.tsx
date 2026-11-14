@@ -347,6 +347,23 @@ function TokenSteps() {
   );
 }
 
+/** A one-line summary of the automatic Pipedrive to Sales sync (cron sales-pipedrive-sync). */
+function AutoSyncLine({ autoSync }: { autoSync: ImportStatus["autoSync"] }) {
+  // The master switch is SALES_PIPEDRIVE_SYNC_ENABLED in Vercel; the server reads it and tells the screen.
+  if (!autoSync.enabled) {
+    return (
+      <p className="mt-1 mb-0 text-muted-foreground">
+        Automatic sync is off. Turn it on in Vercel (<code className="rounded bg-muted px-1 text-[12.5px]">SALES_PIPEDRIVE_SYNC_ENABLED=true</code>) so the app stays a few hours behind Pipedrive on its own.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 mb-0 text-muted-foreground">
+      Automatic sync is on. {autoSync.lastSyncedAt ? `Last synced ${formatWhen(autoSync.lastSyncedAt)}.` : "No copy has finished yet."}
+    </p>
+  );
+}
+
 function StartCard({
   status,
   busy,
@@ -365,6 +382,7 @@ function StartCard({
         <p className="m-0">
           {status.token.last4 ? `Pipedrive token ending in ${status.token.last4} is set.` : "The Pipedrive token is set."}
         </p>
+        <AutoSyncLine autoSync={status.autoSync} />
         {run ? (
           <>
             <p className="mt-1 mb-0 text-muted-foreground">

@@ -100,6 +100,12 @@ beforeEach(() => {
   vi.stubEnv("CRON_SECRET", CRON_SECRET);
   vi.stubEnv("AGENT_API_TOKEN", AGENT_TOKEN);
   vi.stubEnv("MCP_ACCESS_TOKEN", MCP_TOKEN);
+  // The automatic Pipedrive sync's master switch is off by default (and the token is unset).
+  // The cron route answers `{ skipped }` with no database read in that case, which looks like a 401
+  // to this test's reach stub. Stubbing both on makes the route progress to the database like every
+  // other cron, so the gate's own behavior (its 401 shape and its CRON_SECRET handling) is the test.
+  vi.stubEnv("SALES_PIPEDRIVE_SYNC_ENABLED", "true");
+  vi.stubEnv("PIPEDRIVE_API_TOKEN", "pdtok-TESTONLY-abcdefghijklmnop0123");
 });
 
 afterEach(() => {

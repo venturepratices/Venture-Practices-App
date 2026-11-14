@@ -25,7 +25,7 @@ export function readSavedCheck(cursor: unknown): SavedCheck | null {
 }
 
 export async function loadImportStatus(env: Record<string, string | undefined> = process.env): Promise<ImportStatus> {
-  const [latest, latestLive, lock, users, members] = await Promise.all([
+  const [latest, latestLive, lock, lastSynced, users, members] = await Promise.all([
     prisma.salesImportRun.findFirst({ orderBy: { startedAt: "desc" } }),
     // The check belongs to the latest real copy, so a later practice run does not hide it.
     prisma.salesImportRun.findFirst({
@@ -36,6 +36,12 @@ export async function loadImportStatus(env: Record<string, string | undefined> =
     prisma.salesImportRun.findFirst({
       where: { mode: "LIVE", isFinal: true, status: "DONE" },
       orderBy: { startedAt: "desc" },
+      select: { finishedAt: true },
+    }),
+    // Any LIVE non-final copy that finished (hand-driven or by the sync cron). This is the "last synced" line.
+    prisma.salesImportRun.findFirst({
+      where: { mode: "LIVE", isFinal: false, status: "DONE" },
+      orderBy: { finishedAt: "desc" },
       select: { finishedAt: true },
     }),
     loadUserMappings(),
@@ -63,5 +69,9 @@ export async function loadImportStatus(env: Record<string, string | undefined> =
     check: latestLive ? readSavedCheck(latestLive.cursor) : null,
     users,
     members: members.map((m) => ({ id: m.id, name: m.name })),
+    autoSync: {
+      enabled: env.SALES_PIPEDRIVE_SYNC_ENABLED === "true",
+      lastSyncedAt: lastSynced?.finishedAt?.toISOString() ?? null,
+    },
   };
 }

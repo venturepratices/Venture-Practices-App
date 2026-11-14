@@ -41,6 +41,13 @@ export type ImportStatus = {
   users: UserMatch[];
   /** Sales members, for the owner picker. */
   members: { id: string; name: string }[];
+  /**
+   * The automatic sync (vercel.json's sales-pipedrive-sync cron). `enabled` is
+   * the master switch SALES_PIPEDRIVE_SYNC_ENABLED, read on the server so the
+   * browser never sees the env itself. `lastSyncedAt` is the finishedAt of the
+   * latest LIVE non-final run that is DONE (null before any such run).
+   */
+  autoSync: { enabled: boolean; lastSyncedAt: string | null };
 };
 
 export type ScreenState = "no-token" | "locked" | "running" | "failed" | "done" | "ready";

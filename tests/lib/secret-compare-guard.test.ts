@@ -132,6 +132,8 @@ describe("secret compare guard", () => {
           "notification-digest",
           "priority-auto-escalate",
           "rock-checkin",
+          "sales-no-show",
+          "sales-pipedrive-sync",
           "storage-check",
           "task-due-soon",
         ].map((name) => `src/app/api/cron/${name}/route.ts`)

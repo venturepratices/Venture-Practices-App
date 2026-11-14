@@ -63,6 +63,17 @@ About files and notes:
 9. **DJ: keep Pipedrive read-only for 2 weeks.** Use it only to look things up. Nobody types new things in. When the 2 weeks are up, do step 10, then cancel Pipedrive.
 10. **DJ: remove the token.** Delete `PIPEDRIVE_API_TOKEN` in Vercel, redeploy, and revoke the token in Pipedrive. Do it after the last "Check the copy" (the check needs the token) and before you cancel Pipedrive (so you can still sign in).
 
+## Keep the app a few hours behind Pipedrive (automatic sync)
+
+While Ben and Robert are still working in Pipedrive, the app can re-copy on its own three times a day (around 2 AM, 10 AM and 6 PM Eastern), so the move feels like only the interface changed when they switch.
+
+- To turn it on: in Vercel, set `SALES_PIPEDRIVE_SYNC_ENABLED` to `true` for Production, and redeploy. `PIPEDRIVE_API_TOKEN` must already be set.
+- To turn it off at any time: change that value to anything else (for example `false`), or delete the variable, and redeploy. Pressing "Copy for real" by hand still works either way.
+- The copy screen says "Automatic sync is on. Last synced ..." or "Automatic sync is off."
+- It stops on its own once the final copy is locked (step 8). After the lock nothing can run again, so you can leave the variable set.
+- If a sync starts right when you press "Copy for real", one of the two is refused with "An import is already running". Wait a minute and try again.
+- Each automatic run has the same safety as a hand-run: it pauses when Pipedrive asks us to slow down, and the next run picks up where it left off.
+
 ## Good to know
 
 - Pipedrive is the boss until the lock. Copying again copies Pipedrive over the copied records. Edits made in the app to copied people, deals and leads are replaced.
