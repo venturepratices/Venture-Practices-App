@@ -77,6 +77,15 @@ const FOLDER_RULES: Record<string, { who: string; checks: Check[] }> = {
       { module: SECRET_COMPARE, name: "safeEqualSecret", reports: true },
     ],
   },
+  sales: {
+    who: "signed-in people with Sales access, plus admins and bot keys on the handlers listed in bot-endpoints.ts. The Sales area has its own actor gate so a request is checked once, with its permission scope in hand.",
+    checks: [
+      // The Sales-only gate reaches the session (and, on the bots branch, bot keys) and throws on refusal.
+      { module: "@/lib/sales/access", name: "requireSalesUser" },
+      // A handful of admin-only Sales routes (bots, settings, pipeline stages) stay on the shared helper.
+      { module: PERMISSIONS, name: "requireAdmin" },
+    ],
+  },
 };
 
 /** Paths relative to src/app/api. These routes deliberately answer anyone. */
