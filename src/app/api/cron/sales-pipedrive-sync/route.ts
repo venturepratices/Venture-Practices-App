@@ -8,13 +8,13 @@ import { pipedriveClientFromEnv, TOKEN_NOT_SET } from "@/lib/sales/pipedrive/imp
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Vercel Pro allows up to 300 seconds. We leave headroom to save and answer.
-export const maxDuration = 300;
+// Vercel Hobby caps functions at 60 seconds; keep headroom to save and answer.
+export const maxDuration = 60;
 
 // The whole function may spend this much time on Pipedrive work before it returns
-// and lets the next cron pick up the rest. One Pipedrive call still times out at
-// RUN_MS below CHUNK_MS, so a slow Pipedrive pauses the run instead of killing the function.
-const RUN_MS = 280_000;
+// and lets the next cron pick up the rest. One Pipedrive call still times out below
+// RUN_MS at CHUNK_MS, so a slow Pipedrive pauses the run instead of killing the function.
+const RUN_MS = 50_000;
 // One chunk's time on Pipedrive before the engine pauses. Shared with the admin's
 // "Keep going" route so the behavior feels the same whether a person or a cron is driving.
 const CHUNK_MS = 45_000;
