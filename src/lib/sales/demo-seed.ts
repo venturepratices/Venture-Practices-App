@@ -6,6 +6,7 @@ import type { SalesActivityType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { DEAL_SOURCES, LOST_REASONS } from "@/lib/sales/constants";
 import { nameKey, personKeys } from "@/lib/sales/contact-keys";
+import { ensureSalesSeed } from "@/lib/sales/seed";
 import { addDaysToDateString, endOfDay, todayDateString, zonedDateTime } from "@/lib/utils";
 
 /** The prefix every demo row starts with, so a clean-up can always find them. */
@@ -301,6 +302,10 @@ export type DemoSeedSummary = {
  * only fills in what is missing.
  */
 export async function seedDemoData(): Promise<DemoSeedSummary> {
+  // Make sure the Sales pipelines, stages and custom fields exist first. Safe to
+  // re-run: ensureSalesSeed only adds what is missing.
+  await ensureSalesSeed();
+
   const summary = await prisma.$transaction(
     async (tx) => {
       const made = { organizations: 0, people: 0, leads: 0, deals: 0, activities: 0, notes: 0, customFieldValues: 0, auditRows: 0, teamMembers: 0 };
