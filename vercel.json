@@ -54,7 +54,7 @@
     },
     {
       "path": "/api/cron/sales-pipedrive-sync",
-      "schedule": "0 7,15,23 * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }

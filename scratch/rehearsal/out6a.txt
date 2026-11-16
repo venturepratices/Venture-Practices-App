@@ -1,0 +1,9 @@
+host ep-long-dew-ad8nkrdc.c-2.us-east-1.aws.neon.tech
+
+RESULTS
+6h | check report ok everywhere | PASS | organizations pd=6 app=6 skip=0 ok; persons pd=8 app=8 skip=0 ok; deals pd=11 app=11 skip=0 ok; leads pd=4 app=4 skip=0 ok; activities pd=10 app=8 skip=2 ok; notes pd=5 app=4 skip=1 ok | spot=3
+6a | concurrent start: one ok, one plain refusal, no throw | PASS | ["An import is already running. Wait for it to finish, or press Keep going."]; direct insert error: PrismaClientKnownRequestError code=P2002 adapterKind=UniqueConstraintViolation pg=23505 target={"fields":["(1"]}
+6b | explicit updatedAt kept; each save advances | PASS | u0=2026-11-13T07:26:04.545Z u1=2026-11-13T07:26:13.052Z (T=2026-11-13T07:26:13.052Z) u2=+1ms
+6b | two parallel continues: one carries on, other stops | PASS | results done=false,true status=DONE
+6d | fresh RUNNING blocks; stale RUNNING closed as FAILED, new starts | PASS | blocked=true old=FAILED new ok=true
+RUNNING left: 0

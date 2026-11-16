@@ -1,0 +1,6 @@
+host ep-long-dew-ad8nkrdc.c-2.us-east-1.aws.neon.tech
+
+RESULTS
+6f | 500 mid-phase -> FAILED final run; later LIVE start allowed | PASS | status=FAILED phase=activities issue="The copy stopped: Pipedrive request failed (HTTP 500): Pipedrive had a server er" laterOk=true; table diff salesImportRun: 11 -> 12
+6g | 429 -> paused, place kept, resume to DONE, nothing lost/duplicated | PASS | paused=true phaseAtPause=deals status=RUNNING -> DONE; deals.unchanged=11; table diff none
+RUNNING left: 0

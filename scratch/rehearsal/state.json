@@ -1,0 +1,189 @@
+{
+  "runIds": [],
+  "before": {
+    "salesPipeline": 5,
+    "salesStage": 33,
+    "salesOrganization": 12,
+    "salesPerson": 16,
+    "salesLead": 8,
+    "salesDeal": 25,
+    "salesActivity": 28,
+    "salesNote": 8,
+    "salesFile": 0,
+    "salesCustomField": 11,
+    "salesCustomFieldValue": 22,
+    "salesAuditLog": 271,
+    "salesImportUserMap": 0,
+    "salesImportRun": 0,
+    "salesSettings": 0
+  },
+  "stages": [
+    {
+      "id": "cmw2gdb8s0007m4uz4vaw1i9x",
+      "position": 7,
+      "updatedAt": "2026-11-04T18:31:12.172Z"
+    },
+    {
+      "id": "cmw2gdc370008m4uzzq1d12jg",
+      "position": 8,
+      "updatedAt": "2026-11-04T18:31:13.267Z"
+    },
+    {
+      "id": "cmw2gdj5f000gm4uzao1enwwi",
+      "position": 7,
+      "updatedAt": "2026-11-04T18:31:22.419Z"
+    },
+    {
+      "id": "cmw2gdofk000mm4uzffb0at65",
+      "position": 5,
+      "updatedAt": "2026-11-04T18:31:29.264Z"
+    },
+    {
+      "id": "cmw2gdpc2000nm4uzukpab445",
+      "position": 6,
+      "updatedAt": "2026-11-04T18:31:30.434Z"
+    },
+    {
+      "id": "cmw2gdwc1000vm4uz4g1uo1hb",
+      "position": 7,
+      "updatedAt": "2026-11-04T18:31:39.505Z"
+    },
+    {
+      "id": "cmw2ge1ma0011m4uztmif200q",
+      "position": 5,
+      "updatedAt": "2026-11-04T18:31:46.354Z"
+    },
+    {
+      "id": "cmw2gd62l0001m4uzuxvubfxy",
+      "position": 1,
+      "updatedAt": "2026-11-04T18:31:05.469Z"
+    },
+    {
+      "id": "cmw2gd6xn0002m4uznpg2migw",
+      "position": 2,
+      "updatedAt": "2026-11-04T18:31:06.587Z"
+    },
+    {
+      "id": "cmw2gd7t50003m4uz7tk541ws",
+      "position": 3,
+      "updatedAt": "2026-11-04T18:31:07.721Z"
+    },
+    {
+      "id": "cmw2gd8o10004m4uzjty20qj7",
+      "position": 4,
+      "updatedAt": "2026-11-04T18:31:08.833Z"
+    },
+    {
+      "id": "cmw2gd9j40005m4uzf3f51bxf",
+      "position": 5,
+      "updatedAt": "2026-11-04T18:31:09.952Z"
+    },
+    {
+      "id": "cmw2gdae20006m4uzt6w3i3z8",
+      "position": 6,
+      "updatedAt": "2026-11-04T18:31:11.066Z"
+    },
+    {
+      "id": "cmw2gde0a000am4uzyztijpb8",
+      "position": 1,
+      "updatedAt": "2026-11-04T18:31:15.754Z"
+    },
+    {
+      "id": "cmw2gdeun000bm4uz7og8bo9u",
+      "position": 2,
+      "updatedAt": "2026-11-04T18:31:16.847Z"
+    },
+    {
+      "id": "cmw2gdfpf000cm4uzffd1tnbs",
+      "position": 3,
+      "updatedAt": "2026-11-04T18:31:17.955Z"
+    },
+    {
+      "id": "cmw2gdgjv000dm4uzgleqs468",
+      "position": 4,
+      "updatedAt": "2026-11-04T18:31:19.051Z"
+    },
+    {
+      "id": "cmw2gdhee000em4uz0wlvrdlo",
+      "position": 5,
+      "updatedAt": "2026-11-04T18:31:20.150Z"
+    },
+    {
+      "id": "cmw2gdi9x000fm4uzh5ztluwd",
+      "position": 6,
+      "updatedAt": "2026-11-04T18:31:21.285Z"
+    },
+    {
+      "id": "cmw2gdl02000im4uzx1nc46ga",
+      "position": 1,
+      "updatedAt": "2026-11-04T18:31:24.818Z"
+    },
+    {
+      "id": "cmw2gdlvl000jm4uztmd52lj4",
+      "position": 2,
+      "updatedAt": "2026-11-04T18:31:25.953Z"
+    },
+    {
+      "id": "cmw2gdmrh000km4uzpv5xlov3",
+      "position": 3,
+      "updatedAt": "2026-11-04T18:31:27.101Z"
+    },
+    {
+      "id": "cmw2gdnll000lm4uzpl54sxwr",
+      "position": 4,
+      "updatedAt": "2026-11-04T18:31:28.185Z"
+    },
+    {
+      "id": "cmw2gdr79000pm4uzqetfpzlt",
+      "position": 1,
+      "updatedAt": "2026-11-04T18:31:32.853Z"
+    },
+    {
+      "id": "cmw2gds1u000qm4uzyazjm1aj",
+      "position": 2,
+      "updatedAt": "2026-11-04T18:31:33.954Z"
+    },
+    {
+      "id": "cmw2gdsw8000rm4uz01pvzo1f",
+      "position": 3,
+      "updatedAt": "2026-11-04T18:31:35.048Z"
+    },
+    {
+      "id": "cmw2gdtqt000sm4uzpias66tq",
+      "position": 4,
+      "updatedAt": "2026-11-04T18:31:36.149Z"
+    },
+    {
+      "id": "cmw2gdy7i000xm4uz4sehezur",
+      "position": 1,
+      "updatedAt": "2026-11-04T18:31:41.934Z"
+    },
+    {
+      "id": "cmw2gdul3000tm4uzfqf5ju6m",
+      "position": 5,
+      "updatedAt": "2026-11-04T18:31:37.239Z"
+    },
+    {
+      "id": "cmw2gdvhf000um4uzbwz5hd9r",
+      "position": 6,
+      "updatedAt": "2026-11-04T18:31:38.403Z"
+    },
+    {
+      "id": "cmw2gdz34000ym4uz9x7x8xa8",
+      "position": 2,
+      "updatedAt": "2026-11-04T18:31:43.072Z"
+    },
+    {
+      "id": "cmw2gdzx6000zm4uz1w6cf3w6",
+      "position": 3,
+      "updatedAt": "2026-11-04T18:31:44.154Z"
+    },
+    {
+      "id": "cmw2ge0s50010m4uzw9jlvdz8",
+      "position": 4,
+      "updatedAt": "2026-11-04T18:31:45.269Z"
+    }
+  ],
+  "auditBefore": 271,
+  "startedAt": "2026-11-12T19:32:16.668Z"
+}
