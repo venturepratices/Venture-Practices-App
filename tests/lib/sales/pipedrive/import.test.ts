@@ -79,9 +79,7 @@ function pipedrive(overrides: Record<string, unknown[][]> = {}) {
         },
       ],
     ],
-    "/api/v2/deals/archived": [[]],
     "/api/v1/leads": [[]],
-    "/api/v1/leads/archived": [[]],
     "/api/v2/activities": [
       [
         {
@@ -350,18 +348,6 @@ describe("a real run (LIVE)", () => {
     });
   });
 
-  it("copies archived deals from their own list as archived", async () => {
-    const runId = await startRun();
-    await runToEnd(
-      runId,
-      pipedrive({
-        "/api/v2/deals/archived": [
-          [{ id: 301, title: "Old deal", owner_id: 1, pipeline_id: 1, stage_id: 10, status: "open", add_time: "2024-01-01T00:00:00Z", archive_time: "2024-06-01T00:00:00Z" }],
-        ],
-      }),
-    );
-    expect(store.salesDeal.find((d) => d.pipedriveId === 301)).toMatchObject({ archivedAt: new Date("2024-06-01T00:00:00Z"), stageId: "s-new" });
-  });
 });
 
 describe("startImportRun", () => {

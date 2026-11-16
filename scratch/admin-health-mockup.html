@@ -1,0 +1,300 @@
+<title>Admin Health</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --card-border: #e4e7ec;
+    --text: #0f172a;
+    --text-muted: #525b6c;
+    --text-faint: #7b8495;
+    --accent: #1e5bd6;
+    --accent-bg: #e8f0ff;
+    --green: #047857;
+    --green-bg: #e3f6ec;
+    --amber: #a85b00;
+    --amber-bg: #fdf0de;
+    --red: #b02326;
+    --red-bg: #fde7e7;
+    --dot: #94a3b8;
+    --divider: #eef0f3;
+    --radius: 12px;
+    --gutter: 16px;
+    --gap: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0b0f17;
+      --card: #141a24;
+      --card-border: #22303f;
+      --text: #e6eaf2;
+      --text-muted: #a4adbd;
+      --text-faint: #7a839b;
+      --accent: #74a9ff;
+      --accent-bg: #15253e;
+      --green: #41c58a;
+      --green-bg: #0f2b1f;
+      --amber: #f0b667;
+      --amber-bg: #30220f;
+      --red: #f08585;
+      --red-bg: #311516;
+      --dot: #52607a;
+      --divider: #1e2733;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0f17;
+    --card: #141a24;
+    --card-border: #22303f;
+    --text: #e6eaf2;
+    --text-muted: #a4adbd;
+    --text-faint: #7a839b;
+    --accent: #74a9ff;
+    --accent-bg: #15253e;
+    --green: #41c58a;
+    --green-bg: #0f2b1f;
+    --amber: #f0b667;
+    --amber-bg: #30220f;
+    --red: #f08585;
+    --red-bg: #311516;
+    --dot: #52607a;
+    --divider: #1e2733;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 15px;
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: var(--gutter);
+    padding-block: 24px;
+  }
+  .wrap > * + * { margin-top: 20px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-muted); font-size: 14px; }
+  .banner {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .banner .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 0 4px var(--green-bg); }
+  .banner.warn .dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-bg); }
+  .banner.bad .dot { background: var(--red); box-shadow: 0 0 0 4px var(--red-bg); }
+  .banner-text strong { display: block; font-size: 16px; font-weight: 600; }
+  .banner-text span { color: var(--text-muted); font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--gap);
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    min-width: 0;
+  }
+  .card h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+  .card h2 .ico { font-size: 16px; }
+  .card .big {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .card .big .sub { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+  .card .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--divider);
+    font-size: 13.5px;
+    min-width: 0;
+  }
+  .card .row:first-of-type { border-top: 1px solid var(--divider); margin-top: 10px; }
+  .card .row .k { color: var(--text-muted); min-width: 0; flex: 1; }
+  .card .row .v { color: var(--text); font-weight: 500; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+  .card a {
+    display: inline-block;
+    margin-top: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .card a:hover { text-decoration: underline; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+  .pill.ok { background: var(--green-bg); color: var(--green); }
+  .pill.warn { background: var(--amber-bg); color: var(--amber); }
+  .pill.bad { background: var(--red-bg); color: var(--red); }
+  .pill.off { background: var(--card-border); color: var(--text-muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
+  .dot.ok { background: var(--green); }
+  .dot.warn { background: var(--amber); }
+  .dot.bad { background: var(--red); }
+  .week {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .week span {
+    width: 10px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--green);
+    opacity: 0.85;
+  }
+  .week span.warn { background: var(--amber); }
+  .week span.bad { background: var(--red); }
+  .week span.none { background: var(--divider); }
+  .footnote {
+    color: var(--text-faint);
+    font-size: 12px;
+    margin-top: 24px;
+    text-align: center;
+  }
+  @media (max-width: 460px) {
+    .wrap { padding: 12px; }
+    .card { padding: 14px 16px; }
+    .card .big { font-size: 18px; }
+  }
+</style>
+<div class="wrap">
+  <header>
+    <h1>Admin Health</h1>
+    <p>Everything working, in one place. Admin only. This is a mockup, not the real page yet.</p>
+  </header>
+
+  <div class="banner">
+    <span class="dot"></span>
+    <div class="banner-text">
+      <strong>Everything is working</strong>
+      <span>Last check 2 minutes ago. 3 things to set up when you have a moment.</span>
+    </div>
+  </div>
+
+  <section class="grid">
+
+    <article class="card">
+      <h2><span class="ico">&#128190;</span> Database backup</h2>
+      <div class="big">3 hours ago <span class="sub">last ran</span></div>
+      <div class="row"><span class="k">Last 7 days</span><span class="v week" aria-label="7 of 7 backups ran"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></div>
+      <div class="row"><span class="k">Size in Vercel Blob</span><span class="v">2.1 GB</span></div>
+      <div class="row"><span class="k">Copy to Google Drive</span><span class="v"><span class="pill warn">Set up</span></span></div>
+      <div class="row"><span class="k">Last test restore</span><span class="v"><span class="pill warn">Never</span></span></div>
+      <a href="#backup">Open backup detail</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128260;</span> Automatic Pipedrive sync</h2>
+      <div class="big">On <span class="sub">three times a day</span></div>
+      <div class="row"><span class="k">Last synced</span><span class="v"><span class="dot ok"></span>2 hours ago</span></div>
+      <div class="row"><span class="k">Next run</span><span class="v">in about 6 hours</span></div>
+      <div class="row"><span class="k">Last 3 runs</span><span class="v week" aria-label="3 clean runs"><span></span><span></span><span></span></span></div>
+      <div class="row"><span class="k">Deals in the app</span><span class="v">1,247</span></div>
+      <a href="#sync">Open Copy from Pipedrive</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128241;</span> HighLevel</h2>
+      <div class="big">Connected <span class="sub">Marketing Agency Services</span></div>
+      <div class="row"><span class="k">Conversations today</span><span class="v">87</span></div>
+      <div class="row"><span class="k">Calls today</span><span class="v">14</span></div>
+      <div class="row"><span class="k">Last error</span><span class="v"><span class="dot ok"></span>None</span></div>
+      <div class="row"><span class="k">Webhook link (Plan 3B)</span><span class="v"><span class="pill warn">Not set up</span></span></div>
+      <a href="#ghl">Open HighLevel detail</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#129302;</span> Bot keys</h2>
+      <div class="big">2 on <span class="sub">0 off</span></div>
+      <div class="row"><span class="k">Calls today (all bots)</span><span class="v">342 of 4,000</span></div>
+      <div class="row"><span class="k">Refused calls today</span><span class="v"><span class="dot ok"></span>0</span></div>
+      <div class="row"><span class="k">Oldest key expires</span><span class="v">in 67 days</span></div>
+      <div class="row"><span class="k">Keys expiring within 14 days</span><span class="v">0</span></div>
+      <a href="#bots">Open Bots screen</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#9888;&#65039;</span> Errors (last 24 hours)</h2>
+      <div class="big">3 <span class="sub">Sentry errors</span></div>
+      <div class="row"><span class="k">Failed cron runs</span><span class="v"><span class="dot ok"></span>0</span></div>
+      <div class="row"><span class="k">Login failures</span><span class="v">2</span></div>
+      <div class="row"><span class="k">Last Sentry error</span><span class="v">2 hours ago</span></div>
+      <a href="#sentry">Open Sentry</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128197;</span> Scheduled checks</h2>
+      <div class="big">All on time</div>
+      <div class="row"><span class="k">Backup restore test</span><span class="v">in 20 days</span></div>
+      <div class="row"><span class="k">Access review</span><span class="v">in 45 days</span></div>
+      <div class="row"><span class="k">Dependency audit</span><span class="v">in 12 days</span></div>
+      <div class="row"><span class="k">Monthly safety report</span><span class="v">in 17 days</span></div>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128202;</span> Database</h2>
+      <div class="big">1.8 GB <span class="sub">of 10 GB</span></div>
+      <div class="row"><span class="k">Open connections</span><span class="v">12 of 100</span></div>
+      <div class="row"><span class="k">Query time (p95)</span><span class="v">38 ms</span></div>
+      <div class="row"><span class="k">Last migration</span><span class="v">2 days ago</span></div>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128230;</span> Google Workspace</h2>
+      <div class="big">Not connected yet</div>
+      <div class="row"><span class="k">Drive for backups</span><span class="v"><span class="pill warn">Set up</span></span></div>
+      <div class="row"><span class="k">Gmail in the app</span><span class="v"><span class="pill off">Planned</span></span></div>
+      <div class="row"><span class="k">Exit export to Drive</span><span class="v"><span class="pill off">Planned</span></span></div>
+      <a href="#google">Open connection setup</a>
+    </article>
+
+    <article class="card">
+      <h2><span class="ico">&#128100;</span> People and access</h2>
+      <div class="big">6 team members</div>
+      <div class="row"><span class="k">Admins</span><span class="v">2</span></div>
+      <div class="row"><span class="k">Sales access</span><span class="v">2</span></div>
+      <div class="row"><span class="k">Client-side users</span><span class="v">14</span></div>
+      <div class="row"><span class="k">Signed in today</span><span class="v">5</span></div>
+      <a href="#team">Open Team</a>
+    </article>
+
+  </section>
+
+  <p class="footnote">A real page would refresh every minute and link each row to the detail view. Switch your system theme to try dark mode.</p>
+</div>

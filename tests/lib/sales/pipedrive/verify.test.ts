@@ -77,21 +77,19 @@ describe("buildCheckReport rows", () => {
       "/api/v2/organizations": paged(records(3)),
       "/api/v2/persons": paged(records(4)),
       "/api/v2/deals": dealsList(5),
-      "/api/v2/deals/archived": paged(records(2, (id) => ({ id: 100 + id, title: "Old", status: "lost" }))),
       "/api/v1/leads": paged(records(6, (id) => ({ id: `lead-${id}` }))),
-      "/api/v1/leads/archived": paged(records(1, () => ({ id: "lead-old" }))),
       "/api/v2/activities": paged(records(8)),
       "/api/v1/notes": paged(records(9, (id) => ({ id, content: `<p>Note ${id}</p>` }))),
     });
-    Object.assign(mocks.appCounts, { organizations: 3, persons: 4, deals: 7, leads: 7, activities: 8, notes: 9 });
+    Object.assign(mocks.appCounts, { organizations: 3, persons: 4, deals: 5, leads: 6, activities: 8, notes: 9 });
 
     const report = await buildCheckReport(client, noSpot);
 
     expect(report.rows).toEqual([
       { label: "Organizations", entity: "organizations", pipedrive: 3, app: 3, skipped: 0, ok: true },
       { label: "People", entity: "persons", pipedrive: 4, app: 4, skipped: 0, ok: true },
-      { label: "Deals", entity: "deals", pipedrive: 7, app: 7, skipped: 0, ok: true },
-      { label: "Leads", entity: "leads", pipedrive: 7, app: 7, skipped: 0, ok: true },
+      { label: "Deals", entity: "deals", pipedrive: 5, app: 5, skipped: 0, ok: true },
+      { label: "Leads", entity: "leads", pipedrive: 6, app: 6, skipped: 0, ok: true },
       { label: "Activities", entity: "activities", pipedrive: 8, app: 8, skipped: 0, ok: true },
       { label: "Notes", entity: "notes", pipedrive: 9, app: 9, skipped: 0, ok: true },
     ]);
@@ -108,7 +106,7 @@ describe("buildCheckReport rows", () => {
     }
   });
 
-  it("reads the same lists the engine copies, with archived deals and leads from their own lists", async () => {
+  it("reads the same lists the engine copies", async () => {
     const { client, calls } = fakeClient({});
 
     await buildCheckReport(client, noSpot);
@@ -117,9 +115,7 @@ describe("buildCheckReport rows", () => {
       "/api/v2/organizations cursor",
       "/api/v2/persons cursor",
       "/api/v2/deals cursor",
-      "/api/v2/deals/archived cursor",
       "/api/v1/leads offset",
-      "/api/v1/leads/archived offset",
       "/api/v2/activities cursor",
       "/api/v1/notes offset",
     ]);
@@ -130,8 +126,8 @@ describe("buildCheckReport rows", () => {
 
     await buildCheckReport(client, noSpot);
 
-    expect(calls.filter((c) => c.style === "cursor").map((c) => c.limit)).toEqual([500, 500, 500, 500, 500]);
-    expect(calls.filter((c) => c.style === "offset").map((c) => c.limit)).toEqual([PAGE_LIMIT, PAGE_LIMIT, PAGE_LIMIT]);
+    expect(calls.filter((c) => c.style === "cursor").map((c) => c.limit)).toEqual([500, 500, 500, 500]);
+    expect(calls.filter((c) => c.style === "offset").map((c) => c.limit)).toEqual([PAGE_LIMIT, PAGE_LIMIT]);
   });
 
   it("does not count records the mapper skips: a deleted deal, a deleted activity, a removed or empty note", async () => {

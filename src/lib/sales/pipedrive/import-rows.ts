@@ -46,20 +46,16 @@ export type RowPhase = "organizations" | "persons" | "deals" | "leads" | "activi
 type Source = { path: string; style: "cursor" | "offset"; archived?: boolean };
 
 /**
- * Where each step reads. Pipedrive lists archived deals and archived leads
- * separately from the rest, so those steps read two lists.
+ * Where each step reads. Archived deals and leads come back from the main
+ * lists in Pipedrive (there is no separate /archived endpoint in v1 or v2),
+ * so each step reads one list only. The mapper marks archived rows by the
+ * record's own fields (deal status, lead is_archived).
  */
 export const ROW_SOURCES: Record<RowPhase, Source[]> = {
   organizations: [{ path: "/api/v2/organizations", style: "cursor" }],
   persons: [{ path: "/api/v2/persons", style: "cursor" }],
-  deals: [
-    { path: "/api/v2/deals", style: "cursor" },
-    { path: "/api/v2/deals/archived", style: "cursor", archived: true },
-  ],
-  leads: [
-    { path: "/api/v1/leads", style: "offset" },
-    { path: "/api/v1/leads/archived", style: "offset", archived: true },
-  ],
+  deals: [{ path: "/api/v2/deals", style: "cursor" }],
+  leads: [{ path: "/api/v1/leads", style: "offset" }],
   activities: [{ path: "/api/v2/activities", style: "cursor" }],
   notes: [{ path: "/api/v1/notes", style: "offset" }],
 };

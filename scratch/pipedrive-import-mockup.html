@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copy from Pipedrive mockup</title>
+<style>
+:root {
+  --background: #ffffff; --foreground: #1f2937; --card: #ffffff; --primary: #2d94c0; --primary-foreground: #ffffff;
+  --muted: #f3f4f6; --muted-foreground: #64748b; --accent: #eaf6fa; --accent-foreground: #12475d;
+  --destructive: oklch(0.577 0.245 27.325); --border: #e2e8f0; --ring: #2d94c0;
+  --success: #d1fae5; --success-fg: #065f46; --warning: #fef3c7; --warning-fg: #92400e;
+  --danger: #ffe4e6; --danger-fg: #9f1239; --page: #f6f7f9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #14181d; --foreground: #e5e7eb; --card: #1b2027; --primary: #4bafd6; --primary-foreground: #0c1115;
+    --muted: #262c34; --muted-foreground: #94a3b8; --accent: #1c313b; --accent-foreground: #bfe6f2;
+    --destructive: oklch(0.704 0.191 22.216); --border: rgba(255,255,255,.1); --ring: #4bafd6;
+    --success: rgba(6,78,59,.4); --success-fg: #6ee7b7; --warning: rgba(120,53,15,.4); --warning-fg: #fcd34d;
+    --danger: rgba(136,19,55,.4); --danger-fg: #fecdd3; --page: #0f1317;
+  }
+}
+:root[data-theme="dark"] {
+  --background: #14181d; --foreground: #e5e7eb; --card: #1b2027; --primary: #4bafd6; --primary-foreground: #0c1115;
+  --muted: #262c34; --muted-foreground: #94a3b8; --accent: #1c313b; --accent-foreground: #bfe6f2;
+  --destructive: oklch(0.704 0.191 22.216); --border: rgba(255,255,255,.1); --ring: #4bafd6;
+  --success: rgba(6,78,59,.4); --success-fg: #6ee7b7; --warning: rgba(120,53,15,.4); --warning-fg: #fcd34d;
+  --danger: rgba(136,19,55,.4); --danger-fg: #fecdd3; --page: #0f1317;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--foreground);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif; }
+.top { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: var(--background); border-bottom: 1px solid var(--border); }
+.top h1 { font-size: 15px; margin: 0; }
+.wrap { padding: 16px; display: grid; gap: 24px; }
+.label { font-size: 12px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; }
+.row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.phone { width: 375px; max-width: 100%; }
+.desk { width: 920px; max-width: 100%; }
+.frame { background: var(--background); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.screen { display: flex; flex-direction: column; gap: 16px; }
+h2 { margin: 0; font-size: 21px; font-weight: 600; }
+.sub { margin: 4px 0 0; font-size: 13px; color: var(--muted-foreground); }
+.back { font-size: 13px; color: var(--muted-foreground); text-decoration: none; display: inline-flex; min-height: 44px; align-items: center; }
+.card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.card-head { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+.card-body { padding: 12px 16px; font-size: 13.5px; }
+.muted { color: var(--muted-foreground); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--background);
+  color: var(--foreground); font: inherit; font-weight: 500; cursor: pointer; transition: transform 160ms cubic-bezier(.23,1,.32,1); }
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 3px solid color-mix(in oklch, var(--ring) 50%, transparent); outline-offset: 1px; }
+.btn.primary { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.btn.danger { background: var(--destructive); color: #fff; border-color: transparent; }
+.btn[disabled] { opacity: .5; cursor: default; }
+@media (max-width: 639px) { .btns .btn { width: 100%; } }
+.phone .btns .btn { width: 100%; }
+ol.steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent); color: var(--accent-foreground); font-size: 13px; }
+.warn { padding: 10px 12px; border-radius: 10px; background: var(--warning); color: var(--warning-fg); font-size: 13px; }
+.bad { padding: 10px 12px; border-radius: 10px; background: var(--danger); color: var(--danger-fg); font-size: 13px; }
+.bar { height: 8px; border-radius: 99px; background: var(--muted); overflow: hidden; margin: 8px 0; }
+.bar > i { display: block; height: 100%; width: 55%; background: var(--primary); border-radius: 99px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-weight: 600; color: var(--muted-foreground); font-size: 12px; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pill.ok { background: var(--success); color: var(--success-fg); }
+.pill.off { background: var(--danger); color: var(--danger-fg); }
+.pill.wait { background: var(--warning); color: var(--warning-fg); }
+.scroll { overflow-x: auto; }
+ul.plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.owner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.owner:last-child { border-bottom: 0; }
+select, input { min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); font: inherit; padding: 0 8px; }
+.phone select, .phone input { width: 100%; }
+.final { border: 1px solid color-mix(in oklch, var(--destructive) 45%, var(--border)); border-radius: 12px; background: var(--card); }
+.final .card-head { color: var(--destructive); border-color: color-mix(in oklch, var(--destructive) 25%, var(--border)); }
+dl.counts { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 8px 0 0; font-size: 13px; }
+dl.counts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.legend { font-size: 12px; color: var(--muted-foreground); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Copy from Pipedrive: screen states</h1>
+  <button class="btn" id="theme" type="button">Switch light or dark</button>
+</div>
+<div class="wrap">
+
+  <section>
+    <p class="label">1. Token not set (phone)</p>
+    <div class="row">
+      <div class="frame phone"><div class="screen">
+        <div><a class="back" href="#">Back to Sales settings</a><h2>Copy from Pipedrive</h2>
+          <p class="sub">Copies organizations, people, deals, leads, activities and notes into the app. Pipedrive is only read, never changed.</p></div>
+        <div class="card"><div class="card-head">Add the Pipedrive key first</div>
+          <div class="card-body"><p style="margin:0">The app needs a Pipedrive API token to read your Pipedrive account. It is kept in Vercel and never shown here.</p>
+            <ol class="steps"><li>In Vercel, open the project, then Settings, then Environment Variables.</li>
+              <li>Add PIPEDRIVE_API_TOKEN for Production, with the token from Pipedrive (Personal preferences, API).</li>
+              <li>Redeploy the app, then come back to this page.</li></ol></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="label">2. Ready (desktop)</p>
+    <div class="frame desk"><div class="screen">
+      <div><a class="back" href="#">Back to Sales settings</a><h2>Copy from Pipedrive</h2>
+        <p class="sub">Copies organizations, people, deals, leads, activities and notes into the app. Pipedrive is only read, never changed.</p></div>
+      <div class="card"><div class="card-head">Start a copy</div>
+        <div class="card-body"><p style="margin:0 0 4px">Pipedrive token ending in 9f3a is set.</p>
+          <p class="muted" style="margin:0 0 12px">Start with a practice run. It reads everything and shows what a real copy would do, but saves nothing.</p>
+          <div class="btns"><button class="btn">Practice run (saves nothing)</button><button class="btn primary">Copy for real</button></div>
+          <p class="note">Until you switch off Pipedrive, Pipedrive is the boss. Copying again replaces edits made here to copied records.</p></div></div>
+      <div class="final"><div class="card-head">Final copy and lock</div>
+        <div class="card-body"><p style="margin:0 0 8px">Only on switch-off day. This copies one last time and ends copying for good. After it, no copy can run again.</p>
+          <label for="lk" style="display:block;font-size:13px;margin-bottom:4px">Type LOCK to confirm</label>
+          <div class="btns"><input id="lk" autocomplete="off" style="width:160px"><button class="btn danger" disabled>Final copy and lock</button></div></div></div>
+      <div class="card"><div class="card-head">Not copied</div><div class="card-body">
+        <ul class="plain"><li>Emails and call logs (emails come with the Gmail project)</li><li>Products on deals</li><li>Labels</li><li>Smart Docs</li><li>Projects</li><li>Campaigns</li>
+          <li class="muted">Files over 4 MB or of a type the app does not take are listed under Things to look at.</li></ul></div></div>
+    </div></div>
+  </section>
+
+  <section>
+    <p class="label">3. Running, paused, failed, closed tab (phone)</p>
+    <div class="row">
+      <div class="frame phone"><div class="screen">
+        <div class="card"><div class="card-head">Copy for real is running</div>
+          <div class="card-body" aria-live="polite"><p style="margin:0;font-weight:600">Copying deals</p>
+            <p class="muted" style="margin:2px 0 0">Step 5 of 9. Keep this tab open.</p>
+            <div class="bar"><i></i></div>
+            <dl class="counts"><dt>Organizations</dt><dd>412</dd><dt>People</dt><dd>1,280</dd><dt>Deals</dt><dd>300 so far</dd></dl></div></div>
+      </div></div>
+      <div class="frame phone"><div class="screen">
+        <div class="card"><div class="card-head">Copy for real is running</div>
+          <div class="card-body" aria-live="polite"><p style="margin:0;font-weight:600">Copying activities</p>
+            <p class="muted" style="margin:2px 0 8px">Step 7 of 9.</p>
+            <p class="warn" style="margin:0">Pipedrive asked us to slow down. Continuing in a minute.</p></div></div>
+      </div></div>
+      <div class="frame phone"><div class="screen">
+        <div class="card"><div class="card-head">The copy stopped</div>
+          <div class="card-body"><p class="bad" style="margin:0 0 12px">The copy stopped: Pipedrive refused the token. Check that it is still active.</p>
+            <div class="btns"><button class="btn">Start again</button></div></div></div>
+        <div class="card"><div class="card-head">Copy for real is waiting</div>
+          <div class="card-body"><p style="margin:0">Copying notes. The tab was closed, so the copy is paused where it stopped.</p>
+            <div class="btns" style="margin-top:12px"><button class="btn primary">Keep going</button></div></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="label">4. Done with report (desktop and phone)</p>
+    <div class="row">
+      <div class="frame desk"><div class="screen">
+        <div class="card"><div class="card-head">Copy for real finished</div>
+          <div class="card-body"><p style="margin:0">Finished Nov 12, 2026, 3:40 PM. 18 kinds of things to look at.</p>
+            <div class="btns" style="margin-top:12px"><button class="btn">Practice run (saves nothing)</button><button class="btn primary">Copy for real</button></div>
+            <p class="note">Until you switch off Pipedrive, Pipedrive is the boss. Copying again replaces edits made here to copied records.</p></div></div>
+        <div class="card"><div class="card-head">Check the copy</div>
+          <div class="card-body"><p class="muted" style="margin:0 0 8px">Counts Pipedrive against the app. Checked Nov 12, 2026, 3:44 PM.</p>
+            <div class="scroll"><table><thead><tr><th>Kind</th><th class="n">In Pipedrive</th><th class="n">In the app</th><th class="n">Left out on purpose</th><th>Result</th></tr></thead>
+              <tbody><tr><td>Organizations</td><td class="n">412</td><td class="n">412</td><td class="n">0</td><td><span class="pill ok">Matches</span></td></tr>
+              <tr><td>People</td><td class="n">1,284</td><td class="n">1,280</td><td class="n">4</td><td><span class="pill ok">Matches</span></td></tr>
+              <tr><td>Deals</td><td class="n">655</td><td class="n">650</td><td class="n">0</td><td><span class="pill off">Off by 5</span></td></tr></tbody></table></div>
+            <p style="margin:16px 0 6px;font-weight:600">Compare these deals in Pipedrive</p>
+            <ul class="plain"><li><strong>Acme Dental mailer</strong> <span class="muted">$4,500.00, Proposal Sent, Ben E., open. Pipedrive id 1204</span></li>
+              <li><strong>Lakeside Ortho</strong> <span class="muted">$12,000.00, Won, Robert O., won. Pipedrive id 877</span></li></ul>
+            <div class="btns" style="margin-top:12px"><button class="btn">Check the copy</button></div></div></div>
+        <div class="card"><div class="card-head">Whose records go to whom</div>
+          <div class="card-body">
+            <div class="owner"><div><strong>Ben Example</strong><div class="muted">ben@example.com</div></div><select aria-label="Team member for Ben Example"><option>Ben E. (matched by email)</option></select></div>
+            <div class="owner"><div><strong>Old Rep</strong> <span class="pill wait">Not matched</span><div class="muted">Records go to the person who started the copy.</div></div><select aria-label="Team member for Old Rep"><option>Pick a team member</option></select></div></div></div>
+        <div class="card"><div class="card-head">Things to look at</div>
+          <div class="card-body"><ul class="plain"><li>Deals: 3 times, example ids 12, 40, 77: The value was not in US dollars, so it was set to $0.</li>
+            <li>People: 1 time, example id 9: The person had no name, so their email is used.</li></ul>
+            <p class="muted" style="margin:8px 0 0">And 12 more kinds not shown.</p></div></div>
+      </div></div>
+      <div class="frame phone"><div class="screen">
+        <div class="card"><div class="card-head">Check the copy</div>
+          <div class="card-body"><div class="scroll"><table><thead><tr><th>Kind</th><th class="n">Pipedrive</th><th class="n">App</th><th>Result</th></tr></thead>
+            <tbody><tr><td>Deals<div class="muted">0 left out</div></td><td class="n">655</td><td class="n">650</td><td><span class="pill off">Off by 5</span></td></tr></tbody></table></div></div></div>
+        <div class="card"><div class="card-head">Whose records go to whom</div>
+          <div class="card-body"><div class="owner"><div><strong>Old Rep</strong> <span class="pill wait">Not matched</span></div><select aria-label="Team member for Old Rep"><option>Pick a team member</option></select></div></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="label">5. Final box with the word typed, and 6. Locked (phone)</p>
+    <div class="row">
+      <div class="frame phone"><div class="screen">
+        <div class="final"><div class="card-head">Final copy and lock</div>
+          <div class="card-body"><p style="margin:0 0 8px">Only on switch-off day. This copies one last time and ends copying for good. After it, no copy can run again.</p>
+            <label for="lk2" style="display:block;font-size:13px;margin-bottom:4px">Type LOCK to confirm</label>
+            <input id="lk2" value="LOCK" autocomplete="off"><div class="btns" style="margin-top:8px"><button class="btn danger">Final copy and lock</button></div></div></div>
+      </div></div>
+      <div class="frame phone"><div class="screen">
+        <div class="card"><div class="card-head">Copying is locked</div>
+          <div class="card-body"><p style="margin:0">The final copy finished on Dec 1, 2026, 9:12 AM. Pipedrive was switched off, so no copy can run again. The report below is read only.</p></div></div>
+      </div></div>
+    </div>
+  </section>
+</div>
+<script>
+  document.getElementById("theme").addEventListener("click", function () {
+    var root = document.documentElement;
+    var dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+  });
+</script>
+</body>
+</html>
