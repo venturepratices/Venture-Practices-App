@@ -1,4 +1,0 @@
-host ep-long-dew-ad8nkrdc.c-2.us-east-1.aws.neon.tech
-3 | DRY on populated DB writes nothing | PASS | status=DONE diff=salesImportRun: 5 -> 6 rowsWithUpdatedAtMoved=0/216
-3 | DRY issues: no real email or token | PASS | 21 groups (cursor holds matched users' emails by design)
-dry counts on populated DB {"deals.seen":12,"files.seen":3,"leads.seen":4,"notes.seen":6,"users.seen":4,"stages.seen":18,"persons.seen":8,"deals.skipped":1,"files.created":1,"files.skipped":2,"notes.created":1,"notes.skipped":1,"pipelines.seen":3,"activities.seen":10,"deals.unchanged":11,"leads.unchanged":4,"notes.unchanged":4,"users.unmatched":2,"stages.unchanged":18,"customFields.seen":2,"persons.unchanged":8,"activities.created":2,"organizations.seen":6,"pipelines.unchanged":3,"activities.unchanged":8,"customFields.unchanged":2,"activitiesAtMidnightUtc":1,"organizations.unchanged":6}

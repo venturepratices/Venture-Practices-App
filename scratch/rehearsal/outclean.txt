@@ -1,6 +1,0 @@
-deleted {"customValues":2,"files":0,"notes":4,"activities":8,"deals":11,"leads":4,"persons":8,"orgs":7,"stages":3,"pipelines":1,"fields":1,"userMap":0,"runs":14} stagesRestored 2 auditRowsLeft(immutable) 15
-count diff vs before (excluding audit): NONE
-audit: 271 -> 286
-stage positions/updatedAt identical to before: true stage count 33 before 33
-TEST deals 25 max updatedAt 2026-11-11T15:15:00.000Z
-leftover pipedriveId rows: 0 0 0
