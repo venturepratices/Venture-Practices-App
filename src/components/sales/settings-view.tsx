@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CircleAlert, Inbox, Lock, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { CircleAlert, DatabaseZap, Inbox, Lock, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveSettingsRequest } from "@/lib/sales/api-client";
@@ -17,7 +18,8 @@ import {
   SALES_RULES,
   settingsPatch,
 } from "@/lib/sales/settings-client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { LeadAssignmentCard } from "@/components/sales/lead-assignment-card";
 import { StageEditorDialog } from "@/components/sales/stage-editor-dialog";
 
@@ -184,6 +186,22 @@ export function SettingsView({
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className={CARD}>
+          <CardHeader icon={DatabaseZap}>Copy from Pipedrive</CardHeader>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 max-sm:flex-col max-sm:items-start">
+            <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug">
+              Copy organizations, people, deals, leads, activities, notes and files from Pipedrive into the app. Start with a practice run.
+            </p>
+            <Link
+              href="/sales/settings/import"
+              aria-label="Open Copy from Pipedrive"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "pointer-coarse:min-h-11 max-sm:w-full")}
+            >
+              Open
+            </Link>
+          </div>
         </section>
       </div>
 

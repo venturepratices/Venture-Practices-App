@@ -159,9 +159,11 @@ describe("SettingsView (server render)", () => {
     expect(html).toContain('aria-label="Edit stages for Marketing Agency Services"');
   });
 
-  it("does not ship the Copy from Pipedrive card", () => {
+  it("links to the Copy from Pipedrive screen (the page is admins only)", () => {
     const html = renderView(ASSIGNMENT_OK);
-    expect(html).not.toContain("Pipedrive");
+    expect(html).toContain("Copy from Pipedrive");
+    expect(html).toContain('href="/sales/settings/import"');
+    expect(html).toContain("activities, notes and files from Pipedrive");
   });
 
   it("names the lost-access bar for a saved single person who lost access and opens the Pick a person placeholder", () => {

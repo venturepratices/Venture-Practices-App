@@ -17,7 +17,7 @@ import { dateInputValue, startOfDay } from "@/lib/utils";
 // stage it read (Postgres re-checks that `where` after waiting for a person's
 // row lock), and the meetings only while still not done.
 
-type NoShowDb = Pick<typeof prisma, "salesStage" | "salesActivity" | "$transaction">;
+type NoShowDb = Pick<typeof prisma, "salesStage" | "salesActivity" | "salesImportRun" | "$transaction">;
 type NoShowStage = { id: string; pipelineId: string; name: string; position: number };
 type MissedMeeting = { id: string; subject: string };
 
@@ -51,9 +51,22 @@ export async function applyMissedMeetingRule(
   }
   if (noShowByPipeline.size === 0) return { moved: 0, meetingsMarked: 0 };
 
+  // Meetings copied from Pipedrive and due before the latest real copy started were
+  // never ticked done there, so they are history, not missed meetings: without this,
+  // the first morning after the copy would move real deals to No Show by the dozen.
+  // Any status counts, so a copy still in progress is covered too. Imported meetings
+  // due after that start, and every meeting made in the app, still count.
+  const lastCopy = await db.salesImportRun.findFirst({
+    where: { mode: "LIVE" },
+    orderBy: { startedAt: "desc" },
+    select: { startedAt: true },
+  });
+  const notOldImports = lastCopy ? { NOT: { pipedriveId: { not: null }, dueAt: { lt: lastCopy.startedAt } } } : {};
+
   // A meeting is missed once its whole day has ended in app time, so this morning's run looks before today.
   const meetings = await db.salesActivity.findMany({
     where: {
+      ...notOldImports,
       type: "MEETING",
       doneAt: null,
       archivedAt: null,

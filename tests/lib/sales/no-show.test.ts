@@ -57,7 +57,17 @@ const state = {
   /** Deal ids whose transaction blows up, to prove one bad deal does not stop the rest. */
   failing: new Set<string>(),
   audits: [] as Row[],
+  /** Import runs (mode and startedAt) the rule reads its imported-meeting boundary from. */
+  importRuns: [] as Row[],
 };
+
+/** Applies the rule's imported-meeting exclusion the way Postgres would. */
+function keptByImportBoundary(m: Row, where: Row): boolean {
+  const not = where.NOT as { pipedriveId: { not: null }; dueAt: { lt: Date } } | undefined;
+  if (!not) return true;
+  const imported = m.pipedriveId !== null && m.pipedriveId !== undefined;
+  return !(imported && (m.dueAt as Date).getTime() < not.dueAt.lt.getTime());
+}
 
 const db = {
   salesStage: { findMany: vi.fn<(args: Args) => Promise<Row[]>>(async () => state.noShowStages) },
@@ -68,7 +78,7 @@ const db = {
         const ids = (args.where.id as { in: string[] }).in;
         return state.missed.filter((m) => ids.includes(m.id as string) && m.doneAt === null && m.archivedAt === null);
       }
-      if (args.where.type === "MEETING") return state.missed;
+      if (args.where.type === "MEETING") return state.missed.filter((m) => keptByImportBoundary(m, args.where));
       const createdBy = (args.where.createdBy as { in: string[] }).in;
       return state.open.filter(
         (a) => a.dealId === args.where.dealId && createdBy.includes(a.createdBy as string) && a.doneAt === null && a.archivedAt === null,
@@ -101,6 +111,14 @@ const db = {
           d.stageId === args.where.stageId,
       );
       return { count: row ? 1 : 0 };
+    }),
+  },
+  salesImportRun: {
+    // The latest run of the asked-for mode, newest startedAt first, as the rule asks.
+    findFirst: vi.fn(async (args: Args) => {
+      const runs = state.importRuns.filter((r) => r.mode === args.where.mode);
+      runs.sort((a, b) => (b.startedAt as Date).getTime() - (a.startedAt as Date).getTime());
+      return runs[0] ? { startedAt: runs[0].startedAt } : null;
     }),
   },
   salesAuditLog: { create: vi.fn(async (args: { data: Row }) => state.audits.push(args.data)) },
@@ -137,12 +155,61 @@ beforeEach(() => {
   state.open = [];
   state.failing = new Set();
   state.audits = [];
+  state.importRuns = [];
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   delete process.env.CRON_SECRET;
+});
+
+describe("imported Pipedrive meetings", () => {
+  // The copy started Nov 4. Meetings due before that came from Pipedrive and were never ticked done there.
+  const copyStarted = new Date("2026-11-04T14:00:00Z");
+  const old = new Date("2026-11-01T15:00:00Z");
+
+  it("skips an imported meeting due before the latest real copy started", async () => {
+    state.importRuns = [{ mode: "LIVE", startedAt: copyStarted }];
+    state.missed = [meeting("m1", "d1", { pipedriveId: 400, dueAt: old })];
+
+    expect(await applyMissedMeetingRule(now, db as never)).toEqual({ moved: 0, meetingsMarked: 0 });
+    expect(db.salesImportRun.findFirst.mock.calls[0][0]).toEqual({
+      where: { mode: "LIVE" },
+      orderBy: { startedAt: "desc" },
+      select: { startedAt: true },
+    });
+    expect(db.salesActivity.findMany.mock.calls[0][0].where.NOT).toEqual({ pipedriveId: { not: null }, dueAt: { lt: copyStarted } });
+  });
+
+  it("still handles a meeting made in the app with the same old date", async () => {
+    state.importRuns = [{ mode: "LIVE", startedAt: copyStarted }];
+    state.missed = [meeting("m1", "d1", { pipedriveId: null, dueAt: old })];
+    expect(await applyMissedMeetingRule(now, db as never)).toEqual({ moved: 1, meetingsMarked: 1 });
+  });
+
+  it("still handles an imported meeting due after the latest real copy started", async () => {
+    state.importRuns = [{ mode: "LIVE", startedAt: copyStarted }];
+    state.missed = [meeting("m1", "d1", { pipedriveId: 400, dueAt: endOfDay("2026-11-05") })];
+    expect(await applyMissedMeetingRule(now, db as never)).toEqual({ moved: 1, meetingsMarked: 1 });
+  });
+
+  it("excludes nothing when no real copy has run (practice runs do not count)", async () => {
+    state.importRuns = [{ mode: "DRY_RUN", startedAt: copyStarted }];
+    state.missed = [meeting("m1", "d1", { pipedriveId: 400, dueAt: old })];
+    expect(await applyMissedMeetingRule(now, db as never)).toEqual({ moved: 1, meetingsMarked: 1 });
+    expect(db.salesActivity.findMany.mock.calls[0][0].where).not.toHaveProperty("NOT");
+  });
+
+  it("moves the boundary forward with a newer real copy", async () => {
+    state.importRuns = [
+      { mode: "LIVE", startedAt: new Date("2026-10-20T14:00:00Z") },
+      { mode: "LIVE", startedAt: copyStarted },
+    ];
+    // Due after the first copy but before the second one: skipped.
+    state.missed = [meeting("m1", "d1", { pipedriveId: 400, dueAt: new Date("2026-11-02T15:00:00Z") })];
+    expect(await applyMissedMeetingRule(now, db as never)).toEqual({ moved: 0, meetingsMarked: 0 });
+  });
 });
 
 describe("applyMissedMeetingRule", () => {
