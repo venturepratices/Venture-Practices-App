@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bot, CircleAlert, DatabaseZap, Inbox, Lock, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Bot, CircleAlert, DatabaseZap, FlaskConical, Inbox, Lock, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveSettingsRequest } from "@/lib/sales/api-client";
@@ -215,6 +215,22 @@ export function SettingsView({
               className="inline-flex min-h-8 items-center justify-center rounded-lg border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11 max-sm:w-full"
             >
               Manage bots
+            </Link>
+          </div>
+        </section>
+
+        <section className={CARD}>
+          <CardHeader icon={FlaskConical}>Demo data</CardHeader>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 max-sm:flex-col max-sm:items-start">
+            <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug">
+              Fill Sales with example practices, people, deals, leads, activities and notes so the team can see how every
+              screen works. Everything is clearly marked &ldquo;TEST &rdquo; and can be removed in one click.
+            </p>
+            <Link
+              href="/sales/settings/demo-data"
+              className="inline-flex min-h-8 items-center justify-center rounded-lg border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11 max-sm:w-full"
+            >
+              Manage demo data
             </Link>
           </div>
         </section>
