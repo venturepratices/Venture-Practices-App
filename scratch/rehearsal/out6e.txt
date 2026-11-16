@@ -1,6 +1,0 @@
-host ep-long-dew-ad8nkrdc.c-2.us-east-1.aws.neon.tech
-
-RESULTS
-6e | final DONE locks LIVE (normal and final) | PASS | final=DONE; live: The import is locked. Pipedrive was switched off.; final: The import is locked. Pipedrive was switched off.
-6e | DRY_RUN after lock (report only) | PASS | DRY_RUN still allowed after lock
-RUNNING left: 0
