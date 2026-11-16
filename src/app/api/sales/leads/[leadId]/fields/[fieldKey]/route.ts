@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { dealFieldSchema } from "@/lib/sales/deals";
 import { failResponse, readJson } from "@/lib/sales/http";
@@ -12,7 +12,7 @@ type Context = { params: Promise<{ leadId: string; fieldKey: string }> };
 /** Set (`{ value: "..." }`) or clear (`{ value: null }`) one custom field on a lead. Answers with the stored value. */
 export async function PUT(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { leadId, fieldKey } = await params;
 
     // The same body as a deal's field: the typed text, or null to clear it.

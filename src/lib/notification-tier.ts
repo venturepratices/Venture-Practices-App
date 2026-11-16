@@ -29,6 +29,8 @@ const TIER_BY_TYPE: Record<NotificationType, NotificationTier> = {
   ORDER_CHANGED: "IMPORTANT",
   DAILY_BRIEFING: "IMPORTANT",
   ROCK_CHECKIN: "IMPORTANT",
+  // Written straight to the in-app list for admins (bot-alerts.ts), never sent to Slack or a digest.
+  BOT_ALERT: "CRITICAL",
 
   ASSET_UPLOADED: "AMBIENT",
   ASSET_COMMENTED: "AMBIENT",

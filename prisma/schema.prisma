@@ -116,6 +116,7 @@ enum NotificationType {
   ORDER_CHANGED
   DAILY_BRIEFING
   ROCK_CHECKIN
+  BOT_ALERT
 }
 
 // Asset Approval (Phase 2) — see "Feature: Asset Approval prototype" in the plan file.
@@ -2226,9 +2227,44 @@ model BotToken {
   createdAt    DateTime        @default(now())
   lastUsedAt   DateTime?
   rotatedAt    DateTime?
-  usage        BotTokenUsage[]
+  // The key stops working at this time (90 days at most after it is made or rotated).
+  expiresAt      DateTime?
+  // false = only the pipelines in pipelineKeys (an empty list means none).
+  allPipelines   Boolean         @default(false)
+  // true = only deals and leads the person owns, even if they may see everyone's.
+  ownDealsOnly   Boolean         @default(true)
+  // Set on restore from a backup: the key must be rotated before it can be turned on.
+  mustRotate     Boolean         @default(false)
+  lastUsedIp     String?
+  // Every IP this key has called from (at most 20), so a new one can be flagged.
+  knownIps       String[]        @default([])
+  // Why the app turned the bot off by itself, and when. Cleared when an admin turns it on.
+  offReason      String?
+  offAt          DateTime?
+  // When admins were last told this key is about to expire.
+  expiryWarnedAt DateTime?
+  usage          BotTokenUsage[]
+  calls          BotCallLog[]
 
   @@index([actingForId])
+}
+
+// One row per call a known bot key made, allowed or refused. Kept 90 days
+// (trimmed by the bot-maintenance cron). Never stores the key or its hash.
+model BotCallLog {
+  id        String   @id @default(cuid())
+  tokenId   String
+  token     BotToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  at        DateTime @default(now())
+  method    String
+  path      String
+  scope     String?
+  status    Int
+  ipAddress String?
+  userAgent String?
+
+  @@index([tokenId, at])
+  @@index([at])
 }
 
 // Rate-limit counters for a bot key, one row per key per window. kind is

@@ -489,3 +489,38 @@ describe("sentryScrubHooks", () => {
     expect(sentryScrubHooks.beforeBreadcrumb(crumb)).toEqual({ category: "fetch", data: { url: "/api/mcp/[token]" } });
   });
 });
+
+describe("bot keys and bearer values never reach Sentry", () => {
+  const BOT_KEY = "vpb_" + "Zq3".repeat(14) + "x";
+  const BEARER = "Bearer abcDEF123456ghiJKL";
+
+  it("masks them in an error's message and exception text, keeping the rest", () => {
+    const event = scrubEvent({
+      message: `call failed with ${BOT_KEY}`,
+      exception: { values: [{ type: "Error", value: `bad header ${BEARER} for ${BOT_KEY}` }] },
+    } as Event);
+    const text = sent(event);
+    expect(text).not.toContain(BOT_KEY);
+    expect(text).not.toContain("abcDEF123456ghiJKL");
+    expect(text).toContain("call failed with [bot key]");
+    expect(event.exception?.values?.[0].type).toBe("Error");
+  });
+
+  it("masks them in a breadcrumb message", () => {
+    expect(sent(scrubBreadcrumb({ message: `retry ${BOT_KEY}` }))).not.toContain(BOT_KEY);
+  });
+});
+
+describe("bot keys anywhere in an event", () => {
+  const BOT_KEY = "vpb_" + "Qw7".repeat(14) + "z";
+
+  it("masks a key glued to a word, such as x_vpb_...", () => {
+    expect(sent(scrubEvent({ message: `token=x_${BOT_KEY}` } as Event))).not.toContain(BOT_KEY);
+  });
+
+  it("masks keys in extra and tags", () => {
+    const event = scrubEvent({ extra: { header: `Bearer ${BOT_KEY}`, nested: { k: BOT_KEY } }, tags: { key: BOT_KEY } } as Event);
+    expect(sent(event)).not.toContain(BOT_KEY);
+    expect(sent(event)).not.toContain(BOT_KEY.slice(4));
+  });
+});

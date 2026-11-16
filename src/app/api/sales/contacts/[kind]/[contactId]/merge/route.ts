@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { loadMergePreview, mergeBodySchema, mergeContacts } from "@/lib/sales/contact-merge";
 import { contactKindFromPath } from "@/lib/sales/contacts-query";
@@ -18,7 +18,7 @@ const INVALID_INPUT = "Invalid input.";
  */
 export async function GET(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { kind: segment, contactId } = await params;
     const kind = contactKindFromPath(segment);
     const dropId = mergeBodySchema.shape.dropId.safeParse(new URL(request.url).searchParams.get("with"));
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: Context) {
  */
 export async function POST(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const body = await readJson(request, mergeBodySchema);
     if (!body.ok) return failResponse(body);
     const { kind: segment, contactId } = await params;

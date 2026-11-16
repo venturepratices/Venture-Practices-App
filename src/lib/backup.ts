@@ -49,6 +49,7 @@ export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
     "One-time Pipedrive import progress log; the imported rows live in the backed-up Sales tables.",
   SalesImportUserMap:
     "Admin's Pipedrive-user-to-team-member picks for the one-time import, re-entered on the import screen",
+  BotCallLog: "Bot call log, kept 90 days only; every change a bot makes is also in SalesAuditLog, which is backed up",
 };
 
 type SnapshotTables = {

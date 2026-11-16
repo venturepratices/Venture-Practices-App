@@ -7,8 +7,10 @@ type SalesActorBase = {
   /** The who-can-see setting: false = this person sees only deals they own. */
   seesAllDeals: boolean;
   scopes?: readonly string[];
-  /** Bots only: the pipelines this key may work in. Empty = every pipeline. */
+  /** Bots only: the pipelines this key may work in (an empty list means none), unless allPipelines. */
   pipelineKeys?: readonly string[];
+  /** Bots only: true = every pipeline. */
+  allPipelines?: boolean;
 };
 
 /**
@@ -52,6 +54,21 @@ export async function requireSalesUser(): Promise<SalesActor> {
 export function dealOwnerWhere(actor: SalesActor, scope: "everyone" | "mine"): { ownerId?: string } {
   if (scope === "mine" || (!actor.isAdmin && !actor.seesAllDeals)) return { ownerId: actor.userId };
   return {};
+}
+
+/**
+ * Bots only: `where` on SalesPipeline for the pipelines this key may touch.
+ * Empty for people and for all-pipeline bots; an empty list means none.
+ */
+export function botPipelineFilter(actor: SalesActor): { key?: { in: string[] } } {
+  if (actor.via !== "bot" || actor.allPipelines === true) return {};
+  return { key: { in: [...(actor.pipelineKeys ?? [])] } };
+}
+
+/** The same rule as a `where` fragment on SalesDeal. */
+export function dealPipelineWhere(actor: SalesActor): { pipeline?: { key: { in: string[] } } } {
+  const filter = botPipelineFilter(actor);
+  return filter.key ? { pipeline: { key: filter.key } } : {};
 }
 
 export function canEditDeal(actor: SalesActor, deal: { ownerId: string }): boolean {

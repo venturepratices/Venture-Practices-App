@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { createOrganization, createOrganizationSchema, createPerson, createPersonSchema } from "@/lib/sales/contacts-edit";
 import { loadContactRows } from "@/lib/sales/contacts-page";
@@ -18,7 +18,7 @@ type Context = { params: Promise<{ kind: string }> };
  */
 export async function GET(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const kind = contactKindFromPath((await params).kind);
     if (!kind) return failResponse(fail(400, "Invalid input."));
 
@@ -36,7 +36,7 @@ export async function GET(request: Request, { params }: Context) {
  */
 export async function POST(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const kind = contactKindFromPath((await params).kind);
     if (!kind) return failResponse(fail(400, "Invalid input."));
 

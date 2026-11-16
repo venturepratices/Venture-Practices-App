@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { canDeleteSalesRecords, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
+import { botPipelineFilter, canDeleteSalesRecords, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
 import { auditDiff, type SalesRequestMeta } from "@/lib/sales/audit";
 import { isBoardPipeline } from "@/lib/sales/board";
 import {
@@ -132,7 +132,8 @@ export async function createDeal(
     if (!owner) return fail(400, CHOOSE_OWNER);
 
     const pipeline = await tx.salesPipeline.findFirst({
-      where: { id: input.pipelineId, archivedAt: null },
+      // A bot may only add deals to its own pipelines; any other is "pick a pipeline".
+      where: { id: input.pipelineId, archivedAt: null, ...botPipelineFilter(actor) },
       select: { id: true, key: true, kind: true },
     });
     if (!pipeline) return fail(400, PICK_PIPELINE);

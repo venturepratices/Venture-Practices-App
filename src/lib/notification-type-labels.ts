@@ -29,6 +29,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   ORDER_CHANGED: "Change order added",
   DAILY_BRIEFING: "Daily briefing",
   ROCK_CHECKIN: "Rock check-in",
+  BOT_ALERT: "Bot alert",
 };
 
 /** Friendlier names for the raw `entityType` strings ActivityLog/Notification already use. */

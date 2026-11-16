@@ -81,3 +81,12 @@ export function snapshotHasTable(tables: Record<string, unknown>, key: string): 
 export function missingV3Tables(tables: Record<string, unknown>): string[] {
   return V3_SNAPSHOT_TABLES.filter(({ key }) => !snapshotHasTable(tables, key)).map(({ key }) => key);
 }
+
+/**
+ * A bot key as the restore puts it back: turned off, and marked so it cannot be
+ * turned on again until an admin makes it a new key (the old one may have leaked
+ * with the backup).
+ */
+export function restoredBotToken<T extends object>(row: T): T & { enabled: false; mustRotate: true } {
+  return { ...row, enabled: false, mustRotate: true };
+}

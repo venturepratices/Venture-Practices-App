@@ -84,6 +84,11 @@ export const moveDealSchema = z.strictObject({
   undoActivityIds: z.array(id).max(UNDO_IDS_MAX).optional(),
 });
 
+/** A bot key may send only the stage: no value, no undo (key safety: a "move" permission moves, nothing more). */
+export const botMoveDealSchema = z.strictObject({ stageId: id });
+
+export const BOTS_CANNOT_CLOSE = "Bots cannot close deals.";
+
 const PICK_REASON = "Pick a reason.";
 
 export const statusSchema = z.discriminatedUnion("status", [
@@ -178,6 +183,8 @@ async function attemptMove(
     select: TARGET_STAGE_SELECT,
   });
   if (!target) return fail(400, STAGE_NOT_IN_PIPELINE);
+  // Winning or losing a deal is for people; a bot may only move it between open stages.
+  if (actor.via === "bot" && (target.isWon || target.isLost)) return fail(400, BOTS_CANNOT_CLOSE);
   const enteredStage = {
     id: target.id,
     name: target.name,

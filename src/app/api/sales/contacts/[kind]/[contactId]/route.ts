@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { CONTACT_NOT_FOUND } from "@/lib/sales/contact-access";
 import { loadContactPanel } from "@/lib/sales/contact-panel";
@@ -16,9 +16,9 @@ type Context = { params: Promise<{ kind: string; contactId: string }> };
  * person may not see, or an archived one, is "Contact not found." (404); an old
  * link to a merged contact answers with the contact it was merged into.
  */
-export async function GET(_request: Request, { params }: Context) {
+export async function GET(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { kind: segment, contactId } = await params;
     const kind = contactKindFromPath(segment);
     if (!kind) return failResponse(fail(400, "Invalid input."));
@@ -39,7 +39,7 @@ export async function GET(_request: Request, { params }: Context) {
  */
 export async function PATCH(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { kind: segment, contactId } = await params;
     const kind = contactKindFromPath(segment);
     if (!kind) return failResponse(fail(400, "Invalid input."));

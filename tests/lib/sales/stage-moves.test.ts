@@ -851,3 +851,28 @@ describe("POST /api/sales/deals/[dealId]/status: two requests at the same time (
     expect(state.audits).toEqual([]);
   });
 });
+
+describe("POST /api/sales/deals/[dealId]/move: a bot key", () => {
+  const bot: SalesActor = { userId: "r", isAdmin: false, seesAllDeals: false, via: "bot", botTokenId: "b1", scopes: ["move"], allPipelines: true };
+
+  it("may send only the stage, never a value, an undo or undo ids", async () => {
+    asActor(bot);
+    for (const extra of [{ valueCents: 500 }, { mrrCents: 100 }, { undoActivityIds: ["a1"] }, { undo: true }]) {
+      expect((await move({ stageId: "s4", ...extra })).status).toBe(400);
+    }
+    expect(writes()).toEqual([]);
+    expect((await move({ stageId: "s4" })).status).toBe(200);
+  });
+
+  it("cannot close a deal by moving it into a won stage", async () => {
+    asActor(bot);
+    const res = await move({ stageId: "s7" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Bots cannot close deals." });
+    expect(writes()).toEqual([]);
+  });
+
+  it("leaves people's moves as they were", async () => {
+    expect((await move({ stageId: "s4", valueCents: 500 })).status).not.toBe(400);
+  });
+});

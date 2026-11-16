@@ -70,20 +70,22 @@ const FOLDER_RULES: Record<string, { who: string; checks: Check[] }> = {
     who: "guests reviewing one asset; the share-link token in the address is their only key",
     checks: [{ module: "@/lib/share-link", name: "resolveShareLinkAccess", reports: true }],
   },
+  sales: {
+    who: "signed-in Sales members and bot keys; each route calls requireSalesActor (a bot key checked against the route's permission, else the session), or requireAdmin for admin screens. A few older routes still call requireSalesUser directly.",
+    checks: [
+      // Deny-by-default gate added by the bots branch; it reaches the session or the bot key and throws on refusal.
+      { module: "@/lib/sales/actor", name: "requireSalesActor" },
+      // Older helper, still present on a few routes (same semantics for a signed-in user).
+      { module: "@/lib/sales/access", name: "requireSalesUser" },
+      // Admin-only Sales screens (bots, settings, pipeline stages) use the shared helper.
+      { module: PERMISSIONS, name: "requireAdmin" },
+    ],
+  },
   webhooks: {
     who: "outside services sending events (no routes yet); each must prove it is the sender with its shared secret, and any other proof (a signature check) is added here on purpose",
     checks: [
       { module: SECRET_COMPARE, name: "checkBearer", reports: true },
       { module: SECRET_COMPARE, name: "safeEqualSecret", reports: true },
-    ],
-  },
-  sales: {
-    who: "signed-in people with Sales access, plus admins and bot keys on the handlers listed in bot-endpoints.ts. The Sales area has its own actor gate so a request is checked once, with its permission scope in hand.",
-    checks: [
-      // The Sales-only gate reaches the session (and, on the bots branch, bot keys) and throws on refusal.
-      { module: "@/lib/sales/access", name: "requireSalesUser" },
-      // A handful of admin-only Sales routes (bots, settings, pipeline stages) stay on the shared helper.
-      { module: PERMISSIONS, name: "requireAdmin" },
     ],
   },
 };

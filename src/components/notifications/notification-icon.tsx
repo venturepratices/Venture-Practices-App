@@ -9,6 +9,7 @@ import {
   Mountain,
   Newspaper,
   RefreshCw,
+  ShieldAlert,
   Upload,
   UserPlus,
   X,
@@ -41,6 +42,7 @@ const ICON_FOR: Record<NotificationType, LucideIcon> = {
   ORDER_CHANGED: DollarSign,
   DAILY_BRIEFING: Newspaper,
   ROCK_CHECKIN: Mountain,
+  BOT_ALERT: ShieldAlert,
 };
 
 export function iconFor(type: NotificationType): LucideIcon {

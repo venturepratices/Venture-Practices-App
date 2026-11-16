@@ -727,14 +727,14 @@ describe("GET /api/sales/leads/convert", () => {
   it("lists where a lead can go", async () => {
     expect(await loadConvertTargets()).toEqual(expected);
 
-    const res = await bulkRoute.GET();
+    const res = await bulkRoute.GET(new Request("http://localhost/api/sales/leads/convert"));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ targets: expected });
   });
 
   it("refuses someone without Sales access and reads nothing", async () => {
     requireSalesUserMock.mockRejectedValue(new PermissionError(403, "You don't have access to Sales."));
-    const res = await bulkRoute.GET();
+    const res = await bulkRoute.GET(new Request("http://localhost/api/sales/leads/convert"));
 
     expect(res.status).toBe(403);
     expect(allCalls()).toEqual([]);

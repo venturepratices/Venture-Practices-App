@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity-log";
 import { CAPABILITIES } from "@/lib/permission-catalog";
 import { PermissionError, requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { turnOffBotsWithoutAccess } from "@/lib/sales/bot-offboarding";
 import { removeTeamMemberFromAllClientChannels, syncTeamMemberClientChannels } from "@/lib/slack";
 import { createTeamMemberSchema, updateTeamMemberSchema } from "@/lib/validations/team-member";
 
@@ -170,6 +171,7 @@ export async function updateTeamMemberAction(
     },
   });
   await syncTeamMemberClientChannels(member.id);
+  await turnOffBotsWithoutAccess(member);
 
   const changes: string[] = [];
   if (before.name !== member.name) changes.push(`renamed to "${member.name}"`);

@@ -2,7 +2,7 @@ import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { contentDisposition } from "@/lib/sales/file-rules";
 import {
@@ -23,9 +23,9 @@ type Context = { params: Promise<{ fileId: string }> };
  * outside `sales-files/` is "File not found." Always an attachment, never shown
  * in the page, never sniffed, never cached, and sandboxed if opened anyway.
  */
-export async function GET(_request: Request, { params }: Context) {
+export async function GET(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const { fileId } = await params;
 
     const file = await findFileForDownload(actor, fileId);
@@ -53,7 +53,7 @@ export async function GET(_request: Request, { params }: Context) {
 /** Remove a file from its deal's Files list (owner or admin). The stored bytes stay. Answers `{ ok, changed }`. */
 export async function DELETE(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, null);
     const blocked = assertSameOrigin(request);
     if (blocked) return failResponse(blocked);
     const { fileId } = await params;

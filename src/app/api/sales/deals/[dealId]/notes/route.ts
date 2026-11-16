@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toErrorResponse } from "@/lib/permissions";
-import { requireSalesUser } from "@/lib/sales/access";
+import { requireSalesActor } from "@/lib/sales/actor";
 import { requestMeta } from "@/lib/sales/audit";
 import { failResponse, readJson } from "@/lib/sales/http";
 import { addDealNote, noteSchema } from "@/lib/sales/notes";
@@ -11,7 +11,7 @@ type Context = { params: Promise<{ dealId: string }> };
 /** Add a plain-text note to a deal (`{ body }`). Answers 201 `{ note }`. */
 export async function POST(request: Request, { params }: Context) {
   try {
-    const actor = await requireSalesUser();
+    const actor = await requireSalesActor(request, "notes");
     const { dealId } = await params;
 
     const body = await readJson(request, noteSchema);
