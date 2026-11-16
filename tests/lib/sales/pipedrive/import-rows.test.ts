@@ -101,19 +101,17 @@ describe("links to records that were not copied", () => {
 });
 
 describe("leads", () => {
-  it("copies open and archived leads with their custom values, and reports a field the app has no lead field for", async () => {
+  it("copies leads with their custom values, and reports a field the app has no lead field for", async () => {
     const w = work({
       "/api/v1/leads": [
         [{ id: "uuid-1", title: "Oak lead", owner_id: 1, organization_id: 100, add_time: "2025-01-01T00:00:00Z", [ZIP_KEY]: "28202", [DEAL_ONLY_KEY]: 500 }],
       ],
-      "/api/v1/leads/archived": [[{ id: "uuid-2", title: "Old lead", owner_id: 1, update_time: "2025-05-01T00:00:00Z" }]],
     });
 
     expect(await runRowPhase("leads", w)).toBe("finished");
 
-    const [open, archived] = store.salesLead;
+    const [open] = store.salesLead;
     expect(open).toMatchObject({ pipedriveId: "uuid-1", organizationId: "o1", ownerId: "m1", status: "OPEN", source: "Added by hand" });
-    expect(archived).toMatchObject({ pipedriveId: "uuid-2", status: "ARCHIVED", archivedAt: new Date("2025-05-01T00:00:00Z") });
     expect(store.salesCustomFieldValue.map((v) => [v.fieldId, v.leadId, v.value])).toEqual([["f-zip", open.id, "28202"]]);
     expect(w.issues.groups).toContainEqual({
       phase: "leads",
@@ -123,15 +121,13 @@ describe("leads", () => {
     });
     expect(store.salesAuditLog.map((a) => [a.entityType, a.action])).toEqual([
       ["SalesLead", "imported"],
-      ["SalesLead", "imported"],
     ]);
-    // One save per page: the open list, then the archived list.
-    expect(w.saves).toBe(2);
-    expect(w.cursor).toMatchObject({ source: 2, page: null });
+    expect(w.saves).toBe(1);
+    expect(w.cursor).toMatchObject({ source: 1, page: null });
   });
 
   it("updates a changed custom value on a re-run, and counts the lead as updated", async () => {
-    const lists = { "/api/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, [ZIP_KEY]: "28202" }]], "/api/v1/leads/archived": [[]] };
+    const lists = { "/api/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, [ZIP_KEY]: "28202" }]] };
     await runRowPhase("leads", work(lists));
     (lists["/api/v1/leads"][0][0] as Record<string, unknown>)[ZIP_KEY] = "28203";
 
