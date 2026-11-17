@@ -50,6 +50,10 @@ export const BACKUP_EXCLUDED_MODELS: Record<string, string> = {
   SalesImportUserMap:
     "Admin's Pipedrive-user-to-team-member picks for the one-time import, re-entered on the import screen",
   BotCallLog: "Bot call log, kept 90 days only; every change a bot makes is also in SalesAuditLog, which is backed up",
+  HighLevelCallSummary:
+    "A pruning cache of HighLevel call metadata; HighLevel is the system of record and a re-sync rebuilds the whole table from the live API.",
+  HighLevelTrackingNumber:
+    "Short per-client tracking-number labels, re-enterable in a few minutes from HighLevel's own number list.",
 };
 
 type SnapshotTables = {

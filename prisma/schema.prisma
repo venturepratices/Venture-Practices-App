@@ -487,8 +487,10 @@ model Client {
   landingPages         LandingPage[]
   links                ClientLink[]
   credentials          ClientCredential[]
-  highLevelConnection  ClientHighLevelConnection?
-  conversationMessages ConversationMessage[]
+  highLevelConnection       ClientHighLevelConnection?
+  conversationMessages      ConversationMessage[]
+  highLevelCallSummaries    HighLevelCallSummary[]
+  highLevelTrackingNumbers  HighLevelTrackingNumber[]
   clientAccess         ClientAccess[]
   assets               Asset[]
   assetFolders         AssetFolder[]
@@ -627,6 +629,53 @@ model ConversationMessage {
 
   @@index([clientId, channel, ghlTimestamp])
   @@index([ghlContactId])
+}
+
+// One row per HighLevel conversation per client, holding the latest call
+// metadata. HIPAA blocks the per-message endpoint on some sub-accounts, so
+// this is the finest call granularity the HL API exposes without message
+// access: the "latest" call per conversation (with its status, tracking
+// number, caller identity and timestamp). Deduped on ghlConversationId so
+// repeated syncs never duplicate rows. Powers the Calls view that lets
+// Robert's Muse bot read weekly call numbers through the app rather than
+// through HighLevel's HIPAA-locked API.
+model HighLevelCallSummary {
+  id                String   @id @default(cuid())
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ghlConversationId String   @unique
+  ghlContactId      String
+  contactName       String?
+  callerPhone       String?
+  trackingNumber    String?
+  direction         String?
+  status            String?
+  lastCallAt        DateTime?
+  lastMessageType   String?
+  firstSeenAt       DateTime @default(now())
+  lastSyncedAt      DateTime @default(now()) @updatedAt
+  createdAt         DateTime @default(now())
+
+  @@index([clientId, lastCallAt])
+  @@index([clientId, trackingNumber])
+  @@index([callerPhone])
+}
+
+// Per-client mapping of HighLevel tracking phone numbers to friendly campaign
+// names ("Direct Mail", "New Mover Mail", "Main Line"). Admin-editable later;
+// seeded empty, so the UI falls back to the raw number when a number has no
+// label yet.
+model HighLevelTrackingNumber {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  number    String
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, number])
+  @@index([clientId])
 }
 
 // A shared, running log of "what's the latest on this client" — e.g. summarizing

@@ -300,6 +300,19 @@ export async function syncClientConversations(
   }
 
   const pruned = await pruneClientConversations(clientId);
+
+  // Call-detail layer: lives alongside the message cache. Pulls richer per-call
+  // metadata (status, tracking number, caller identity) that HIPAA blocks on
+  // the messages endpoint. Failures here should NOT kill the base sync.
+  try {
+    const { syncHighLevelCalls } = await import("@/lib/highlevel-calls");
+    await syncHighLevelCalls({ clientId, locationId: conn.locationId }, token);
+  } catch (error) {
+    // Log but continue: the message cache has already been updated, and the
+    // call-detail table only powers the Calls view, which is optional.
+    console.warn(`[highlevel] call-detail sync failed for client ${clientId}:`, error instanceof Error ? error.message : error);
+  }
+
   await prisma.clientHighLevelConnection.update({
     where: { clientId },
     data: { lastSyncAt: new Date() },
