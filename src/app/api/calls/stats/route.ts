@@ -41,10 +41,11 @@ export async function GET(request: Request) {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    // Narrow to clients this caller is allowed to read. Admins see all; others
-    // are restricted by ClientAccess rows (same gate the rest of the app uses).
+    // Narrow to clients this caller is allowed to read. Admins + all-client
+    // access see all; others are restricted by ClientAccess rows (same gate
+    // the rest of the app uses).
     let allowed: string[] | undefined;
-    if (!user.isAdmin) {
+    if (!user.isAdmin && !user.allClientsAccess) {
       const rows = await prisma.clientAccess.findMany({
         where: { teamMemberId: user.userId },
         select: { clientId: true },
