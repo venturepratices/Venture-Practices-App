@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
-import { Activity, Archive, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Settings, Users, Building2, X } from "lucide-react";
+import { Activity, Archive, ChevronRight, CircleAlert, GitBranch, LayoutDashboard, LayoutList, LayoutTemplate, ListChecks, Mountain, Phone, Settings, Users, Building2, X } from "lucide-react";
 
 import { cn, initialsOf } from "@/lib/utils";
 import { useMobileSidebar } from "@/components/layout/mobile-sidebar-context";
@@ -44,6 +44,7 @@ const AGENCY_LINKS = [
   { href: "/tasks", label: "All Tasks", icon: LayoutList },
   { href: "/my-tasks", label: "My Tasks", icon: ListChecks },
   { href: "/workflows", label: "Projects", icon: GitBranch, needs: "canViewWorkflows" as const },
+  { href: "/calls", label: "Calls", icon: Phone, needs: "canViewConversations" as const },
   { href: "/team", label: "Team", icon: Users },
   { href: "/activity", label: "Activity", icon: Activity, needs: "canViewActivity" as const },
   { href: "/archive", label: "Archive", icon: Archive, needs: "canViewArchive" as const },
@@ -72,6 +73,7 @@ export function Sidebar({
   isAdmin = false,
   canViewActivity = false,
   canViewArchive = false,
+  canViewConversations = false,
   canManageDirectMail = false,
   canViewWorkflows = false,
   canManageWorkflows = false,
@@ -85,6 +87,7 @@ export function Sidebar({
   isAdmin?: boolean;
   canViewActivity?: boolean;
   canViewArchive?: boolean;
+  canViewConversations?: boolean;
   canManageDirectMail?: boolean;
   canViewWorkflows?: boolean;
   canManageWorkflows?: boolean;
@@ -112,6 +115,7 @@ export function Sidebar({
   const links = AGENCY_LINKS.filter((link) => {
     if ("needs" in link && link.needs === "canViewActivity") return isAdmin || canViewActivity;
     if ("needs" in link && link.needs === "canViewArchive") return isAdmin || canViewArchive;
+    if ("needs" in link && link.needs === "canViewConversations") return isAdmin || canViewConversations;
     if ("needs" in link && link.needs === "canViewWorkflows") return isAdmin || canViewWorkflows || canManageWorkflows;
     return true;
   });

@@ -61,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isAdmin={!!perms?.isAdmin}
           canViewActivity={!!perms?.caps.canViewActivity}
           canViewArchive={!!perms?.caps.canViewArchive}
+          canViewConversations={!!perms?.caps.canViewConversations}
           canManageDirectMail={!!perms?.caps.canManageDirectMail}
           canViewWorkflows={!!perms?.caps.canViewWorkflows}
           canManageWorkflows={!!perms?.caps.canManageWorkflows}
