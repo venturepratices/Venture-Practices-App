@@ -8,6 +8,8 @@ import { safeEqualSecret } from "@/lib/secret-compare";
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Room for a request that waits its turn behind another for the same contact; the lead transaction's own 20 s limit sits inside this.
+export const maxDuration = 30;
 
 const BODY_MAX_BYTES = 32 * 1024;
 
@@ -37,9 +39,10 @@ const reply = (body: Record<string, unknown>, status = 200) => NextResponse.json
  * nothing new.
  */
 export async function POST(request: Request) {
-  const configured = [process.env.WEBHOOK_INBOUND_SECRET, process.env.WEBHOOK_INBOUND_SECRET_NEXT].filter(
-    (secret): secret is string => typeof secret === "string" && secret.trim() !== "",
-  );
+  // Trimmed, because a header arrives trimmed: a secret pasted into Vercel with a trailing space or newline must still match.
+  const configured = [process.env.WEBHOOK_INBOUND_SECRET, process.env.WEBHOOK_INBOUND_SECRET_NEXT]
+    .map((secret) => secret?.trim() ?? "")
+    .filter((secret) => secret !== "");
   if (configured.length === 0) return reply({ error: "The lead link is not set up." }, 503);
   const isSender = (presented: string | null) => configured.some((secret) => safeEqualSecret(presented, secret));
 
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > BODY_MAX_BYTES) return reply({ error: "The request is too large." }, 413);
   const text = await request.text();
-  if (text.length > BODY_MAX_BYTES) return reply({ error: "The request is too large." }, 413);
+  if (Buffer.byteLength(text, "utf8") > BODY_MAX_BYTES) return reply({ error: "The request is too large." }, 413);
 
   // Not read as an error yet: a caller without the secret must get the same 401 whatever it sent.
   let body: unknown;

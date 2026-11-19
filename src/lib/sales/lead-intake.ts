@@ -52,21 +52,36 @@ const PERSON_SELECT = {
 
 /** One lock name per identity sent, sorted so two requests always take them in the same order. */
 function lockNames(intake: LeadIntake, email: string | null, phone: string | null): string[] {
+  const practice = intake.practiceName ? nameKey(intake.practiceName) : null;
   const names = [
     intake.ghlContactId ? `ghl:${intake.ghlContactId}` : null,
     email ? `email:${email}` : null,
     phone ? `phone:${phone}` : null,
+    // Two different people from a practice that is not in the app yet must not each make it.
+    practice ? `org:${practice}|${intake.practiceZip ?? ""}` : null,
   ].filter((name): name is string => name !== null);
-  if (names.length === 0) names.push(`name:${nameKey(intake.practiceName ?? intake.personName ?? "") ?? ""}`);
+  if (names.length === 0) names.push(`name:${nameKey(intake.personName ?? "") ?? ""}`);
   return names.sort();
 }
 
-/** An open lead that already belongs to this contact: by HighLevel's contact id, or by its person's email or phone. */
+/**
+ * An open lead that already belongs to this contact: by HighLevel's contact id,
+ * or by its person's email or phone (the spec's rule, so two people sharing an
+ * office email or phone are one contact). With none of those to go on, the
+ * practice's name and ZIP (or the person's name) stand in, so a retry of such a
+ * request does not make a second lead.
+ */
 async function findOpenLead(tx: Prisma.TransactionClient, intake: LeadIntake, email: string | null, phone: string | null) {
   const identity: Prisma.SalesLeadWhereInput[] = [];
   if (intake.ghlContactId) identity.push({ ghlContactId: intake.ghlContactId });
   if (email) identity.push({ person: { emailKey: email } });
   if (phone) identity.push({ person: { phoneKey: phone } });
+  if (identity.length === 0) {
+    const practice = intake.practiceName ? nameKey(intake.practiceName) : null;
+    const person = intake.personName ? nameKey(intake.personName) : null;
+    if (practice) identity.push({ organization: { nameKey: practice, zip: intake.practiceZip } });
+    else if (person) identity.push({ person: { nameKey: person } });
+  }
   if (identity.length === 0) return null;
   return tx.salesLead.findFirst({
     where: { status: "OPEN", archivedAt: null, OR: identity },
@@ -224,7 +239,8 @@ export async function createLeadFromIntake(intake: LeadIntake, meta: Meta, now: 
 
       return { created: true, leadId: lead.id, ownerId, title: fields.title };
     },
-    { timeout: 10_000 },
+    // A request queued behind another for the same contact waits inside this limit, so it is generous.
+    { timeout: 20_000 },
   );
 }
 

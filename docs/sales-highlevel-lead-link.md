@@ -70,6 +70,8 @@ Do not paste it anywhere except steps 2 and 3. Never in chat, email or a doc.
 
 - Makes the practice, the person and the lead. If the email or phone matches a person already there, it uses that person. If the practice name and ZIP match one already there, it uses that practice. It never edits an existing person or practice.
 - The same contact sent twice makes one lead. A contact whose earlier lead is already converted or archived gets a new one.
+- A contact is matched by HighLevel's contact id, or by email, or by phone (the spec's rule). So two people at one practice who share the office email or phone count as one contact while that lead is open: the second makes no new lead and their name is not saved. If that happens often, tell Claude.
+- A request with no contact id, email or phone is matched by the practice name and ZIP (or the person's name), so a retry of it does not make a second lead.
 - It never changes an existing lead's owner, stage or status. The only thing it adds to an existing open lead is HighLevel's contact id, when the lead did not have one.
 - A text reply from HighLevel is acknowledged and ignored.
 - Not built yet, on purpose, and worth deciding: an inbox that saves each request and retries later. Today a crash answers 500 and HighLevel retries by itself. If HighLevel ever stops retrying, that one lead is not saved. The error is recorded in Sentry, and HighLevel keeps the workflow history, so the lead can be sent again.

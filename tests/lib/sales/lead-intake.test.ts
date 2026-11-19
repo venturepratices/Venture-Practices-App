@@ -189,19 +189,32 @@ describe("createLeadFromIntake: a new lead", () => {
   it("runs as one transaction with room to finish", async () => {
     await run(full);
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
-    expect(mocks.transaction.mock.calls[0][1]).toEqual({ timeout: 10_000 });
+    expect(mocks.transaction.mock.calls[0][1]).toEqual({ timeout: 20_000 });
   });
 
   it("takes the lock on every identity before anything else, in a fixed order", async () => {
     const { calls, locks } = await run(full);
-    expect(calls.slice(0, 3)).toEqual(["lock", "lock", "lock"]);
-    expect(locks).toEqual(["email:jane@example.com", "ghl:c1", "phone:9802034777"]);
-    expect(calls[3]).toBe("lead.find");
+    expect(calls.slice(0, 4)).toEqual(["lock", "lock", "lock", "lock"]);
+    expect(locks).toEqual(["email:jane@example.com", "ghl:c1", "org:oakcreekdental|28210", "phone:9802034777"]);
+    expect(calls[4]).toBe("lead.find");
   });
 
-  it("locks on the practice name when that is all there is to go on", async () => {
+  it("locks on the practice when that is all there is to go on", async () => {
     const { locks } = await run({ ...full, ghlContactId: null, personName: null, email: null, phone: null });
-    expect(locks).toEqual(["name:oakcreekdental"]);
+    expect(locks).toEqual(["org:oakcreekdental|28210"]);
+  });
+
+  it("locks on the person's name when nothing else was sent", async () => {
+    const { locks } = await run({ ghlContactId: null, personName: "Jo Park", email: null, phone: null, practiceName: null, practiceZip: null, formType: null });
+    expect(locks).toEqual(["name:jopark"]);
+  });
+
+  it("gives two different people from the same practice the same practice lock, so only one makes it", async () => {
+    const first = await run({ ...full, ghlContactId: "c1", email: "a@x.com", phone: null });
+    const second = await run({ ...full, ghlContactId: "c2", email: "b@x.com", phone: null });
+    expect(first.locks).toContain("org:oakcreekdental|28210");
+    expect(second.locks).toContain("org:oakcreekdental|28210");
+    expect(first.locks).toEqual([...first.locks].sort());
   });
 
   it("takes the owner's turn only after it knows the lead is new", async () => {
@@ -318,6 +331,42 @@ describe("createLeadFromIntake: a repeat", () => {
       archivedAt: null,
       OR: [{ ghlContactId: "c1" }, { person: { emailKey: "jane@example.com" } }, { person: { phoneKey: "9802034777" } }],
     });
+  });
+
+  it("finds the open lead by practice name and ZIP when there is no id, email or phone to go on", async () => {
+    const { result, tx } = await run(
+      { ...full, ghlContactId: null, personName: null, email: null, phone: null },
+      makeTx({ activeLead: { id: "lead-9", ghlContactId: null } }),
+    );
+    expect(result).toEqual({ created: false, leadId: "lead-9" });
+    expect(tx.salesLead.findFirst.mock.calls[0][0].where).toEqual({
+      status: "OPEN",
+      archivedAt: null,
+      OR: [{ organization: { nameKey: "oakcreekdental", zip: "28210" } }],
+    });
+    expect(tx.salesLead.update).not.toHaveBeenCalled();
+  });
+
+  it("matches a practice sent without a ZIP only against practices that have none", async () => {
+    const { tx } = await run(
+      { ...full, ghlContactId: null, personName: null, email: null, phone: null, practiceZip: null },
+      makeTx({ activeLead: { id: "lead-9", ghlContactId: null } }),
+    );
+    expect(tx.salesLead.findFirst.mock.calls[0][0].where).toMatchObject({ OR: [{ organization: { nameKey: "oakcreekdental", zip: null } }] });
+  });
+
+  it("finds the open lead by the person's name when only a name was sent", async () => {
+    const { result, tx } = await run(
+      { ghlContactId: null, personName: "Jo Park", email: null, phone: null, practiceName: null, practiceZip: null, formType: null },
+      makeTx({ activeLead: { id: "lead-9", ghlContactId: null } }),
+    );
+    expect(result).toEqual({ created: false, leadId: "lead-9" });
+    expect(tx.salesLead.findFirst.mock.calls[0][0].where).toMatchObject({ OR: [{ person: { nameKey: "jopark" } }] });
+  });
+
+  it("does not fall back to names when an id, email or phone was sent", async () => {
+    const { tx } = await run({ ...full, email: null, phone: null }, makeTx({ activeLead: { id: "lead-9", ghlContactId: "c1" } }));
+    expect(tx.salesLead.findFirst.mock.calls[0][0].where).toMatchObject({ OR: [{ ghlContactId: "c1" }] });
   });
 
   it("remembers the contact id on an open lead that had none, so the next retry matches it by id", async () => {

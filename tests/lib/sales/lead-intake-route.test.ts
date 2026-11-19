@@ -129,6 +129,13 @@ describe("who may call it", () => {
     expect((await route.POST(post(PAYLOAD, { "x-shared-secret": "nope" }))).status).toBe(401);
   });
 
+  it.each([[`${SECRET}\n`], [` ${SECRET} `], [`${SECRET}\r\n`]])("still matches when the saved secret has stray spaces or a line break (%j)", async (saved) => {
+    process.env.WEBHOOK_INBOUND_SECRET = saved;
+    expect((await route.POST(post(PAYLOAD, HEADER))).status).toBe(200);
+    expect((await route.POST(post({ ...PAYLOAD, customData: { secret: SECRET } }))).status).toBe(200);
+    expect((await route.POST(post(PAYLOAD, { "x-shared-secret": "nope" }))).status).toBe(401);
+  });
+
   it("works with only the second secret set", async () => {
     delete process.env.WEBHOOK_INBOUND_SECRET;
     process.env.WEBHOOK_INBOUND_SECRET_NEXT = NEXT_SECRET;
@@ -190,6 +197,12 @@ describe("what it answers", () => {
 
   it("answers 413 to a body that is too large", async () => {
     const { status } = await answer(await route.POST(post(null, HEADER, JSON.stringify({ ...PAYLOAD, notes: "x".repeat(40_000) }))));
+    expect(status).toBe(413);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("counts the size in bytes, so a body of accented letters that is over the cap is refused", async () => {
+    const { status } = await answer(await route.POST(post(null, HEADER, JSON.stringify({ ...PAYLOAD, notes: "é".repeat(20_000) }))));
     expect(status).toBe(413);
     expect(mocks.create).not.toHaveBeenCalled();
   });
