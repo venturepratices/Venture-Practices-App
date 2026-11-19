@@ -23,8 +23,10 @@ function sourceFiles(dir: string): string[] {
 }
 const read = (file: string) => fs.readFileSync(path.join(ROOT, ...file.split("/")), "utf8");
 
+// The webhook routes (src/app/api/webhooks) are held to the same rule: a lead
+// that arrives from HighLevel is saved and nothing else is sent anywhere.
 describe("guard: Sales code reaches no shared channel", () => {
-  it.each(["src/lib/sales", "src/app/api/sales", "src/components/sales", "src/app/(app)/sales"])("%s", (dir) => {
+  it.each(["src/lib/sales", "src/app/api/sales", "src/app/api/webhooks", "src/components/sales", "src/app/(app)/sales"])("%s", (dir) => {
     const files = sourceFiles(dir);
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
