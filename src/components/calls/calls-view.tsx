@@ -20,18 +20,35 @@ import {
   type CallsStatus,
 } from "@/lib/calls/query";
 import type { CallsListRow, CallsPageData } from "@/lib/calls/data";
+import type { FilterItem } from "@/lib/calls/filter-match";
+import { SearchableFilter } from "@/components/calls/searchable-filter";
 
-const ALL_CLIENTS = "__all__";
-const ALL_TRACKING = "__all__";
+const RANGE_ITEMS: Array<{ value: CallsRange; label: string }> = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "14d", label: "Last 14 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "month", label: "This month" },
+];
+
+const STATUS_ITEMS: Array<{ value: CallsStatus; label: string }> = [
+  { value: "all", label: "All statuses" },
+  { value: "answered", label: "Answered only" },
+  { value: "missed", label: "Missed only" },
+  { value: "first", label: "First-time only" },
+  { value: "repeat", label: "Repeat only" },
+];
 
 export function CallsView({
   data,
   query,
   now,
+  lockedClient = false,
 }: {
   data: CallsPageData;
   query: CallsQuery;
   now: string;
+  /** On a client's own Calls tab the client is fixed, so the Client filter and column are hidden. */
+  lockedClient?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -71,16 +88,31 @@ export function CallsView({
 
   const totalClientCount = clientId ? 1 : data.clientOptions.length;
 
+  const clientItems: FilterItem[] = data.clientOptions.map((c) => ({ value: c.id, label: c.name }));
+  const trackingItems: FilterItem[] = data.trackingOptions.map((t) => ({
+    value: t.number,
+    label: `${t.label ?? "Unlabeled"} · ${formatPhone(t.number)}`,
+    searchText: t.number,
+  }));
+  // A number in the address that is not in the list still shows as chosen.
+  if (tracking && !trackingItems.some((i) => i.value === tracking)) {
+    trackingItems.push({ value: tracking, label: formatPhone(tracking), searchText: tracking });
+  }
+
   const exportHref = `/api/calls/export?${callsQueryToSearch({ ...query, page: 1 })}`;
 
   return (
     <div className={cn("space-y-6", pending && "opacity-90 transition-opacity")}>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Reporting
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Calls</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        {lockedClient ? null : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Reporting
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Calls</h1>
+          </>
+        )}
+        <p className={cn("text-sm text-muted-foreground", lockedClient ? null : "mt-1")}>
           {rangeLabel(range)}
           {data.lastSyncedAt ? ` · updated ${timeAgo(data.lastSyncedAt, new Date(now))}` : ""}
         </p>
@@ -116,57 +148,50 @@ export function CallsView({
 
       {/* Filters */}
       <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className={cn("grid gap-3 p-4 sm:grid-cols-2", lockedClient ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
+          {/* Each Select gets `items` so the closed dropdown shows the NAME
+              ("Last 14 days", the client's name) and not the raw value
+              ("14d", the client's id, "__all__"). */}
           <Field label="Date range">
-            <Select value={range} onValueChange={(v) => change({ range: v as CallsRange })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select items={RANGE_ITEMS} value={range} onValueChange={(v) => change({ range: v as CallsRange })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="14d">Last 14 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="month">This month</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Client">
-            <Select
-              value={clientId ?? ALL_CLIENTS}
-              onValueChange={(v) => change({ clientId: v === ALL_CLIENTS ? null : v })}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_CLIENTS}>All clients ({data.clientOptions.length})</SelectItem>
-                {data.clientOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                {RANGE_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Tracking number">
-            <Select
-              value={tracking ?? ALL_TRACKING}
-              onValueChange={(v) => change({ trackingNumber: v === ALL_TRACKING ? null : v })}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_TRACKING}>All numbers</SelectItem>
-                {data.trackingOptions.map((t) => (
-                  <SelectItem key={t.number} value={t.number}>
-                    {t.label} · {formatPhone(t.number)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          {/* Client and tracking number are long lists, so they are type-to-search. */}
+          {lockedClient ? null : (
+            <PlainField label="Client">
+              <SearchableFilter
+                items={clientItems}
+                value={clientId}
+                onChange={(next) => change({ clientId: next })}
+                placeholder={`All clients (${data.clientOptions.length})`}
+                emptyText="No clients found."
+                ariaLabel="Client"
+              />
+            </PlainField>
+          )}
+          <PlainField label="Tracking number">
+            <SearchableFilter
+              items={trackingItems}
+              value={tracking}
+              onChange={(next) => change({ trackingNumber: next })}
+              placeholder="All numbers"
+              emptyText="No numbers found."
+              ariaLabel="Tracking number"
+            />
+          </PlainField>
           <Field label="Status">
-            <Select value={status} onValueChange={(v) => change({ status: v as CallsStatus })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select items={STATUS_ITEMS} value={status} onValueChange={(v) => change({ status: v as CallsStatus })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="answered">Answered only</SelectItem>
-                <SelectItem value="missed">Missed only</SelectItem>
-                <SelectItem value="first">First-time only</SelectItem>
-                <SelectItem value="repeat">Repeat only</SelectItem>
+                {STATUS_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>
@@ -184,11 +209,14 @@ export function CallsView({
           </CardHeader>
           <CardContent className="space-y-3 pb-4">
             {data.stats.byTrackingNumber.map((t) => {
-              const answeredInGroup = estimateAnswered(t.count, data.stats);
-              const missedInGroup = t.count - answeredInGroup;
+              // Exact counts from each call's own status (a call that was
+              // neither answered nor missed, like a voicemail, is in neither).
+              const answeredInGroup = t.answered;
+              const missedInGroup = t.missed;
               const maxCount = data.stats.byTrackingNumber[0]?.count ?? 1;
               const rowWidth = Math.max(10, Math.round((t.count / maxCount) * 100));
-              const aPct = answeredInGroup / t.count * 100;
+              const aPct = (answeredInGroup / t.count) * 100;
+              const mPct = (missedInGroup / t.count) * 100;
               return (
                 <div key={t.number}>
                   <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -206,7 +234,7 @@ export function CallsView({
                     aria-label={`${t.label ?? t.number}: ${answeredInGroup} answered, ${missedInGroup} missed`}
                   >
                     <div className="bg-primary" style={{ width: `${aPct}%` }} />
-                    <div className="bg-amber-500 dark:bg-amber-400" style={{ width: `${100 - aPct}%` }} />
+                    <div className="bg-amber-500 dark:bg-amber-400" style={{ width: `${mPct}%` }} />
                   </div>
                 </div>
               );
@@ -261,7 +289,7 @@ export function CallsView({
                     <tr>
                       <Th>Time</Th>
                       <Th>Caller</Th>
-                      <Th>Client</Th>
+                      {lockedClient ? null : <Th>Client</Th>}
                       <Th>Tracking</Th>
                       <Th>Status</Th>
                       <Th>Caller type</Th>
@@ -274,11 +302,13 @@ export function CallsView({
                         <Td>
                           <CallerCell row={r} />
                         </Td>
-                        <Td>
-                          <Link href={`/clients/${r.clientId}/calls`} className="text-primary underline-offset-4 hover:underline">
-                            {r.clientName}
-                          </Link>
-                        </Td>
+                        {lockedClient ? null : (
+                          <Td>
+                            <Link href={`/clients/${r.clientId}/calls`} className="text-primary underline-offset-4 hover:underline">
+                              {r.clientName}
+                            </Link>
+                          </Td>
+                        )}
                         <Td>
                           <TrackingCell row={r} />
                         </Td>
@@ -306,10 +336,12 @@ export function CallsView({
                     </div>
                     <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                       <span>
-                        <Link href={`/clients/${r.clientId}/calls`} className="text-primary underline-offset-4 hover:underline">
-                          {r.clientName}
-                        </Link>
-                        {r.trackingLabel ? ` · ${r.trackingLabel}` : null}
+                        {lockedClient ? null : (
+                          <Link href={`/clients/${r.clientId}/calls`} className="text-primary underline-offset-4 hover:underline">
+                            {r.clientName}
+                          </Link>
+                        )}
+                        {r.trackingLabel ? `${lockedClient ? "" : " · "}${r.trackingLabel}` : null}
                       </span>
                       <span className="flex items-center gap-2">
                         <span className="tabular-nums">{formatCallTime(r.lastCallAt, new Date(now))}</span>
@@ -411,6 +443,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// For the type-to-search filters: they hold their own buttons (clear, open),
+// which must not sit inside a <label> or one click would count twice.
+function PlainField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 // -------------------- helpers --------------------
 
 function pct(n: number, total: number): number {
@@ -459,15 +502,3 @@ function timeAgo(d: Date, now: Date): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-/**
- * The breakdown shows per-tracking-number total AND answered. We don't query
- * answered-per-tracking-number from SQL (that'd need a second grouped query);
- * instead we distribute the overall answered rate across groups proportionally
- * to each group's total. For a first-pass summary this reads correctly at the
- * aggregate level and never shows "answered > total". Swap for a real grouped
- * query if tracking-accurate per-number rates become important.
- */
-function estimateAnswered(count: number, stats: { answered: number; totalCalls: number }): number {
-  if (stats.totalCalls === 0) return 0;
-  return Math.min(count, Math.round((count * stats.answered) / stats.totalCalls));
-}

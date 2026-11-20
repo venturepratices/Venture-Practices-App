@@ -1,15 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Phone, PlugZap } from "lucide-react";
+import { PlugZap } from "lucide-react";
 
-import { canUseCapability } from "@/lib/permissions";
+import { canUseCapability, requireUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { syncClientConversations } from "@/lib/highlevel";
+import { loadCallsPageData } from "@/lib/calls/data";
+import { parseCallsQuery, rangeWindow } from "@/lib/calls/query";
+import { CallsView } from "@/components/calls/calls-view";
 import { CallLogRow, type CallRow } from "@/components/clients/call-log-row";
 import { SyncNowButton } from "@/components/clients/sync-now-button";
 import { EmptyState } from "@/components/ui/empty-state";
 
-export default async function CallsPage({ params }: { params: Promise<{ clientId: string }> }) {
+/**
+ * One client's Calls tab. It shows the same numbers as the main Calls page
+ * (calls, answered vs missed, tracking numbers, first-time vs repeat), locked
+ * to this client. The numbers come from the call details table, which is
+ * filled even where HighLevel blocks message history on a client's account.
+ * Voicemail and call notes from the message cache, when there are any, sit
+ * underneath.
+ */
+export default async function CallsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ clientId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { clientId } = await params;
 
   if (!(await canUseCapability("canViewConversations"))) notFound();
@@ -39,12 +56,21 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
     syncFailed = true;
   }
 
-  const calls = await prisma.conversationMessage.findMany({
+  // The client in the URL always wins over any `client=` the address carries,
+  // so this tab can only ever show this client. The data layer also checks the
+  // signed-in person is allowed to see the client.
+  const actor = await requireUser();
+  const query = { ...parseCallsQuery(await searchParams), clientId };
+  const now = new Date();
+  const { start, end } = rangeWindow(query.range, now);
+  const data = await loadCallsPageData({ actor, query, start, end });
+
+  const notes = await prisma.conversationMessage.findMany({
     where: { clientId, channel: { in: ["Call", "Voicemail"] } },
     orderBy: { ghlTimestamp: "desc" },
+    take: 50,
   });
-
-  const rows: CallRow[] = calls.map((c) => ({
+  const noteRows: CallRow[] = notes.map((c) => ({
     id: c.id,
     contactName: c.contactName,
     channel: c.channel,
@@ -56,7 +82,7 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Call tracking from HighLevel</p>
         <SyncNowButton clientId={clientId} />
       </div>
@@ -67,17 +93,18 @@ export default async function CallsPage({ params }: { params: Promise<{ clientId
         </p>
       ) : null}
 
-      {rows.length === 0 ? (
-        <div className="rounded-lg border">
-          <EmptyState icon={Phone} title="No calls yet." />
-        </div>
-      ) : (
-        <ul className="divide-y rounded-lg border">
-          {rows.map((call, i) => (
-            <CallLogRow key={call.id} call={call} delayMs={Math.min(i * 40, 400)} />
-          ))}
-        </ul>
-      )}
+      <CallsView data={data} query={query} now={now.toISOString()} lockedClient />
+
+      {noteRows.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Voicemails and call notes</h2>
+          <ul className="divide-y rounded-lg border">
+            {noteRows.map((call, i) => (
+              <CallLogRow key={call.id} call={call} delayMs={Math.min(i * 40, 400)} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

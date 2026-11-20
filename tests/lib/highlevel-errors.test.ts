@@ -4,6 +4,7 @@ import {
   HighLevelApiError,
   HighLevelTokenUnreadableError,
   describeSyncError,
+  describeSyncWarning,
 } from "@/lib/highlevel-errors";
 
 // The "Sync now" button used to say "the token may have been revoked" for
@@ -67,5 +68,27 @@ describe("describeSyncError", () => {
   it("never echoes HighLevel's own response text back to the screen", () => {
     const text = describeSyncError(new HighLevelApiError(401, "Bearer pit-secret-token-value"));
     expect(text).not.toContain("pit-secret-token-value");
+  });
+});
+
+describe("describeSyncWarning", () => {
+  it("messages refused (401 or 403) while calls worked: says call numbers are fine and names the permission", () => {
+    for (const status of [401, 403]) {
+      const text = describeSyncWarning("messages", new HighLevelApiError(status, "x"));
+      expect(text).toContain("conversations/message.readonly");
+      expect(text).toMatch(/call numbers are not affected/i);
+      expect(text).not.toMatch(/copy the whole/i);
+    }
+  });
+
+  it("messages failing for another reason falls back to the general sentence", () => {
+    const text = describeSyncWarning("messages", new HighLevelApiError(503, "x"));
+    expect(text).toMatch(/message history was skipped/i);
+    expect(text).toMatch(/trouble/i);
+  });
+
+  it("calls failing while messages worked says call details were skipped", () => {
+    const text = describeSyncWarning("calls", new Error("db"));
+    expect(text).toMatch(/call details were skipped/i);
   });
 });

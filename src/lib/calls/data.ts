@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCallsStatsForWindow, type CallsWindowStats } from "@/lib/highlevel-calls";
 import { CALLS_PAGE_SIZE, type CallsQuery } from "@/lib/calls/query";
+import { mergeTrackingOptions, type TrackingOption } from "@/lib/calls/tracking-options";
 
 export type CallsCallerType = "first-time" | "repeat";
 export type CallsStatusGroup = "answered" | "missed" | "other";
@@ -29,7 +30,7 @@ export type CallsPageData = {
   page: number;
   pageSize: number;
   clientOptions: Array<{ id: string; name: string }>;
-  trackingOptions: Array<{ number: string; label: string }>;
+  trackingOptions: TrackingOption[];
   start: Date;
   end: Date;
   lastSyncedAt: Date | null;
@@ -134,7 +135,7 @@ export async function loadCallsPageData(args: {
   const optionsTrackingFilter: Prisma.HighLevelTrackingNumberWhereInput | undefined =
     effectiveClientIds !== null ? { clientId: { in: effectiveClientIds } } : undefined;
 
-  const [callRows, totalRows, clientOptions, trackingOptions, lastSyncedAt, stats] = await Promise.all([
+  const [callRows, totalRows, clientOptions, labeledNumbers, numbersOnCalls, lastSyncedAt, stats] = await Promise.all([
     prisma.highLevelCallSummary.findMany({
       where,
       include: { client: { select: { id: true, name: true } } },
@@ -152,6 +153,16 @@ export async function loadCallsPageData(args: {
       where: optionsTrackingFilter,
       select: { number: true, label: true },
       orderBy: { label: "asc" },
+    }),
+    // Every number that appears on a call (all time, same client scope), so the
+    // filter works before anyone has named a number.
+    prisma.highLevelCallSummary.findMany({
+      where: {
+        ...(effectiveClientIds !== null ? { clientId: { in: effectiveClientIds } } : {}),
+        trackingNumber: { not: null },
+      },
+      distinct: ["trackingNumber"],
+      select: { trackingNumber: true },
     }),
     prisma.highLevelCallSummary.findFirst({
       where: effectiveClientIds !== null ? { clientId: { in: effectiveClientIds } } : {},
@@ -197,7 +208,10 @@ export async function loadCallsPageData(args: {
     page: args.query.page,
     pageSize,
     clientOptions,
-    trackingOptions: trackingOptions.map((t) => ({ number: t.number, label: t.label })),
+    trackingOptions: mergeTrackingOptions(
+      labeledNumbers,
+      numbersOnCalls.map((c) => c.trackingNumber),
+    ),
     start: args.start,
     end: args.end,
     lastSyncedAt: lastSyncedAt?.lastSyncedAt ?? null,

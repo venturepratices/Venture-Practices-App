@@ -198,7 +198,15 @@ export type CallsWindowStats = {
   missed: number;
   firstTimeCallers: number;
   repeatCallers: number;
-  byTrackingNumber: Array<{ number: string; label: string | null; count: number }>;
+  // Exact per-number counts (answered and missed come from each call's own
+  // status, not an estimate spread across numbers).
+  byTrackingNumber: Array<{
+    number: string;
+    label: string | null;
+    count: number;
+    answered: number;
+    missed: number;
+  }>;
 };
 
 /**
@@ -242,21 +250,28 @@ export async function getCallsStatsForWindow(
   let missed = 0;
   let firstTime = 0;
   let repeat = 0;
-  const byNum = new Map<string, { number: string; label: string | null; count: number }>();
+  const byNum = new Map<
+    string,
+    { number: string; label: string | null; count: number; answered: number; missed: number }
+  >();
 
   for (const r of rows) {
     const status = (r.status ?? "").toLowerCase();
-    if (status === "completed") answered += 1;
-    else if (status === "no-answer" || status === "busy" || status === "failed") missed += 1;
+    const wasAnswered = status === "completed";
+    const wasMissed = status === "no-answer" || status === "busy" || status === "failed";
+    if (wasAnswered) answered += 1;
+    else if (wasMissed) missed += 1;
 
     if (r.firstSeenAt >= args.start && r.firstSeenAt < args.end) firstTime += 1;
     else repeat += 1;
 
     const num = r.trackingNumber ?? "(unknown)";
     const label = labelLookup.get(`${r.clientId}:${num}`) ?? null;
-    const prev = byNum.get(num);
-    if (prev) prev.count += 1;
-    else byNum.set(num, { number: num, label, count: 1 });
+    const entry = byNum.get(num) ?? { number: num, label, count: 0, answered: 0, missed: 0 };
+    entry.count += 1;
+    if (wasAnswered) entry.answered += 1;
+    if (wasMissed) entry.missed += 1;
+    byNum.set(num, entry);
   }
 
   return {
