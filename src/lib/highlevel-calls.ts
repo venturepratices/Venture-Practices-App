@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { ClientHighLevelConnection } from "@/generated/prisma/client";
+import { HighLevelApiError } from "@/lib/highlevel-errors";
 
 /**
  * HighLevel Calls — detail layer.
@@ -53,7 +54,7 @@ async function hlFetch(path: string, token: string): Promise<unknown> {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`HighLevel API ${res.status}: ${detail.slice(0, 300)}`);
+    throw new HighLevelApiError(res.status, detail);
   }
   return res.json();
 }

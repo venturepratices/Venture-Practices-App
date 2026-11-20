@@ -45,7 +45,10 @@ vi.mock("@/lib/backup", () => ({
   pruneOldBackups: h.stub(),
 }));
 vi.mock("@/lib/google-calendar", () => ({ syncAllConnectedCalendars: h.stub() }));
-vi.mock("@/lib/highlevel", () => ({ pruneAllConnectedClients: h.stub() }));
+vi.mock("@/lib/highlevel", () => ({
+  pruneAllConnectedClients: h.stub(),
+  syncCallsForAllConnectedClients: h.stub(),
+}));
 vi.mock("@vercel/blob", () => ({ list: h.stub() }));
 vi.mock("@/lib/task-status", () => ({ getCompleteStatusId: h.stub() }));
 vi.mock("@/lib/priority-level", () => ({ getPriorityLevelOptions: h.stub() }));
