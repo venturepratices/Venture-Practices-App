@@ -93,7 +93,13 @@ export default async function CallsPage({
         </p>
       ) : null}
 
-      <CallsView data={data} query={query} now={now.toISOString()} lockedClient />
+      <CallsView
+        data={data}
+        query={query}
+        now={now.toISOString()}
+        lockedClient
+        canNameNumbers={await canUseCapability("canManageHighLevel")}
+      />
 
       {noteRows.length > 0 ? (
         <section className="space-y-2">

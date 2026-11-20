@@ -28,6 +28,7 @@ export function SearchableFilter({
   placeholder,
   emptyText,
   ariaLabel,
+  allowClear = true,
 }: {
   items: FilterItem[];
   /** The chosen item's value, or null for "all". */
@@ -37,6 +38,8 @@ export function SearchableFilter({
   placeholder: string;
   emptyText: string;
   ariaLabel: string;
+  /** Show the little X that clears the choice. Off for filters that always have a value (Date range, Status). */
+  allowClear?: boolean;
 }) {
   const selected = items.find((i) => i.value === value) ?? null;
 
@@ -48,11 +51,19 @@ export function SearchableFilter({
       filter={(item: FilterItem, query: string) => matchesFilterQuery(item, query)}
     >
       <ComboboxInputGroup className="w-full">
-        <ComboboxInput placeholder={placeholder} aria-label={ariaLabel} />
+        {/* Selecting the text on focus means typing replaces the current choice
+            instead of being added after it. */}
+        <ComboboxInput
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          onFocus={(event) => event.currentTarget.select()}
+        />
         <div className="absolute right-1 flex items-center">
-          <ComboboxClear aria-label={`Clear ${ariaLabel.toLowerCase()} filter`}>
-            <X className="size-3.5" />
-          </ComboboxClear>
+          {allowClear ? (
+            <ComboboxClear aria-label={`Clear ${ariaLabel.toLowerCase()} filter`}>
+              <X className="size-3.5" />
+            </ComboboxClear>
+          ) : null}
           <ComboboxTrigger aria-label={`Open ${ariaLabel.toLowerCase()} list`}>
             <ChevronDown className="size-3.5" />
           </ComboboxTrigger>

@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import {
@@ -22,6 +21,7 @@ import {
 import type { CallsListRow, CallsPageData } from "@/lib/calls/data";
 import type { FilterItem } from "@/lib/calls/filter-match";
 import { SearchableFilter } from "@/components/calls/searchable-filter";
+import { TrackingNameEditor } from "@/components/calls/tracking-name-editor";
 
 const RANGE_ITEMS: Array<{ value: CallsRange; label: string }> = [
   { value: "7d", label: "Last 7 days" },
@@ -43,12 +43,15 @@ export function CallsView({
   query,
   now,
   lockedClient = false,
+  canNameNumbers = false,
 }: {
   data: CallsPageData;
   query: CallsQuery;
   now: string;
   /** On a client's own Calls tab the client is fixed, so the Client filter and column are hidden. */
   lockedClient?: boolean;
+  /** Show "+ Add name" on each tracking number (people who can manage HighLevel). */
+  canNameNumbers?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -149,20 +152,22 @@ export function CallsView({
       {/* Filters */}
       <Card>
         <CardContent className={cn("grid gap-3 p-4 sm:grid-cols-2", lockedClient ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
-          {/* Each Select gets `items` so the closed dropdown shows the NAME
-              ("Last 14 days", the client's name) and not the raw value
-              ("14d", the client's id, "__all__"). */}
-          <Field label="Date range">
-            <Select items={RANGE_ITEMS} value={range} onValueChange={(v) => change({ range: v as CallsRange })}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {RANGE_ITEMS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {/* Client and tracking number are long lists, so they are type-to-search. */}
+          {/* Every filter is type-to-search, so nobody scrolls to find one, and
+              each shows the NAME ("Last 14 days", the client's name) and
+              never the raw value ("14d", the client's id). */}
+          <PlainField label="Date range">
+            <SearchableFilter
+              items={RANGE_ITEMS}
+              value={range}
+              onChange={(next) => {
+                if (next) change({ range: next as CallsRange });
+              }}
+              placeholder="Date range"
+              emptyText="No matching range."
+              ariaLabel="Date range"
+              allowClear={false}
+            />
+          </PlainField>
           {lockedClient ? null : (
             <PlainField label="Client">
               <SearchableFilter
@@ -185,16 +190,19 @@ export function CallsView({
               ariaLabel="Tracking number"
             />
           </PlainField>
-          <Field label="Status">
-            <Select items={STATUS_ITEMS} value={status} onValueChange={(v) => change({ status: v as CallsStatus })}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUS_ITEMS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <PlainField label="Status">
+            <SearchableFilter
+              items={STATUS_ITEMS}
+              value={status}
+              onChange={(next) => {
+                if (next) change({ status: next as CallsStatus });
+              }}
+              placeholder="Status"
+              emptyText="No matching status."
+              ariaLabel="Status"
+              allowClear={false}
+            />
+          </PlainField>
         </CardContent>
       </Card>
 
@@ -220,10 +228,12 @@ export function CallsView({
               return (
                 <div key={t.number}>
                   <div className="flex items-baseline justify-between gap-2 text-sm">
-                    <div className="min-w-0">
-                      <span className="font-medium">{t.label ?? "Unlabeled"}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{formatPhone(t.number)}</span>
-                    </div>
+                    <TrackingNameEditor
+                      number={t.number}
+                      label={t.label}
+                      phoneText={formatPhone(t.number)}
+                      canEdit={canNameNumbers && t.number !== "(unknown)"}
+                    />
                     <div className="tabular-nums text-muted-foreground">
                       <span className="font-semibold text-foreground">{answeredInGroup}</span> / {t.count}
                     </div>
@@ -434,17 +444,9 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
   return <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-// For the type-to-search filters: they hold their own buttons (clear, open),
-// which must not sit inside a <label> or one click would count twice.
+// A filter's label and box. A plain div, not a <label>: the type-to-search
+// filters hold their own buttons (clear, open), and inside a <label> one click
+// would count twice.
 function PlainField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 text-xs">
