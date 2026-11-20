@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { SalesLeadStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { canDeleteSalesRecords, SALES_MEMBER_WHERE, type SalesActor } from "@/lib/sales/access";
-import { auditDiff, type SalesRequestMeta } from "@/lib/sales/audit";
+import { auditDiff, type SalesRequestMeta, type SalesSystemActor } from "@/lib/sales/audit";
 import {
   DEAL_SOURCES,
   FIRST_ACTIVITY_PRESETS,
@@ -124,17 +124,17 @@ export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
 // --- Custom field values ---
 
-const LEAD_FIELD_SELECT = { id: true, key: true, label: true, fieldType: true, options: true } as const;
-type LeadField = { id: string; key: string; label: string } & CustomFieldShape;
+export const LEAD_FIELD_SELECT = { id: true, key: true, label: true, fieldType: true, options: true } as const;
+export type LeadField = { id: string; key: string; label: string } & CustomFieldShape;
 
 /**
  * Sets (or with null, clears) one field's value on a lead, with its
  * `field_changed` row. The caller has already checked the value and that it
  * differs from `previous`.
  */
-async function writeLeadField(
+export async function writeLeadField(
   tx: Prisma.TransactionClient,
-  actor: SalesActor,
+  actor: SalesActor | SalesSystemActor,
   leadId: string,
   field: LeadField,
   previous: string | null,

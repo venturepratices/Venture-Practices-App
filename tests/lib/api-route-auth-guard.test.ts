@@ -82,7 +82,7 @@ const FOLDER_RULES: Record<string, { who: string; checks: Check[] }> = {
     ],
   },
   webhooks: {
-    who: "outside services sending events (no routes yet); each must prove it is the sender with its shared secret, and any other proof (a signature check) is added here on purpose",
+    who: "outside services sending events (today the HighLevel lead hand-off, leads/intake); each must prove it is the sender with its shared secret, and any other proof (a signature check) is added here on purpose",
     checks: [
       { module: SECRET_COMPARE, name: "checkBearer", reports: true },
       { module: SECRET_COMPARE, name: "safeEqualSecret", reports: true },

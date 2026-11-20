@@ -48,11 +48,11 @@ About files and notes:
    - Under "Compare these deals in Pipedrive" are 5 deals. Open each one in Pipedrive next to the app. Compare title, value, stage, owner and status.
    - Write down anything that differs and send it to Claude. Do not go on until it is explained.
 6. **Ben and Robert, with DJ: a 30-minute walkthrough.** Robert joins only when DJ and Ben have decided Sales is shown to him. Who gets access is decided in Team settings.
-7. **DJ and Claude: replace the two HighLevel pieces. Do this BEFORE the final copy (step 8).**
+7. **DJ and Claude: replace the two HighLevel pieces. Do this BEFORE the final copy (step 8).** Follow `docs/sales-highlevel-lead-link.md`, step by step.
    - The workflow named "SMS Internal Alert - New Lead (from Pipedrive)". It is published and texts Ben and Robert.
-   - The hand-off that sends new HighLevel leads into Pipedrive.
-   - Both need the HighLevel link into the app (called Plan 3B). That link needs a new key. A new key gets its own safety checklist and your own yes first. No key is made without both. Never paste a key in chat.
-   - The text alert probably only needs its trigger changed to HighLevel's own new-lead event. Not confirmed yet.
+   - The hand-off that sends new HighLevel leads into Pipedrive. The app now has the link that replaces it (the HighLevel link, called Plan 3B). It is built and stays off until DJ makes its key.
+   - The link needs a new key. A new key gets its own safety checklist and your own yes first (both are in the guide). Never paste a key in chat.
+   - The text alert only needs its trigger changed to HighLevel's own new-lead event. The app never sends it, because Sales code is not allowed to message anyone. Not confirmed in HighLevel yet.
    - Pipedrive cannot be switched off until both pieces are replaced.
 8. **DJ: the final copy, on switch-off day.**
    - Ask the team to stop typing in Pipedrive first. Anything added after the final copy will not reach the app.
