@@ -62,7 +62,7 @@ export default async function CallsPage({
   const actor = await requireUser();
   const query = { ...parseCallsQuery(await searchParams), clientId };
   const now = new Date();
-  const { start, end } = rangeWindow(query.range, now);
+  const { start, end } = rangeWindow(query.range, now, query.from, query.to);
   const data = await loadCallsPageData({ actor, query, start, end });
 
   const notes = await prisma.conversationMessage.findMany({

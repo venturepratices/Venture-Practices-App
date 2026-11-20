@@ -24,7 +24,7 @@ export default async function CallsPage({
   const actor = await requireUser();
   const query = parseCallsQuery(await searchParams);
   const now = new Date();
-  const { start, end } = rangeWindow(query.range, now);
+  const { start, end } = rangeWindow(query.range, now, query.from, query.to);
   const data = await loadCallsPageData({ actor, query, start, end });
 
   const canNameNumbers = await canUseCapability("canManageHighLevel");
