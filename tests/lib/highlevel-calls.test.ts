@@ -189,10 +189,28 @@ describe("getCallsStatsForWindow", () => {
     expect(stats.firstTimeCallers).toBe(2);
     expect(stats.repeatCallers).toBe(2);
     // Direct Mail should lead the breakdown (3 calls) over Main Line (1 call).
+    // Answered and missed are counted per number from each call's own status:
+    // Direct Mail got 2 answered and 1 missed, Main Line 1 answered and 0 missed.
     expect(stats.byTrackingNumber).toEqual([
-      { number: "+17043973212", label: "Direct Mail", count: 3 },
-      { number: "+17042863058", label: "Main Line", count: 1 },
+      { number: "+17043973212", label: "Direct Mail", count: 3, answered: 2, missed: 1 },
+      { number: "+17042863058", label: "Main Line", count: 1, answered: 1, missed: 0 },
     ]);
+  });
+
+  it("counts every miss against the number that was actually missed, not spread evenly", async () => {
+    prismaMock.highLevelCallSummary.findMany.mockResolvedValue([
+      { callerPhone: "+1", firstSeenAt: new Date("2026-11-12T10:00:00Z"), status: "completed", trackingNumber: "+17043973212", clientId: "belmont" },
+      { callerPhone: "+2", firstSeenAt: new Date("2026-11-12T10:00:00Z"), status: "completed", trackingNumber: "+17043973212", clientId: "belmont" },
+      { callerPhone: "+3", firstSeenAt: new Date("2026-11-12T10:00:00Z"), status: "no-answer", trackingNumber: "+17042863058", clientId: "belmont" },
+      { callerPhone: "+4", firstSeenAt: new Date("2026-11-12T10:00:00Z"), status: "no-answer", trackingNumber: "+17042863058", clientId: "belmont" },
+    ]);
+    prismaMock.highLevelTrackingNumber.findMany.mockResolvedValue([]);
+
+    const stats = await getCallsStatsForWindow({ clientIds: ["belmont"], start, end });
+
+    const byNumber = Object.fromEntries(stats.byTrackingNumber.map((t) => [t.number, t]));
+    expect(byNumber["+17043973212"]).toMatchObject({ answered: 2, missed: 0 });
+    expect(byNumber["+17042863058"]).toMatchObject({ answered: 0, missed: 2 });
   });
 
   it("falls back to '(unknown)' when a call row has no tracking number", async () => {
@@ -202,6 +220,8 @@ describe("getCallsStatsForWindow", () => {
     prismaMock.highLevelTrackingNumber.findMany.mockResolvedValue([]);
 
     const stats = await getCallsStatsForWindow({ clientIds: ["belmont"], start, end });
-    expect(stats.byTrackingNumber).toEqual([{ number: "(unknown)", label: null, count: 1 }]);
+    expect(stats.byTrackingNumber).toEqual([
+      { number: "(unknown)", label: null, count: 1, answered: 1, missed: 0 },
+    ]);
   });
 });

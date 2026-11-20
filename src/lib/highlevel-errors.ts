@@ -62,6 +62,16 @@ export function describeSyncError(error: unknown): string {
 
 /** The note shown when one part of the sync worked and the other did not. */
 export function describeSyncWarning(part: "calls" | "messages", error: unknown): string {
+  // HighLevel answers 401 or 403 when a token can read calls but not messages
+  // (or the account blocks messages). The call numbers are fine in that case,
+  // so say that instead of telling the person to re-copy a token that works.
+  if (
+    part === "messages" &&
+    error instanceof HighLevelApiError &&
+    (error.status === 401 || error.status === 403)
+  ) {
+    return "Calls were saved, but message history was skipped: this token is missing the conversations/message.readonly permission, or HighLevel blocks messages on this account. Call numbers are not affected.";
+  }
   const lead =
     part === "messages"
       ? "Calls were saved, but message history was skipped."

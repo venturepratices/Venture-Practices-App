@@ -27,5 +27,7 @@ export default async function CallsPage({
   const { start, end } = rangeWindow(query.range, now);
   const data = await loadCallsPageData({ actor, query, start, end });
 
-  return <CallsView data={data} query={query} now={now.toISOString()} />;
+  const canNameNumbers = await canUseCapability("canManageHighLevel");
+
+  return <CallsView data={data} query={query} now={now.toISOString()} canNameNumbers={canNameNumbers} />;
 }
