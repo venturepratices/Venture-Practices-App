@@ -1,6 +1,6 @@
 # HighLevel lead link
 
-When someone fills in the Check Availability form in HighLevel, the lead shows up in the Sales Command Center's Leads Inbox by itself. It lands with the next person in the lead rotation (set in Sales settings) and a first call due the next business day. This replaces the hand-off that sends new leads into Pipedrive.
+When someone fills in the Check Availability form in HighLevel, the lead shows up in the Revenue Team's Marketing Inbox by itself. It lands with the next person in the lead rotation (set in Sales settings) and a first call due the next business day. This replaces the hand-off that sends new leads into Pipedrive.
 
 It only saves the lead. It sends no message of any kind (Sales code is not allowed to). The team's text alert stays a HighLevel workflow, and only its trigger changes (step 6).
 
@@ -29,7 +29,7 @@ Do not paste it anywhere except steps 2 and 3. Never in chat, email or a doc.
 **2. DJ: put it in Vercel.** Open the project, Settings, Environment Variables. Add one named `WEBHOOK_INBOUND_SECRET`. Tick **Production only** and **Sensitive**. Paste the key. Save, then redeploy (restart the app so it sees the new setting).
 
 **3. DJ: build the new HighLevel workflow.** Use the HighLevel account that holds the Check Availability form. Leave the old Pipedrive hand-off alone for now.
-- Make a new workflow named "New lead to Sales Command Center".
+- Make a new workflow named "New lead to Revenue Team".
 - Trigger: the same one the Pipedrive hand-off uses (the form being submitted).
 - Action: **Webhook**. Method POST. Address: the app's address, then `/api/webhooks/leads/intake` (the same address you sign in at).
 - Header: add one named `x-shared-secret` and paste the key as its value.
@@ -39,7 +39,7 @@ Do not paste it anywhere except steps 2 and 3. Never in chat, email or a doc.
 
 **4. DJ and Claude: test it.** Make a test contact in HighLevel whose practice and name both start with `TEST ` (for example practice `TEST Webhook Dental`, name `TEST Webhook Lead`) and run the workflow on it.
 - HighLevel's workflow history should show the call answered with `"created":true` and a lead id.
-- In the app, open Sales, Leads. The lead is named after the practice, has an owner from the rotation, and carries a call "Reach out within 1 business day".
+- In the app, open Revenue Team, Marketing Inbox. The lead is named after the practice, has an owner from the rotation, and carries a call "Reach out within 1 business day".
 - Run the workflow on the same contact again. It should answer `"created":false` and no second lead appears.
 - Clean up: Sales settings, Demo data, Remove TEST rows (tick "also remove notes, activities, files and field values the team added on TEST rows"). It asks for your password.
 

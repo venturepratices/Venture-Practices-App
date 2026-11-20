@@ -4,9 +4,9 @@ One row per key, token or webhook secret the app uses or hands out. **Never writ
 
 | Name | Service | What it can do | Where it is stored | Owner | Created | Expires | How to cancel it |
 |---|---|---|---|---|---|---|---|
-| `WEBHOOK_INBOUND_SECRET` (and `WEBHOOK_INBOUND_SECRET_NEXT` while it is being changed) | HighLevel to the app | Adds new leads to the Sales Leads Inbox. Nothing else: it cannot read anything and cannot change an owner, stage or status | Vercel, Production only, Sensitive; and in the header of the HighLevel workflow step | DJ | Not made yet (fill in the day DJ makes it) | 90 days at most. Calendar reminder 7 days before | Delete the variable in Vercel and redeploy (the link is off at once), then delete the workflow step in HighLevel |
+| `WEBHOOK_INBOUND_SECRET` (and `WEBHOOK_INBOUND_SECRET_NEXT` while it is being changed) | HighLevel to the app | Adds new leads to the Marketing Inbox (Revenue Team). Nothing else: it cannot read anything and cannot change an owner, stage or status | Vercel, Production only, Sensitive; and in the header of the HighLevel workflow step | DJ | Not made yet (fill in the day DJ makes it) | 90 days at most. Calendar reminder 7 days before | Delete the variable in Vercel and redeploy (the link is off at once), then delete the workflow step in HighLevel |
 
-## HighLevel lead link (Sales Command Center, `/api/webhooks/leads/intake`)
+## HighLevel lead link (Revenue Team, `/api/webhooks/leads/intake`)
 
 - Guide with every step: `docs/sales-highlevel-lead-link.md`.
 - Off until `WEBHOOK_INBOUND_SECRET` (or `WEBHOOK_INBOUND_SECRET_NEXT`) is set in Vercel. With neither set, every call gets 503.

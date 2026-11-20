@@ -17,7 +17,7 @@ const reply = (body: Record<string, unknown>, status = 200) => NextResponse.json
 
 /**
  * HighLevel's new-lead hand-off (spec 9.1): a workflow posts each opt-in here
- * and the lead lands in the Sales Leads Inbox. Nothing else happens: no
+ * and the lead lands in the Marketing Inbox. Nothing else happens: no
  * message goes anywhere (Sales code never messages a shared channel), so the
  * team's text alert stays a HighLevel workflow of its own.
  *

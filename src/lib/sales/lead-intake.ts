@@ -11,7 +11,7 @@ import { leadSourceFor, nextBusinessDay, type LeadIntake } from "@/lib/sales/lea
 import { LEAD_FIELD_SELECT, writeLeadField } from "@/lib/sales/leads";
 import { dateInputValue } from "@/lib/utils";
 
-// A new HighLevel lead lands in the Leads Inbox on its own: the practice and
+// A new HighLevel lead lands in the Marketing Inbox on its own: the practice and
 // the person (found if they are already there, else made), the lead, its
 // Practice ZIP, and a first call due the next business day (spec 9.1). Every
 // row's history says "webhook" made it. Nothing here edits an existing person
