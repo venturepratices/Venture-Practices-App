@@ -39,6 +39,16 @@ async function slackChannelChangeError(slackChannelId: string | null, clientId?:
   return null;
 }
 
+// The account manager has to be a real team member. Callers run this only when
+// the value is actually changing, so a client whose stored manager has since
+// left the team can still be saved. Returns the person's name for the activity
+// log, or the error to show.
+async function checkAccountManager(accountManagerId: string): Promise<{ name: string } | { error: string }> {
+  const member = await prisma.teamMember.findUnique({ where: { id: accountManagerId }, select: { id: true, name: true } });
+  if (!member) return { error: "That person isn't on the team. Pick someone else as the account manager." };
+  return { name: member.name };
+}
+
 // Returns the error to the form rather than throwing.
 async function assertCapabilityOrError(cap: Capability, clientId?: string): Promise<ClientFormState | null> {
   try {
@@ -75,6 +85,7 @@ function readClientFormData(formData: FormData) {
     about: text(formData, "about"),
     source: text(formData, "source"),
     slackChannelId: text(formData, "slackChannelId"),
+    accountManagerId: text(formData, "accountManagerId"),
   };
 }
 
@@ -90,6 +101,11 @@ export async function createClientAction(_prevState: ClientFormState, formData: 
   if (parsed.data.slackChannelId !== null) {
     const channelError = await slackChannelChangeError(parsed.data.slackChannelId);
     if (channelError) return { error: channelError };
+  }
+
+  if (parsed.data.accountManagerId) {
+    const manager = await checkAccountManager(parsed.data.accountManagerId);
+    if ("error" in manager) return { error: manager.error };
   }
 
   const client = await prisma.client.create({ data: parsed.data });
@@ -127,6 +143,14 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
     if (channelError) return { error: channelError };
   }
 
+  let newManagerName: string | null = null;
+  const managerChanging = parsed.data.accountManagerId !== undefined && parsed.data.accountManagerId !== (before?.accountManagerId ?? null);
+  if (managerChanging && parsed.data.accountManagerId) {
+    const manager = await checkAccountManager(parsed.data.accountManagerId);
+    if ("error" in manager) return { error: manager.error };
+    newManagerName = manager.name;
+  }
+
   const client = await prisma.client.update({ where: { id: clientId }, data: parsed.data });
 
   if (before) {
@@ -143,6 +167,7 @@ export async function updateClientAction(clientId: string, _prevState: ClientFor
     if (before.address !== client.address) changes.push("address updated");
     if (before.about !== client.about) changes.push("about updated");
     if (before.source !== client.source) changes.push("source updated");
+    if (managerChanging) changes.push(newManagerName ? `account manager set to ${newManagerName}` : "account manager cleared");
     if (changes.length > 0) {
       const session = await auth();
       await logActivity({

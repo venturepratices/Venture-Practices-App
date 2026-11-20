@@ -27,7 +27,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const canCreate = await canUseCapability("canCreateClients");
   const canChangeSlackChannel = await isAdmin();
   const completeStatusId = await getCompleteStatusId();
-  const [clients, totalCount, overdueByClient] = await Promise.all([
+  const [clients, totalCount, overdueByClient, teamMembers] = await Promise.all([
     prisma.client.findMany({
       where: clientWhere,
       orderBy: { name: "asc" },
@@ -35,6 +35,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         _count: {
           select: { tasks: { where: { statusId: { not: completeStatusId } } } },
         },
+        accountManager: { select: { name: true } },
       },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -45,6 +46,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       where: { statusId: { not: completeStatusId }, deadline: { lt: new Date() }, clientId: { not: null } },
       _count: { _all: true },
     }),
+    // Fills the account manager picker in the New client / Edit client dialogs.
+    prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   const overdueCounts = Object.fromEntries(overdueByClient.map((row) => [row.clientId, row._count._all]));
@@ -77,6 +80,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           <ClientFormDialog
             mode="create"
             canChangeSlackChannel={canChangeSlackChannel}
+            teamMembers={teamMembers}
             trigger={
               <Button>
                 <Plus className="size-4" />
@@ -107,6 +111,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 key={client.id}
                 delayMs={Math.min(i * 40, 400)}
                 canChangeSlackChannel={canChangeSlackChannel}
+                teamMembers={teamMembers}
                 client={{
                   id: client.id,
                   name: client.name,
@@ -124,6 +129,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                   about: client.about,
                   source: client.source,
                   slackChannelId: client.slackChannelId,
+                  accountManagerId: client.accountManagerId,
+                  accountManagerName: client.accountManager?.name ?? null,
                 }}
               />
             ))}

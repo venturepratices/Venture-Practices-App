@@ -5,6 +5,7 @@ import { canUseCapability, isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AccountManagerChip } from "@/components/clients/account-manager-chip";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientLinksSection } from "@/components/clients/client-links-section";
 import { DeleteClientDialog } from "@/components/clients/delete-client-dialog";
@@ -47,11 +48,17 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
       highLevelConnection: true,
       clientUsers: { orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } },
       intake: true,
+      accountManager: { select: { name: true, email: true } },
     },
   });
   if (!client) notFound();
 
   const canEditClient = await canUseCapability("canEditClients");
+  // Only someone who can edit the client needs the team list (it fills the
+  // account manager picker in the edit dialog).
+  const teamMembers = canEditClient
+    ? await prisma.teamMember.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+    : [];
   const canManageLinks = await canUseCapability("canManageClientLinks");
   const canManageHighLevel = await canUseCapability("canManageHighLevel");
   const canManageClientUsers = await canUseCapability("canManageClientUsers");
@@ -63,8 +70,57 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
   const hasSecondaryContact = client.secondaryContactName || client.secondaryContactEmail || client.secondaryContactPhone;
   const hasBusinessInfo = client.website || client.address;
 
+  // Both pencils (the account manager card and the main info card) open the
+  // same edit dialog, so its saved values are built once.
+  const editDialogProps = {
+    mode: "edit" as const,
+    canChangeSlackChannel,
+    teamMembers,
+    clientId: client.id,
+    defaultName: client.name,
+    defaultStatus: client.status,
+    contactName: client.contactName,
+    contactEmail: client.contactEmail,
+    contactPhone: client.contactPhone,
+    secondaryContactName: client.secondaryContactName,
+    secondaryContactEmail: client.secondaryContactEmail,
+    secondaryContactPhone: client.secondaryContactPhone,
+    website: client.website,
+    address: client.address,
+    about: client.about,
+    source: client.source,
+    slackChannelId: client.slackChannelId,
+    accountManagerId: client.accountManagerId,
+  };
+
   return (
     <div className="max-w-2xl space-y-6">
+      <Card>
+      <CardContent className="flex items-center justify-between gap-4">
+        <div className="min-w-0 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account manager</p>
+          {client.accountManager ? (
+            <AccountManagerChip name={client.accountManager.name} detail={client.accountManager.email} size="md" />
+          ) : (
+            <div className="space-y-0.5">
+              <AccountManagerChip name={null} />
+              <p className="text-xs text-muted-foreground">Pick someone so this client has an owner.</p>
+            </div>
+          )}
+        </div>
+        {canEditClient ? (
+          <ClientFormDialog
+            {...editDialogProps}
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="Change account manager">
+                <Pencil className="size-4" />
+              </Button>
+            }
+          />
+        ) : null}
+      </CardContent>
+      </Card>
+
       <Card>
       <CardContent className="flex items-start justify-between gap-4">
         <div className="space-y-4">
@@ -113,22 +169,7 @@ export default async function ClientInfoPage({ params }: { params: Promise<{ cli
         </div>
         {canEditClient ? (
           <ClientFormDialog
-            mode="edit"
-            canChangeSlackChannel={canChangeSlackChannel}
-            clientId={client.id}
-            defaultName={client.name}
-            defaultStatus={client.status}
-            contactName={client.contactName}
-            contactEmail={client.contactEmail}
-            contactPhone={client.contactPhone}
-            secondaryContactName={client.secondaryContactName}
-            secondaryContactEmail={client.secondaryContactEmail}
-            secondaryContactPhone={client.secondaryContactPhone}
-            website={client.website}
-            address={client.address}
-            about={client.about}
-            source={client.source}
-            slackChannelId={client.slackChannelId}
+            {...editDialogProps}
             trigger={
               <Button variant="ghost" size="icon" aria-label="Edit client info">
                 <Pencil className="size-4" />
