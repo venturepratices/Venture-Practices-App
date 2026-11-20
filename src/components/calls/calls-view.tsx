@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { Download, PhoneMissed, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { StatusPillBase } from "@/components/ui/status-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   callsQueryToSearch,
+  customRangeDays,
+  defaultCustomRange,
   rangeLabel,
+  validateCustomRange,
   type CallsQuery,
   type CallsRange,
   type CallsStatus,
@@ -24,10 +28,17 @@ import { SearchableFilter } from "@/components/calls/searchable-filter";
 import { TrackingNameEditor } from "@/components/calls/tracking-name-editor";
 
 const RANGE_ITEMS: Array<{ value: CallsRange; label: string }> = [
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "thisweek", label: "This week (Mon to Sun)" },
+  { value: "lastweek", label: "Last week (Mon to Sun)" },
   { value: "7d", label: "Last 7 days" },
   { value: "14d", label: "Last 14 days" },
   { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
   { value: "month", label: "This month" },
+  { value: "lastmonth", label: "Last month" },
+  { value: "custom", label: "Custom range" },
 ];
 
 const STATUS_ITEMS: Array<{ value: CallsStatus; label: string }> = [
@@ -57,6 +68,8 @@ export function CallsView({
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [range, setRange] = useOptimistic<CallsRange>(query.range);
+  const [customFrom, setCustomFrom] = useOptimistic<string | null>(query.from);
+  const [customTo, setCustomTo] = useOptimistic<string | null>(query.to);
   const [clientId, setClientId] = useOptimistic<string | null>(query.clientId);
   const [tracking, setTracking] = useOptimistic<string | null>(query.trackingNumber);
   const [status, setStatus] = useOptimistic<CallsStatus>(query.status);
@@ -69,14 +82,20 @@ export function CallsView({
 
   function change(patch: Partial<CallsQuery>, resetPage = true) {
     startTransition(() => {
+      const nextRange = patch.range ?? range;
       const next: CallsQuery = {
-        range: patch.range ?? range,
+        range: nextRange,
+        // Dates only mean something for a custom range.
+        from: nextRange === "custom" ? (patch.from !== undefined ? patch.from : customFrom) : null,
+        to: nextRange === "custom" ? (patch.to !== undefined ? patch.to : customTo) : null,
         clientId: patch.clientId !== undefined ? patch.clientId : clientId,
         trackingNumber: patch.trackingNumber !== undefined ? patch.trackingNumber : tracking,
         status: patch.status ?? status,
         page: patch.page ?? (resetPage ? 1 : page),
       };
       setRange(next.range);
+      setCustomFrom(next.from);
+      setCustomTo(next.to);
       setClientId(next.clientId);
       setTracking(next.trackingNumber);
       setStatus(next.status);
@@ -116,7 +135,7 @@ export function CallsView({
           </>
         )}
         <p className={cn("text-sm text-muted-foreground", lockedClient ? null : "mt-1")}>
-          {rangeLabel(range)}
+          {rangeLabel(range, customFrom, customTo)}
           {data.lastSyncedAt ? ` · updated ${timeAgo(data.lastSyncedAt, new Date(now))}` : ""}
         </p>
       </header>
@@ -160,7 +179,14 @@ export function CallsView({
               items={RANGE_ITEMS}
               value={range}
               onChange={(next) => {
-                if (next) change({ range: next as CallsRange });
+                if (!next) return;
+                if (next === "custom") {
+                  // Start from the last 7 days so there is a valid range right away.
+                  const start = defaultCustomRange(new Date(now));
+                  change({ range: "custom", from: customFrom ?? start.from, to: customTo ?? start.to });
+                } else {
+                  change({ range: next as CallsRange });
+                }
               }}
               placeholder="Date range"
               emptyText="No matching range."
@@ -203,6 +229,15 @@ export function CallsView({
               allowClear={false}
             />
           </PlainField>
+          {range === "custom" && customFrom && customTo ? (
+            <CustomRangeInputs
+              key={`${customFrom}_${customTo}`}
+              from={customFrom}
+              to={customTo}
+              maxDate={defaultCustomRange(new Date(now)).to}
+              onApply={(from, to) => change({ range: "custom", from, to })}
+            />
+          ) : null}
         </CardContent>
       </Card>
 
@@ -442,6 +477,64 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function Td({ children, className }: { children: React.ReactNode; className?: string }) {
   return <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>;
+}
+
+// The exact dates for a "Custom range". The page only reloads once both dates
+// are valid; until then the problem is shown in plain words right here.
+function CustomRangeInputs({
+  from,
+  to,
+  maxDate,
+  onApply,
+}: {
+  from: string;
+  to: string;
+  maxDate: string;
+  onApply: (from: string, to: string) => void;
+}) {
+  const [fromValue, setFromValue] = useState(from);
+  const [toValue, setToValue] = useState(to);
+  const error = validateCustomRange(fromValue, toValue);
+
+  function update(nextFrom: string, nextTo: string) {
+    setFromValue(nextFrom);
+    setToValue(nextTo);
+    if (validateCustomRange(nextFrom, nextTo) === null) onApply(nextFrom, nextTo);
+  }
+
+  return (
+    <div className="col-span-full flex flex-wrap items-end gap-3 border-t pt-3">
+      <label className="flex flex-col gap-1.5 text-xs">
+        <span className="text-muted-foreground">From</span>
+        <Input
+          type="date"
+          value={fromValue}
+          max={maxDate}
+          onChange={(event) => update(event.target.value, toValue)}
+          className="h-8 w-40 dark:[color-scheme:dark]"
+        />
+      </label>
+      <label className="flex flex-col gap-1.5 text-xs">
+        <span className="text-muted-foreground">To</span>
+        <Input
+          type="date"
+          value={toValue}
+          max={maxDate}
+          onChange={(event) => update(fromValue, event.target.value)}
+          className="h-8 w-40 dark:[color-scheme:dark]"
+        />
+      </label>
+      {error ? (
+        <p role="alert" className="w-full text-xs text-destructive sm:w-auto sm:pb-2">
+          {error}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground sm:pb-2">
+          {customRangeDays(fromValue, toValue)} day{customRangeDays(fromValue, toValue) === 1 ? "" : "s"}, both dates included
+        </p>
+      )}
+    </div>
+  );
 }
 
 // A filter's label and box. A plain div, not a <label>: the type-to-search

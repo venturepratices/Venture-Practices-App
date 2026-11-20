@@ -1,6 +1,7 @@
 import { requireUser, toErrorResponse } from "@/lib/permissions";
 import { loadCallsForExport } from "@/lib/calls/data";
 import { parseCallsQuery, rangeWindow } from "@/lib/calls/query";
+import { APP_TIME_ZONE } from "@/lib/utils";
 
 /**
  * CSV export of the Calls view. Shares the filter parser with the page, so
@@ -18,12 +19,14 @@ export async function GET(request: Request) {
     });
     const query = parseCallsQuery(raw);
     const now = new Date();
-    const { start, end } = rangeWindow(query.range, now);
+    const { start, end } = rangeWindow(query.range, now, query.from, query.to);
 
     const rows = await loadCallsForExport({ actor, query, start, end });
 
     const csv = rowsToCsv(rows);
-    const filename = `calls-${start.toISOString().slice(0, 10)}-to-${end.toISOString().slice(0, 10)}.csv`;
+    // Name the file with the team's dates (Charlotte) and the last day included.
+    const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+    const filename = `calls-${day(start)}-to-${day(new Date(end.getTime() - 1))}.csv`;
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
