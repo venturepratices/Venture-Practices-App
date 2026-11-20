@@ -14,7 +14,7 @@ import {
   updateLead,
 } from "@/lib/sales/leads";
 
-// The Leads Inbox bulk bar: assign, archive, restore or delete up to 100 leads
+// The Marketing Inbox bulk bar: assign, archive, restore or delete up to 100 leads
 // in one request. Each lead runs through the same service as the lead panel,
 // in its own transaction, so one lead's refusal or race never undoes another's
 // change, and each gets its own result (Decision 12). A refusal of the whole

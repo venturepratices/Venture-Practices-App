@@ -35,7 +35,7 @@ import { useActivityDone } from "@/components/sales/use-activity-done";
 // The slide-in lead panel (Mockup v2 `#s=lead-open`, Decision 9), mounted once
 // by the Sales layout beside the deal panel and opened by `?lead=<id>` on any
 // Sales page. It follows the deal panel: the same Sheet and width, the same
-// load states, the same guard for a toast's Undo. Header: "Leads Inbox", the
+// load states, the same guard for a toast's Undo. Header: "Marketing Inbox", the
 // name (edited in place), person, organization, owner and "Convert to deal".
 // Body: a notice (no next step, converted, archived), the composer (Activity,
 // Note), Next steps, Details and History. The lead owner or an admin changes
@@ -83,7 +83,7 @@ export function LeadPanel() {
         side="right"
         showCloseButton={false}
         aria-labelledby={titleId}
-        // Back to the lead's row (Leads Inbox, Activities, the dashboard), found again by id.
+        // Back to the lead's row (Marketing Inbox, Activities, the dashboard), found again by id.
         finalFocus={() => leadRow(shownId)}
         className={cn(DEAL_PANEL_SHEET_CLASS, "ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none")}
       >
@@ -456,7 +456,7 @@ function Notice({
 }
 
 /**
- * The top of the lead panel (Mockup v2 `leadPanel` `.ph`): "Leads Inbox", the
+ * The top of the lead panel (Mockup v2 `leadPanel` `.ph`): "Marketing Inbox", the
  * name (edited in place by the owner or an admin), the person and the
  * organization, the owner, and "Convert to deal"; then when it came in. On a
  * phone the meta row wraps and Convert takes its own line.
@@ -481,7 +481,7 @@ function LeadPanelHeader({
   return (
     <header className="flex-none border-b px-4 pt-3 pb-3 sm:px-[18px] sm:pt-3.5">
       <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        <p className="m-0 truncate">Leads Inbox</p>
+        <p className="m-0 truncate">Marketing Inbox</p>
         <Button
           variant="ghost"
           size="icon"

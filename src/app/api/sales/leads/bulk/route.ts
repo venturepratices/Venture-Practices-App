@@ -7,7 +7,7 @@ import { failResponse, readJson } from "@/lib/sales/http";
 import { bulkLeadSchema, runLeadBulk } from "@/lib/sales/lead-bulk";
 
 /**
- * The Leads Inbox bulk bar: assign, archive, restore or delete up to 100 leads.
+ * The Marketing Inbox bulk bar: assign, archive, restore or delete up to 100 leads.
  * Answers `{ results }`, one per lead, or one refusal for the whole request.
  */
 export async function POST(request: Request) {

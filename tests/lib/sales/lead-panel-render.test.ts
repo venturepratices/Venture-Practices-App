@@ -90,7 +90,7 @@ describe("the lead panel (server render)", () => {
     const html = render(lead());
     const text = words(html);
 
-    expect(html).toContain(">Leads Inbox<");
+    expect(html).toContain(">Marketing Inbox<");
     expect(html).toMatch(/<input[^>]*aria-label="Lead name"[^>]*value="Crestview Dental"/);
     expect(html).toMatch(/<button[^>]*>Convert to deal<\/button>/);
     expect(text).toContain("No next step. Call within 5 minutes of opt-in works best.");

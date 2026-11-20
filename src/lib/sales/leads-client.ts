@@ -5,7 +5,7 @@ import type { BulkLeadResult } from "@/lib/sales/lead-bulk";
 import type { LeadRow } from "@/lib/sales/leads-page";
 import { leadsQueryToSearch, type LeadsQuery } from "@/lib/sales/leads-query";
 
-// Pure helpers for the Leads Inbox (no prisma, no server imports: the server
+// Pure helpers for the Marketing Inbox (no prisma, no server imports: the server
 // modules above are read for their types only). Wording follows Mockup v2
 // where it draws the same thing (ruling P3A-X3), else the plan's strings.
 
@@ -163,7 +163,7 @@ export function deleteLeadsCopy(titles: readonly string[]): { title: string; nam
   return {
     title: n === 1 ? "Delete this lead?" : `Delete ${n} leads?`,
     names: rest > 0 ? `${shown.join(", ")} and ${rest} more` : shown.join(", "),
-    text: `${n === 1 ? "It leaves" : "They leave"} the Leads Inbox for good. The history keeps a record. This cannot be undone.`,
+    text: `${n === 1 ? "It leaves" : "They leave"} the Marketing Inbox for good. The history keeps a record. This cannot be undone.`,
     confirm: n === 1 ? "Delete lead" : `Delete ${n} leads`,
   };
 }

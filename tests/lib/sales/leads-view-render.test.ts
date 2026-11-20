@@ -9,7 +9,7 @@ import type { LeadRow, LeadsPageData } from "@/lib/sales/leads-page";
 
 import { contrast, over, shown, shownPaint } from "./theme-colours";
 
-// A server render of the Leads Inbox with canned data (Mockup v2 `#s=leads`,
+// A server render of the Marketing Inbox with canned data (Mockup v2 `#s=leads`,
 // `#s=leads-sel`, `#s=new-lead`, `#s=leads-delete`). Node has no browser, so
 // this cannot click anything; it proves the header, table, phone cards, bulk
 // bar and dialogs render without throwing and carry the words, labels, links
@@ -99,10 +99,10 @@ function renderView(pageData: LeadsPageData, viewer = REP, openNew = false): str
 
 const classLists = (html: string) => [...html.matchAll(/class="([^"]*)"/g)].map((match) => match[1].split(/\s+/));
 
-describe("Leads Inbox (server render)", () => {
+describe("Marketing Inbox (server render)", () => {
   it("shows the header, the search and the table head", () => {
     const html = renderView(data());
-    expect(html).toContain(">Leads Inbox</h1>");
+    expect(html).toContain(">Marketing Inbox</h1>");
     expect(html).toContain("New opt-ins land here first. Convert the good ones to deals.");
     expect(html).toMatch(/<button[^>]*aria-label="Add lead"[^>]*>.*?Lead<\/button>/);
     expect(html).toContain('aria-label="Search leads by name, practice or person"');
@@ -426,7 +426,7 @@ describe("Delete leads", () => {
     expect(html).toContain('role="alertdialog"');
     expect(html).toContain("Delete 2 leads?");
     expect(html).toContain("Crestview Dental, Maple Grove Dental");
-    expect(html).toContain("They leave the Leads Inbox for good. The history keeps a record. This cannot be undone.");
+    expect(html).toContain("They leave the Marketing Inbox for good. The history keeps a record. This cannot be undone.");
     expect(html).toContain("To put a lead aside and keep the option to bring it back, use Archive instead.");
     expect(html.indexOf(">Cancel</button>")).toBeLessThan(html.indexOf(">Delete 2 leads</button>"));
   });

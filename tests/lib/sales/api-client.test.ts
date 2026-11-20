@@ -181,7 +181,7 @@ describe("api-client", () => {
       body: JSON.stringify(body),
     });
 
-    it("asks for the next Leads Inbox page with its filters and the cursor", async () => {
+    it("asks for the next Marketing Inbox page with its filters and the cursor", async () => {
       fetchMock.mockResolvedValue(json(200, { rows: [], nextCursor: null }));
       const result = await getLeadRowsPage({ scope: "mine", q: "oak", cursor: "l50" });
       expect(fetchMock).toHaveBeenCalledWith("/api/sales/leads?scope=mine&q=oak&cursor=l50", { method: "GET" });

@@ -1,6 +1,6 @@
 import { RowSkeleton, Skeleton } from "@/components/ui/skeleton";
 
-// The same shell as the Leads Inbox (header with "+ Lead", the search row,
+// The same shell as the Marketing Inbox (header with "+ Lead", the search row,
 // then the bordered list), so nothing jumps when the real rows arrive.
 export default function LeadsLoading() {
   return (

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SalesActor } from "@/lib/sales/access";
 
-// The Leads Inbox gates itself (layouts do not re-run on navigation) before it
+// The Marketing Inbox gates itself (layouts do not re-run on navigation) before it
 // reads anything, reads the URL through the shared parser, and opens Add lead
 // for `?new=1`.
 
@@ -24,7 +24,7 @@ beforeEach(() => {
   loadLeadsPage.mockReset();
 });
 
-describe("Leads Inbox page", () => {
+describe("Marketing Inbox page", () => {
   it("reads nothing for someone without Sales access", async () => {
     requireSalesPage.mockRejectedValue(new Error("next:not-found"));
     await expect(LeadsPage({ searchParams: Promise.resolve({ scope: "mine", new: "1" }) })).rejects.toThrow("next:not-found");

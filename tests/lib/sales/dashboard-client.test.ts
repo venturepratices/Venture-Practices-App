@@ -182,7 +182,7 @@ describe("dashboard words", () => {
     });
   });
 
-  it("the Leads Inbox link keeps Just me", () => {
+  it("the Marketing Inbox link keeps Just me", () => {
     expect(leadsInboxHref("everyone")).toBe("/sales/leads");
     expect(leadsInboxHref("mine")).toBe("/sales/leads?scope=mine");
   });

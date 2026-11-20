@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The Leads Inbox bulk bar: assign, archive, restore and delete many leads in
+// The Marketing Inbox bulk bar: assign, archive, restore and delete many leads in
 // one request, through the real route against a small fake database and a fake
 // Sales gate. Each lead runs in its own transaction and gets its own result;
 // a refusal of the whole request answers with one error. Nothing here reaches

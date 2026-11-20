@@ -1,6 +1,6 @@
 # Pipedrive cutover checklist
 
-The copy tool reads your Pipedrive account and fills the Sales Command Center with the same people, deals, leads and notes. It never changes anything in Pipedrive.
+The copy tool reads your Pipedrive account and fills the Revenue Team with the same people, deals, leads and notes. It never changes anything in Pipedrive.
 
 DJ runs the copy, Claude helps with the HighLevel changes, and Ben checks that his deals look right.
 
@@ -100,7 +100,7 @@ While Ben and Robert are still working in Pipedrive, the app can re-copy on its 
 
 ## Note for Ben
 
-> **What it does:** Copies your Pipedrive people, deals, leads, activities, notes and files into the Sales Command Center so you find everything where you expect it.
+> **What it does:** Copies your Pipedrive people, deals, leads, activities, notes and files into the Revenue Team so you find everything where you expect it.
 >
 > **What you need to do:**
 > 1. Log in to the app.

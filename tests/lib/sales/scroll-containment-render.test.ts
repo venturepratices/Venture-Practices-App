@@ -320,7 +320,7 @@ describe("Sales scrollers hold their screen-reader text (server render)", () => 
     expectScrollersContain(html, 1);
   });
 
-  it("the Leads Inbox table wrapper is relative", () => {
+  it("the Marketing Inbox table wrapper is relative", () => {
     const html = clean(renderToString(createElement(LeadsView, { data: LEADS, viewer: VIEWER, now: NOW, openNew: false })));
     expect(html).toContain('aria-label="Select Crestview Dental"');
     expect(html).toContain('class="sr-only"');

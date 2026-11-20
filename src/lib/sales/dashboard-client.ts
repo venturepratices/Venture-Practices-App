@@ -166,7 +166,7 @@ export function viewAllHrefs(
   };
 }
 
-/** The Leads Inbox, keeping Just me (No next step's "See all" also names leads). */
+/** The Marketing Inbox, keeping Just me (No next step's "See all" also names leads). */
 export function leadsInboxHref(scope: DashboardScope): string {
   const search = leadsQueryToSearch({ scope, q: "", cursor: null });
   return search ? `/sales/leads?${search}` : "/sales/leads";

@@ -38,7 +38,7 @@ import { MUTED_TEXT, NextStepPill, OwnerAvatar } from "@/components/sales/sales-
 import { useSalesShortcut } from "@/components/sales/sales-shortcuts";
 import { ShortcutsButton } from "@/components/sales/shortcuts-help-dialog";
 
-// The Leads Inbox on the client (Mockup v2 `#s=leads`, Decision 11): the
+// The Marketing Inbox on the client (Mockup v2 `#s=leads`, Decision 11): the
 // header with "+ Lead", the search and Everyone / Just me, the open leads
 // newest first with a tick box on each lead the viewer may change, the bulk
 // bar while any are ticked, "Show more", and the line saying who gets new
@@ -319,7 +319,7 @@ export function LeadsView({
     <div className="flex min-w-0 flex-col">
       <div className="flex flex-wrap items-end justify-between gap-2.5">
         <div>
-          <h1 className="m-0 text-[21px] font-semibold">Leads Inbox</h1>
+          <h1 className="m-0 text-[21px] font-semibold">Marketing Inbox</h1>
           <p className="mt-1 text-[13px] text-muted-foreground">New opt-ins land here first. Convert the good ones to deals.</p>
         </div>
         <div className="flex items-center gap-2">

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MUTED_TEXT, OwnerAvatar } from "@/components/sales/sales-pills";
 
-// The Leads Inbox bulk bar and its two choices (Mockup v2 `#s=leads-sel`,
+// The Marketing Inbox bulk bar and its two choices (Mockup v2 `#s=leads-sel`,
 // `#s=leads-assign`, `#s=leads-delete`): what to do with the ticked leads,
 // who to give them to (a menu, as Mockup v2 draws it), and the admin's delete
 // confirm. The caller sends the requests; these only ask.

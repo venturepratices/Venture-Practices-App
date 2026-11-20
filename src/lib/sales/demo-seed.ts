@@ -12,7 +12,7 @@ import { addDaysToDateString, endOfDay, todayDateString, zonedDateTime } from "@
 /** The prefix every demo row starts with, so a clean-up can always find them. */
 export const TEST_PREFIX = "TEST ";
 
-// Practice data for the Sales Command Center. Everything is clearly dummy: every
+// Practice data for the Revenue Team. Everything is clearly dummy: every
 // name, title and subject starts with "TEST ", emails are on example.com, phones
 // are in the 555-01xx range. Run through the admin-only API route
 // /api/sales/admin/demo-data (POST = seed, DELETE = remove).
@@ -21,7 +21,7 @@ export const TEST_PREFIX = "TEST ";
 // first, and only what is missing is made. It runs as ONE database transaction,
 // so a failure part way leaves nothing behind.
 //
-// The Deals board, Activities and Leads Inbox read plain rows. Notes and the
+// The Deals board, Activities and Marketing Inbox read plain rows. Notes and the
 // History tab read the locked history log (SalesAuditLog), so each new row also
 // gets the history lines the app itself would have written, dated to match.
 // Those lines are marked requestId "sandbox-seed". The database refuses to
@@ -297,7 +297,7 @@ export type DemoSeedSummary = {
 };
 
 /**
- * Add TEST * demo rows to the Sales Command Center. Admin-triggered. Idempotent:
+ * Add TEST * demo rows to the Revenue Team. Admin-triggered. Idempotent:
  * each row is looked up by its own name, title or subject first, so a re-run
  * only fills in what is missing.
  */
