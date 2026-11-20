@@ -6,7 +6,7 @@ One row per key, token or webhook secret the app uses or hands out. **Never writ
 |---|---|---|---|---|---|---|---|
 | (none yet) | | | | | | | |
 
-## Bot keys (Sales Command Center, Bots screen)
+## Bot keys (Revenue Team, Bots screen)
 
 - Made only on the Bots screen (`/sales/settings/bots`), by an admin who types their password again.
 - Paused for everyone until `SALES_BOTS_ENABLED` is set to `true` in Vercel (Production only). Unset or anything else: every bot key is refused and none can be made.

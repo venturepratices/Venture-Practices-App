@@ -17,7 +17,7 @@ import { checkStageMove } from "@/lib/sales/rules";
 import { dateInputValue, endOfDay } from "@/lib/utils";
 
 // Turning a lead into a deal (Decision 14), one from the lead panel or up to 25
-// from the Leads Inbox bulk bar (Decision 15). One transaction per lead, and
+// from the Marketing Inbox bulk bar (Decision 15). One transaction per lead, and
 // every check that can refuse runs before the first write: a refusal is
 // returned from the transaction (which then commits), so nothing may have been
 // written by then.

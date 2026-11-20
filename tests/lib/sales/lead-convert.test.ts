@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Converting a lead to a deal, one at a time from the lead panel and many at a
-// time from the Leads Inbox bulk bar, through the real routes against a small
+// time from the Marketing Inbox bulk bar, through the real routes against a small
 // fake database whose delegates record every call, and a fake Sales gate.
 // Checks every refusal comes before the first write, the exact rows written,
 // and the locked history rows that go with them, in order. Nothing here

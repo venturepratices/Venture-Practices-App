@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 }
 
 /**
- * The Leads Inbox bulk bar's Convert: up to 25 leads to one pipeline and stage.
+ * The Marketing Inbox bulk bar's Convert: up to 25 leads to one pipeline and stage.
  * Answers `{ results, pipeline }`, one result per lead, or one refusal for the
  * whole request.
  */

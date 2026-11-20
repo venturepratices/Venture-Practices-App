@@ -21,7 +21,7 @@ export function salesNavGroup(
   const links: SidebarNavGroup["links"] = [
     { href: "/sales/dashboard", label: "Sales dashboard", icon: "home", count: 0, countLabel: "" },
     { href: "/sales/deals", label: "Deals", icon: "board", count: 0, countLabel: "" },
-    { href: "/sales/leads", label: "Leads Inbox", icon: "inbox", count: counts.leads, countLabel: "open leads" },
+    { href: "/sales/leads", label: "Marketing Inbox", icon: "inbox", count: counts.leads, countLabel: "open leads" },
     {
       href: "/sales/activities",
       label: "Activities",
@@ -35,11 +35,11 @@ export function salesNavGroup(
   if (perms.isAdmin) {
     links.push({ href: "/sales/settings", label: "Sales settings", icon: "settings", count: 0, countLabel: "" });
   }
-  return { title: "Sales Command Center", badge: "NEW", links };
+  return { title: "Revenue Team", badge: "NEW", links };
 }
 
 /**
- * The count beside Leads Inbox (R11): this person's own open leads that are
+ * The count beside Marketing Inbox (R11): this person's own open leads that are
  * not deleted. Archived and converted leads have left the Inbox, so they do
  * not count. Uses the (ownerId, status, createdAt) lead index.
  */

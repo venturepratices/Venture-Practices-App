@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     salesOn && perms
       ? prisma.salesActivity.count({ where: salesDueCountWhere(perms.userId, new Date()) })
       : Promise.resolve(0),
-    // The count beside Sales > Leads Inbox: their own open leads.
+    // The count beside Sales > Marketing Inbox: their own open leads.
     salesOn && perms ? prisma.salesLead.count({ where: salesLeadCountWhere(perms.userId) }) : Promise.resolve(0),
   ]);
 

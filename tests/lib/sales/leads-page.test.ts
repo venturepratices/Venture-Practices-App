@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The Leads Inbox: its URL query (client-safe parser and serializer), the
+// The Marketing Inbox: its URL query (client-safe parser and serializer), the
 // `where` that keeps a see-own rep to their own open leads, the pages of 50
 // newest first, each row's next step and Practice ZIP read with one query each,
 // and the GET route behind "Show more". Run with a fake database and a fake

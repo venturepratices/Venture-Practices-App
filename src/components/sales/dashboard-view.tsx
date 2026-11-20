@@ -205,7 +205,7 @@ export function DashboardView({
                     Deals with no next step
                   </Link>
                   <Link href={leadsInboxHref(data.scope)} className={BOX_LINK}>
-                    Leads Inbox
+                    Marketing Inbox
                   </Link>
                 </div>
               </>

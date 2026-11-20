@@ -23,7 +23,7 @@ import {
   selectionState,
 } from "@/lib/sales/leads-client";
 
-// The Leads Inbox's pure helpers (Task 20). Wording follows Mockup v2 where it
+// The Marketing Inbox's pure helpers (Task 20). Wording follows Mockup v2 where it
 // draws the same thing (ruling P3A-X3), else the plan's pinned strings.
 
 const NOW = new Date("2026-11-05T15:00:00.000Z");
@@ -183,13 +183,13 @@ describe("bulk wording", () => {
     expect(deleteLeadsCopy(["Crestview Dental"])).toEqual({
       title: "Delete this lead?",
       names: "Crestview Dental",
-      text: "It leaves the Leads Inbox for good. The history keeps a record. This cannot be undone.",
+      text: "It leaves the Marketing Inbox for good. The history keeps a record. This cannot be undone.",
       confirm: "Delete lead",
     });
     expect(deleteLeadsCopy(["Crestview Dental", "Maple Grove Dental"])).toEqual({
       title: "Delete 2 leads?",
       names: "Crestview Dental, Maple Grove Dental",
-      text: "They leave the Leads Inbox for good. The history keeps a record. This cannot be undone.",
+      text: "They leave the Marketing Inbox for good. The history keeps a record. This cannot be undone.",
       confirm: "Delete 2 leads",
     });
     expect(deleteLeadsCopy(["A1", "A2", "A3", "A4", "A5", "A6", "A7"]).names).toBe("A1, A2, A3, A4, A5 and 2 more");

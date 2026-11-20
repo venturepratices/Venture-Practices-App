@@ -7,7 +7,7 @@ import { LEADS_PAGE_SIZE, PRACTICE_ZIP_FIELD_KEY } from "@/lib/sales/constants";
 import { loadAssignmentSummary, type AssignmentSummary } from "@/lib/sales/lead-assignment";
 import type { LeadsQuery } from "@/lib/sales/leads-query";
 
-// What the Leads Inbox lists: open leads, newest first, in pages of 50. Lead
+// What the Marketing Inbox lists: open leads, newest first, in pages of 50. Lead
 // visibility is the deal rule (Decision 5): a rep set to see only their own
 // deals sees only their own leads, whatever "Everyone / Just me" says. Only the
 // columns a row shows are read (never a person's email or phone), each row's
@@ -143,7 +143,7 @@ export async function loadLeadRows(actor: SalesActor, query: LeadsQuery, db: Lea
 }
 
 /**
- * Everything the Leads Inbox needs: always the first page (a cursor in the URL
+ * Everything the Marketing Inbox needs: always the first page (a cursor in the URL
  * is ignored), the people who can own leads, whether to show the Everyone /
  * Just me switch, and who gets new leads. "Show more" pages come from
  * `loadLeadRows`.

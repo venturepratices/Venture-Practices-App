@@ -254,7 +254,7 @@ describe("Sales dashboard (server render)", () => {
     );
     expect(stalled).toContain("See all:");
     expect(stalled).toContain(">Deals with no next step</a>");
-    expect(stalled).toContain(">Leads Inbox</a>");
+    expect(stalled).toContain(">Marketing Inbox</a>");
   });
 
   it("lists deals in Follow-Up with their pipeline, value and next step", () => {

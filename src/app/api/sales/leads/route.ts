@@ -9,7 +9,7 @@ import { loadLeadRows } from "@/lib/sales/leads-page";
 import { parseLeadsQuery } from "@/lib/sales/leads-query";
 
 /**
- * One page of the Leads Inbox, for "Show more": the same scope and search as
+ * One page of the Marketing Inbox, for "Show more": the same scope and search as
  * the page URL, continuing after `cursor`. A malformed cursor is ignored and
  * the first page comes back.
  */

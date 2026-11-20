@@ -1,4 +1,4 @@
-// What the Leads Inbox reads from its URL: whose leads and the search. No
+// What the Marketing Inbox reads from its URL: whose leads and the search. No
 // prisma and no server imports, so the server page, the toolbar and the "Show
 // more" fetch all share one parser and one serializer.
 
@@ -24,7 +24,7 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * Reads the Leads Inbox URL. Anything missing or invalid falls back to its
+ * Reads the Marketing Inbox URL. Anything missing or invalid falls back to its
  * default (everyone's leads, no search), so a hand-edited or stale link never
  * fails.
  */
@@ -40,7 +40,7 @@ export function parseLeadsQuery(params: RawParams): LeadsQuery {
 }
 
 /**
- * The query string (no leading "?") for a Leads Inbox query. Writes only values
+ * The query string (no leading "?") for a Marketing Inbox query. Writes only values
  * that differ from the defaults, in the order scope, q, and never the cursor.
  */
 export function leadsQueryToSearch(query: LeadsQuery): string {

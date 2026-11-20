@@ -10,7 +10,7 @@ import { endOfDay } from "@/lib/utils";
 const ALL_LINKS = [
   { href: "/sales/dashboard", label: "Sales dashboard", icon: "home", count: 0, countLabel: "" },
   { href: "/sales/deals", label: "Deals", icon: "board", count: 0, countLabel: "" },
-  { href: "/sales/leads", label: "Leads Inbox", icon: "inbox", count: 2, countLabel: "open leads" },
+  { href: "/sales/leads", label: "Marketing Inbox", icon: "inbox", count: 2, countLabel: "open leads" },
   { href: "/sales/activities", label: "Activities", icon: "calendar", count: 3, countLabel: "due today or overdue" },
   { href: "/sales/contacts", label: "Contacts", icon: "people", count: 0, countLabel: "" },
   { href: "/sales/insights", label: "Insights", icon: "chart", count: 0, countLabel: "" },
@@ -25,7 +25,7 @@ describe("salesNavGroup", () => {
 
   it("gives an admin every Sales page in order", () => {
     expect(salesNavGroup({ isAdmin: true, canUseSales: false }, { due: 3, leads: 2 })).toEqual({
-      title: "Sales Command Center",
+      title: "Revenue Team",
       badge: "NEW",
       links: ALL_LINKS,
     });
@@ -33,7 +33,7 @@ describe("salesNavGroup", () => {
 
   it("gives a Sales user every page but Sales settings", () => {
     expect(salesNavGroup({ isAdmin: false, canUseSales: true }, { due: 3, leads: 2 })).toEqual({
-      title: "Sales Command Center",
+      title: "Revenue Team",
       badge: "NEW",
       links: ALL_LINKS.slice(0, 6),
     });
@@ -43,7 +43,7 @@ describe("salesNavGroup", () => {
     const group = salesNavGroup({ isAdmin: true, canUseSales: true }, { due: 0, leads: 0 });
     expect(group?.links[2]).toEqual({
       href: "/sales/leads",
-      label: "Leads Inbox",
+      label: "Marketing Inbox",
       icon: "inbox",
       count: 0,
       countLabel: "open leads",

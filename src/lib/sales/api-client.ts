@@ -39,7 +39,7 @@ import type { DealStatusInput, MoveDealInput, MoveResult, setDealStatus } from "
 import type { TimelineCursor, TimelinePage } from "@/lib/sales/timeline";
 
 // The browser's way to the Sales routes: one small typed wrapper per route the
-// board, the deal and lead panels, the Activities page and the Leads Inbox
+// board, the deal and lead panels, the Activities page and the Marketing Inbox
 // call. Every call answers with an ApiResult instead of throwing, so a screen
 // always has a message to show. The server modules are imported for their
 // types only (erased at build time), so nothing server-side reaches the
@@ -172,7 +172,7 @@ export function setDealStatusRequest(dealId: string, body: DealStatusInput): Pro
 
 // --- Leads ---
 
-/** One more page of the Leads Inbox: the page's scope and search and `query.cursor`. */
+/** One more page of the Marketing Inbox: the page's scope and search and `query.cursor`. */
 export function getLeadRowsPage(query: LeadsQuery): Promise<ApiResult<LeadRowsPage>> {
   const search = new URLSearchParams(leadsQueryToSearch(query));
   if (query.cursor) search.set("cursor", query.cursor);

@@ -3,7 +3,7 @@ import { parseLeadsQuery } from "@/lib/sales/leads-query";
 import { requireSalesPage } from "@/lib/sales/page-gate";
 import { LeadsView } from "@/components/sales/leads-view";
 
-// The Leads Inbox (Decision 11): open leads, newest first, for Everyone or Just
+// The Marketing Inbox (Decision 11): open leads, newest first, for Everyone or Just
 // me and a search, read from the URL. Gated here as well as in the Sales
 // layout (layouts do not re-run on navigation). It always shows the first
 // page; "Show more" fetches the rest. `?new=1` opens Add lead straight away.
