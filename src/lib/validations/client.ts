@@ -10,6 +10,10 @@ const optionalText = (max: number) =>
     .optional()
     .transform((value) => (value ? value : null));
 
+// What the account manager picker sends for "not assigned". It can never clash
+// with a real team member id (those are long random strings).
+export const NO_ACCOUNT_MANAGER = "none";
+
 export const clientSchema = z.object({
   name: z.string().trim().min(1, "Client name is required").max(120),
   status: z.enum(CLIENT_STATUS_VALUES),
@@ -44,6 +48,14 @@ export const clientSchema = z.object({
   about: optionalText(4000),
   source: optionalText(120),
   slackChannelId: optionalText(20),
+  // undefined = the form did not send the field, so the stored account manager
+  // is left alone. null = "not assigned". A string = the team member's id.
+  accountManagerId: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value && value !== NO_ACCOUNT_MANAGER ? value : null)),
 });
 
 export type ClientInput = z.infer<typeof clientSchema>;

@@ -87,6 +87,10 @@ describe("client dialog wiring", () => {
     expect(source).not.toMatch(/await formAction\(formData\);\s*setOpen\(false\)/);
   });
 
+  it("fills the account manager picker from the team list and starts from the saved manager", () => {
+    expect(source).toMatch(/<AccountManagerField\s+teamMembers=\{props\.teamMembers\}\s+defaultValue=\{props\.mode === "edit" \? props\.accountManagerId : null\}/);
+  });
+
   it("passes who may change the Slack channel to the field", () => {
     expect(source).toMatch(/<SlackChannelField\s+canChange=\{canChangeSlackChannel\}/);
   });

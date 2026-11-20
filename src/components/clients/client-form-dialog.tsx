@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { createClientAction, updateClientAction, type ClientFormState } from "@/lib/actions/clients";
-import { CLIENT_STATUS_VALUES } from "@/lib/validations/client";
+import { CLIENT_STATUS_VALUES, NO_ACCOUNT_MANAGER } from "@/lib/validations/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,9 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AccountManagerChip } from "@/components/clients/account-manager-chip";
 import { ClientStatusPill } from "@/components/clients/client-status-pill";
 
 const initialState: ClientFormState = { error: null };
+
+export type TeamMemberOption = { id: string; name: string };
 
 type ClientDefaults = {
   contactName: string | null;
@@ -35,17 +38,19 @@ type ClientDefaults = {
   about: string | null;
   source: string | null;
   slackChannelId: string | null;
+  accountManagerId: string | null;
 };
 
 // canChangeSlackChannel: only an admin may set or change a client's Slack
 // channel (the actions refuse anyone else), so the field is read-only for
-// everyone else.
+// everyone else. teamMembers fills the account manager picker.
 type Props =
-  | { mode: "create"; trigger: React.ReactElement; canChangeSlackChannel: boolean }
+  | { mode: "create"; trigger: React.ReactElement; canChangeSlackChannel: boolean; teamMembers: TeamMemberOption[] }
   | ({
       mode: "edit";
       trigger: React.ReactElement;
       canChangeSlackChannel: boolean;
+      teamMembers: TeamMemberOption[];
       clientId: string;
       defaultName: string;
       defaultStatus: string;
@@ -128,6 +133,10 @@ function ClientForm({ onSaved, ...props }: Props & { onSaved: () => void }) {
             </SelectContent>
           </Select>
         </div>
+        <AccountManagerField
+          teamMembers={props.teamMembers}
+          defaultValue={props.mode === "edit" ? props.accountManagerId : null}
+        />
         <div className="space-y-3 rounded-lg border p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary contact</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -252,6 +261,45 @@ function ClientForm({ onSaved, ...props }: Props & { onSaved: () => void }) {
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * Who owns this client day to day: one team member, or "Not assigned". Always
+ * sends a value (the member's id, or NO_ACCOUNT_MANAGER), so saving the form
+ * never leaves the field out.
+ */
+export function AccountManagerField({
+  teamMembers,
+  defaultValue,
+}: {
+  teamMembers: TeamMemberOption[];
+  defaultValue: string | null;
+}) {
+  const nameById = new Map(teamMembers.map((member) => [member.id, member.name]));
+  const startsWith = defaultValue && nameById.has(defaultValue) ? defaultValue : NO_ACCOUNT_MANAGER;
+  const nameOf = (id: string) => (id === NO_ACCOUNT_MANAGER ? null : (nameById.get(id) ?? null));
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="accountManagerId">Account manager</Label>
+      <Select name="accountManagerId" defaultValue={startsWith}>
+        <SelectTrigger id="accountManagerId" className="w-full">
+          <SelectValue>{(id: string) => <AccountManagerChip name={nameOf(id)} />}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_ACCOUNT_MANAGER}>
+            <AccountManagerChip name={null} />
+          </SelectItem>
+          {teamMembers.map((member) => (
+            <SelectItem key={member.id} value={member.id}>
+              <AccountManagerChip name={member.name} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">The one person who owns this client day to day.</p>
+    </div>
   );
 }
 

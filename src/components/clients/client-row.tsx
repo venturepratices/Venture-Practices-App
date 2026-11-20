@@ -4,13 +4,16 @@ import { AlertTriangle, Pencil } from "lucide-react";
 import { initialsOf } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ClientStatusPill } from "@/components/clients/client-status-pill";
-import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { AccountManagerChip } from "@/components/clients/account-manager-chip";
+import { ClientFormDialog, type TeamMemberOption } from "@/components/clients/client-form-dialog";
 import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 
-// Below md, only Client / Status / Open show — Primary contact and the edit
-// affordance wait for more room, same idea as the task list's column
-// collapse (the row itself is still tappable to open the client on mobile).
-const GRID_CLASS = "grid grid-cols-[minmax(0,1fr)_84px_84px] items-center gap-2 md:grid-cols-[minmax(0,2fr)_110px_100px_1fr] md:gap-3";
+// Below md, only Client / Status / Open show — Account manager, Primary
+// contact and the edit affordance wait for more room, same idea as the task
+// list's column collapse (the row itself is still tappable to open the client
+// on mobile).
+const GRID_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_84px_84px] items-center gap-2 md:grid-cols-[minmax(0,2fr)_110px_100px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-3";
 
 export function ClientListHeader() {
   return (
@@ -18,6 +21,7 @@ export function ClientListHeader() {
       <span>Client</span>
       <span>Status</span>
       <span>Open</span>
+      <span className="hidden md:block">Account manager</span>
       <span className="hidden md:block">Primary contact</span>
     </div>
   );
@@ -40,16 +44,20 @@ type ClientRowData = {
   about: string | null;
   source: string | null;
   slackChannelId: string | null;
+  accountManagerId: string | null;
+  accountManagerName: string | null;
 };
 
 export function ClientRow({
   client,
   delayMs = 0,
   canChangeSlackChannel,
+  teamMembers,
 }: {
   client: ClientRowData;
   delayMs?: number;
   canChangeSlackChannel: boolean;
+  teamMembers: TeamMemberOption[];
 }) {
   return (
     <div className="group relative animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${delayMs}ms` }}>
@@ -57,6 +65,7 @@ export function ClientRow({
         <ClientFormDialog
           mode="edit"
           canChangeSlackChannel={canChangeSlackChannel}
+          teamMembers={teamMembers}
           clientId={client.id}
           defaultName={client.name}
           defaultStatus={client.status}
@@ -71,6 +80,7 @@ export function ClientRow({
           about={client.about}
           source={client.source}
           slackChannelId={client.slackChannelId}
+          accountManagerId={client.accountManagerId}
           trigger={
             <Button variant="ghost" size="icon" aria-label={`Edit ${client.name}`}>
               <Pencil className="size-4" />
@@ -96,6 +106,9 @@ export function ClientRow({
               {client.overdueTaskCount}
             </span>
           ) : null}
+        </span>
+        <span className="hidden min-w-0 md:block">
+          <AccountManagerChip name={client.accountManagerName} />
         </span>
         <TruncateTooltip
           text={client.contactName ?? "—"}

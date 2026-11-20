@@ -324,6 +324,7 @@ model TeamMember {
   raisedIssues                 Issue[]                        @relation("IssueRaisedBy")
   issueRecommendations         IssueRecommendation[]          @relation("IssueRecommendationAuthor")
   ownedRocks                   Rock[]                         @relation("RockOwner")
+  managedClients               Client[]                       @relation("ClientAccountManager")
   createdRocks                 Rock[]                         @relation("RockCreatedBy")
   salesOrganizations           SalesOrganization[]            @relation("SalesOrganizationOwner")
   salesPeople                  SalesPerson[]                  @relation("SalesPersonOwner")
@@ -480,6 +481,11 @@ model Client {
   // cached here on first use, or manually set to point at an existing
   // channel. See src/lib/slack.ts's ensureClientChannel.
   slackChannelId String?
+  // The one team member who owns this client day to day (asked for by Ben in
+  // the 2026-11-20 meeting). Optional. If that person is removed from the
+  // team the client simply becomes "not assigned", it is never deleted.
+  accountManagerId String?
+  accountManager   TeamMember? @relation("ClientAccountManager", fields: [accountManagerId], references: [id], onDelete: SetNull)
 
   tasks                Task[]
   notes                ClientNote[]
@@ -503,6 +509,8 @@ model Client {
   planningFolders      PlanningFolder[]
   orders               ClientOrder[]
   issues               Issue[]
+
+  @@index([accountManagerId])
 }
 
 // Direct Mail client intake — filled in progressively by the client via the
