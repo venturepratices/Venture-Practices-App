@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireCapability, requireClientAccess, toErrorResponse } from "@/lib/permissions";
 import { syncClientConversations } from "@/lib/highlevel";
+import { describeSyncError } from "@/lib/highlevel-errors";
 
 export const runtime = "nodejs";
 
@@ -23,9 +24,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ cl
     return NextResponse.json(result);
   } catch (error) {
     console.error("HighLevel sync failed:", error);
-    return NextResponse.json(
-      { error: "Sync failed — HighLevel rejected the request. The token may have been revoked." },
-      { status: 502 }
-    );
+    // Say what actually went wrong (refused token, missing permission, wrong
+    // Location ID...) instead of guessing "revoked" every time.
+    return NextResponse.json({ error: describeSyncError(error) }, { status: 502 });
   }
 }

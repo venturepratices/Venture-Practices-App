@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/credential-crypto";
+import {
+  HighLevelApiError,
+  HighLevelTokenUnreadableError,
+  describeSyncError,
+  describeSyncWarning,
+} from "@/lib/highlevel-errors";
 
 /**
  * HighLevel (LeadConnector) Conversations integration — read-only v1.
@@ -44,7 +50,7 @@ async function hlFetch(path: string, token: string): Promise<unknown> {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`HighLevel API ${res.status}: ${detail.slice(0, 300)}`);
+    throw new HighLevelApiError(res.status, detail);
   }
   return res.json();
 }
@@ -248,33 +254,18 @@ export async function pruneAllConnectedClients(): Promise<Record<string, number>
 // ---------------------------------------------------------------------------
 
 export type SyncResult =
-  | { status: "synced"; upserted: number; pruned: number }
+  // `warnings` is only present when one part of the sync worked and the other
+  // did not (plain-language sentences, safe to show on screen).
+  | { status: "synced"; upserted: number; pruned: number; warnings?: string[] }
   | { status: "skipped"; reason: "not_connected" | "throttled" };
 
-/**
- * Fetch recent conversations/messages for a client and upsert them, then prune.
- * Deduped on ghlMessageId so repeated syncs never create duplicates. Throttled
- * by lastSyncAt unless `force` is set (connect-time backfill and "Sync now" force).
- * Throws on HighLevel API errors so callers can surface a clear message; the
- * sync-on-view caller wraps this in try/catch and still renders the cache.
- */
-export async function syncClientConversations(
+/** Message half of the sync: pull recent conversations' messages, upsert, prune. */
+async function syncMessages(
   clientId: string,
-  opts: { force?: boolean } = {}
-): Promise<SyncResult> {
-  const conn = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
-  if (!conn) return { status: "skipped", reason: "not_connected" };
-
-  if (
-    !opts.force &&
-    conn.lastSyncAt &&
-    Date.now() - conn.lastSyncAt.getTime() < SYNC_THROTTLE_MS
-  ) {
-    return { status: "skipped", reason: "throttled" };
-  }
-
-  const token = decryptSecret(conn.encryptedToken);
-  const conversations = await searchConversations(conn.locationId, token);
+  locationId: string,
+  token: string
+): Promise<{ upserted: number; pruned: number }> {
+  const conversations = await searchConversations(locationId, token);
 
   let upserted = 0;
   for (const convo of conversations) {
@@ -300,25 +291,122 @@ export async function syncClientConversations(
   }
 
   const pruned = await pruneClientConversations(clientId);
+  return { upserted, pruned };
+}
 
-  // Call-detail layer: lives alongside the message cache. Pulls richer per-call
-  // metadata (status, tracking number, caller identity) that HIPAA blocks on
-  // the messages endpoint. Failures here should NOT kill the base sync.
+/** Call-detail half of the sync: status, tracking number and caller per call. */
+async function syncCalls(clientId: string, locationId: string, token: string): Promise<void> {
+  const { syncHighLevelCalls } = await import("@/lib/highlevel-calls");
+  await syncHighLevelCalls({ clientId, locationId }, token);
+}
+
+function decryptConnectionToken(encryptedToken: string): string {
   try {
-    const { syncHighLevelCalls } = await import("@/lib/highlevel-calls");
-    await syncHighLevelCalls({ clientId, locationId: conn.locationId }, token);
-  } catch (error) {
-    // Log but continue: the message cache has already been updated, and the
-    // call-detail table only powers the Calls view, which is optional.
-    console.warn(`[highlevel] call-detail sync failed for client ${clientId}:`, error instanceof Error ? error.message : error);
+    return decryptSecret(encryptedToken);
+  } catch {
+    throw new HighLevelTokenUnreadableError();
   }
+}
+
+/**
+ * Fetch recent conversations/messages for a client and upsert them, then prune.
+ * Deduped on ghlMessageId so repeated syncs never create duplicates. Throttled
+ * by lastSyncAt unless `force` is set (connect-time backfill and "Sync now" force).
+ * Throws on HighLevel API errors so callers can surface a clear message; the
+ * sync-on-view caller wraps this in try/catch and still renders the cache.
+ */
+export async function syncClientConversations(
+  clientId: string,
+  opts: { force?: boolean } = {}
+): Promise<SyncResult> {
+  const conn = await prisma.clientHighLevelConnection.findUnique({ where: { clientId } });
+  if (!conn) return { status: "skipped", reason: "not_connected" };
+
+  if (
+    !opts.force &&
+    conn.lastSyncAt &&
+    Date.now() - conn.lastSyncAt.getTime() < SYNC_THROTTLE_MS
+  ) {
+    return { status: "skipped", reason: "throttled" };
+  }
+
+  const token = decryptConnectionToken(conn.encryptedToken);
+
+  // The two halves run independently, calls FIRST. The call numbers (Robert's
+  // weekly report) only need the conversation search, while messages also
+  // need a second permission and are blocked outright on HIPAA sub-accounts.
+  // When messages ran first, any failure there meant the calls never loaded.
+  let callsError: unknown = null;
+  try {
+    await syncCalls(clientId, conn.locationId, token);
+  } catch (error) {
+    callsError = error;
+  }
+
+  let upserted = 0;
+  let pruned = 0;
+  let messagesError: unknown = null;
+  try {
+    ({ upserted, pruned } = await syncMessages(clientId, conn.locationId, token));
+  } catch (error) {
+    messagesError = error;
+  }
+
+  // Say which part failed and why, but never what was in the records.
+  if (callsError) logPartFailure("call-detail", clientId, callsError);
+  if (messagesError) logPartFailure("message", clientId, messagesError);
+
+  // Both failed: nothing was refreshed, so tell the caller (the cause is
+  // almost always shared, for example a refused token).
+  if (callsError && messagesError) throw callsError;
 
   await prisma.clientHighLevelConnection.update({
     where: { clientId },
     data: { lastSyncAt: new Date() },
   });
 
-  return { status: "synced", upserted, pruned };
+  const warnings: string[] = [];
+  if (messagesError) warnings.push(describeSyncWarning("messages", messagesError));
+  if (callsError) warnings.push(describeSyncWarning("calls", callsError));
+
+  return warnings.length > 0
+    ? { status: "synced", upserted, pruned, warnings }
+    : { status: "synced", upserted, pruned };
+}
+
+function logPartFailure(part: "call-detail" | "message", clientId: string, error: unknown): void {
+  console.warn(
+    `[highlevel] ${part} sync failed for client ${clientId}: ${describeSyncError(error)}`
+  );
+}
+
+/**
+ * Daily job: refresh the call details for every connected client, so the
+ * global Calls page and Robert's weekly numbers stay current without anyone
+ * having to open a client's tab first. Calls only (no message history), and
+ * one client failing never stops the others.
+ */
+export async function syncCallsForAllConnectedClients(): Promise<{
+  clients: number;
+  synced: number;
+  failures: Array<{ clientId: string; error: string }>;
+}> {
+  const connections = await prisma.clientHighLevelConnection.findMany({
+    select: { clientId: true, locationId: true, encryptedToken: true },
+  });
+
+  let synced = 0;
+  const failures: Array<{ clientId: string; error: string }> = [];
+  for (const conn of connections) {
+    try {
+      const token = decryptConnectionToken(conn.encryptedToken);
+      await syncCalls(conn.clientId, conn.locationId, token);
+      synced++;
+    } catch (error) {
+      failures.push({ clientId: conn.clientId, error: describeSyncError(error) });
+    }
+  }
+  return { clients: connections.length, synced, failures };
 }
 
 // ---------------------------------------------------------------------------

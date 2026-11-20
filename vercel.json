@@ -9,6 +9,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/highlevel-calls-sync",
+      "schedule": "0 10 * * *"
+    },
+    {
       "path": "/api/cron/asset-due-soon",
       "schedule": "0 13 * * *"
     },
