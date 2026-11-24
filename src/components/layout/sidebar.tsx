@@ -32,7 +32,7 @@ export type SidebarNavGroup = {
   links: {
     href: string;
     label: string;
-    icon: "board" | "calendar" | "home" | "inbox" | "mail" | "people" | "chart" | "settings";
+    icon: "board" | "calendar" | "home" | "inbox" | "mail" | "people" | "chart" | "settings" | "sync";
     count: number;
     countLabel: string;
   }[];

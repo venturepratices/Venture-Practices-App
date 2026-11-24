@@ -9,6 +9,7 @@ export function marketingNavGroup(perms: { isAdmin: boolean; canUseMarketing: bo
   const links: SidebarNavGroup["links"] = [
     { href: "/marketing/follow-up-system", label: "Follow-up system", icon: "mail", count: 0, countLabel: "" },
     { href: "/marketing/stats", label: "Stats", icon: "chart", count: 0, countLabel: "" },
+    { href: "/marketing/sync", label: "Sync", icon: "sync", count: 0, countLabel: "" },
   ];
   return { title: "Marketing", badge: "NEW", links };
 }

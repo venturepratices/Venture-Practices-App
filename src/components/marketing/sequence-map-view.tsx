@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { DEFAULT_SEQUENCE_KEY, nitroFlowUrl } from "@/lib/marketing/sequences";
+import { nitroFlowUrl } from "@/lib/marketing/sequences";
 import type {
   Brand,
   Sequence,
@@ -106,12 +106,23 @@ function EditSequenceButton({ sequence }: { sequence: Sequence }) {
   );
 }
 
-export function SequenceMapView({ sequences }: { sequences: Sequences }) {
+export function SequenceMapView({
+  sequences,
+  defaultKey,
+}: {
+  sequences: Sequences;
+  /**
+   * Which tab to open first. Passed in from the server page so this client
+   * file never names a specific SequenceKey as a string literal (that would
+   * leak into the client chunk — see check-sales-secrecy).
+   */
+  defaultKey: SequenceKey;
+}) {
   const keys = (Object.keys(sequences) as SequenceKey[]).sort((a, b) =>
     sequences[a].tabNumber.localeCompare(sequences[b].tabNumber),
   );
   const [selected, setSelected] = useState<SequenceKey>(
-    sequences[DEFAULT_SEQUENCE_KEY] ? DEFAULT_SEQUENCE_KEY : keys[0],
+    sequences[defaultKey] ? defaultKey : keys[0],
   );
   const [openEmail, setOpenEmail] = useState<{
     key: SequenceKey;

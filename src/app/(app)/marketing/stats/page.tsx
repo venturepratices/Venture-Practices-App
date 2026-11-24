@@ -1,4 +1,5 @@
 import { requireMarketingPage } from "@/lib/marketing/page-gate";
+import { logMarketingView } from "@/lib/marketing/audit";
 import { getAllInsights, type InsightsWindow } from "@/lib/marketing/insights";
 import { SEQUENCES } from "@/lib/marketing/sequences";
 import { StatsView } from "@/components/marketing/stats-view";
@@ -24,9 +25,10 @@ export default async function StatsPage({
 }: {
   searchParams: Promise<{ window?: string | string[] }>;
 }) {
-  await requireMarketingPage();
+  const actor = await requireMarketingPage();
   const params = await searchParams;
   const window = parseWindow(params.window);
+  void logMarketingView(actor, "marketing.stats.view", { window });
   const insightsByKey = await getAllInsights(window);
   return <StatsView sequences={SEQUENCES} insightsByKey={insightsByKey} window={window} />;
 }
