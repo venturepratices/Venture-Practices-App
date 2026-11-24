@@ -5,6 +5,7 @@ import { accessibleClientFilter, loadPermissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getTaskStatusOptions } from "@/lib/task-status";
 import { getPriorityLevelOptions } from "@/lib/priority-level";
+import { marketingNavGroup } from "@/lib/marketing/nav";
 import { salesDueCountWhere, salesLeadCountWhere, salesNavGroup } from "@/lib/sales/nav";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -67,10 +68,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canManageWorkflows={!!perms?.caps.canManageWorkflows}
           canManageOrders={!!perms?.caps.canManageOrders}
           canUseLeadership={!!perms?.caps.canUseLeadership}
-          navGroup={salesNavGroup(
-            { isAdmin: !!perms?.isAdmin, canUseSales: !!perms?.caps.canUseSales },
-            { due: salesDueCount, leads: salesLeadCount },
-          )}
+          navGroups={[
+            // Marketing (follow-up system): new area, admin or canUseMarketing.
+            marketingNavGroup({
+              isAdmin: !!perms?.isAdmin,
+              canUseMarketing: !!perms?.caps.canUseMarketing,
+            }),
+            // Revenue Team (Sales): existing area, admin or canUseSales.
+            salesNavGroup(
+              { isAdmin: !!perms?.isAdmin, canUseSales: !!perms?.caps.canUseSales },
+              { due: salesDueCount, leads: salesLeadCount },
+            ),
+          ].filter((g): g is NonNullable<typeof g> => g !== null)}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar unreadCount={unreadCount} recentNotifications={recentNotifications} />

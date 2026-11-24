@@ -5,7 +5,35 @@ sessions (and refreshed before any context compaction) so nothing here gets
 silently dropped. It is NOT a feature spec — see the Claude Code plan file for
 full build history and detailed designs. This is just the punch list.
 
-Last updated: 2026-10-06
+Last updated: 2026-11-24
+
+## In progress — Marketing > Follow-up System screen (new area)
+
+- Branch `marketing/emails-feature` in this worktree. Target: PR to master.
+- Builds a new **Marketing** area in the app with `/marketing/follow-up-system`
+  as the first screen, gated behind a new `canUseMarketing` capability. Mirrors
+  the prototype in
+  `C:/Users/EG PRO SHOP/Claude Code/Newletter/app-builder-handover/assets/sequence-map.html`
+  but in the PM app's own brand (teal + coral, system fonts, shadcn cards).
+- Full brief: `app-builder-handover/` folder (same files are in
+  `Project Management APP/app-builder-handover/` and `Newletter/app-builder-handover/`).
+- Build order DJ approved (2026-11-24): (1) sequence map UI on hardcoded data,
+  (2) deep-link Edit, (3) inline editor via nitro_compose_flow patch, (4) stats
+  dashboard, (5) GHL sync view, (6) polish. This PR covers (1) and (2).
+- Data source decision: **B then A.** Hardcoded TS constant now
+  (`src/lib/marketing/sequences.ts`), server-side NitroSend HTTP client later
+  (needs an API key DJ will put in Vercel env).
+- Hard rules: nothing under `src/{lib,components,app/(app)}/sales/`; no code
+  that sends email, flips a flow live, or touches `GHL>>Nitrosend`; no new
+  deps; NitroSend Safe Mode stays ON; admins + `canUseMarketing` only.
+- Coordination: heads-up sent to the main "Venture Practices App" session
+  (local_a702ee4b) about edits coming to `(app)/layout.tsx`, `sidebar.tsx`,
+  `sidebar-group-link.tsx`, `permission-catalog.ts`. Additive only.
+- Open items (not blockers): confirm GHL segment tag names
+  (handover 07 proposes `marketing_warm`, `new_mover_sales`, etc.); confirm
+  Sales sender header format for Practice Mailers.
+
+
 
 ## In progress — Issues List & Rocks (Andrea's EOS request, DJ's Q4 Week-1 item)
 

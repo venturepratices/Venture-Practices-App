@@ -279,6 +279,11 @@ model TeamMember {
   // "Full member access" preset; one switch covers viewing and editing both.
   canUseLeadership Boolean @default(false)
 
+  // Marketing — the follow-up system map (email sequence editor + stats). Off
+  // for everyone until an admin checks it (admins pass automatically). NOT in
+  // the "Full member access" preset.
+  canUseMarketing   Boolean @default(false)
+
   // Sales — the deals/leads/activities module. Off for everyone until an admin
   // checks it (admins pass automatically). NOT in the "Full member access"
   // preset. salesSeesAllDeals is the who-can-see setting: true = sees every
