@@ -27,7 +27,13 @@ export default async function MarketingSyncPage() {
 
   const rows = buildSnapshotRows(SEQUENCES);
   const summary = summarize(rows);
-  const snapshotTimestamp = new Date().toISOString().slice(0, 10);
+  // Human-friendly, locale-stable: "Nov 25, 2026". Reads better than ISO on the
+  // narrow mobile header where the label sits next to the page title.
+  const snapshotTimestamp = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return (
     <SyncView rows={rows} summary={summary} snapshotTimestamp={snapshotTimestamp} />

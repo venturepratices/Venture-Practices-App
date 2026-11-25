@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { nitroFlowUrl } from "@/lib/marketing/sequences";
+import { safeExternalHref } from "@/lib/marketing/sync";
 import type {
   Brand,
   Sequence,
@@ -55,7 +56,10 @@ function Connector() {
 }
 
 function EditSequenceButton({ sequence }: { sequence: Sequence }) {
-  const nitroUrl = nitroFlowUrl(sequence);
+  // Defense in depth: nitroFlowUrl already constructs the URL from a fixed
+  // base, but passing it through safeExternalHref guarantees we never ship
+  // anything that is not an https URL on the NitroSend host.
+  const nitroUrl = safeExternalHref(nitroFlowUrl(sequence));
   if (!nitroUrl) {
     return (
       <Tooltip>
@@ -93,7 +97,8 @@ function EditSequenceButton({ sequence }: { sequence: Sequence }) {
         <a
           href={nitroUrl}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer nofollow"
+          aria-label={`Edit this sequence in NitroSend — opens in a new tab`}
           data-edit-target="sequence"
           data-sequence={sequence.key}
           data-nitro-url={nitroUrl}
@@ -245,7 +250,7 @@ export function SequenceMapView({
       {sequence.assumption && (
         <div
           role="note"
-          className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+          className="rounded-lg border border-status-warning-foreground/30 bg-status-warning/15 px-4 py-3 text-sm text-status-warning-foreground"
         >
           {sequence.assumption}
         </div>

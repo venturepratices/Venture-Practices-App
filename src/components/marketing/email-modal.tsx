@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { nitroFlowUrl } from "@/lib/marketing/sequences";
+import { safeExternalHref } from "@/lib/marketing/sync";
 import type { Sequence, SequenceStep } from "@/lib/marketing/sequences";
 
 type EmailStepOf = Extract<SequenceStep, { kind: "email" }>;
@@ -31,7 +32,9 @@ export function EmailModal({
   /** Index of the step within sequence.steps (for the edit contract). */
   stepIndex?: number;
 }) {
-  const nitroUrl = nitroFlowUrl(sequence);
+  // Defense in depth: nitroFlowUrl is already derived from a fixed base, but
+  // safeExternalHref guarantees https + allow-listed host before we render it.
+  const nitroUrl = safeExternalHref(nitroFlowUrl(sequence));
   const index = stepIndex ?? sequence.steps.indexOf(step);
 
   return (
@@ -108,7 +111,8 @@ export function EmailModal({
                 <a
                   href={nitroUrl}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener noreferrer nofollow"
+                  aria-label="Edit this email in NitroSend — opens in a new tab"
                   data-edit-target="email"
                   data-sequence={sequence.key}
                   data-step-index={index}
