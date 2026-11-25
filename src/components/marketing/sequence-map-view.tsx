@@ -114,6 +114,7 @@ function EditSequenceButton({ sequence }: { sequence: Sequence }) {
 export function SequenceMapView({
   sequences,
   defaultKey,
+  canEditInline,
 }: {
   sequences: Sequences;
   /**
@@ -122,6 +123,8 @@ export function SequenceMapView({
    * leak into the client chunk — see check-sales-secrecy).
    */
   defaultKey: SequenceKey;
+  /** Show the inline "Edit here" flow in the email modal. */
+  canEditInline: boolean;
 }) {
   const keys = (Object.keys(sequences) as SequenceKey[]).sort((a, b) =>
     sequences[a].tabNumber.localeCompare(sequences[b].tabNumber),
@@ -368,6 +371,7 @@ export function SequenceMapView({
           sequence={sequences[openEmail.key]}
           step={modalStep}
           stepIndex={openEmail.index}
+          canEditInline={canEditInline}
         />
       )}
     </div>

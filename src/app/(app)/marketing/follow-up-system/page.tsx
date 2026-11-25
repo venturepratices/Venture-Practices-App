@@ -9,5 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function FollowUpSystemPage() {
   const actor = await requireMarketingPage();
   void logMarketingView(actor, "marketing.followup.view");
-  return <SequenceMapView sequences={SEQUENCES} defaultKey={DEFAULT_SEQUENCE_KEY} />;
+  return (
+    <SequenceMapView
+      sequences={SEQUENCES}
+      defaultKey={DEFAULT_SEQUENCE_KEY}
+      // No canEditMarketing helper exists yet; inline editing is admin-only.
+      canEditInline={actor.isAdmin}
+    />
+  );
 }
