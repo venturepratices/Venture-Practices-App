@@ -93,6 +93,6 @@ describe("SidebarGroupLink", () => {
 
   it("has an icon for every icon key", async () => {
     const { ICONS } = await import("@/components/layout/sidebar-group-link");
-    expect(Object.keys(ICONS).sort()).toEqual(["board", "calendar", "chart", "home", "inbox", "people", "settings"]);
+    expect(Object.keys(ICONS).sort()).toEqual(["board", "calendar", "chart", "home", "inbox", "mail", "people", "settings", "sync"]);
   });
 });

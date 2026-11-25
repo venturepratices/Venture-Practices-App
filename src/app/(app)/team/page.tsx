@@ -168,6 +168,7 @@ async function MembersTab() {
         canViewOrders: true,
         canManageOrders: true,
         canUseLeadership: true,
+        canUseMarketing: true,
         canUseSales: true,
         salesSeesAllDeals: true,
       },

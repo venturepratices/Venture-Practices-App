@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, ChartColumn, Inbox, LayoutDashboard, Settings, SquareKanban, Users, type LucideIcon } from "lucide-react";
+import { CalendarCheck, ChartColumn, Inbox, LayoutDashboard, Mail, RefreshCcw, Settings, SquareKanban, Users, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { SidebarNavGroup } from "@/components/layout/sidebar";
@@ -22,9 +22,11 @@ export const ICONS = {
   calendar: CalendarCheck,
   home: LayoutDashboard,
   inbox: Inbox,
+  mail: Mail,
   people: Users,
   chart: ChartColumn,
   settings: Settings,
+  sync: RefreshCcw,
 } satisfies Record<GroupLink["icon"], LucideIcon>;
 
 export function SidebarGroupLink({ link, active }: { link: GroupLink; active: boolean }) {

@@ -32,7 +32,7 @@ export type SidebarNavGroup = {
   links: {
     href: string;
     label: string;
-    icon: "board" | "calendar" | "home" | "inbox" | "people" | "chart" | "settings";
+    icon: "board" | "calendar" | "home" | "inbox" | "mail" | "people" | "chart" | "settings" | "sync";
     count: number;
     countLabel: string;
   }[];
@@ -79,7 +79,7 @@ export function Sidebar({
   canManageWorkflows = false,
   canManageOrders = false,
   canUseLeadership = false,
-  navGroup = null,
+  navGroups = [],
 }: {
   clients: SidebarClient[];
   userName?: string | null;
@@ -93,10 +93,15 @@ export function Sidebar({
   canManageWorkflows?: boolean;
   canManageOrders?: boolean;
   canUseLeadership?: boolean;
-  navGroup?: SidebarNavGroup | null;
+  /**
+   * Optional sidebar groups the current user may see (admin-gated areas like
+   * Marketing and Revenue Team). The server layout filters by permissions
+   * before handing them in, so the sidebar renders every group it receives.
+   */
+  navGroups?: SidebarNavGroup[];
 }) {
   const pathname = usePathname();
-  const navGroupLabelId = useId();
+  const navGroupsLabelBase = useId();
   const [clientsOpen, setClientsOpen] = useState(true);
   const onTemplatePage = TEMPLATE_LINKS.some((link) => pathname === link.href);
   const [templatesOpen, setTemplatesOpen] = useState(onTemplatePage);
@@ -210,24 +215,27 @@ export function Sidebar({
           </Link>
         ) : null}
 
-        {navGroup ? (
-          <div role="group" aria-labelledby={navGroupLabelId} className="space-y-1 pt-4">
-            <p
-              id={navGroupLabelId}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50"
-            >
-              {navGroup.title}
-              {navGroup.badge ? (
-                <span className="rounded-full bg-secondary-accent px-1.5 text-[9px] leading-4 font-semibold tracking-wider text-secondary-accent-foreground uppercase">
-                  {navGroup.badge}
-                </span>
-              ) : null}
-            </p>
-            {navGroup.links.map((link) => (
-              <SidebarGroupLink key={link.href} link={link} active={pathname.startsWith(link.href)} />
-            ))}
-          </div>
-        ) : null}
+        {navGroups.map((group, index) => {
+          const labelId = `${navGroupsLabelBase}-${index}`;
+          return (
+            <div key={labelId} role="group" aria-labelledby={labelId} className="space-y-1 pt-4">
+              <p
+                id={labelId}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50"
+              >
+                {group.title}
+                {group.badge ? (
+                  <span className="rounded-full bg-secondary-accent px-1.5 text-[9px] leading-4 font-semibold tracking-wider text-secondary-accent-foreground uppercase">
+                    {group.badge}
+                  </span>
+                ) : null}
+              </p>
+              {group.links.map((link) => (
+                <SidebarGroupLink key={link.href} link={link} active={pathname.startsWith(link.href)} />
+              ))}
+            </div>
+          );
+        })}
 
         {isAdmin || canUseLeadership ? (
           <div className="space-y-1 pt-4">
