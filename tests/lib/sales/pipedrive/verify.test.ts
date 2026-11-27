@@ -115,19 +115,38 @@ describe("buildCheckReport rows", () => {
       "/api/v2/organizations cursor",
       "/api/v2/persons cursor",
       "/api/v2/deals cursor",
+      "/api/v2/deals/archived cursor",
       "/v1/leads offset",
+      "/v1/leads/archived offset",
       "/api/v2/activities cursor",
       "/v1/notes offset",
     ]);
   });
 
-  it("asks for the biggest page on cursor lists and the engine's page size on offset lists", async () => {
+  it("asks for the biggest page on the main cursor lists and the engine's page size on offset and archived lists", async () => {
     const { client, calls } = fakeClient({});
 
     await buildCheckReport(client, noSpot);
 
-    expect(calls.filter((c) => c.style === "cursor").map((c) => c.limit)).toEqual([500, 500, 500, 500]);
-    expect(calls.filter((c) => c.style === "offset").map((c) => c.limit)).toEqual([PAGE_LIMIT, PAGE_LIMIT]);
+    const limitsOf = (pick: (c: (typeof calls)[number]) => boolean) => calls.filter(pick).map((c) => c.limit);
+    expect(limitsOf((c) => c.style === "cursor" && !c.path.endsWith("/archived"))).toEqual([500, 500, 500, 500]);
+    expect(limitsOf((c) => c.path.endsWith("/archived") && c.style === "cursor")).toEqual([PAGE_LIMIT]);
+    expect(limitsOf((c) => c.style === "offset")).toEqual([PAGE_LIMIT, PAGE_LIMIT, PAGE_LIMIT]);
+  });
+
+  it("counts archived deals and leads too: they are on their own lists, not in the main ones", async () => {
+    const { client } = fakeClient({
+      "/api/v2/deals": dealsList(3),
+      "/api/v2/deals/archived": paged(records(2, (id) => ({ id: 100 + id, title: `Old ${id}`, status: "open" }))),
+      "/v1/leads": paged(records(4, (id) => ({ id: `lead-${id}` }))),
+      "/v1/leads/archived": paged(records(5, (id) => ({ id: `old-lead-${id}` }))),
+    });
+    Object.assign(mocks.appCounts, { deals: 5, leads: 9 });
+
+    const report = await buildCheckReport(client, noSpot);
+
+    expect(rowOf(report, "Deals")).toMatchObject({ pipedrive: 5, app: 5, ok: true });
+    expect(rowOf(report, "Leads")).toMatchObject({ pipedrive: 9, app: 9, ok: true });
   });
 
   it("does not count records the mapper skips: a deleted deal, a deleted activity, a removed or empty note", async () => {

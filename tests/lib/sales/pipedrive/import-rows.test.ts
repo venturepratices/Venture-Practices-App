@@ -122,8 +122,39 @@ describe("leads", () => {
     expect(store.salesAuditLog.map((a) => [a.entityType, a.action])).toEqual([
       ["SalesLead", "imported"],
     ]);
-    expect(w.saves).toBe(1);
-    expect(w.cursor).toMatchObject({ source: 1, page: null });
+    // One save per list finished: the active list, then the (here empty) archived one.
+    expect(w.saves).toBe(2);
+    expect(w.cursor).toMatchObject({ source: 2, page: null });
+  });
+
+  it("reads archived leads from their own list and marks them archived, even if the record does not say so", async () => {
+    // Since 2025-07-15 GET /v1/leads returns not archived leads only; archived ones are on /v1/leads/archived.
+    const w = work({
+      "/v1/leads": [[{ id: "uuid-open", title: "Open lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z" }]],
+      "/v1/leads/archived": [
+        [{ id: "uuid-old", title: "Old lead", owner_id: 1, add_time: "2024-01-01T00:00:00Z", update_time: "2025-06-01T00:00:00Z" }],
+      ],
+    });
+
+    expect(await runRowPhase("leads", w)).toBe("finished");
+
+    const byId = Object.fromEntries(store.salesLead.map((lead) => [lead.pipedriveId as string, lead]));
+    expect(Object.keys(byId).sort()).toEqual(["uuid-old", "uuid-open"]);
+    expect(byId["uuid-open"]).toMatchObject({ status: "OPEN", archivedAt: null });
+    expect(byId["uuid-old"]).toMatchObject({ status: "ARCHIVED", archivedAt: new Date("2025-06-01T00:00:00Z") });
+    expect(w.counts).toMatchObject({ "leads.seen": 2, "leads.created": 2 });
+  });
+
+  it("carries on at the archived list when a run is resumed after the active one finished", async () => {
+    const w = work({
+      "/v1/leads": [[{ id: "uuid-open", title: "Open lead", owner_id: 1 }]],
+      "/v1/leads/archived": [[{ id: "uuid-old", title: "Old lead", owner_id: 1 }]],
+    });
+    w.cursor.source = 1;
+
+    await runRowPhase("leads", w);
+
+    expect(store.salesLead.map((lead) => lead.pipedriveId)).toEqual(["uuid-old"]);
   });
 
   it("updates a changed custom value on a re-run, and counts the lead as updated", async () => {
@@ -137,6 +168,29 @@ describe("leads", () => {
     expect(store.salesCustomFieldValue.map((v) => v.value)).toEqual(["28203"]);
     expect(again.counts).toEqual({ "leads.seen": 1, "leads.updated": 1 });
     expect(store.salesAuditLog.at(-1)).toMatchObject({ action: "import_updated", before: {}, after: { customFieldsChanged: 1 } });
+  });
+});
+
+describe("deals", () => {
+  it("reads archived deals from their own list and marks them archived, even if the record does not say so", async () => {
+    // Since 2025-07-15 GET /api/v2/deals returns not archived deals only; archived ones are on /api/v2/deals/archived.
+    const w = work({
+      "/api/v2/deals": [[{ id: 1, title: "Open deal", status: "open", stage_id: 10, pipeline_id: 1, owner_id: 1, add_time: "2025-01-01T00:00:00Z" }]],
+      "/api/v2/deals/archived": [
+        [{ id: 2, title: "Old deal", status: "lost", stage_id: 10, pipeline_id: 1, owner_id: 1, add_time: "2024-01-01T00:00:00Z", close_time: "2024-06-01T00:00:00Z" }],
+      ],
+    });
+    w.cursor.context.stages = { "10": { stageId: "s10", pipelineId: "p1" } };
+    w.cursor.context.pipelines = { "1": { pipelineId: "p1", firstStageId: "s10" } };
+
+    expect(await runRowPhase("deals", w)).toBe("finished");
+
+    const byId = Object.fromEntries(store.salesDeal.map((deal) => [deal.pipedriveId as number, deal]));
+    expect(Object.keys(byId)).toEqual(["1", "2"]);
+    expect(byId[1].archivedAt).toBeNull();
+    expect(byId[2].archivedAt).toBeInstanceOf(Date);
+    expect(byId[2]).toMatchObject({ status: "LOST" });
+    expect(w.counts).toMatchObject({ "deals.seen": 2, "deals.created": 2 });
   });
 });
 
