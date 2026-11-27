@@ -6,10 +6,16 @@ on:
   pull_request:
     branches: [master]
 
+# The default token can only read the repository. No job here needs to write
+# anything back to GitHub.
+permissions:
+  contents: read
+
 jobs:
   check:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       # These never touch a real database or account — prisma generate only
       # reads the schema file, and `next build` doesn't run any live queries
@@ -44,5 +50,107 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The guard tests (every API route checks login, no plain === on secrets,
+      # backup covers every table, the Sales area stays secret, and so on).
+      # They only protect anything if a failing one stops the merge.
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build:ci
+
+      # Reads the build output, so it must run after the Build step.
+      - name: Check the Sales area stays secret
+        run: npm run check:sales-secrecy
+
+  secrets:
+    name: Scan for committed secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Pinned on purpose. To upgrade, change this one line and confirm the
+      # job still runs green. The checksum is read from the same release.
+      GITLEAKS_VERSION: "8.27.2"
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The command line tool is used on purpose. The gitleaks-action wrapper
+      # needs a paid license for organizations.
+      - name: Install gitleaks (version pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          dl="${RUNNER_TEMP}/gitleaks-download"
+          mkdir -p "${dl}" "${RUNNER_TEMP}/gitleaks-bin"
+          curl --fail --silent --show-error --location --retry 3 --output "${dl}/${asset}" "${base}/${asset}"
+          curl --fail --silent --show-error --location --retry 3 --output "${dl}/${sums}" "${base}/${sums}"
+          expected="$(awk -v f="${asset}" '$2 == f { print $1 }' "${dl}/${sums}")"
+          if [ -z "${expected}" ]; then
+            echo "No published checksum found for ${asset}. Refusing to run it."
+            exit 1
+          fi
+          echo "${expected}  ${dl}/${asset}" | sha256sum --check --strict
+          tar -xzf "${dl}/${asset}" -C "${RUNNER_TEMP}/gitleaks-bin" gitleaks
+          "${RUNNER_TEMP}/gitleaks-bin/gitleaks" version
+
+      # --redact hides the secret itself, so a finding never prints a live key
+      # into the build log. The exit code is non-zero if anything is found.
+      - name: Scan the repository history
+        run: >-
+          "${RUNNER_TEMP}/gitleaks-bin/gitleaks" git
+          --config .gitleaks.toml
+          --redact
+          --no-banner
+          --verbose
+          .
+
+  audit:
+    name: Dependency audit (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Report only. It reads package-lock.json, so no install is needed.
+      # continue-on-error keeps a finding from turning the run red while the
+      # known library weaknesses wait for their version bumps. The result is
+      # written to the job summary so it is visible without opening the log.
+      - name: npm audit (production dependencies, report only)
+        continue-on-error: true
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high > "${RUNNER_TEMP}/audit.txt" 2>&1
+          status=$?
+          set -e
+          cat "${RUNNER_TEMP}/audit.txt"
+          {
+            echo "## npm audit (production dependencies, report only)"
+            echo ""
+            if [ "${status}" -eq 0 ]; then
+              echo "No high or critical weaknesses found."
+            else
+              echo "High or critical weaknesses found. This does not block the merge."
+              echo ""
+              echo '```'
+              grep -E '^[0-9]+ vulnerabilit' "${RUNNER_TEMP}/audit.txt" || true
+              echo '```'
+              echo ""
+              echo "The full list is in the log of this step."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${status}" -ne 0 ]; then
+            echo "::warning title=npm audit::High or critical weaknesses found in production dependencies. See the job summary."
+          fi
+          exit "${status}"
