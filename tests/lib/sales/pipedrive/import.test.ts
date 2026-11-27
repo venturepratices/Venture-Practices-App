@@ -180,9 +180,10 @@ describe("a practice run (DRY_RUN)", () => {
       "stages.seen": 3,
       "stages.unchanged": 2,
       "stages.created": 1,
+      // Color needs a deal field and a lead field; Target Start Date matches a deal field but needs a lead field.
       "customFields.seen": 2,
-      "customFields.unchanged": 1,
-      "customFields.created": 1,
+      "customFields.created": 2,
+      "customFields.leadCreated": 2,
       "organizations.seen": 2,
       "organizations.created": 2,
       "persons.created": 1,
@@ -196,6 +197,11 @@ describe("a practice run (DRY_RUN)", () => {
     const messages = issuesOf(runId).map((i) => i.message);
     expect(messages).toContain('The Pipedrive stage "Waiting On Client" in Direct Mail has no match in the app, so it would be created.');
     expect(messages).toContain('The Pipedrive deal field "Color" has no match in the app, so it would be created.');
+    expect(messages).toContain('The Pipedrive field "Color" has no lead field in the app, so a lead field would be created for its values on leads.');
+    expect(messages).toContain(
+      'The Pipedrive field "Target Start Date" has no lead field in the app, so a lead field would be created for its values on leads.',
+    );
+    expect(store.salesCustomField).toHaveLength(1);
     expect(messages).toContain("The owner in Pipedrive matches no team member, so the person who started the import owns it.");
     expect(runRow(runId)).toMatchObject({ status: "DONE", finishedAt: clock.now });
   });
@@ -278,6 +284,65 @@ describe("a real run (LIVE)", () => {
       ]),
     );
     expect(values).toHaveLength(2);
+  });
+
+  it("makes a lead field for a Pipedrive field the app only has as a deal field, and copies the lead's value into it", async () => {
+    const lists = pipedrive({
+      "/v1/leads": [
+        [{ id: "uuid-1", title: "Oak lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z", [START_KEY]: "2026-12-05", [COLOR_KEY]: 2 }],
+      ],
+    });
+    const runId = await startRun();
+    const { result } = await runToEnd(runId, lists);
+
+    const start = store.salesCustomField.find((f) => f.label === "Target Start Date" && f.entity === "LEAD")!;
+    const color = store.salesCustomField.find((f) => f.label === "Color" && f.entity === "LEAD")!;
+    // The deal field already holds the plain key, so the lead twin gets its own.
+    expect(start).toMatchObject({ key: "target-start-date-lead", fieldType: "DATE", options: [], archivedAt: null });
+    expect(color).toMatchObject({ key: "color-lead", fieldType: "SELECT", options: ["Red", "Blue"], archivedAt: null });
+    expect(store.salesCustomField.filter((f) => f.entity === "DEAL").map((f) => f.key)).toEqual(["target-start-date", "color"]);
+
+    const lead = store.salesLead[0];
+    expect(store.salesCustomFieldValue.filter((v) => v.leadId === lead.id).map((v) => [v.fieldId, v.value]).sort()).toEqual(
+      [
+        [start.id, "2026-12-05"],
+        [color.id, "Blue"],
+      ].sort(),
+    );
+    expect(issuesOf(runId).filter((i) => i.message.includes("values on leads were not copied"))).toEqual([]);
+    expect(result.counts).toMatchObject({ "customFields.leadCreated": 2, "leads.created": 1 });
+
+    // Run again: the lead fields are found by name, so nothing is made and nothing changes.
+    clock.now = new Date("2026-11-12T16:00:00.000Z");
+    vi.setSystemTime(clock.now);
+    const second = await startRun();
+    writes.length = 0;
+    const again = await runToEnd(second, lists);
+    expect(salesWrites().filter((w) => w.table !== "salesAuditLog")).toEqual([]);
+    // The seeded deal field, plus Color (deal), Target Start Date (lead) and Color (lead).
+    expect(store.salesCustomField).toHaveLength(4);
+    expect(again.result.counts).toMatchObject({ "customFields.unchanged": 2, "leads.unchanged": 1 });
+    expect(again.result.counts["customFields.created"]).toBeUndefined();
+    expect(again.result.counts["customFields.leadCreated"]).toBeUndefined();
+  });
+
+  it("in a practice run, reports the lead field it would make and does not call the lead's value lost", async () => {
+    const lists = pipedrive({
+      "/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z", [START_KEY]: "2026-12-05" }]],
+    });
+    const runId = await startRun("DRY_RUN");
+    writes.length = 0;
+    const { result } = await runToEnd(runId, lists);
+
+    expect(salesWrites()).toEqual([]);
+    expect(store.salesCustomField).toHaveLength(1);
+    expect(store.salesLead).toHaveLength(0);
+    expect(result.counts).toMatchObject({ "leads.created": 1, "customFields.leadCreated": 2 });
+    const messages = issuesOf(runId).map((i) => i.message);
+    expect(messages).toContain(
+      'The Pipedrive field "Target Start Date" has no lead field in the app, so a lead field would be created for its values on leads.',
+    );
+    expect(messages.filter((m) => m.includes("values on leads were not copied"))).toEqual([]);
   });
 
   it("imports a done activity with no done time, moves an organization-only one to its first person, and skips one on an organization with no people", async () => {

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createIssueLog, emptyContext, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
 
-import { db, fakeClient, resetDb, salesWrites, seed, store } from "./import-fakes";
+import { db, fakeClient, resetDb, salesWrites, seed, store, writes } from "./import-fakes";
 
 // The users and structure steps, called directly with a hand-built run state.
 
@@ -121,15 +121,98 @@ describe("runStructurePhase", () => {
     const w = work(structure);
     await runStructurePhase(w);
 
-    const services = store.salesCustomField.find((f) => f.label === "Services")!;
+    const services = store.salesCustomField.find((f) => f.label === "Services" && f.entity === "DEAL")!;
     expect(services).toMatchObject({ key: "services", entity: "DEAL", fieldType: "TEXT", options: [], position: 5 });
+    const servicesLead = store.salesCustomField.find((f) => f.label === "Services" && f.entity === "LEAD")!;
+    expect(servicesLead).toMatchObject({ key: "services-lead", fieldType: "TEXT", options: [], position: 6, archivedAt: null });
     const zip = store.salesCustomField.find((f) => f.label === "Practice ZIP" && f.entity === "DEAL")!;
-    expect(zip.key).toBe("practice-zip-2");
+    expect(zip).toMatchObject({ key: "practice-zip-2", position: 7 });
     expect(w.cursor.context.fields).toEqual({
-      [FIELD_KEY]: { name: "Services", options: { "5": "Mail", "6": "Web" }, dealFieldId: services.id, leadFieldId: null },
+      [FIELD_KEY]: { name: "Services", options: { "5": "Mail", "6": "Web" }, dealFieldId: services.id, leadFieldId: servicesLead.id },
       [LEAD_ONLY_KEY]: { name: "Practice ZIP", options: null, dealFieldId: zip.id, leadFieldId: "f-zip" },
     });
-    expect(w.counts).toMatchObject({ "customFields.seen": 2, "customFields.created": 2 });
+    expect(w.counts).toMatchObject({ "customFields.seen": 2, "customFields.created": 2, "customFields.leadCreated": 1 });
+  });
+
+  it("creates a lead field for a Pipedrive field that has no lead match, with the same label, type, choices and a key of its own", async () => {
+    const w = work({
+      "/v1/dealFields": [
+        [
+          { key: FIELD_KEY, name: "Practice Address", field_type: "varchar" },
+          { key: LEAD_ONLY_KEY, name: "How would you like to start?", field_type: "enum", options: [{ id: 1, label: "Trial" }, { id: 2, label: "Full" }] },
+          { key: "e".repeat(40), name: "Budget", field_type: "double" },
+        ],
+      ],
+    });
+    await runStructurePhase(w);
+
+    const leads = store.salesCustomField.filter((f) => f.entity === "LEAD" && f.id !== "f-zip");
+    expect(leads.map((f) => [f.label, f.key, f.fieldType, f.options, f.pipelineKeys])).toEqual([
+      ["Practice Address", "practice-address-lead", "TEXT", [], []],
+      ["How would you like to start?", "how-would-you-like-to-start-lead", "SELECT", ["Trial", "Full"], []],
+      ["Budget", "budget-lead", "NUMBER", [], []],
+    ]);
+    // Each lead field sits after its deal twin, and no key is used twice.
+    const all = store.salesCustomField;
+    expect(new Set(all.map((f) => f.key)).size).toBe(all.length);
+    expect(new Set(all.map((f) => f.position)).size).toBe(all.length);
+    const address = leads[0];
+    expect(w.cursor.context.fields[FIELD_KEY]).toMatchObject({ leadFieldId: address.id });
+    expect(w.cursor.context.fields[FIELD_KEY].leadFieldPlanned).toBeUndefined();
+    expect(w.counts).toMatchObject({ "customFields.seen": 3, "customFields.created": 3, "customFields.leadCreated": 3 });
+    expect(w.issues.groups.map((g) => g.message)).toContain(
+      'The Pipedrive field "Practice Address" has no lead field in the app, so a lead field was created for its values on leads.',
+    );
+  });
+
+  it("creates only the lead field when the deal field is already there, and nothing when both match by name", async () => {
+    seed(
+      "salesCustomField",
+      { id: "d-addr", key: "practice-address", label: "Practice Address", entity: "DEAL", fieldType: "TEXT", options: [], pipelineKeys: [], position: 5 },
+      { id: "d-src", key: "source", label: "Source", entity: "DEAL", fieldType: "TEXT", options: [], pipelineKeys: [], position: 6 },
+      // Matches by name, not by spelling or capitals.
+      { id: "l-src", key: "source-lead", label: "SOURCE", entity: "LEAD", fieldType: "TEXT", options: [], pipelineKeys: [], position: 7 },
+    );
+    const w = work({
+      "/v1/dealFields": [
+        [
+          { key: FIELD_KEY, name: "Practice Address", field_type: "varchar" },
+          { key: LEAD_ONLY_KEY, name: "Source", field_type: "varchar" },
+        ],
+      ],
+    });
+    await runStructurePhase(w);
+
+    expect(store.salesCustomField.filter((f) => f.entity === "DEAL")).toHaveLength(2);
+    const leadRows = store.salesCustomField.filter((f) => f.entity === "LEAD");
+    expect(leadRows.map((f) => f.id)).toEqual(expect.arrayContaining(["f-zip", "l-src"]));
+    expect(leadRows).toHaveLength(3);
+    const address = leadRows.find((f) => f.label === "Practice Address")!;
+    expect(address.key).toBe("practice-address-lead");
+    expect(w.cursor.context.fields[FIELD_KEY]).toMatchObject({ dealFieldId: "d-addr", leadFieldId: address.id });
+    expect(w.cursor.context.fields[LEAD_ONLY_KEY]).toMatchObject({ dealFieldId: "d-src", leadFieldId: "l-src" });
+    expect(w.counts).toMatchObject({ "customFields.seen": 2, "customFields.created": 1, "customFields.leadCreated": 1, "customFields.unchanged": 1 });
+    // The deal side was not touched and says nothing.
+    expect(w.issues.groups.map((g) => g.message).filter((m) => m.includes("deal field"))).toEqual([]);
+  });
+
+  it("creates no field at all when every Pipedrive field already has a deal field and a lead field", async () => {
+    seed(
+      "salesCustomField",
+      { id: "d-svc", key: "services", label: "Services", entity: "DEAL", fieldType: "TEXT", options: [], pipelineKeys: [], position: 5 },
+      { id: "l-svc", key: "services-lead", label: "Services", entity: "LEAD", fieldType: "TEXT", options: [], pipelineKeys: [], position: 6 },
+    );
+    const w = work({ "/v1/dealFields": [[{ key: FIELD_KEY, name: "Services", field_type: "varchar" }]] });
+    const before = store.salesCustomField.length;
+    writes.length = 0;
+
+    await runStructurePhase(w);
+
+    expect(store.salesCustomField).toHaveLength(before);
+    expect(salesWrites()).toEqual([]);
+    expect(w.counts).toEqual({ "customFields.seen": 1, "customFields.unchanged": 1 });
+    expect(w.issues.groups).toEqual([]);
+    expect(w.cursor.context.fields[FIELD_KEY]).toEqual({ name: "Services", options: null, dealFieldId: "d-svc", leadFieldId: "l-svc" });
   });
 
   it("in a practice run, writes nothing and reports what would be created", async () => {
@@ -143,6 +226,26 @@ describe("runStructurePhase", () => {
     expect(w.issues.groups.map((g) => g.message)).toContain(
       'The Pipedrive stage "Agreed" in Referrals has no match in the app, so it would be created.',
     );
+  });
+
+  it("in a practice run, reports the lead field it would create, writes no field, and marks it as coming", async () => {
+    const w = work(structure, false);
+    const before = store.salesCustomField.length;
+    await runStructurePhase(w);
+
+    expect(store.salesCustomField).toHaveLength(before);
+    expect(salesWrites()).toEqual([]);
+    expect(w.issues.groups.map((g) => g.message)).toEqual(
+      expect.arrayContaining([
+        'The Pipedrive deal field "Services" has no match in the app, so it would be created.',
+        'The Pipedrive field "Services" has no lead field in the app, so a lead field would be created for its values on leads.',
+      ]),
+    );
+    // Services will get a lead field; Practice ZIP already has one.
+    expect(w.cursor.context.fields[FIELD_KEY]).toMatchObject({ dealFieldId: null, leadFieldId: null, leadFieldPlanned: true });
+    expect(w.cursor.context.fields[LEAD_ONLY_KEY]).toMatchObject({ leadFieldId: "f-zip" });
+    expect(w.cursor.context.fields[LEAD_ONLY_KEY].leadFieldPlanned).toBeUndefined();
+    expect(w.counts).toMatchObject({ "customFields.created": 2, "customFields.leadCreated": 1 });
   });
 
   it("matches a second Pipedrive pipeline, stage or field of the same name to the row it just created", async () => {
@@ -174,8 +277,12 @@ describe("runStructurePhase", () => {
     expect(store.salesPipeline).toHaveLength(3);
     expect(store.salesStage.filter((s) => s.pipelineId === created[0].id)).toHaveLength(1);
     expect(w.cursor.context.stages["40"]).toEqual(w.cursor.context.stages["20"]);
-    expect(store.salesCustomField.filter((f) => f.label === "Services" || f.label === "services")).toHaveLength(1);
+    // One deal field and one lead field are shared by both Pipedrive fields.
+    const shared = store.salesCustomField.filter((f) => f.label === "Services" || f.label === "services");
+    expect(shared.map((f) => f.entity).sort()).toEqual(["DEAL", "LEAD"]);
     expect(w.cursor.context.fields[LEAD_ONLY_KEY].dealFieldId).toBe(w.cursor.context.fields[FIELD_KEY].dealFieldId);
+    expect(w.cursor.context.fields[LEAD_ONLY_KEY].leadFieldId).toBe(w.cursor.context.fields[FIELD_KEY].leadFieldId);
+    expect(w.cursor.context.fields[FIELD_KEY].leadFieldId).not.toBeNull();
     expect(w.counts).toMatchObject({ "pipelines.created": 1, "pipelines.unchanged": 1, "customFields.created": 1, "customFields.unchanged": 1 });
   });
 
@@ -188,6 +295,11 @@ describe("runStructurePhase", () => {
 
     expect({ pipelines: store.salesPipeline.length, stages: store.salesStage.length, fields: store.salesCustomField.length }).toEqual(before);
     expect(again.counts).toMatchObject({ "pipelines.unchanged": 2, "stages.unchanged": 3, "customFields.unchanged": 2 });
+    // The lead field made the first time is found by name now, so nothing is made again.
+    expect(again.counts["customFields.created"]).toBeUndefined();
+    expect(again.counts["customFields.leadCreated"]).toBeUndefined();
+    const servicesLead = store.salesCustomField.find((f) => f.label === "Services" && f.entity === "LEAD")!;
+    expect(again.cursor.context.fields[FIELD_KEY].leadFieldId).toBe(servicesLead.id);
   });
 });
 

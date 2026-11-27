@@ -411,7 +411,7 @@ function customValues(
       log.issues.push({ pipedriveId, exact: false, message: "A value in a Pipedrive field that is no longer in use was not copied." });
       continue;
     }
-    if (kind === "lead" && field.leadFieldId === null) {
+    if (kind === "lead" && field.leadFieldId === null && !field.leadFieldPlanned) {
       log.issues.push({
         pipedriveId,
         exact: true,
