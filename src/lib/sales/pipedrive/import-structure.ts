@@ -4,7 +4,9 @@
 // ones the app does not have (a practice run only reports them), and keeps the
 // result in the run's cursor so the later steps can use it. A Pipedrive custom
 // field is shared by its deals and its leads, so each one is matched twice, to
-// a deal field and to a lead field, and whichever is missing is created. Both steps are
+// a deal field (created when missing) and to a lead field (found when it
+// matches by name; created only for the few fields in LEAD_FIELD_TO_CREATE).
+// Both steps are
 // small, so each runs in one go: every list is read before anything is written,
 // so a rate limit mid-step leaves nothing half done.
 
@@ -28,6 +30,22 @@ import { kebab } from "@/lib/sales/seed-data";
 const SMALL_LIST_LIMIT = 500;
 /** A custom field key in Pipedrive is 40 hex characters; built-in fields have plain names. */
 const CUSTOM_FIELD_KEY = /^[0-9a-f]{40}$/;
+
+/**
+ * The Pipedrive fields that get a LEAD field made for them when the app has
+ * none. This is the one-time import: these four are the only fields the team
+ * lost lead values for, and the app has no screen to archive a field, so a lead
+ * field made for any other would stay on every lead panel, empty, for good. Any
+ * other field still links to a lead field that already matches it by name.
+ * Compared by `nameKey`, so capitals, spaces and punctuation do not matter.
+ */
+const LEAD_FIELD_NAMES = ["Practice Address", "Source", "Target Start Date", "How would you like to start?"] as const;
+const LEAD_FIELD_TO_CREATE: ReadonlySet<string> = new Set(
+  LEAD_FIELD_NAMES.flatMap((name) => {
+    const key = nameKey(name);
+    return key === null ? [] : [key];
+  }),
+);
 
 /** Every row of a list, all pages. */
 export async function readAll<T>(client: PipedriveClient, path: string, opts: PagesOptions = {}): Promise<T[]> {
@@ -248,7 +266,7 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
         if (key !== null) pendingDeal.set(key, create);
       }
     }
-    if (!lead) {
+    if (!lead && key !== null && LEAD_FIELD_TO_CREATE.has(key)) {
       // A practice run makes nothing, so the rows step is told the lead field is coming and does not call its values lost.
       if (!work.live) link.leadFieldPlanned = true;
       const twin = key === null ? undefined : pendingLead.get(key);

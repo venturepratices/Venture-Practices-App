@@ -180,10 +180,10 @@ describe("a practice run (DRY_RUN)", () => {
       "stages.seen": 3,
       "stages.unchanged": 2,
       "stages.created": 1,
-      // Color needs a deal field and a lead field; Target Start Date matches a deal field but needs a lead field.
+      // Color needs a deal field only; Target Start Date matches a deal field but is one of the four that needs a lead field.
       "customFields.seen": 2,
       "customFields.created": 2,
-      "customFields.leadCreated": 2,
+      "customFields.leadCreated": 1,
       "organizations.seen": 2,
       "organizations.created": 2,
       "persons.created": 1,
@@ -197,7 +197,7 @@ describe("a practice run (DRY_RUN)", () => {
     const messages = issuesOf(runId).map((i) => i.message);
     expect(messages).toContain('The Pipedrive stage "Waiting On Client" in Direct Mail has no match in the app, so it would be created.');
     expect(messages).toContain('The Pipedrive deal field "Color" has no match in the app, so it would be created.');
-    expect(messages).toContain('The Pipedrive field "Color" has no lead field in the app, so a lead field would be created for its values on leads.');
+    expect(messages.filter((m) => m.includes('"Color" has no lead field'))).toEqual([]);
     expect(messages).toContain(
       'The Pipedrive field "Target Start Date" has no lead field in the app, so a lead field would be created for its values on leads.',
     );
@@ -296,21 +296,23 @@ describe("a real run (LIVE)", () => {
     const { result } = await runToEnd(runId, lists);
 
     const start = store.salesCustomField.find((f) => f.label === "Target Start Date" && f.entity === "LEAD")!;
-    const color = store.salesCustomField.find((f) => f.label === "Color" && f.entity === "LEAD")!;
     // The deal field already holds the plain key, so the lead twin gets its own.
     expect(start).toMatchObject({ key: "target-start-date-lead", fieldType: "DATE", options: [], archivedAt: null });
-    expect(color).toMatchObject({ key: "color-lead", fieldType: "SELECT", options: ["Red", "Blue"], archivedAt: null });
+    // Color is not one of the four fields that get a lead field, so it gets a deal field only.
+    expect(store.salesCustomField.filter((f) => f.label === "Color" && f.entity === "LEAD")).toEqual([]);
     expect(store.salesCustomField.filter((f) => f.entity === "DEAL").map((f) => f.key)).toEqual(["target-start-date", "color"]);
 
     const lead = store.salesLead[0];
-    expect(store.salesCustomFieldValue.filter((v) => v.leadId === lead.id).map((v) => [v.fieldId, v.value]).sort()).toEqual(
-      [
-        [start.id, "2026-12-05"],
-        [color.id, "Blue"],
-      ].sort(),
-    );
-    expect(issuesOf(runId).filter((i) => i.message.includes("values on leads were not copied"))).toEqual([]);
-    expect(result.counts).toMatchObject({ "customFields.leadCreated": 2, "leads.created": 1 });
+    expect(store.salesCustomFieldValue.filter((v) => v.leadId === lead.id).map((v) => [v.fieldId, v.value])).toEqual([[start.id, "2026-12-05"]]);
+    expect(issuesOf(runId).filter((i) => i.message.includes("values on leads were not copied"))).toEqual([
+      {
+        phase: "leads",
+        message: 'The Pipedrive field "Color" has no lead field in the app, so its values on leads were not copied.',
+        count: 1,
+        sampleIds: ["uuid-1"],
+      },
+    ]);
+    expect(result.counts).toMatchObject({ "customFields.leadCreated": 1, "leads.created": 1 });
 
     // Run again: the lead fields are found by name, so nothing is made and nothing changes.
     clock.now = new Date("2026-11-12T16:00:00.000Z");
@@ -319,8 +321,8 @@ describe("a real run (LIVE)", () => {
     writes.length = 0;
     const again = await runToEnd(second, lists);
     expect(salesWrites().filter((w) => w.table !== "salesAuditLog")).toEqual([]);
-    // The seeded deal field, plus Color (deal), Target Start Date (lead) and Color (lead).
-    expect(store.salesCustomField).toHaveLength(4);
+    // The seeded deal field, plus Color (deal) and Target Start Date (lead).
+    expect(store.salesCustomField).toHaveLength(3);
     expect(again.result.counts).toMatchObject({ "customFields.unchanged": 2, "leads.unchanged": 1 });
     expect(again.result.counts["customFields.created"]).toBeUndefined();
     expect(again.result.counts["customFields.leadCreated"]).toBeUndefined();
@@ -337,7 +339,7 @@ describe("a real run (LIVE)", () => {
     expect(salesWrites()).toEqual([]);
     expect(store.salesCustomField).toHaveLength(1);
     expect(store.salesLead).toHaveLength(0);
-    expect(result.counts).toMatchObject({ "leads.created": 1, "customFields.leadCreated": 2 });
+    expect(result.counts).toMatchObject({ "leads.created": 1, "customFields.leadCreated": 1 });
     const messages = issuesOf(runId).map((i) => i.message);
     expect(messages).toContain(
       'The Pipedrive field "Target Start Date" has no lead field in the app, so a lead field would be created for its values on leads.',
