@@ -5,15 +5,22 @@
 // Callers pass the full path from the host root, so one client serves both API
 // versions: "/api/v2/deals" for deals, people, organizations, activities,
 // pipelines and stages (v2 uses a cursor: send `cursor`, read
-// `additional_data.next_cursor`, null on the last page), and "/api/v1/notes" for
+// `additional_data.next_cursor`, null on the last page), and "/v1/notes" for
 // notes, files, leads, deal fields, users and activity types (v1 uses an offset:
 // send `start`, read `additional_data.pagination.next_start` while
 // `more_items_in_collection` is true). Pipedrive's default page is 100 rows and
 // the most it allows is 500 (100 for the files list); no `limit` means its default.
 //
+// The two path forms are the ones Pipedrive's own OpenAPI files give for this
+// host: the v1 file's server is https://api.pipedrive.com/v1 and the v2 file's is
+// https://api.pipedrive.com/api/v2. ("/v1/..." is the form for a company's own
+// subdomain, not for api.pipedrive.com.)
+//
 // The token goes in the `x-api-token` header and nowhere else. It is never in a
-// URL, and an error never carries a URL, a query string or the token, so a log
-// line or a screen that shows one cannot leak it.
+// URL. An error never carries a URL, a query string or the token, so a log line
+// or a screen that shows one cannot leak it. It does name the request's path
+// (for example "/v1/leads"), which holds no secret, so a stop on one list out of
+// many can be told apart from a stop on another.
 
 const DEFAULT_BASE_URL = "https://api.pipedrive.com";
 
@@ -91,7 +98,7 @@ export type PipedriveClient = {
     path: string,
     opts?: PagesOptions & { resumeAt?: PageToken },
   ): AsyncGenerator<{ items: T[]; resumeAt: PageToken | null }, void, void>;
-  /** The raw bytes of a file, from "/api/v1/files/{id}/download". */
+  /** The raw bytes of a file, from "/v1/files/{id}/download". */
   download(path: string): Promise<{ bytes: Uint8Array; contentType: string }>;
 };
 
@@ -160,7 +167,7 @@ export function createPipedriveClient(opts: {
 
       const status = res ? res.status : 0;
       const retryable = status === 0 || status === 429 || status >= 500;
-      if (!retryable || attempt >= MAX_RETRIES) throw await failure(status, res, token, withToken);
+      if (!retryable || attempt >= MAX_RETRIES) throw await failure(status, res, token, withToken, url);
 
       // Let go of the unread reply so its connection is freed; no need to wait for it.
       void res?.body?.cancel().catch(() => {});
@@ -347,27 +354,39 @@ function waitMs(res: Response | null, attempt: number): number {
 }
 
 /**
- * The error for a failed call. The message is the status, a fixed plain-words
- * reason, and Pipedrive's own `error` text if it sent a short one. That text is
- * scrubbed of the token and of the words "api_token" first, in case Pipedrive
- * ever echoes what it was sent. The request URL is never part of it. A failure
- * from the file host (the far side of a download redirect) says so, and passes
- * on none of its words, so nobody goes hunting for a Pipedrive token problem
- * when a signed download link expired.
+ * The error for a failed call. The message is the status, the request's path on
+ * Pipedrive ("/v1/leads", never the host or the query string), a fixed
+ * plain-words reason, and Pipedrive's own `error` text if it sent a short one.
+ * That text is scrubbed of the token and of the words "api_token" first, in case
+ * Pipedrive ever echoes what it was sent. The full request URL is never part of
+ * it. A failure from the file host (the far side of a download redirect) says so,
+ * names no path (a signed link's path can be a secret) and passes on none of its
+ * words, so nobody goes hunting for a Pipedrive token problem when a signed
+ * download link expired.
  */
 async function failure(
   status: number,
   res: Response | null,
   token: string,
   onPipedrive: boolean,
+  url: URL,
 ): Promise<PipedriveError> {
   const reason = res && onPipedrive ? await readReason(res, token) : null;
   const where = status === 0 ? "no reply" : `HTTP ${status}`;
   const said = reason === null ? "" : ` Pipedrive said: "${reason}"`;
+  const on = onPipedrive ? ` for ${requestPath(url, token)}` : "";
   return new PipedriveError(
     status,
-    `${onPipedrive ? PREFIX : FILE_HOST_PREFIX} (${where}): ${plainReason(status, onPipedrive)}.${said}`,
+    `${onPipedrive ? PREFIX : FILE_HOST_PREFIX} (${where})${on}: ${plainReason(status, onPipedrive)}.${said}`,
   );
+}
+
+/** The path of a Pipedrive request, safe to show: no host, no query, no token, and not long. */
+function requestPath(url: URL, token: string): string {
+  return url.pathname
+    .replaceAll(token, "[redacted]")
+    .replace(/api[_-]?token/gi, "[redacted]")
+    .slice(0, MAX_REASON_CHARS);
 }
 
 /** A redirect that cannot be followed, worded for whichever side sent it. */

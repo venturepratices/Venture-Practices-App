@@ -191,11 +191,11 @@ describe("offset pages (API v1)", () => {
       }),
     ]);
 
-    const pages = await collect(client.pages<{ id: number }>("/api/v1/notes", { style: "offset", limit: 2 }));
+    const pages = await collect(client.pages<{ id: number }>("/v1/notes", { style: "offset", limit: 2 }));
 
     expect(pages).toEqual([[{ id: 1 }, { id: 2 }], [{ id: 3 }]]);
     expect(calls).toHaveLength(2);
-    expect(new URL(calls[0].url).pathname).toBe("/api/v1/notes");
+    expect(new URL(calls[0].url).pathname).toBe("/v1/notes");
     expect(paramsOf(calls[0]).get("start")).toBe("0");
     expect(paramsOf(calls[0]).get("limit")).toBe("2");
     expect(paramsOf(calls[1]).get("start")).toBe("2");
@@ -204,7 +204,7 @@ describe("offset pages (API v1)", () => {
   it("stops when the pagination block is missing", async () => {
     const { client, calls } = makeClient([json({ success: true, data: [{ id: 1 }] })]);
 
-    expect(await collect(client.pages("/api/v1/users", { style: "offset" }))).toEqual([[{ id: 1 }]]);
+    expect(await collect(client.pages("/v1/users", { style: "offset" }))).toEqual([[{ id: 1 }]]);
     expect(calls).toHaveLength(1);
   });
 
@@ -222,7 +222,7 @@ describe("offset pages (API v1)", () => {
         json({ success: true, data: [{ id: 1 }], additional_data: { pagination } }),
       ]);
 
-      const failure = await collect(client.pages("/api/v1/leads", { style: "offset" })).catch((e: unknown) => e);
+      const failure = await collect(client.pages("/v1/leads", { style: "offset" })).catch((e: unknown) => e);
 
       expect(failure).toBeInstanceOf(PipedriveError);
       expect((failure as PipedriveError).status).toBe(200);
@@ -323,7 +323,7 @@ describe("retries", () => {
     await collect(client.pages("/api/v2/deals"));
 
     const dl = makeClient([new Response(new Uint8Array([1]), { status: 200 })]);
-    await dl.client.download("/api/v1/files/9/download");
+    await dl.client.download("/v1/files/9/download");
 
     for (const call of [...calls, ...dl.calls]) {
       expect(call.init.signal).toBeInstanceOf(AbortSignal);
@@ -370,10 +370,10 @@ describe("read-only by construction", () => {
     await collect(cursor.client.pages("/api/v2/deals"));
 
     const offset = makeClient([json({ success: true, data: [{ id: 1 }] })]);
-    await collect(offset.client.pages("/api/v1/notes", { style: "offset" }));
+    await collect(offset.client.pages("/v1/notes", { style: "offset" }));
 
     const download = makeClient([new Response(new Uint8Array([1, 2, 3]), { status: 200 })]);
-    await download.client.download("/api/v1/files/9/download");
+    await download.client.download("/v1/files/9/download");
 
     const retried = makeClient([json({}, 503), json({ success: true, data: [], additional_data: {} })]);
     await collect(retried.client.pages("/api/v2/deals"));
@@ -396,7 +396,7 @@ describe("offset lists that send no pagination block (Pipedrive leads)", () => {
   async function batchesOf(steps: Step[], limit?: number) {
     const { client, calls } = makeClient(steps);
     const out: { items: unknown[]; resumeAt: unknown }[] = [];
-    for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit })) out.push(batch);
+    for await (const batch of client.pageBatches("/v1/leads", { style: "offset", limit })) out.push(batch);
     return { out, starts: calls.map((c) => paramsOf(c).get("start")) };
   }
 
@@ -441,7 +441,7 @@ describe("offset lists that send no pagination block (Pipedrive leads)", () => {
   it("stops with an error when the same full page comes back again and again", async () => {
     const { client, calls } = makeClient([json({ success: true, data: [{ id: 1 }, { id: 2 }] })]);
     const failure = await (async () => {
-      for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit: 2 })) void batch;
+      for await (const batch of client.pageBatches("/v1/leads", { style: "offset", limit: 2 })) void batch;
     })().catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).message).toContain("sent the same page twice");
@@ -452,7 +452,7 @@ describe("offset lists that send no pagination block (Pipedrive leads)", () => {
     let n = 0;
     const { client } = makeClient([() => json({ success: true, data: [{ id: ++n }, { id: ++n }] })]);
     const failure = await (async () => {
-      for await (const batch of client.pageBatches("/api/v1/leads", { style: "offset", limit: 2, maxPages: 5 })) void batch;
+      for await (const batch of client.pageBatches("/v1/leads", { style: "offset", limit: 2, maxPages: 5 })) void batch;
     })().catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).message).toContain("more pages than any real list");
@@ -510,7 +510,7 @@ describe("pageBatches (resumable pages)", () => {
     ]);
 
     const batches = await collectBatches(
-      client.pageBatches("/api/v1/notes", { style: "offset", limit: 1, resumeAt: { start: 2 } }),
+      client.pageBatches("/v1/notes", { style: "offset", limit: 1, resumeAt: { start: 2 } }),
     );
 
     expect(batches).toEqual([
@@ -526,7 +526,7 @@ describe("pageBatches (resumable pages)", () => {
       json({ success: true, data: [{ id: 3 }], additional_data: { pagination: { more_items_in_collection: true, next_start: 2 } } }),
     ]);
 
-    const failure = await collectBatches(client.pageBatches("/api/v1/notes", { style: "offset", resumeAt: { start: 2 } })).catch(
+    const failure = await collectBatches(client.pageBatches("/v1/notes", { style: "offset", resumeAt: { start: 2 } })).catch(
       (e: unknown) => e,
     );
 
@@ -550,7 +550,7 @@ describe("pageBatches (resumable pages)", () => {
 
   it("refuses a bad saved place as a PipedriveError, so the import can close the run", async () => {
     const { client } = makeClient([json({ success: true, data: [] })]);
-    const failure = await collectBatches(client.pageBatches("/api/v1/leads", { style: "offset", resumeAt: { cursor: "c1" } })).catch(
+    const failure = await collectBatches(client.pageBatches("/v1/leads", { style: "offset", resumeAt: { cursor: "c1" } })).catch(
       (e: unknown) => e,
     );
     expect(failure).toBeInstanceOf(PipedriveError);
@@ -577,7 +577,7 @@ describe("the token", () => {
     await collect(client.pages("/api/v2/deals", { params: { status: "open" } }));
 
     const dl = makeClient([new Response(new Uint8Array([1]), { status: 200 })]);
-    await dl.client.download("/api/v1/files/9/download");
+    await dl.client.download("/v1/files/9/download");
 
     for (const call of [...calls, ...dl.calls]) {
       expect(new Headers(call.init.headers).get("x-api-token")).toBe(TOKEN);
@@ -636,6 +636,60 @@ describe("the token", () => {
     expect((failure as PipedriveError).message).not.toContain("<html>");
   });
 
+  it("names the path of the request that failed, so a stop on one list can be told from another", async () => {
+    // Real case: a 404 "Unknown method ." on the leads list that the old message
+    // could not place, so nobody could tell which of a dozen lists had stopped.
+    const { client } = makeClient([json({ success: false, error: "Unknown method ." }, 404)]);
+
+    const failure = await collect(client.pages("/v1/leads", { style: "offset", limit: 100 })).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(PipedriveError);
+    expect((failure as PipedriveError).status).toBe(404);
+    expect((failure as PipedriveError).message).toBe(
+      'Pipedrive request failed (HTTP 404) for /v1/leads: not found in Pipedrive. Pipedrive said: "Unknown method ."',
+    );
+  });
+
+  it("names the path for a dropped connection too, and for a v2 list", async () => {
+    const down = makeClient([new TypeError("fetch failed")]);
+    const failure = await collect(down.client.pages("/api/v2/deals")).catch((e: unknown) => e);
+    expect((failure as PipedriveError).status).toBe(0);
+    expect((failure as PipedriveError).message).toBe(
+      "Pipedrive request failed (no reply) for /api/v2/deals: could not reach Pipedrive.",
+    );
+  });
+
+  it("shows the path only: no host, no query string, no token, even when the caller put them in the path", async () => {
+    const { client } = makeClient([json({ success: false, error: "nope" }, 404)]);
+
+    const failure = await collect(
+      client.pages(`/v1/leads/archived?api_token=${TOKEN}&q=x`, { style: "offset", params: { start: 5, filter_id: 9 } }),
+    ).catch((e: unknown) => e);
+
+    const message = (failure as PipedriveError).message;
+    expect(message).toContain("for /v1/leads/archived:");
+    expect(message).not.toContain(TOKEN);
+    expect(message).not.toContain("api_token");
+    expect(message).not.toContain("pipedrive.com");
+    expect(message).not.toContain("q=x");
+    expect(message).not.toContain("filter_id");
+    expect(message).not.toContain("?");
+  });
+
+  it("names no path for a failure on the file host, where the path of a signed link can be a secret", async () => {
+    const { client } = makeClient([
+      new Response(null, { status: 302, headers: { location: "https://files.example-storage.com/signed-secret-path/abc" } }),
+      json({ error: "expired" }, 403),
+    ]);
+
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
+
+    const message = (failure as PipedriveError).message;
+    expect(message).toContain("file host");
+    expect(message).not.toContain("signed-secret-path");
+    expect(message).not.toContain("/v1/files");
+  });
+
   it("refuses a path that would send the token to another host", async () => {
     const { client, calls } = makeClient([json({ success: true, data: [], additional_data: {} })]);
 
@@ -653,11 +707,11 @@ describe("download", () => {
       new Response(new Uint8Array([37, 80, 68, 70]), { status: 200, headers: { "content-type": "application/pdf" } }),
     ]);
 
-    const file = await client.download("/api/v1/files/42/download");
+    const file = await client.download("/v1/files/42/download");
 
     expect(Array.from(file.bytes)).toEqual([37, 80, 68, 70]);
     expect(file.contentType).toBe("application/pdf");
-    expect(new URL(calls[0].url).pathname).toBe("/api/v1/files/42/download");
+    expect(new URL(calls[0].url).pathname).toBe("/v1/files/42/download");
   });
 
   it("falls back to octet-stream when Pipedrive names no type", async () => {
@@ -665,7 +719,7 @@ describe("download", () => {
     bare.headers.delete("content-type");
     const { client } = makeClient([bare]);
 
-    expect((await client.download("/api/v1/files/1/download")).contentType).toBe("application/octet-stream");
+    expect((await client.download("/v1/files/1/download")).contentType).toBe("application/octet-stream");
   });
 
   it("follows a redirect to the file store without sending the token there", async () => {
@@ -676,7 +730,7 @@ describe("download", () => {
       new Response(new Uint8Array([9]), { status: 200, headers: { "content-type": "image/png" } }),
     ]);
 
-    const file = await client.download("/api/v1/files/5/download");
+    const file = await client.download("/v1/files/5/download");
 
     expect(Array.from(file.bytes)).toEqual([9]);
     expect(file.contentType).toBe("image/png");
@@ -689,20 +743,20 @@ describe("download", () => {
 
   it("keeps the token on a redirect that stays on Pipedrive's own host", async () => {
     const { client, calls } = makeClient([
-      new Response(null, { status: 301, headers: { location: "/api/v1/files/5/download?x=1" } }),
+      new Response(null, { status: 301, headers: { location: "/v1/files/5/download?x=1" } }),
       new Response(new Uint8Array([9]), { status: 200 }),
     ]);
 
-    await client.download("/api/v1/files/5/download");
+    await client.download("/v1/files/5/download");
 
     expect(new Headers(calls[1].init.headers).get("x-api-token")).toBe(TOKEN);
   });
 
   it("gives up on a redirect loop with a clean error", async () => {
-    const loop = new Response(null, { status: 302, headers: { location: "/api/v1/files/5/download" } });
+    const loop = new Response(null, { status: 302, headers: { location: "/v1/files/5/download" } });
     const { client } = makeClient([loop]);
 
-    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).message).not.toContain(TOKEN);
@@ -711,17 +765,17 @@ describe("download", () => {
   it("throws a PipedriveError when the file is gone", async () => {
     const { client } = makeClient([json({ success: false, error: "File not found" }, 404)]);
 
-    await expect(client.download("/api/v1/files/404/download")).rejects.toMatchObject({ status: 404 });
+    await expect(client.download("/v1/files/404/download")).rejects.toMatchObject({ status: 404 });
   });
 
   it("sends the token again when a redirect through the file host comes back to Pipedrive", async () => {
     const { client, calls } = makeClient([
       new Response(null, { status: 302, headers: { location: "https://files.example-storage.com/abc" } }),
-      new Response(null, { status: 302, headers: { location: "https://api.pipedrive.com/api/v1/files/5/final" } }),
+      new Response(null, { status: 302, headers: { location: "https://api.pipedrive.com/v1/files/5/final" } }),
       new Response(new Uint8Array([7]), { status: 200 }),
     ]);
 
-    const file = await client.download("/api/v1/files/5/download");
+    const file = await client.download("/v1/files/5/download");
 
     expect(Array.from(file.bytes)).toEqual([7]);
     expect(calls).toHaveLength(3);
@@ -735,7 +789,7 @@ describe("download", () => {
       new Response(null, { status: 302, headers: { location: "http://files.example-storage.com/abc" } }),
     ]);
 
-    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).status).toBe(302);
@@ -746,7 +800,7 @@ describe("download", () => {
   it("turns a redirect with an unreadable Location into a PipedriveError, not a raw TypeError", async () => {
     const { client, calls } = makeClient([new Response(null, { status: 302, headers: { location: "http://" } })]);
 
-    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).status).toBe(302);
@@ -762,7 +816,7 @@ describe("download", () => {
       json({ error: `SignatureDoesNotMatch for ${TOKEN}` }, 403),
     ]);
 
-    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).status).toBe(403);
@@ -782,7 +836,7 @@ describe("download", () => {
       new TypeError("fetch failed"),
     ]);
 
-    const failure = await client.download("/api/v1/files/5/download").catch((e: unknown) => e);
+    const failure = await client.download("/v1/files/5/download").catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(PipedriveError);
     expect((failure as PipedriveError).status).toBe(0);

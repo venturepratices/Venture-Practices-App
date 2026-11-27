@@ -20,7 +20,7 @@ const now = () => clock.now;
 
 function pipedrive(overrides: Record<string, unknown[][]> = {}) {
   return {
-    "/api/v1/users": [
+    "/v1/users": [
       [
         { id: 1, name: "Ben", email: "ben@vp.test" },
         { id: 2, name: "Ghost", email: "ghost@elsewhere.test" },
@@ -34,7 +34,7 @@ function pipedrive(overrides: Record<string, unknown[][]> = {}) {
         { id: 12, name: "Waiting On Client", pipeline_id: 1, order_nr: 2, deal_probability: 50 },
       ],
     ],
-    "/api/v1/dealFields": [
+    "/v1/dealFields": [
       [
         { key: "title", name: "Title", field_type: "varchar" },
         { key: COLOR_KEY, name: "Color", field_type: "enum", options: [{ id: 1, label: "Red" }, { id: 2, label: "Blue" }] },
@@ -79,7 +79,7 @@ function pipedrive(overrides: Record<string, unknown[][]> = {}) {
         },
       ],
     ],
-    "/api/v1/leads": [[]],
+    "/v1/leads": [[]],
     "/api/v2/activities": [
       [
         {
@@ -98,7 +98,7 @@ function pipedrive(overrides: Record<string, unknown[][]> = {}) {
         { id: 402, subject: "Lonely", type: "task", due_date: "2025-03-06", owner_id: 1, org_id: 101, add_time: "2025-03-01T10:00:00Z" },
       ],
     ],
-    "/api/v1/notes": [[{ id: 500, content: "<p>Signed &amp; happy</p>", deal_id: 300, user_id: 1, add_time: "2025-03-01 10:00:00" }]],
+    "/v1/notes": [[{ id: 500, content: "<p>Signed &amp; happy</p>", deal_id: 300, user_id: 1, add_time: "2025-03-01 10:00:00" }]],
     ...overrides,
   };
 }
@@ -435,7 +435,7 @@ describe("continueImportRun", () => {
     const orgCalls = second.calls.filter((c) => c.path === "/api/v2/organizations");
     expect(orgCalls).toEqual([{ path: "/api/v2/organizations", resumeAt: { cursor: "p1" }, limit: 100, style: "cursor" }]);
     // Users and structure were done in the first call and are not read again.
-    expect(second.calls.map((c) => c.path)).not.toContain("/api/v1/users");
+    expect(second.calls.map((c) => c.path)).not.toContain("/v1/users");
     expect(store.salesOrganization.map((o) => o.pipedriveId)).toEqual([100, 101]);
     expect(finished.counts["organizations.seen"]).toBe(2);
   });
@@ -470,7 +470,7 @@ describe("continueImportRun", () => {
   it("marks the run failed in plain words on any other Pipedrive error", async () => {
     const runId = await startRun();
     const broken = fakeClient(pipedrive(), {
-      failOn: { "/api/v1/users": new PipedriveError(401, "Pipedrive request failed (HTTP 401): Pipedrive did not accept the API token.") },
+      failOn: { "/v1/users": new PipedriveError(401, "Pipedrive request failed (HTTP 401): Pipedrive did not accept the API token.") },
     });
 
     const result = await continueImportRun({ runId, client: broken.client, deadline: FAR, now });

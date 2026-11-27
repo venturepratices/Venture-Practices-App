@@ -44,7 +44,7 @@ const structure = {
       { id: 10, name: "New Opt-In", pipeline_id: 1, order_nr: 1 },
     ],
   ],
-  "/api/v1/dealFields": [
+  "/v1/dealFields": [
     [
       { key: FIELD_KEY, name: "Services", field_type: "set", options: [{ id: 5, label: "Mail" }, { id: 6, label: "Web" }] },
       { key: LEAD_ONLY_KEY, name: "Practice ZIP", field_type: "varchar" },
@@ -159,7 +159,7 @@ describe("runStructurePhase", () => {
           { id: 40, name: "Asked", pipeline_id: 4, order_nr: 1 },
         ],
       ],
-      "/api/v1/dealFields": [
+      "/v1/dealFields": [
         [
           { key: FIELD_KEY, name: "Services", field_type: "varchar" },
           { key: LEAD_ONLY_KEY, name: "services", field_type: "varchar" },
@@ -195,7 +195,7 @@ describe("runUsersPhase", () => {
   it("matches users by email or saved choice, and reports the rest", async () => {
     seed("salesImportUserMap", { pipedriveUserId: 3, memberId: "starter" });
     const w = work({
-      "/api/v1/users": [
+      "/v1/users": [
         [
           { id: 1, name: "Ben", email: "ben@vp.test" },
           { id: 2, name: "Old Rep", email: "old@vp.test" },

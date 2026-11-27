@@ -252,7 +252,7 @@ export type ListCall = { path: string; resumeAt: PageToken | undefined; limit: n
  * (cursor style) or `{ start: n * 100 }` (offset style); an offset resume at
  * `n * 100 + k` serves page n from its k-th row on. `failOn[path]` throws that
  * error when the list is asked for. `onPage` runs as each page is served.
- * `downloads[fileId]` is what "/api/v1/files/{id}/download" answers (bytes, or an
+ * `downloads[fileId]` is what "/v1/files/{id}/download" answers (bytes, or an
  * error to throw); `onDownload` runs first, and `downloads` in the result lists
  * every download path asked for.
  */

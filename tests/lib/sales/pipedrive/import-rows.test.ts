@@ -11,7 +11,7 @@ import { db, fakeClient, resetDb, salesWrites, seed, store } from "./import-fake
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
-const { runRowPhase, PAGE_LIMIT } = await import("@/lib/sales/pipedrive/import-rows");
+const { runRowPhase, PAGE_LIMIT, ROW_SOURCES } = await import("@/lib/sales/pipedrive/import-rows");
 
 const FALLBACK = new Date("2026-11-12T15:00:00Z");
 const ZIP_KEY = "f".repeat(40);
@@ -76,7 +76,7 @@ describe("links to records that were not copied", () => {
   });
 
   it("skips a note that is on nothing that was copied", async () => {
-    const w = work({ "/api/v1/notes": [[{ id: 500, content: "Hello", deal_id: 77, user_id: 1, add_time: "2025-01-01 00:00:00" }]] });
+    const w = work({ "/v1/notes": [[{ id: 500, content: "Hello", deal_id: 77, user_id: 1, add_time: "2025-01-01 00:00:00" }]] });
 
     await runRowPhase("notes", w);
 
@@ -89,7 +89,7 @@ describe("links to records that were not copied", () => {
   });
 
   it("puts a note on an organization, written by the person who started the run when the author is unknown", async () => {
-    const w = work({ "/api/v1/notes": [[{ id: 501, content: "<b>Hi</b>", org_id: 100, user_id: 42, add_time: "2025-01-01 00:00:00" }]] });
+    const w = work({ "/v1/notes": [[{ id: 501, content: "<b>Hi</b>", org_id: 100, user_id: 42, add_time: "2025-01-01 00:00:00" }]] });
 
     await runRowPhase("notes", w);
 
@@ -103,7 +103,7 @@ describe("links to records that were not copied", () => {
 describe("leads", () => {
   it("copies leads with their custom values, and reports a field the app has no lead field for", async () => {
     const w = work({
-      "/api/v1/leads": [
+      "/v1/leads": [
         [{ id: "uuid-1", title: "Oak lead", owner_id: 1, organization_id: 100, add_time: "2025-01-01T00:00:00Z", [ZIP_KEY]: "28202", [DEAL_ONLY_KEY]: 500 }],
       ],
     });
@@ -127,9 +127,9 @@ describe("leads", () => {
   });
 
   it("updates a changed custom value on a re-run, and counts the lead as updated", async () => {
-    const lists = { "/api/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, [ZIP_KEY]: "28202" }]] };
+    const lists = { "/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, [ZIP_KEY]: "28202" }]] };
     await runRowPhase("leads", work(lists));
-    (lists["/api/v1/leads"][0][0] as Record<string, unknown>)[ZIP_KEY] = "28203";
+    (lists["/v1/leads"][0][0] as Record<string, unknown>)[ZIP_KEY] = "28203";
 
     const again = work(lists);
     await runRowPhase("leads", again);
@@ -143,7 +143,7 @@ describe("leads", () => {
 describe("paging", () => {
   it("adds no 'might be incomplete' issue when an offset list ends on a full page", async () => {
     const page = Array.from({ length: PAGE_LIMIT }, (_, i) => ({ id: 1000 + i, content: "x", org_id: 100, user_id: 1, add_time: "2025-01-01 00:00:00" }));
-    const w = work({ "/api/v1/notes": [page] });
+    const w = work({ "/v1/notes": [page] });
 
     await runRowPhase("notes", w);
 
@@ -192,5 +192,23 @@ describe("a practice run", () => {
       "The record had no owner in Pipedrive, so the person who started the import owns it.",
       "The activity was not on a deal, lead or person that was copied, so it was not copied.",
     ]);
+  });
+});
+
+describe("where each step reads", () => {
+  it("uses the path forms Pipedrive documents for api.pipedrive.com: /v1/... for v1 lists and /api/v2/... for v2 lists", () => {
+    // The v1 OpenAPI file's server is https://api.pipedrive.com/v1 and the v2
+    // file's is https://api.pipedrive.com/api/v2. "/api/v1/..." is the form for a
+    // company's own subdomain. The leads list answered 404 "Unknown method ." on
+    // api.pipedrive.com when asked that way (the exact cause was never confirmed).
+    const paths = Object.values(ROW_SOURCES).flatMap((sources) => sources.map((s) => s.path));
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) expect(path).toMatch(/^\/(v1|api\/v2)\//);
+  });
+
+  it("reads every list in the style its API version pages in", () => {
+    for (const source of Object.values(ROW_SOURCES).flat()) {
+      expect(source.style).toBe(source.path.startsWith("/v1/") ? "offset" : "cursor");
+    }
   });
 });

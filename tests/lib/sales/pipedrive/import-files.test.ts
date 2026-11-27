@@ -4,7 +4,7 @@ import { PipedriveError } from "@/lib/sales/pipedrive/client";
 
 import { clock, db, fakeClient, resetDb, salesWrites, seed, store, writes } from "./import-fakes";
 
-// The files step of the Pipedrive import: pages /api/v1/files, copies each file
+// The files step of the Pipedrive import: pages /v1/files, copies each file
 // onto its deal or lead (one at a time), resumes mid-page, and reports what it
 // could not copy. Against the in-memory database, a fake Pipedrive and a fake
 // Blob store. Every number is exact: the fixtures are small enough to count by hand.
@@ -99,7 +99,7 @@ type Carry = {
 
 async function carry(runId: string, pages: unknown[][], opts: Carry = {}) {
   const fake = fakeClient(
-    { "/api/v1/files": pages },
+    { "/v1/files": pages },
     { downloads: opts.downloads, onDownload: opts.onDownload, onPage: opts.onPage },
   );
   const result = await continueImportRun({ runId, client: fake.client, deadline: opts.deadline ?? FAR, now });
@@ -159,8 +159,8 @@ describe("a real run copies files", () => {
     expect(result).toMatchObject({ done: true, paused: false, phase: "done" });
     expect(result.counts).toMatchObject({ "files.seen": 3, "files.created": 3 });
     expect(Object.keys(result.counts).filter((k) => k.startsWith("files.")).sort()).toEqual(["files.created", "files.seen"]);
-    expect(calls).toEqual([{ path: "/api/v1/files", resumeAt: undefined, limit: 100, style: "offset" }]);
-    expect(downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download", "/api/v1/files/13/download"]);
+    expect(calls).toEqual([{ path: "/v1/files", resumeAt: undefined, limit: 100, style: "offset" }]);
+    expect(downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download", "/v1/files/13/download"]);
 
     expect(blob.put).toHaveBeenCalledTimes(3);
     for (const [pathname, , options] of blob.put.mock.calls) {
@@ -206,7 +206,7 @@ describe("a real run copies files", () => {
     const runId = seedRun();
     const { result, downloads } = await carry(runId, [[listed(11), listed(12)]], { downloads: pdfsFor(11, 12) });
 
-    expect(downloads).toEqual(["/api/v1/files/12/download"]);
+    expect(downloads).toEqual(["/v1/files/12/download"]);
     expect(blob.put).toHaveBeenCalledTimes(1);
     expect(store.salesFile).toHaveLength(2);
     expect(result.counts).toMatchObject({ "files.seen": 2, "files.unchanged": 1, "files.created": 1 });
@@ -234,7 +234,7 @@ describe("a real run copies files", () => {
       { downloads: pdfsFor(11, 12, 13) },
     );
 
-    expect(downloads).toEqual(["/api/v1/files/13/download"]);
+    expect(downloads).toEqual(["/v1/files/13/download"]);
     expect(result.counts).toMatchObject({ "files.seen": 3, "files.skipped": 2, "files.created": 1 });
     expect(issuesOf(runId)).toContainEqual({ phase: "files", message: PERSON_OR_ORG, count: 2, sampleIds: [11, 12] });
   });
@@ -269,7 +269,7 @@ describe("a real run copies files", () => {
     const { result, downloads } = await carry(runId, [[listed(11), listed(12), listed(13)]], { downloads: pdfsFor(11, 12, 13) });
 
     expect(FILES_PER_DEAL_MAX).toBe(50);
-    expect(downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download"]);
+    expect(downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download"]);
     expect(filesOf("d1").filter((f) => f.archivedAt === null)).toHaveLength(50);
     expect(result.counts).toMatchObject({ "files.seen": 3, "files.created": 2, "files.skipped": 1 });
     expect(issuesOf(runId)).toContainEqual({
@@ -283,7 +283,7 @@ describe("a real run copies files", () => {
   it("skips a file marked inactive in Pipedrive without an issue, and counts it skipped", async () => {
     const runId = seedRun();
     const { result, downloads } = await carry(runId, [[listed(11, { active_flag: false }), listed(12)]], { downloads: pdfsFor(11, 12) });
-    expect(downloads).toEqual(["/api/v1/files/12/download"]);
+    expect(downloads).toEqual(["/v1/files/12/download"]);
     expect(result.counts).toMatchObject({ "files.seen": 2, "files.skipped": 1, "files.created": 1 });
     expect(issuesOf(runId)).toEqual([]);
   });
@@ -509,7 +509,7 @@ describe("paging, time and the rate limit", () => {
     const first = await carry(runId, [page], { downloads: { 11: limited, 12: pdf() } });
 
     expect(first.result).toMatchObject({ done: false, paused: true, phase: "files" });
-    expect(first.downloads).toEqual(["/api/v1/files/11/download"]);
+    expect(first.downloads).toEqual(["/v1/files/11/download"]);
     expect(first.result.counts["files.seen"]).toBeUndefined();
     expect(first.result.counts["files.skipped"]).toBeUndefined();
     expect(issuesOf(runId)).toEqual([]);
@@ -517,7 +517,7 @@ describe("paging, time and the rate limit", () => {
     expect(runRow(runId).status).toBe("RUNNING");
 
     const second = await carry(runId, [page], { downloads: pdfsFor(11, 12) });
-    expect(second.downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download"]);
+    expect(second.downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download"]);
     expect(second.result).toMatchObject({ done: true });
     expect(second.result.counts).toMatchObject({ "files.seen": 2, "files.created": 2 });
   });
@@ -531,7 +531,7 @@ describe("paging, time and the rate limit", () => {
     const first = await carry(runId, [page], { ...slow, deadline: new Date(clock.now.getTime() + 45_000) });
 
     // Checked before each file: 0s, 20s and 40s are inside the chunk, 60s is not.
-    expect(first.downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download", "/api/v1/files/13/download"]);
+    expect(first.downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download", "/v1/files/13/download"]);
     expect(first.result).toMatchObject({ done: false, paused: false, phase: "files" });
     expect(first.result.counts).toMatchObject({ "files.seen": 3, "files.created": 3 });
     expect(runRow(runId)).toMatchObject({ status: "RUNNING", cursor: expect.objectContaining({ page: { start: 3 } }) });
@@ -539,7 +539,7 @@ describe("paging, time and the rate limit", () => {
     const second = await carry(runId, [page], slow);
 
     expect(second.calls[0].resumeAt).toEqual({ start: 3 });
-    expect(second.downloads).toEqual(["/api/v1/files/14/download", "/api/v1/files/15/download"]);
+    expect(second.downloads).toEqual(["/v1/files/14/download", "/v1/files/15/download"]);
     expect(blob.put).toHaveBeenCalledTimes(5);
     expect(store.salesFile.map((f) => f.pipedriveId)).toEqual([11, 12, 13, 14, 15]);
     // Exact across both chunks: nothing counted twice, nothing counted unchanged.
@@ -556,7 +556,7 @@ describe("paging, time and the rate limit", () => {
       deadline,
       onPage: () => void (clock.now = new Date(clock.now.getTime() + 60_000)),
     });
-    expect(first.downloads).toEqual(["/api/v1/files/11/download"]);
+    expect(first.downloads).toEqual(["/v1/files/11/download"]);
     expect(first.result).toMatchObject({ done: false });
     expect(runRow(runId).cursor).toMatchObject({ page: { start: 1 } });
   });
@@ -574,13 +574,13 @@ describe("paging, time and the rate limit", () => {
         if (path.endsWith("/12/download")) clock.now = new Date(clock.now.getTime() + 60_000);
       },
     });
-    expect(first.downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download"]);
+    expect(first.downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download"]);
     expect(first.result).toMatchObject({ done: false });
     expect(runRow(runId).cursor).toMatchObject({ page: { start: 100 } });
 
     const second = await carry(runId, pages, { downloads: pdfsFor(11, 12, 13) });
     expect(second.calls[0].resumeAt).toEqual({ start: 100 });
-    expect(second.downloads).toEqual(["/api/v1/files/13/download"]);
+    expect(second.downloads).toEqual(["/v1/files/13/download"]);
     expect(second.result.counts).toMatchObject({ "files.seen": 3, "files.created": 3 });
   });
 
@@ -592,25 +592,25 @@ describe("paging, time and the rate limit", () => {
     const first = await carry(runId, [page], { downloads: { 11: pdf(), 12: limited, 13: pdf() } });
 
     expect(first.result).toMatchObject({ done: false, paused: true, phase: "files" });
-    expect(first.downloads).toEqual(["/api/v1/files/11/download", "/api/v1/files/12/download"]);
+    expect(first.downloads).toEqual(["/v1/files/11/download", "/v1/files/12/download"]);
     expect(runRow(runId)).toMatchObject({ status: "RUNNING", cursor: expect.objectContaining({ page: { start: 1 } }) });
     expect(issuesOf(runId)).toEqual([]);
     expect(store.salesFile.map((f) => f.pipedriveId)).toEqual([11]);
 
     const second = await carry(runId, [page], { downloads: pdfsFor(11, 12, 13) });
-    expect(second.downloads).toEqual(["/api/v1/files/12/download", "/api/v1/files/13/download"]);
+    expect(second.downloads).toEqual(["/v1/files/12/download", "/v1/files/13/download"]);
     expect(second.result).toMatchObject({ done: true });
     expect(second.result.counts).toMatchObject({ "files.seen": 3, "files.created": 3 });
   });
 
   it("pauses on a rate limit while listing, and fails the run on any other Pipedrive error while listing", async () => {
     const paused = seedRun();
-    const rate = fakeClient({}, { failOn: { "/api/v1/files": new PipedriveError(429, "Pipedrive request failed (HTTP 429): Pipedrive is rate limiting this token.") } });
+    const rate = fakeClient({}, { failOn: { "/v1/files": new PipedriveError(429, "Pipedrive request failed (HTTP 429): Pipedrive is rate limiting this token.") } });
     expect(await continueImportRun({ runId: paused, client: rate.client, deadline: FAR, now })).toMatchObject({ paused: true, done: false });
 
     store.salesImportRun.length = 0;
     const failed = seedRun();
-    const broken = fakeClient({}, { failOn: { "/api/v1/files": new PipedriveError(500, "Pipedrive had a server error") } });
+    const broken = fakeClient({}, { failOn: { "/v1/files": new PipedriveError(500, "Pipedrive had a server error") } });
     expect(await continueImportRun({ runId: failed, client: broken.client, deadline: FAR, now })).toMatchObject({ done: false, paused: false });
     expect(runRow(failed).status).toBe("FAILED");
     expect(messagesOf(failed)).toEqual(["The copy stopped: Pipedrive had a server error"]);
