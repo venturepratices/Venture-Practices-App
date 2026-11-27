@@ -24,6 +24,17 @@
 .DS_Store
 *.pem
 
+# private keys, certificates, service-account and credential files, and
+# database backups/dumps. Never meant to be committed. (*.sql is left out on
+# purpose: prisma/migrations holds tracked migration.sql files.)
+*.p12
+*.pfx
+*.key
+service-account*.json
+*credentials*.json
+backups/
+*.dump
+
 # debug
 npm-debug.log*
 yarn-debug.log*
