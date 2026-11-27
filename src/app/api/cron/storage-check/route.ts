@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { list } from "@vercel/blob";
 
 import { BACKUP_PREFIX } from "@/lib/backup";
+import { reportCronFailure } from "@/lib/cron-failure";
 import { notifyChannel } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { checkBearer } from "@/lib/secret-compare";
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Storage check failed:", error);
+    await reportCronFailure("storage-check", error);
     return NextResponse.json({ ok: false, error: "Storage check failed" }, { status: 500 });
   }
 }

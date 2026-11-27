@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { reportCronFailure } from "@/lib/cron-failure";
 import { syncAllConnectedCalendars } from "@/lib/google-calendar";
 import { checkBearer } from "@/lib/secret-compare";
 
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error("Calendar sync cron failed:", error);
+    await reportCronFailure("calendar-sync", error);
     return NextResponse.json({ ok: false, error: "Sync failed" }, { status: 500 });
   }
 }

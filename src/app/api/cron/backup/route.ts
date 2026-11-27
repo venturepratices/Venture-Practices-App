@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { backupDateKey, createDatabaseSnapshot, pruneOldBackups, writeBackupToBlob } from "@/lib/backup";
+import { reportCronFailure } from "@/lib/cron-failure";
 import { checkBearer } from "@/lib/secret-compare";
 
 // Prisma + the Neon WebSocket driver require the Node.js runtime, not Edge.
@@ -25,6 +26,12 @@ export async function GET(request: Request) {
   try {
     const snapshot = await createDatabaseSnapshot(now);
     const { written, pathname } = await writeBackupToBlob(snapshot, dateKey);
+    if (!written) {
+      // No storage credentials: nothing was saved, so this must not look like a good backup.
+      // Pruning is skipped too, so old backups are never deleted while no new one is being made.
+      await reportCronFailure("backup", new Error("Backup was not written (storage credentials missing?)"));
+      return NextResponse.json({ ok: false, error: "Backup not written" }, { status: 500 });
+    }
     const pruned = await pruneOldBackups(365, now);
 
     return NextResponse.json({
@@ -36,6 +43,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Database backup failed:", error);
+    await reportCronFailure("backup", error);
     return NextResponse.json({ ok: false, error: "Backup failed" }, { status: 500 });
   }
 }

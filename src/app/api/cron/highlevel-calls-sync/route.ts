@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { reportCronFailure } from "@/lib/cron-failure";
 import { syncCallsForAllConnectedClients } from "@/lib/highlevel";
 import { checkBearer } from "@/lib/secret-compare";
 
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: !allFailed, ...result }, { status: allFailed ? 502 : 200 });
   } catch (error) {
     console.error("HighLevel daily call sync failed:", error);
+    await reportCronFailure("highlevel-calls-sync", error);
     return NextResponse.json({ ok: false, error: "Call sync failed" }, { status: 500 });
   }
 }

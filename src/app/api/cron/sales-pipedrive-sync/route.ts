@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { reportCronFailure } from "@/lib/cron-failure";
 import { prisma } from "@/lib/prisma";
 import { checkBearer } from "@/lib/secret-compare";
 import { continueImportRun, startImportRun } from "@/lib/sales/pipedrive/import";
@@ -112,9 +113,11 @@ export async function GET(request: Request) {
       counts = result.counts;
     }
   } catch (error) {
-    // Vercel shows a failed cron with a 500; Sentry picks the console.error up with the run id so an
-    // admin can look at what the engine left in SalesImportRun. We never try to recover inside the catch.
+    // Vercel shows a failed cron with a 500 and reportCronFailure sends the error to Sentry. The
+    // console.error keeps the run id so an admin can look at what the engine left in SalesImportRun.
+    // We never try to recover inside the catch.
     console.error("Pipedrive automatic sync failed:", { runId, error });
+    await reportCronFailure("sales-pipedrive-sync", error);
     return NextResponse.json({ ok: false, runId, error: "sync failed" }, { status: 500 });
   }
 
