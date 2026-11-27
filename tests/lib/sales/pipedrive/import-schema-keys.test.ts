@@ -44,7 +44,7 @@ const now = () => clock.now;
 
 function lists(dealTitle: string, zip: string) {
   return {
-    "/api/v1/users": [[{ id: 1, name: "Ben", email: "ben@vp.test" }]],
+    "/v1/users": [[{ id: 1, name: "Ben", email: "ben@vp.test" }]],
     "/api/v2/pipelines": [
       [
         { id: 1, name: "Direct Mail", order_nr: 1 },
@@ -58,7 +58,7 @@ function lists(dealTitle: string, zip: string) {
         { id: 20, name: "Asked", pipeline_id: 2, order_nr: 1 },
       ],
     ],
-    "/api/v1/dealFields": [
+    "/v1/dealFields": [
       [
         { key: COLOR_KEY, name: "Color", field_type: "enum", options: [{ id: 1, label: "Red" }] },
         { key: ZIP_KEY, name: "Practice ZIP", field_type: "varchar" },
@@ -84,14 +84,14 @@ function lists(dealTitle: string, zip: string) {
       ],
     ],
     "/api/v2/deals/archived": [[]],
-    "/api/v1/leads": [[{ id: "u-1", title: "Lead", owner_id: 1, person_id: 200, add_time: "2025-01-01T00:00:00Z", [ZIP_KEY]: zip }]],
-    "/api/v1/leads/archived": [[]],
+    "/v1/leads": [[{ id: "u-1", title: "Lead", owner_id: 1, person_id: 200, add_time: "2025-01-01T00:00:00Z", [ZIP_KEY]: zip }]],
+    "/v1/leads/archived": [[]],
     "/api/v2/activities": [
       [{ id: 400, subject: dealTitle, type: "call", due_date: "2025-01-02", owner_id: 1, deal_id: 300, add_time: "2025-01-01T00:00:00Z" }],
     ],
-    "/api/v1/notes": [[{ id: 500, content: dealTitle, deal_id: 300, user_id: 1, add_time: "2025-01-01 00:00:00" }]],
+    "/v1/notes": [[{ id: 500, content: dealTitle, deal_id: 300, user_id: 1, add_time: "2025-01-01 00:00:00" }]],
     // One file on the deal, and one on the lead (so a file write for each kind of link is checked).
-    "/api/v1/files": [
+    "/v1/files": [
       [
         { id: 600, file_name: "Quote.pdf", name: "Quote.pdf", file_size: 20, deal_id: 300, add_time: "2025-01-01 00:00:00", active_flag: true },
         { id: 601, file_name: "Lead.pdf", name: "Lead.pdf", file_size: 20, lead_id: "u-1", add_time: "2025-01-01 00:00:00", active_flag: true },

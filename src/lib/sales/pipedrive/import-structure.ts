@@ -37,7 +37,7 @@ export async function readAll<T>(client: PipedriveClient, path: string, opts: Pa
 type PipedriveUser = { id: number; name?: string | null; email?: string | null };
 
 export async function runUsersPhase(work: PhaseWork): Promise<PhaseResult> {
-  const users = (await readAll<PipedriveUser>(work.client, "/api/v1/users", { style: "offset" })).filter(
+  const users = (await readAll<PipedriveUser>(work.client, "/v1/users", { style: "offset" })).filter(
     (user) => typeof user?.id === "number",
   );
   const [members, overrides] = await Promise.all([
@@ -75,7 +75,7 @@ type PipedriveField = {
 export async function runStructurePhase(work: PhaseWork): Promise<PhaseResult> {
   const pipelines = await readAll<PipedrivePipeline>(work.client, "/api/v2/pipelines", { limit: SMALL_LIST_LIMIT });
   const stages = await readAll<PipedriveStage>(work.client, "/api/v2/stages", { limit: SMALL_LIST_LIMIT });
-  const fields = await readAll<PipedriveField>(work.client, "/api/v1/dealFields", { style: "offset", limit: SMALL_LIST_LIMIT });
+  const fields = await readAll<PipedriveField>(work.client, "/v1/dealFields", { style: "offset", limit: SMALL_LIST_LIMIT });
 
   await syncPipelines(
     work,

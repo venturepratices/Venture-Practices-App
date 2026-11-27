@@ -99,7 +99,7 @@ describe("copyPipedriveFile", () => {
 
     expect(result).toEqual({ ok: true });
     expect(download).toHaveBeenCalledTimes(1);
-    expect(download).toHaveBeenCalledWith("/api/v1/files/77/download");
+    expect(download).toHaveBeenCalledWith("/v1/files/77/download");
 
     expect(blob.put).toHaveBeenCalledTimes(1);
     const [pathname, body, options] = blob.put.mock.calls[0];

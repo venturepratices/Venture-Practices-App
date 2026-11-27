@@ -77,9 +77,9 @@ describe("buildCheckReport rows", () => {
       "/api/v2/organizations": paged(records(3)),
       "/api/v2/persons": paged(records(4)),
       "/api/v2/deals": dealsList(5),
-      "/api/v1/leads": paged(records(6, (id) => ({ id: `lead-${id}` }))),
+      "/v1/leads": paged(records(6, (id) => ({ id: `lead-${id}` }))),
       "/api/v2/activities": paged(records(8)),
-      "/api/v1/notes": paged(records(9, (id) => ({ id, content: `<p>Note ${id}</p>` }))),
+      "/v1/notes": paged(records(9, (id) => ({ id, content: `<p>Note ${id}</p>` }))),
     });
     Object.assign(mocks.appCounts, { organizations: 3, persons: 4, deals: 5, leads: 6, activities: 8, notes: 9 });
 
@@ -115,9 +115,9 @@ describe("buildCheckReport rows", () => {
       "/api/v2/organizations cursor",
       "/api/v2/persons cursor",
       "/api/v2/deals cursor",
-      "/api/v1/leads offset",
+      "/v1/leads offset",
       "/api/v2/activities cursor",
-      "/api/v1/notes offset",
+      "/v1/notes offset",
     ]);
   });
 
@@ -137,7 +137,7 @@ describe("buildCheckReport rows", () => {
         { id: 51, title: "Gone too", status: "open", is_deleted: true },
       ]),
       "/api/v2/activities": paged([{ id: 1 }, { id: 2, is_deleted: true }]),
-      "/api/v1/notes": paged([
+      "/v1/notes": paged([
         { id: 1, content: "<p>Kept</p>" },
         { id: 2, content: "<p>Removed</p>", active_flag: false },
         { id: 3, content: "<p> </p>" },

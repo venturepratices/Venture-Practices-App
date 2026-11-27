@@ -120,7 +120,7 @@ export interface PipedriveDeal {
 }
 
 /**
- * A lead from `GET /api/v1/leads`. Its id is a UUID. Its custom fields are not
+ * A lead from `GET /v1/leads`. Its id is a UUID. Its custom fields are not
  * nested: they sit at the top level under their 40 character hash keys, in the
  * same format as v1 deals, which is why this type allows any other key.
  */
@@ -161,7 +161,7 @@ export interface PipedriveActivity {
   is_deleted?: boolean | null;
 }
 
-/** A note from `GET /api/v1/notes`. `content` is HTML. `user_id` is the author. */
+/** A note from `GET /v1/notes`. `content` is HTML. `user_id` is the author. */
 export interface PipedriveNote {
   id: number;
   content?: string | null;

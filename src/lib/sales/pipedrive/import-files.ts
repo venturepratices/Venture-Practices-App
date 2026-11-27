@@ -28,7 +28,7 @@ import { copyPipedriveFile, type CopyFileFailure } from "@/lib/sales/pipedrive/f
 import { bump, NO_FILE_STORAGE_ISSUE, type PhaseResult, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
 import { leadRef, parseUtc, refId } from "@/lib/sales/pipedrive/map";
 
-const FILES_PATH = "/api/v1/files";
+const FILES_PATH = "/v1/files";
 /** Pipedrive allows at most 100 files per page of this list. */
 const FILES_PAGE_LIMIT = 100;
 

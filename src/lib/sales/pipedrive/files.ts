@@ -70,7 +70,7 @@ export async function copyPipedriveFile(args: {
 
   let bytes: Uint8Array;
   try {
-    bytes = (await client.download(`/api/v1/files/${file.id}/download`)).bytes;
+    bytes = (await client.download(`/v1/files/${file.id}/download`)).bytes;
   } catch (error) {
     // The client's rate-limit error names no file. It stops the run (paused), not just this file.
     if (error instanceof PipedriveError && error.status === 429) throw error;

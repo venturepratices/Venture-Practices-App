@@ -55,9 +55,9 @@ export const ROW_SOURCES: Record<RowPhase, Source[]> = {
   organizations: [{ path: "/api/v2/organizations", style: "cursor" }],
   persons: [{ path: "/api/v2/persons", style: "cursor" }],
   deals: [{ path: "/api/v2/deals", style: "cursor" }],
-  leads: [{ path: "/api/v1/leads", style: "offset" }],
+  leads: [{ path: "/v1/leads", style: "offset" }],
   activities: [{ path: "/api/v2/activities", style: "cursor" }],
-  notes: [{ path: "/api/v1/notes", style: "offset" }],
+  notes: [{ path: "/v1/notes", style: "offset" }],
 };
 
 /** Rows per Pipedrive page, and so per batch. */
