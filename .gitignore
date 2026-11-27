@@ -32,7 +32,7 @@
 *.key
 service-account*.json
 *credentials*.json
-backups/
+/backups/
 *.dump
 
 # debug
