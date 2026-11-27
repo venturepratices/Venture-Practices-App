@@ -143,12 +143,19 @@ export type ImportUser = { id: number; name: string; email: string | null; membe
 export type StageLink = { stageId: string | null; pipelineId: string | null };
 export type PipelineLink = { pipelineId: string | null; firstStageId: string | null };
 
-/** A Pipedrive deal field: its name, its choices (id to label, for single and multiple option fields), and the app fields it fills. */
+/**
+ * A Pipedrive custom field (its deals and its leads share it): its name, its
+ * choices (id to label, for single and multiple option fields), and the app
+ * fields it fills. An id is null in a practice run for a field that would be
+ * created; `leadFieldPlanned` then says the lead field is one of those (so its
+ * values on leads are not reported as lost).
+ */
 export type FieldLink = {
   name: string;
   options: Record<string, string> | null;
   dealFieldId: string | null;
   leadFieldId: string | null;
+  leadFieldPlanned?: boolean;
 };
 
 export type ImportContext = {

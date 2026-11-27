@@ -46,16 +46,25 @@ export type RowPhase = "organizations" | "persons" | "deals" | "leads" | "activi
 type Source = { path: string; style: "cursor" | "offset"; archived?: boolean };
 
 /**
- * Where each step reads. Archived deals and leads come back from the main
- * lists in Pipedrive (there is no separate /archived endpoint in v1 or v2),
- * so each step reads one list only. The mapper marks archived rows by the
- * record's own fields (deal status, lead is_archived).
+ * Where each step reads. Since 2025-07-15 Pipedrive's main deal and lead lists
+ * return NOT archived records only (its changelog: "Breaking change: archived
+ * deals and leads will not be returned ... in existing endpoints"), and the
+ * archived ones sit on their own lists: GET /api/v2/deals/archived and
+ * GET /v1/leads/archived. So deals and leads read two lists, active first. Rows
+ * from an archived list are marked `is_archived` here, since the record may not
+ * say so itself.
  */
 export const ROW_SOURCES: Record<RowPhase, Source[]> = {
   organizations: [{ path: "/api/v2/organizations", style: "cursor" }],
   persons: [{ path: "/api/v2/persons", style: "cursor" }],
-  deals: [{ path: "/api/v2/deals", style: "cursor" }],
-  leads: [{ path: "/v1/leads", style: "offset" }],
+  deals: [
+    { path: "/api/v2/deals", style: "cursor" },
+    { path: "/api/v2/deals/archived", style: "cursor", archived: true },
+  ],
+  leads: [
+    { path: "/v1/leads", style: "offset" },
+    { path: "/v1/leads/archived", style: "offset", archived: true },
+  ],
   activities: [{ path: "/api/v2/activities", style: "cursor" }],
   notes: [{ path: "/v1/notes", style: "offset" }],
 };
@@ -402,7 +411,7 @@ function customValues(
       log.issues.push({ pipedriveId, exact: false, message: "A value in a Pipedrive field that is no longer in use was not copied." });
       continue;
     }
-    if (kind === "lead" && field.leadFieldId === null) {
+    if (kind === "lead" && field.leadFieldId === null && !field.leadFieldPlanned) {
       log.issues.push({
         pipedriveId,
         exact: true,

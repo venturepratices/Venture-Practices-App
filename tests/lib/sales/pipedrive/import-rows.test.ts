@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createIssueLog, emptyContext, type ImportContext, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
 
-import { db, fakeClient, resetDb, salesWrites, seed, store } from "./import-fakes";
+import { db, fakeClient, resetDb, salesWrites, seed, store, writes } from "./import-fakes";
 
 // The record steps, called directly with a hand-built run state: links that
 // point at records that were not copied, leads and their custom values, and
@@ -16,6 +16,7 @@ const { runRowPhase, PAGE_LIMIT, ROW_SOURCES } = await import("@/lib/sales/piped
 const FALLBACK = new Date("2026-11-12T15:00:00Z");
 const ZIP_KEY = "f".repeat(40);
 const DEAL_ONLY_KEY = "9".repeat(40);
+const ADDRESS_KEY = "8".repeat(40);
 
 function context(): ImportContext {
   return {
@@ -24,6 +25,8 @@ function context(): ImportContext {
     fields: {
       [ZIP_KEY]: { name: "Practice ZIP", options: null, dealFieldId: null, leadFieldId: "f-zip" },
       [DEAL_ONLY_KEY]: { name: "Budget", options: null, dealFieldId: "f-budget", leadFieldId: null },
+      // Starts with no lead field, as before the structure step made one; tests give it an id.
+      [ADDRESS_KEY]: { name: "Practice Address", options: null, dealFieldId: "f-address-deal", leadFieldId: null },
     },
   };
 }
@@ -122,8 +125,96 @@ describe("leads", () => {
     expect(store.salesAuditLog.map((a) => [a.entityType, a.action])).toEqual([
       ["SalesLead", "imported"],
     ]);
-    expect(w.saves).toBe(1);
-    expect(w.cursor).toMatchObject({ source: 1, page: null });
+    // One save per list finished: the active list, then the (here empty) archived one.
+    expect(w.saves).toBe(2);
+    expect(w.cursor).toMatchObject({ source: 2, page: null });
+  });
+
+  it("reads archived leads from their own list and marks them archived, even if the record does not say so", async () => {
+    // Since 2025-07-15 GET /v1/leads returns not archived leads only; archived ones are on /v1/leads/archived.
+    const w = work({
+      "/v1/leads": [[{ id: "uuid-open", title: "Open lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z" }]],
+      "/v1/leads/archived": [
+        [{ id: "uuid-old", title: "Old lead", owner_id: 1, add_time: "2024-01-01T00:00:00Z", update_time: "2025-06-01T00:00:00Z" }],
+      ],
+    });
+
+    expect(await runRowPhase("leads", w)).toBe("finished");
+
+    const byId = Object.fromEntries(store.salesLead.map((lead) => [lead.pipedriveId as string, lead]));
+    expect(Object.keys(byId).sort()).toEqual(["uuid-old", "uuid-open"]);
+    expect(byId["uuid-open"]).toMatchObject({ status: "OPEN", archivedAt: null });
+    expect(byId["uuid-old"]).toMatchObject({ status: "ARCHIVED", archivedAt: new Date("2025-06-01T00:00:00Z") });
+    expect(w.counts).toMatchObject({ "leads.seen": 2, "leads.created": 2 });
+  });
+
+  it("carries on at the archived list when a run is resumed after the active one finished", async () => {
+    const w = work({
+      "/v1/leads": [[{ id: "uuid-open", title: "Open lead", owner_id: 1 }]],
+      "/v1/leads/archived": [[{ id: "uuid-old", title: "Old lead", owner_id: 1 }]],
+    });
+    w.cursor.source = 1;
+
+    await runRowPhase("leads", w);
+
+    expect(store.salesLead.map((lead) => lead.pipedriveId)).toEqual(["uuid-old"]);
+  });
+
+  it("on a re-copy, adds the values of a lead field made since, to leads already copied and otherwise unchanged", async () => {
+    const lists = {
+      "/v1/leads": [
+        [
+          { id: "uuid-1", title: "Oak lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z", [ZIP_KEY]: "28202", [ADDRESS_KEY]: "1 Oak St" },
+          { id: "uuid-2", title: "Elm lead", owner_id: 1, add_time: "2025-01-02T00:00:00Z", [ZIP_KEY]: "28203" },
+        ],
+      ],
+    };
+    // The first copy: Practice Address had no lead field yet, so its value was left out.
+    await runRowPhase("leads", work(lists));
+    expect(store.salesCustomFieldValue.map((v) => v.value)).toEqual(["28202", "28203"]);
+    store.salesAuditLog.length = 0;
+    writes.length = 0;
+
+    // The re-copy: the structure step has since made the lead field.
+    const again = work(lists);
+    again.cursor.context.fields[ADDRESS_KEY].leadFieldId = "f-address";
+    await runRowPhase("leads", again);
+
+    const [oak, elm] = store.salesLead;
+    expect(store.salesCustomFieldValue.map((v) => [v.fieldId, v.leadId, v.value])).toEqual([
+      ["f-zip", oak.id, "28202"],
+      ["f-zip", elm.id, "28203"],
+      ["f-address", oak.id, "1 Oak St"],
+    ]);
+    // Only the lead that has the new value is touched; the lead row itself is not rewritten.
+    expect(again.counts).toEqual({ "leads.seen": 2, "leads.updated": 1, "leads.unchanged": 1 });
+    expect(writes.filter((w) => w.table === "salesLead")).toEqual([]);
+    expect(store.salesAuditLog).toHaveLength(1);
+    expect(store.salesAuditLog[0]).toMatchObject({ entityType: "SalesLead", entityId: oak.id, action: "import_updated", before: {}, after: { customFieldsChanged: 1 } });
+
+    // And a third copy finds nothing more to do.
+    const third = work(lists);
+    third.cursor.context.fields[ADDRESS_KEY].leadFieldId = "f-address";
+    await runRowPhase("leads", third);
+    expect(third.counts).toEqual({ "leads.seen": 2, "leads.unchanged": 2 });
+    expect(store.salesCustomFieldValue).toHaveLength(3);
+  });
+
+  it("in a practice run, does not call a lead's value lost when its lead field would be created, and writes nothing", async () => {
+    const w = work(
+      { "/v1/leads": [[{ id: "uuid-1", title: "Oak lead", owner_id: 1, add_time: "2025-01-01T00:00:00Z", [ADDRESS_KEY]: "1 Oak St", [DEAL_ONLY_KEY]: 500 }]] },
+      false,
+    );
+    w.cursor.context.fields[ADDRESS_KEY].leadFieldPlanned = true;
+
+    await runRowPhase("leads", w);
+
+    expect(salesWrites()).toEqual([]);
+    expect(w.counts).toMatchObject({ "leads.seen": 1, "leads.created": 1 });
+    // The planned field is not reported; the one with no lead field and none coming still is.
+    expect(w.issues.groups.map((g) => g.message).filter((m) => m.includes("values on leads were not copied"))).toEqual([
+      'The Pipedrive field "Budget" has no lead field in the app, so its values on leads were not copied.',
+    ]);
   });
 
   it("updates a changed custom value on a re-run, and counts the lead as updated", async () => {
@@ -137,6 +228,29 @@ describe("leads", () => {
     expect(store.salesCustomFieldValue.map((v) => v.value)).toEqual(["28203"]);
     expect(again.counts).toEqual({ "leads.seen": 1, "leads.updated": 1 });
     expect(store.salesAuditLog.at(-1)).toMatchObject({ action: "import_updated", before: {}, after: { customFieldsChanged: 1 } });
+  });
+});
+
+describe("deals", () => {
+  it("reads archived deals from their own list and marks them archived, even if the record does not say so", async () => {
+    // Since 2025-07-15 GET /api/v2/deals returns not archived deals only; archived ones are on /api/v2/deals/archived.
+    const w = work({
+      "/api/v2/deals": [[{ id: 1, title: "Open deal", status: "open", stage_id: 10, pipeline_id: 1, owner_id: 1, add_time: "2025-01-01T00:00:00Z" }]],
+      "/api/v2/deals/archived": [
+        [{ id: 2, title: "Old deal", status: "lost", stage_id: 10, pipeline_id: 1, owner_id: 1, add_time: "2024-01-01T00:00:00Z", close_time: "2024-06-01T00:00:00Z" }],
+      ],
+    });
+    w.cursor.context.stages = { "10": { stageId: "s10", pipelineId: "p1" } };
+    w.cursor.context.pipelines = { "1": { pipelineId: "p1", firstStageId: "s10" } };
+
+    expect(await runRowPhase("deals", w)).toBe("finished");
+
+    const byId = Object.fromEntries(store.salesDeal.map((deal) => [deal.pipedriveId as number, deal]));
+    expect(Object.keys(byId)).toEqual(["1", "2"]);
+    expect(byId[1].archivedAt).toBeNull();
+    expect(byId[2].archivedAt).toBeInstanceOf(Date);
+    expect(byId[2]).toMatchObject({ status: "LOST" });
+    expect(w.counts).toMatchObject({ "deals.seen": 2, "deals.created": 2 });
   });
 });
 

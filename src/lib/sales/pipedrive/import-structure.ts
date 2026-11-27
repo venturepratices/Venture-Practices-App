@@ -1,8 +1,12 @@
 // The first two steps of a Pipedrive import run. "users" works out which team
 // member each Pipedrive user becomes. "structure" matches Pipedrive's
-// pipelines, stages and deal fields to the app's (by name key), creates the
+// pipelines, stages and custom fields to the app's (by name key), creates the
 // ones the app does not have (a practice run only reports them), and keeps the
-// result in the run's cursor so the later steps can use it. Both steps are
+// result in the run's cursor so the later steps can use it. A Pipedrive custom
+// field is shared by its deals and its leads, so each one is matched twice, to
+// a deal field (created when missing) and to a lead field (found when it
+// matches by name; created only for the few fields in LEAD_FIELD_TO_CREATE).
+// Both steps are
 // small, so each runs in one go: every list is read before anything is written,
 // so a rate limit mid-step leaves nothing half done.
 
@@ -19,13 +23,29 @@ import {
   uniqueKey,
   type PipedriveStage,
 } from "@/lib/sales/pipedrive/import-decide";
-import { bump, type PhaseResult, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
+import { bump, type FieldLink, type PhaseResult, type PhaseWork } from "@/lib/sales/pipedrive/import-state";
 import { kebab } from "@/lib/sales/seed-data";
 
 /** Lists this small fit on one page at Pipedrive's largest page size. */
 const SMALL_LIST_LIMIT = 500;
 /** A custom field key in Pipedrive is 40 hex characters; built-in fields have plain names. */
 const CUSTOM_FIELD_KEY = /^[0-9a-f]{40}$/;
+
+/**
+ * The Pipedrive fields that get a LEAD field made for them when the app has
+ * none. This is the one-time import: these four are the only fields the team
+ * lost lead values for, and the app has no screen to archive a field, so a lead
+ * field made for any other would stay on every lead panel, empty, for good. Any
+ * other field still links to a lead field that already matches it by name.
+ * Compared by `nameKey`, so capitals, spaces and punctuation do not matter.
+ */
+const LEAD_FIELD_NAMES = ["Practice Address", "Source", "Target Start Date", "How would you like to start?"] as const;
+const LEAD_FIELD_TO_CREATE: ReadonlySet<string> = new Set(
+  LEAD_FIELD_NAMES.flatMap((name) => {
+    const key = nameKey(name);
+    return key === null ? [] : [key];
+  }),
+);
 
 /** Every row of a list, all pages. */
 export async function readAll<T>(client: PipedriveClient, path: string, opts: PagesOptions = {}): Promise<T[]> {
@@ -205,9 +225,11 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
 
   ctx.fields = {};
   type FieldCreate = { pdKeys: string[]; key: string; label: string; fieldType: ReturnType<typeof appFieldType>; options: string[]; position: number };
-  const creates: FieldCreate[] = [];
+  const dealCreates: FieldCreate[] = [];
+  const leadCreates: FieldCreate[] = [];
   // New fields by name key, so a second Pipedrive field of the same name shares the one being made.
-  const pending = new Map<string, FieldCreate>();
+  const pendingDeal = new Map<string, FieldCreate>();
+  const pendingLead = new Map<string, FieldCreate>();
   for (const pd of pdFields) {
     const pdKey = pd.key as string;
     bump(work.counts, "customFields.seen");
@@ -215,44 +237,87 @@ async function syncFields(work: PhaseWork, pdFields: PipedriveField[]): Promise<
     const key = nameKey(name);
     const options = pd.field_type === "enum" || pd.field_type === "set" ? (optionLabels(pd.options) ?? {}) : null;
     const deal = findField("DEAL", key);
-    ctx.fields[pdKey] = { name, options, dealFieldId: deal?.id ?? null, leadFieldId: findField("LEAD", key)?.id ?? null };
-    const twin = key === null ? undefined : pending.get(key);
-    if (deal || twin) {
-      twin?.pdKeys.push(pdKey);
-      bump(work.counts, "customFields.unchanged");
-      continue;
-    }
-    bump(work.counts, "customFields.created");
-    work.issues.add(
-      { phase: "structure", pipedriveId: null, message: `The Pipedrive deal field "${name}" has no match in the app, so it ${done} created.` },
-      { exact: true },
-    );
+    const lead = findField("LEAD", key);
+    const link: FieldLink = { name, options, dealFieldId: deal?.id ?? null, leadFieldId: lead?.id ?? null };
+    ctx.fields[pdKey] = link;
     const fieldType = appFieldType(pd.field_type);
-    const create: FieldCreate = {
+    const make = (newKey: string): FieldCreate => ({
       pdKeys: [pdKey],
-      key: uniqueKey(kebab(name), keys, "field"),
+      key: newKey,
       label: name,
       fieldType,
       options: fieldType === "SELECT" && options ? Object.values(options) : [],
       position: nextPosition++,
-    };
-    creates.push(create);
-    if (key !== null) pending.set(key, create);
+    });
+
+    let createdAny = false;
+    if (!deal) {
+      const twin = key === null ? undefined : pendingDeal.get(key);
+      if (twin) {
+        twin.pdKeys.push(pdKey);
+      } else {
+        createdAny = true;
+        work.issues.add(
+          { phase: "structure", pipedriveId: null, message: `The Pipedrive deal field "${name}" has no match in the app, so it ${done} created.` },
+          { exact: true },
+        );
+        const create = make(uniqueKey(kebab(name), keys, "field"));
+        dealCreates.push(create);
+        if (key !== null) pendingDeal.set(key, create);
+      }
+    }
+    if (!lead && key !== null && LEAD_FIELD_TO_CREATE.has(key)) {
+      // A practice run makes nothing, so the rows step is told the lead field is coming and does not call its values lost.
+      if (!work.live) link.leadFieldPlanned = true;
+      const twin = key === null ? undefined : pendingLead.get(key);
+      if (twin) {
+        twin.pdKeys.push(pdKey);
+      } else {
+        createdAny = true;
+        bump(work.counts, "customFields.leadCreated");
+        work.issues.add(
+          {
+            phase: "structure",
+            pipedriveId: null,
+            message: `The Pipedrive field "${name}" has no lead field in the app, so a lead field ${done} created for its values on leads.`,
+          },
+          { exact: true },
+        );
+        const create = make(uniqueKey(leadKeyBase(name, keys), keys, "field"));
+        leadCreates.push(create);
+        if (key !== null) pendingLead.set(key, create);
+      }
+    }
+    bump(work.counts, createdAny ? "customFields.created" : "customFields.unchanged");
   }
 
-  if (!work.live || creates.length === 0) return;
+  if (!work.live || dealCreates.length + leadCreates.length === 0) return;
   await prisma.salesCustomField.createMany({
-    data: creates.map((c) => ({
-      key: c.key,
-      label: c.label,
-      entity: "DEAL" as const,
-      fieldType: c.fieldType,
-      options: c.options,
-      pipelineKeys: [],
-      position: c.position,
-    })),
+    data: [
+      ...dealCreates.map((c) => ({ ...fieldRow(c), entity: "DEAL" as const })),
+      ...leadCreates.map((c) => ({ ...fieldRow(c), entity: "LEAD" as const })),
+    ],
   });
-  const fresh = await prisma.salesCustomField.findMany({ where: { key: { in: creates.map((c) => c.key) } }, select: { id: true, key: true } });
+  const fresh = await prisma.salesCustomField.findMany({
+    where: { key: { in: [...dealCreates, ...leadCreates].map((c) => c.key) } },
+    select: { id: true, key: true },
+  });
   const idByKey = new Map(fresh.map((f) => [f.key, f.id]));
-  for (const c of creates) for (const pdKey of c.pdKeys) ctx.fields[pdKey].dealFieldId = idByKey.get(c.key) ?? null;
+  for (const c of dealCreates) for (const pdKey of c.pdKeys) ctx.fields[pdKey].dealFieldId = idByKey.get(c.key) ?? null;
+  for (const c of leadCreates) for (const pdKey of c.pdKeys) ctx.fields[pdKey].leadFieldId = idByKey.get(c.key) ?? null;
+}
+
+function fieldRow(c: { key: string; label: string; fieldType: "TEXT" | "NUMBER" | "DATE" | "SELECT"; options: string[]; position: number }) {
+  return { key: c.key, label: c.label, fieldType: c.fieldType, options: c.options, pipelineKeys: [] as string[], position: c.position };
+}
+
+/**
+ * Where a new lead field's key starts. A custom field's key is unique across
+ * deal and lead fields, and the deal field of the same name usually holds the
+ * plain name already, so the lead field takes "-lead" after it. The screens
+ * never show a key; it only has to be unique and the same on every run.
+ */
+function leadKeyBase(name: string, taken: Set<string>): string {
+  const base = kebab(name) || "field";
+  return taken.has(base) ? `${base}-lead` : base;
 }

@@ -63,9 +63,10 @@ const ENTITIES: { entity: CheckEntity; label: string }[] = [
 
 /**
  * A cursor list (API v2) allows 500 a page, so a count takes a fifth of the
- * requests the engine's 100 would. Offset lists stay at the engine's page size:
- * leads send no pagination block, so a short page is what ends the walk, and a
- * page size Pipedrive quietly cuts down would end the count early.
+ * requests the engine's 100 would (archived lists excepted, see where it is
+ * used). Offset lists stay at the engine's page size: leads send no pagination
+ * block, so a short page is what ends the walk, and a page size Pipedrive
+ * quietly cuts down would end the count early.
  */
 const CURSOR_PAGE_LIMIT = 500;
 
@@ -108,7 +109,8 @@ async function countInPipedrive(client: PipedriveClient, entity: CheckEntity): P
   let copyable = 0;
   let refused = 0;
   for (const source of ROW_SOURCES[entity]) {
-    const limit = source.style === "cursor" ? CURSOR_PAGE_LIMIT : PAGE_LIMIT;
+    // An archived list keeps the engine's page size: Pipedrive documents the 500 a page for the main lists only.
+    const limit = source.style === "cursor" && !source.archived ? CURSOR_PAGE_LIMIT : PAGE_LIMIT;
     for await (const batch of client.pageBatches<Record<string, unknown>>(source.path, { style: source.style, limit })) {
       for (const record of batch.items) {
         if ("skip" in map(record, UNUSED_DATE)) refused += 1;
