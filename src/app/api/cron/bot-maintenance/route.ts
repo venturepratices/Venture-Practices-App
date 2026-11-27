@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { reportCronFailure } from "@/lib/cron-failure";
 import { runBotMaintenance } from "@/lib/sales/bot-maintenance";
 import { checkBearer } from "@/lib/secret-compare";
 
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, ...(await runBotMaintenance()) });
   } catch (error) {
     console.error("Bot maintenance failed:", error instanceof Error ? error.message : "unknown error");
+    await reportCronFailure("bot-maintenance", error);
     return NextResponse.json({ ok: false, error: "Bot maintenance failed" }, { status: 500 });
   }
 }

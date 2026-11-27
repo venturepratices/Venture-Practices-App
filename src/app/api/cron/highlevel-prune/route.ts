@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { reportCronFailure } from "@/lib/cron-failure";
 import { pruneAllConnectedClients } from "@/lib/highlevel";
 import { checkBearer } from "@/lib/secret-compare";
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, totalPruned, pruned });
   } catch (error) {
     console.error("HighLevel prune failed:", error);
+    await reportCronFailure("highlevel-prune", error);
     return NextResponse.json({ ok: false, error: "Prune failed" }, { status: 500 });
   }
 }
