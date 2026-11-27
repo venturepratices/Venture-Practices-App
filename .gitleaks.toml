@@ -1,0 +1,31 @@
+# Settings for the secret scan in .github/workflows/ci.yml (job "secrets").
+#
+# It starts from gitleaks' full default rule set, so every real key format it
+# knows is still caught. Only the known harmless placeholders below are
+# skipped. Keep this list short. Before adding to it, make sure the value is
+# really fake. If a real secret is ever found, rotate it. Do not allowlist it.
+
+title = "Venture Practices secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known harmless placeholders only"
+
+# Whole files or folders that hold fake values by design.
+paths = [
+  # Test files. They use obviously fake tokens, keys and links in the real
+  # shapes (for example a fake Slack bot token) to prove the app handles them.
+  '''^tests/''',
+  # The template that lists variable names with blank or example values.
+  '''^\.env\.example$''',
+]
+
+# Exact placeholder text copied from the CI workflow's env block. These are
+# written out in full (not as a loose pattern), so any other value still gets
+# scanned. They point at no real database or account.
+regexes = [
+  '''ci-placeholder-secret-not-a-real-credential''',
+  '''postgresql://ci:ci@localhost:5432/ci''',
+]
