@@ -1,0 +1,32 @@
+# Opens pull requests for library and workflow updates. It never merges
+# anything by itself. Each pull request still has to pass CI.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Counts grouped pull requests as one each.
+    open-pull-requests-limit: 3
+    groups:
+      # All minor and patch updates arrive together in one pull request.
+      # Major version jumps stay separate, so each gets its own review.
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
